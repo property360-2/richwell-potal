@@ -261,6 +261,7 @@ class TestINCExpiry:
         # Submit INC grade and finalize
         submit_grade(professor_user, subject_enrollments[0], 'INC')
         finalize_grades(registrar_user, enrollment.semester)
+        subject_enrollments[0].refresh_from_db()
 
         # Set inc_start_date to 7 months ago
         subject_enrollments[0].inc_start_date = (timezone.now() - timedelta(days=210)).date()
@@ -283,6 +284,7 @@ class TestINCExpiry:
         # Submit INC grade and finalize
         submit_grade(professor_user, subject_enrollments[0], 'INC')
         finalize_grades(registrar_user, enrollment.semester)
+        subject_enrollments[0].refresh_from_db()
 
         # Set inc_start_date to 13 months ago
         subject_enrollments[0].inc_start_date = (timezone.now() - timedelta(days=390)).date()
@@ -320,6 +322,7 @@ class TestINCExpiry:
 
         submit_grade(professor_user, subject_enrollments[0], 'INC')
         finalize_grades(registrar_user, enrollment.semester)
+        subject_enrollments[0].refresh_from_db()
 
         # Make it expire
         subject_enrollments[0].inc_start_date = (timezone.now() - timedelta(days=210)).date()
@@ -346,6 +349,7 @@ class TestLOAPause:
 
         submit_grade(professor_user, subject_enrollments[0], 'INC')
         finalize_grades(registrar_user, enrollment.semester)
+        subject_enrollments[0].refresh_from_db()
 
         # Set inc_start_date
         subject_enrollments[0].inc_start_date = (timezone.now() - timedelta(days=200)).date()

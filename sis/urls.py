@@ -14,5 +14,7 @@ urlpatterns = [
     path('drop/<int:enrollment_id>/', views.DropSubjectView.as_view(), name='drop_subject'),
 
     # Cashier payment views
+    path('cashier/', views.CashierDashboardView.as_view(), name='cashier_dashboard'),
     path('payment/<str:student_id>/', views.RecordPaymentView.as_view(), name='record_payment'),
+    path('receipt/<int:payment_id>/', views.PaymentReceiptView.as_view(), name='payment_receipt'),
 ]

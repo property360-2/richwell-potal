@@ -218,6 +218,35 @@ class DropSubjectView(LoginRequiredMixin, FormView):
 
 # ===== CASHIER VIEWS =====
 
+class CashierDashboardView(UserPassesTestMixin, TemplateView):
+    """Cashier dashboard to search and manage student payments."""
+    template_name = 'payment/cashier_dashboard.html'
+    login_url = reverse_lazy('sis:login')
+
+    def test_func(self):
+        # Check if user is cashier or admin
+        return self.request.user.role in ['CASHIER', 'ADMIN'] or self.request.user.is_staff
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        query = self.request.GET.get('q', '')
+
+        if query:
+            # Search by student ID or name
+            from django.db.models import Q
+            students = Student.objects.filter(
+                Q(student_id__icontains=query) |
+                Q(user__first_name__icontains=query) |
+                Q(user__last_name__icontains=query)
+            ).select_related('user', 'program').prefetch_related('enrollments')[:20]
+        else:
+            students = []
+
+        context['query'] = query
+        context['students'] = students
+        return context
+
+
 class RecordPaymentView(UserPassesTestMixin, FormView):
     """Cashier records student payment."""
     template_name = 'payment/record_payment.html'
@@ -225,20 +254,26 @@ class RecordPaymentView(UserPassesTestMixin, FormView):
     login_url = reverse_lazy('sis:login')
 
     def test_func(self):
-        # Check if user is admin/cashier (has admin access)
-        return self.request.user.is_staff
+        # Check if user is cashier or admin
+        return self.request.user.role in ['CASHIER', 'ADMIN'] or self.request.user.is_staff
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         enrollment = None
+        student = None
         try:
             student = Student.objects.get(student_id=self.kwargs.get('student_id'))
             enrollment = student.enrollments.first()
+
+            if enrollment:
+                # Get payment months for context
+                payment_months = enrollment.payment_months.all().order_by('month_number')
+                context['payment_months'] = payment_months
         except Student.DoesNotExist:
             pass
 
         context['enrollment'] = enrollment
-        context['student'] = student if enrollment else None
+        context['student'] = student
         return context
 
     def form_valid(self, form):
@@ -248,7 +283,7 @@ class RecordPaymentView(UserPassesTestMixin, FormView):
 
             if not enrollment:
                 messages.error(self.request, 'Enrollment not found.')
-                return redirect('sis:record_payment', student_id=self.kwargs['student_id'])
+                return redirect('sis:cashier_dashboard')
 
             with transaction.atomic():
                 result = allocate_payment(
@@ -256,16 +291,46 @@ class RecordPaymentView(UserPassesTestMixin, FormView):
                     form.cleaned_data['amount'],
                     form.cleaned_data['payment_method'],
                     form.cleaned_data['reference_number'],
-                    self.request.user
+                    self.request.user,
+                    notes=form.cleaned_data.get('notes', '')
                 )
                 messages.success(
                     self.request,
-                    f'Payment recorded: PHP {result["amount_paid"]} allocated to Month {result["month"]}'
+                    f'Payment recorded: PHP {result["amount_paid"]:.2f} allocated to Month {result["month"]}'
                 )
-                return redirect('sis:student_dashboard')
+                # Redirect to receipt
+                payment = Payment.objects.filter(
+                    enrollment=enrollment,
+                    reference_number=form.cleaned_data['reference_number']
+                ).first()
+                if payment:
+                    return redirect('sis:payment_receipt', payment_id=payment.id)
+                return redirect('sis:cashier_dashboard')
         except Exception as e:
             messages.error(self.request, f'Error recording payment: {str(e)}')
             return self.form_invalid(form)
 
     def get_success_url(self):
-        return reverse_lazy('sis:student_dashboard')
+        return reverse_lazy('sis:cashier_dashboard')
+
+
+class PaymentReceiptView(LoginRequiredMixin, DetailView):
+    """View and print payment receipt."""
+    template_name = 'payment/receipt.html'
+    model = Payment
+    context_object_name = 'payment'
+    login_url = reverse_lazy('sis:login')
+    pk_url_kwarg = 'payment_id'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        payment = self.get_object()
+        # Check if user is the student or cashier/admin
+        is_student = hasattr(self.request.user, 'student_profile') and payment.student.user == self.request.user
+        is_cashier = self.request.user.role in ['CASHIER', 'ADMIN'] or self.request.user.is_staff
+
+        if not (is_student or is_cashier):
+            raise HttpResponseForbidden()
+
+        context['is_printable'] = True
+        return context

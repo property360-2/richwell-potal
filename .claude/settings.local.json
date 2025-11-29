@@ -17,7 +17,11 @@
       "Bash(python:*)",
       "Bash(timeout 180 python -m pytest:*)",
       "Bash(dir /s /b c:UsersAdministratorDesktoprichwell-potaltemplates)",
-      "Bash(timeout 30 python manage.py check:*)"
+      "Bash(timeout 30 python manage.py check:*)",
+      "Bash(timeout 30 python -m pytest:*)",
+      "Bash(pytest:*)",
+      "Bash(timeout 120 pytest:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

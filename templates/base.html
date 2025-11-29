@@ -232,13 +232,15 @@
                             </li>
                             {% if user.role == 'STUDENT' %}
                                 <li class="nav-item">
-                                    <a class="nav-link" href="#">Enrollments</a>
+                                    <a class="nav-link" href="{% url 'sis:student_dashboard' %}">My Enrollment</a>
                                 </li>
                                 <li class="nav-item">
                                     <a class="nav-link" href="#">Grades</a>
                                 </li>
+                            {% endif %}
+                            {% if user.role == 'CASHIER' %}
                                 <li class="nav-item">
-                                    <a class="nav-link" href="#">Payments</a>
+                                    <a class="nav-link" href="{% url 'sis:cashier_dashboard' %}">Process Payments</a>
                                 </li>
                             {% endif %}
                             {% if user.role in 'REGISTRAR,HEAD_REGISTRAR,ADMIN' %}

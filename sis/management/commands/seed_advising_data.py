@@ -23,6 +23,11 @@ class Command(BaseCommand):
         with transaction.atomic():
             self.stdout.write("Seeding advising test data...")
 
+            # Phase 0: Create test accounts
+            self.stdout.write("Phase 0: Creating test user accounts...")
+            self._create_cashier_account()
+            self.stdout.write(self.style.SUCCESS("  Created cashier test account"))
+
             # Phase 1: Create base data
             self.stdout.write("Phase 1: Creating base data...")
             self._create_program()
@@ -52,6 +57,22 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("  Created payment history for 3 students"))
 
             self.stdout.write(self.style.SUCCESS("\nAdvising test data seeded successfully!"))
+
+    def _create_cashier_account(self):
+        """Create cashier test account for payment processing."""
+        cashier_user, created = User.objects.get_or_create(
+            username='cashier',
+            defaults={
+                'email': 'cashier@richwell.edu',
+                'first_name': 'Maria',
+                'last_name': 'Santos',
+                'role': 'CASHIER',
+                'is_staff': True
+            }
+        )
+        if created:
+            cashier_user.set_password('password123')
+            cashier_user.save()
 
     def _create_program(self):
         """Create Computer Science program."""
