@@ -301,9 +301,11 @@ def semester():
 
 
 @pytest.fixture
-def subject():
-    """Create a subject for testing."""
-    return SubjectFactory()
+def subject(semester, professor):
+    """Create a subject with a section for testing."""
+    subj = SubjectFactory()
+    SectionFactory(subject=subj, semester=semester, professor=professor)
+    return subj
 
 
 @pytest.fixture
@@ -437,3 +439,144 @@ def setup_grade_scenario(enrollment, semester):
         subject_enrollments.append(se)
 
     return enrollment, subject_enrollments
+
+
+@pytest.fixture
+def subject_factory():
+    """Factory fixture for creating subjects dynamically."""
+    return SubjectFactory
+
+
+@pytest.fixture
+def subject_with_prereq(program, semester, professor):
+    """Create a subject with prerequisites."""
+    # Create prerequisite subject
+    prerequisite = SubjectFactory(
+        code="PREREQ001",
+        units=3,
+        subject_type="MAJOR",
+        program=program
+    )
+
+    # Create section for prerequisite
+    SectionFactory(subject=prerequisite, semester=semester, professor=professor)
+
+    # Create main subject with prerequisite
+    main_subject = SubjectFactory(
+        code="MAIN001",
+        units=3,
+        subject_type="MAJOR",
+        program=program
+    )
+    main_subject.prerequisites.add(prerequisite)
+
+    # Create section for main subject
+    SectionFactory(subject=main_subject, semester=semester, professor=professor)
+
+    return main_subject
+
+
+@pytest.fixture
+def subject_no_sections(program):
+    """Create a subject with no sections."""
+    return SubjectFactory(
+        code="NOSEC001",
+        units=3,
+        subject_type="MAJOR",
+        program=program
+    )
+
+
+@pytest.fixture
+def heavy_load_subjects(program, semester, professor):
+    """Create subjects with various unit loads for testing unit cap."""
+    subjects = []
+
+    # Small subjects (3 units each) - for building up to cap
+    for i in range(3):
+        subject = SubjectFactory(
+            code=f"SMALL{i:03d}",
+            units=3,
+            subject_type="MAJOR",
+            program=program
+        )
+        SectionFactory(subject=subject, semester=semester, professor=professor)
+        subjects.append(subject)
+
+    # Large subject (25 units) - would exceed cap
+    large_subject = SubjectFactory(
+        code="LARGE001",
+        units=25,
+        subject_type="MAJOR",
+        program=program
+    )
+    SectionFactory(subject=large_subject, semester=semester, professor=professor)
+    subjects.append(large_subject)
+
+    # Medium subject (21 units) - for exact cap testing
+    medium_subject = SubjectFactory(
+        code="MEDIUM001",
+        units=21,
+        subject_type="MAJOR",
+        program=program
+    )
+    SectionFactory(subject=medium_subject, semester=semester, professor=professor)
+    subjects.append(medium_subject)
+
+    return subjects
+
+
+@pytest.fixture
+def setup_enrollment_scenario(student, semester, professor):
+    """Set up a complete enrollment scenario with prerequisites."""
+    enrollment = EnrollmentFactory(student=student, semester=semester)
+    program = student.program
+
+    # Create prerequisite subject
+    prerequisite = SubjectFactory(
+        code="PREREQ001",
+        units=3,
+        subject_type="MAJOR",
+        program=program
+    )
+    prereq_section = SectionFactory(
+        subject=prerequisite,
+        semester=semester,
+        professor=professor
+    )
+
+    # Create subject with prerequisite
+    subject_with_prereq = SubjectFactory(
+        code="ADVANCED001",
+        units=3,
+        subject_type="MAJOR",
+        program=program
+    )
+    subject_with_prereq.prerequisites.add(prerequisite)
+    main_section = SectionFactory(
+        subject=subject_with_prereq,
+        semester=semester,
+        professor=professor
+    )
+
+    # Enroll student in prerequisite with PASSED status
+    SubjectEnrollmentFactory(
+        enrollment=enrollment,
+        subject=prerequisite,
+        section=prereq_section,
+        enrollment_status='COMPLETED',
+        subject_status='PASSED',
+        grade_status='FINALIZED'
+    )
+
+    # Create payment months for enrollment
+    for month_num in range(1, 7):
+        PaymentMonthFactory(
+            enrollment=enrollment,
+            month_number=month_num,
+            amount_due=10000.00,
+            amount_paid=0.00,
+            is_paid=False,
+        )
+
+    return enrollment, prerequisite, subject_with_prereq

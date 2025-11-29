@@ -101,11 +101,7 @@ def validate_prerequisites(student, subject):
 
         if not prev_enrollment:
             missing.append(f"{prereq.code} (not taken)")
-        elif prev_enrollment.subject_status in [
-            SubjectEnrollment.INC,
-            SubjectEnrollment.FAILED,
-            SubjectEnrollment.RETAKE
-        ]:
+        elif prev_enrollment.subject_status in ['INC', 'FAILED', 'RETAKE']:
             missing.append(f"{prereq.code} (status: {prev_enrollment.subject_status})")
 
     if missing:
@@ -210,11 +206,11 @@ def check_professor_conflict(professor, new_section):
         semester=new_section.semester
     ).exclude(id=new_section.id)
 
-    new_slots = new_section.scheduleslot_set.all()
+    new_slots = new_section.schedule_slots.all()
     conflicting = []
 
     for existing in existing_sections:
-        existing_slots = existing.scheduleslot_set.all()
+        existing_slots = existing.schedule_slots.all()
 
         for new_slot in new_slots:
             for existing_slot in existing_slots:
@@ -259,14 +255,14 @@ def check_student_conflict(student, new_section):
         enrollment__semester=semester
     ).select_related('section')
 
-    new_slots = new_section.scheduleslot_set.all()
+    new_slots = new_section.schedule_slots.all()
     conflicting = []
 
     for enrollment in existing_enrollments:
         if not enrollment.section:
             continue
 
-        existing_slots = enrollment.section.scheduleslot_set.all()
+        existing_slots = enrollment.section.schedule_slots.all()
 
         for new_slot in new_slots:
             for existing_slot in existing_slots:
