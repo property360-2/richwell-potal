@@ -53,7 +53,7 @@ def log_payment(user, enrollment, amount, method, reference_number, ip_address="
     Args:
         user: User (cashier/admin) recording the payment
         enrollment: Enrollment receiving the payment
-        amount: Payment amount
+        amount: Payment amount (Decimal)
         method: Payment method
         reference_number: Reference/receipt number
         ip_address: IP address of the requester
@@ -62,14 +62,14 @@ def log_payment(user, enrollment, amount, method, reference_number, ip_address="
         AuditLog instance
     """
     before_state = {
-        "total_paid": sum(pm.amount_paid for pm in enrollment.payment_months.all()),
+        "total_paid": float(sum(pm.amount_paid for pm in enrollment.payment_months.all())),
         "months_paid": [
             pm.month_number for pm in enrollment.payment_months.filter(is_paid=True)
         ]
     }
 
     after_state = {
-        "amount": amount,
+        "amount": float(amount),
         "method": method,
         "reference_number": reference_number
     }
