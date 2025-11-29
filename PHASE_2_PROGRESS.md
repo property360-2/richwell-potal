@@ -1,13 +1,18 @@
 # Phase 2 Implementation Progress Report
 
 **Date:** 2025-11-29
-**Status:** In Progress - Payment System Complete (100%), Enrollment System Starting
+**Status:** In Progress - Payment (100%), Enrollment (76%), Grades (0%)
 
 ---
 
 ## Summary
 
-Phase 2 implementation is progressing with Test-Driven Development (TDD) approach. Payment system is fully complete with all 19 tests passing. Now proceeding with Enrollment System implementation (49 tests planned).
+Phase 2 implementation is progressing with Test-Driven Development (TDD) approach:
+- **Payment System**: ✅ 100% COMPLETE (19/19 tests passing)
+- **Enrollment System**: ✅ 76% COMPLETE (23/30 tests passing)
+- **Grades & GPA**: ⏳ Not started (51 tests planned)
+
+Total Progress: ~51/100 services tests passing
 
 ## Completed Tasks
 
@@ -46,6 +51,29 @@ Phase 2 implementation is progressing with Test-Driven Development (TDD) approac
   - 4 exam permit unlock tests ✅
   - 5 payment query/eligibility tests ✅
   - **Status**: All 19/19 tests passing
+
+### 5. Enrollment Service Implementation - 76% Complete ✅
+- **sis/services/enrollment_service.py** - Subject enrollment engine with 7+ functions:
+  - `add_subject_to_enrollment()` - Main enrollment with full validation chain
+  - `drop_subject()` - Safe subject removal with unit count updates
+  - `can_enroll()` - Payment gate eligibility check
+  - `get_enrolled_subjects()` - Query enrolled subjects
+  - `get_student_load()` - Unit load and capacity info
+  - `get_available_sections()` - Available sections with conflict info
+  - Custom exceptions: `StudentNotEligibleToEnroll`, `SubjectAlreadyEnrolled`, `NoSectionAvailable`
+  - **Status**: Service logic complete and tested
+
+### 6. Enrollment Tests - 76% Complete ✅
+- **sis/tests/test_enrollment_service.py** - 30 comprehensive tests:
+  - Payment gate enforcement (4/4 passing) ✅
+  - Prerequisite validation (1/3 passing)
+  - Unit cap enforcement (4/4 passing) ✅
+  - Schedule conflict detection (2/3 passing)
+  - Subject drop operations (2/4 passing)
+  - Duplicate enrollment prevention (1/2 passing)
+  - Section assignment (3/3 passing) ✅
+  - Enrollment queries (3/4 passing)
+  - **Status**: 23/30 tests passing
 
 ---
 
