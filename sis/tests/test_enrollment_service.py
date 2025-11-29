@@ -135,8 +135,10 @@ class TestPrerequisiteValidation:
 
         assert result['subject_enrollment'].subject == subject_with_prereq
 
-    def test_cannot_enroll_with_failed_prerequisite(self, enrollment, subject_with_prereq, registrar_user, cashier_user):
+    def test_cannot_enroll_with_failed_prerequisite(self, setup_payment_scenario, subject_with_prereq, registrar_user, cashier_user):
         """Test: Cannot enroll if prerequisite has FAILED status."""
+        enrollment, months = setup_payment_scenario
+
         # Create a SubjectEnrollment for prerequisite with FAILED status
         prerequisite = subject_with_prereq.prerequisites.first()
         failed_enrollment = SubjectEnrollment.objects.create(
@@ -149,16 +151,6 @@ class TestPrerequisiteValidation:
 
         # Pay Month 1
         from sis.services.payment_service import allocate_payment
-        from sis.tests.conftest import setup_payment_scenario_factory
-        from sis.models import PaymentMonth
-        for i in range(1, 7):
-            PaymentMonth.objects.create(
-                enrollment=enrollment,
-                month_number=i,
-                amount_due=Decimal('10000'),
-                amount_paid=Decimal('0'),
-                is_paid=False
-            )
         allocate_payment(enrollment, 10000, "CASH", "REF001", cashier_user)
 
         # Should raise PrerequisiteNotMet
@@ -169,8 +161,10 @@ class TestPrerequisiteValidation:
                 user=registrar_user
             )
 
-    def test_cannot_enroll_with_inc_prerequisite(self, enrollment, subject_with_prereq, registrar_user, cashier_user):
+    def test_cannot_enroll_with_inc_prerequisite(self, setup_payment_scenario, subject_with_prereq, registrar_user, cashier_user):
         """Test: Cannot enroll if prerequisite has INC status."""
+        enrollment, months = setup_payment_scenario
+
         prerequisite = subject_with_prereq.prerequisites.first()
         inc_enrollment = SubjectEnrollment.objects.create(
             enrollment=enrollment,
@@ -183,15 +177,6 @@ class TestPrerequisiteValidation:
 
         # Pay Month 1
         from sis.services.payment_service import allocate_payment
-        from sis.models import PaymentMonth
-        for i in range(1, 7):
-            PaymentMonth.objects.create(
-                enrollment=enrollment,
-                month_number=i,
-                amount_due=Decimal('10000'),
-                amount_paid=Decimal('0'),
-                is_paid=False
-            )
         allocate_payment(enrollment, 10000, "CASH", "REF001", cashier_user)
 
         # Should raise PrerequisiteNotMet
@@ -376,11 +361,11 @@ class TestSubjectDrop:
         assert subject_enrollment.enrollment_status == 'DROPPED'
         assert subject_enrollment.dropped_date is not None
 
-    def test_cannot_drop_already_dropped_subject(self, enrollment, registrar_user):
+    def test_cannot_drop_already_dropped_subject(self, enrollment, subject, registrar_user):
         """Test: Cannot drop a subject that's already dropped."""
         dropped_enrollment = SubjectEnrollment.objects.create(
             enrollment=enrollment,
-            subject__code='TEST101',
+            subject=subject,
             enrollment_status='DROPPED',
             dropped_date=timezone.now()
         )
@@ -412,15 +397,18 @@ class TestSubjectDrop:
         assert enrollment.total_units == units_after_enroll - subject.units
         assert drop_result['new_total_units'] == enrollment.total_units
 
-    def test_drop_multiple_subjects_sequential(self, setup_payment_scenario, subject_factory, registrar_user, cashier_user):
+    def test_drop_multiple_subjects_sequential(self, setup_payment_scenario, subject_factory, professor, registrar_user, cashier_user):
         """Test: Can drop multiple subjects in sequence."""
         enrollment, months = setup_payment_scenario
         from sis.services.payment_service import allocate_payment
         allocate_payment(enrollment, 10000, "CASH", "REF001", cashier_user)
 
-        # Enroll in 2 subjects
+        # Enroll in 2 subjects (create sections for them)
+        from sis.models import Section
         subj1 = subject_factory(units=3)
         subj2 = subject_factory(units=3)
+        Section.objects.create(code='S001', subject=subj1, semester=enrollment.semester, professor=professor, capacity=30)
+        Section.objects.create(code='S002', subject=subj2, semester=enrollment.semester, professor=professor, capacity=30)
 
         enroll1 = add_subject_to_enrollment(enrollment, subj1, user=registrar_user)
         enroll2 = add_subject_to_enrollment(enrollment, subj2, user=registrar_user)
@@ -590,6 +578,7 @@ class TestEnrollmentQueries:
 
         # Enroll
         add_subject_to_enrollment(enrollment, subject, user=registrar_user)
+        enrollment.refresh_from_db()
 
         load = get_student_load(enrollment)
         assert load['max_units'] == 30

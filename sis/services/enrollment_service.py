@@ -111,6 +111,13 @@ def add_subject_to_enrollment(
             f"Student already enrolled in {subject.code} this semester"
         )
 
+    # Delete any old DROPPED records to allow re-enrollment (due to unique constraint)
+    SubjectEnrollment.objects.filter(
+        enrollment=enrollment,
+        subject=subject,
+        enrollment_status='DROPPED'
+    ).delete()
+
     # Payment gate: Month 1 must be paid
     if not is_month_1_paid(enrollment):
         raise StudentNotEligibleToEnroll(
@@ -156,7 +163,7 @@ def add_subject_to_enrollment(
             [s.subject.code for s in conflicting_sections]
         )
 
-    if has_conflict and not override_reason:
+    if override_schedule_conflict and not override_reason:
         raise ValueError(
             "override_reason required when override_schedule_conflict=True"
         )
