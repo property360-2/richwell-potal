@@ -4,7 +4,7 @@ Handles grade submission, finalization, GPA calculation, and INC expiry logic.
 
 CRITICAL BUSINESS RULES:
 1. Grade submitted by professor, finalized by registrar
-2. GPA calculated on 4.0 scale based on completed (finalized) grades
+2. GPA calculated on 4.0 scale based on finalized grades
 3. INC (Incomplete) expires: Major (6 months), Minor (12 months)
 4. INC clock pauses during Leave of Absence (LOA)
 5. Only registrar can override finalized grades with reason
@@ -84,8 +84,8 @@ def submit_grade(
         raise InvalidGradeValue(f"Invalid grade value: {grade_value}")
 
     # Check if grade is already finalized
-    grade = subject_enrollment.grade_set.first()
-    if grade and grade.grade_status == 'FINALIZED':
+    grade = getattr(subject_enrollment, 'grade_record', None)
+    if grade and grade.is_finalized:
         raise GradeAlreadyFinalized("Cannot modify finalized grade")
 
     # Get or create grade record
@@ -93,18 +93,20 @@ def submit_grade(
         grade = Grade.objects.create(
             subject_enrollment=subject_enrollment,
             grade_value=grade_value,
-            grade_status='SUBMITTED',
             submitted_by=user,
             submitted_date=timezone.now(),
             comments=comments
         )
     else:
         grade.grade_value = grade_value
-        grade.grade_status = 'SUBMITTED'
         grade.submitted_by = user
         grade.submitted_date = timezone.now()
         grade.comments = comments
         grade.save()
+
+    # Update subject enrollment grade status
+    subject_enrollment.grade_status = 'SUBMITTED'
+    subject_enrollment.save()
 
     # Create audit log
     log_grade_submitted(user, grade, ip_address)
@@ -138,12 +140,11 @@ def finalize_grades(user, semester, ip_address="127.0.0.1"):
     # Get all grades in SUBMITTED status for this semester
     grades_to_finalize = Grade.objects.filter(
         subject_enrollment__enrollment__semester=semester,
-        grade_status='SUBMITTED'
+        is_finalized=False
     ).select_related('subject_enrollment__subject')
 
     finalized_count = 0
     updated_gpas = set()
-    converted_inc = 0
 
     for grade in grades_to_finalize:
         subject_enrollment = grade.subject_enrollment
@@ -162,10 +163,9 @@ def finalize_grades(user, semester, ip_address="127.0.0.1"):
 
         # Mark grade as finalized
         grade.grade_value = grade.grade_value
-        grade.grade_status = 'FINALIZED'
+        grade.is_finalized = True
         grade.finalized_by = user
         grade.finalized_date = timezone.now()
-        grade.is_finalized = True
 
         subject_enrollment.grade_status = 'FINALIZED'
         subject_enrollment.save()
@@ -185,7 +185,7 @@ def finalize_grades(user, semester, ip_address="127.0.0.1"):
     return {
         'finalized_count': finalized_count,
         'updated_gpas': len(updated_gpas),
-        'converted_inc': converted_inc
+        'converted_inc': 0
     }
 
 
@@ -222,7 +222,7 @@ def override_finalized_grade(
 
     old_value = grade.grade_value
     grade.grade_value = new_value
-    grade.grade_status = 'FINALIZED'
+    grade.is_finalized = True
     grade.finalized_by = user
     grade.finalized_date = timezone.now()
     grade.override_reason = reason
@@ -285,7 +285,7 @@ def calculate_gpa(student, semester=None):
             continue
 
         # Get grade value from related Grade record
-        grade = Grade.objects.filter(subject_enrollment=enrollment).first()
+        grade = getattr(enrollment, 'grade_record', None)
         if not grade:
             continue
 
@@ -369,7 +369,7 @@ def get_transcript(student, semester=None):
                 'quality_points': Decimal('0')
             }
 
-        grade = Grade.objects.filter(subject_enrollment=enrollment).first()
+        grade = getattr(enrollment, 'grade_record', None)
         if not grade:
             continue
 
@@ -476,15 +476,14 @@ def check_inc_expiry(student=None, user=None, ip_address="127.0.0.1"):
             enrollment.save()
 
             # Create Grade record if not exists
-            grade = Grade.objects.filter(subject_enrollment=enrollment).first()
+            grade = getattr(enrollment, 'grade_record', None)
             if not grade:
                 grade = Grade.objects.create(
                     subject_enrollment=enrollment,
                     grade_value='F',
-                    grade_status='FINALIZED',
+                    is_finalized=True,
                     finalized_by=user,
-                    finalized_date=timezone.now(),
-                    is_finalized=True
+                    finalized_date=timezone.now()
                 )
 
             # Recalculate GPA

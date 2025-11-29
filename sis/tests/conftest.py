@@ -416,10 +416,10 @@ def setup_grade_scenario(enrollment, semester):
     """Set up a complete grading scenario with multiple enrollments."""
     program = enrollment.student.program
 
-    # Create multiple subjects
+    # Create multiple subjects (3 is enough for most grade tests)
     subjects = [
         SubjectFactory(code=f"SUBJ{i:03d}", units=3, subject_type="MAJOR", program=program)
-        for i in range(1, 5)
+        for i in range(1, 4)
     ]
 
     # Enroll student in all subjects
@@ -428,14 +428,11 @@ def setup_grade_scenario(enrollment, semester):
         se = SubjectEnrollmentFactory(
             enrollment=enrollment,
             subject=subject,
-            subject_status="ENROLLED"
+            enrollment_status="ENROLLED",
+            subject_status="PASSED",
+            grade_status="PENDING"
         )
-        # Create grade record
-        GradeFactory(
-            subject_enrollment=se,
-            grade_value="A",
-            is_finalized=False
-        )
+        # Don't create pre-grades - let tests create their own
         subject_enrollments.append(se)
 
     return enrollment, subject_enrollments

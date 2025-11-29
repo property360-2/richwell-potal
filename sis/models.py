@@ -198,6 +198,8 @@ class SubjectEnrollment(models.Model):
     subject_status = models.CharField(max_length=20, choices=SUBJECT_STATUS_CHOICES, default='PASSED')
     enrolled_date = models.DateTimeField(auto_now_add=True)
     dropped_date = models.DateTimeField(blank=True, null=True)
+    inc_start_date = models.DateField(blank=True, null=True, help_text="Date when INC status was assigned")
+    loa_pause_days = models.IntegerField(default=0, help_text="Total days LOA paused INC clock")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
