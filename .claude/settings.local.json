@@ -13,7 +13,11 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(timeout 60 python:*)",
-      "Bash(timeout 120 python:*)"
+      "Bash(timeout 120 python:*)",
+      "Bash(python:*)",
+      "Bash(timeout 180 python -m pytest:*)",
+      "Bash(dir /s /b c:UsersAdministratorDesktoprichwell-potaltemplates)",
+      "Bash(timeout 30 python manage.py check:*)"
     ],
     "deny": [],
     "ask": []

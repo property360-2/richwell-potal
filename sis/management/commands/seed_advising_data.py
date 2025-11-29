@@ -21,14 +21,19 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         with transaction.atomic():
+            self.stdout.write("Seeding advising test data...")
+
             # Phase 1: Create base data
+            self.stdout.write("Phase 1: Creating base data...")
             self._create_program()
             self._create_subjects_simple()
             self._create_semesters()
             self._create_professors()
             self._create_sections_simple()
+            self.stdout.write(self.style.SUCCESS("  Created program, subjects, semesters, professors, and sections"))
 
             # Phase 2: Create 8 student scenarios
+            self.stdout.write("Phase 2: Creating 8 student scenarios...")
             self._create_freshman_student()
             self._create_passing_student()
             self._create_inc_student()
@@ -37,11 +42,16 @@ class Command(BaseCommand):
             self._create_prerequisite_issue_student()
             self._create_transfer_student()
             self._create_low_gpa_student()
+            self.stdout.write(self.style.SUCCESS("  Created 8 student test scenarios"))
 
             # Phase 3: Create payment history for selected students
+            self.stdout.write("Phase 3: Creating payment history...")
             self._create_payment_history_for_student('SEED_SCENARIO_2')
             self._create_payment_history_for_student('SEED_SCENARIO_3')
             self._create_payment_history_for_student('SEED_SCENARIO_8')
+            self.stdout.write(self.style.SUCCESS("  Created payment history for 3 students"))
+
+            self.stdout.write(self.style.SUCCESS("\nAdvising test data seeded successfully!"))
 
     def _create_program(self):
         """Create Computer Science program."""
@@ -223,7 +233,7 @@ class Command(BaseCommand):
 
         semesters = Semester.objects.filter(year__in=[2023, 2024]).order_by('year', 'semester')[:2]
         semester_subjects = {
-            0: ['CS101', 'CS102', 'CS103'],
+                        0: ['CS101', 'CS102', 'CS103'],
             1: ['CS201', 'CS202', 'CS203'],
         }
 

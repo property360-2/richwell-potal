@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+
+{% block title %}Drop Subject - Richwell Colleges Portal{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+    <div class="container">
+        <h1><i class="bi bi-trash"></i> Drop Subject</h1>
+        <p class="lead mb-0">Confirm subject drop request</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-6 mx-auto">
+        <!-- Subject Details Card -->
+        <div class="card mb-4">
+            <div class="card-header bg-danger">
+                <i class="bi bi-exclamation-triangle"></i> Confirm Drop Subject
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning" role="alert">
+                    <strong><i class="bi bi-info-circle"></i> Please Note:</strong> Dropping a subject may affect your academic progress, GPA, and enrollment status. This action cannot be undone.
+                </div>
+
+                <!-- Subject Information -->
+                <div class="mb-4 p-3 bg-light rounded">
+                    <h5 class="mb-3"><i class="bi bi-book"></i> Subject Information</h5>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <p class="mb-2">
+                                <strong>Code:</strong><br>
+                                <span class="fs-5">{{ subject.code }}</span>
+                            </p>
+                        </div>
+                        <div class="col-sm-6">
+                            <p class="mb-2">
+                                <strong>Units:</strong><br>
+                                <span class="fs-5"><span class="badge bg-info">{{ subject.units }}</span></span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <p class="mb-0">
+                        <strong>Subject:</strong><br>
+                        {{ subject.name }}
+                    </p>
+                </div>
+
+                <!-- Enrollment Information -->
+                <div class="mb-4 p-3 bg-light rounded">
+                    <h5 class="mb-3"><i class="bi bi-bookmark"></i> Enrollment Details</h5>
+                    <p class="mb-2">
+                        <strong>Status:</strong> <span class="badge bg-success">{{ subject_enrollment.enrollment_status }}</span>
+                    </p>
+                    {% if subject_enrollment.section %}
+                        <p class="mb-0">
+                            <strong>Section:</strong> {{ subject_enrollment.section.name }}<br>
+                            <strong>Professor:</strong> {{ subject_enrollment.section.professor.get_full_name|default:"TBD" }}
+                        </p>
+                    {% else %}
+                        <p class="mb-0 text-muted">
+                            <em>No section assigned</em>
+                        </p>
+                    {% endif %}
+                </div>
+
+                <!-- Drop Reason -->
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            {{ form.non_field_errors }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endif %}
+
+                    <!-- Optional Reason Field -->
+                    <div class="mb-4">
+                        <label for="{{ form.reason.id_for_label }}" class="form-label">
+                            {{ form.reason.label }}
+                        </label>
+                        {{ form.reason }}
+                        {% if form.reason.errors %}
+                            <div class="invalid-feedback" style="display: block;">
+                                {{ form.reason.errors }}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted d-block mt-1">
+                            Help us improve by sharing why you're dropping this subject
+                        </small>
+                    </div>
+
+                    <!-- Confirmation Checkbox -->
+                    <div class="mb-4 p-3 bg-danger-light border border-danger rounded">
+                        <div class="form-check">
+                            {{ form.confirm }}
+                            <label class="form-check-label" for="{{ form.confirm.id_for_label }}">
+                                <strong>I understand that I am dropping <span class="text-danger">{{ subject.code }}</span> and I accept the consequences</strong>
+                            </label>
+                        </div>
+                        {% if form.confirm.errors %}
+                            <div class="invalid-feedback" style="display: block;">
+                                {{ form.confirm.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <i class="bi bi-trash"></i> Confirm Drop
+                        </button>
+                        <a href="{% url 'sis:student_dashboard' %}" class="btn btn-outline-secondary btn-lg">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Information Card -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-question-circle"></i> Need Help?
+            </div>
+            <div class="card-body">
+                <p class="mb-2">If you're unsure about dropping this subject, consider:</p>
+                <ul class="mb-3 ps-3">
+                    <li>Speaking with your academic advisor</li>
+                    <li>Consulting with your professor about your progress</li>
+                    <li>Reviewing the withdrawal deadline for this semester</li>
+                    <li>Understanding the impact on your financial aid (if applicable)</li>
+                </ul>
+                <p class="mb-0 text-muted">
+                    <i class="bi bi-info-circle"></i> Contact the registrar at <strong>registrar@richwell.edu</strong> if you have questions.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-danger-light {
+        background-color: rgba(220, 53, 69, 0.1);
+    }
+
+    .form-check-input {
+        margin-top: 0.35rem;
+        width: 1.3em;
+        height: 1.3em;
+    }
+
+    textarea.form-control {
+        resize: vertical;
+        font-size: 0.95rem;
+    }
+</style>
+{% endblock %}

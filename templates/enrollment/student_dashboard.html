@@ -1,0 +1,226 @@
+{% extends 'base.html' %}
+
+{% block title %}Student Dashboard - Richwell Colleges Portal{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+    <div class="container">
+        <h1><i class="bi bi-person-circle"></i> Student Dashboard</h1>
+        <p class="lead mb-0">{% if student %}{{ student.user.get_full_name|default:student.user.username }}{% endif %}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if not_a_student %}
+    <div class="alert alert-danger" role="alert">
+        <i class="bi bi-exclamation-circle"></i> You are not registered as a student.
+    </div>
+{% elif no_enrollment %}
+    <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> No active enrollment found. Please contact the registrar.
+    </div>
+{% else %}
+    <!-- Payment Status Section -->
+    {% if enrollment %}
+        <div class="row mb-4">
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-cash-coin"></i> Payment Status
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">
+                            <strong>Month 1 Payment:</strong>
+                            {% if month_1_paid %}
+                                <span class="badge bg-success">PAID</span>
+                            {% else %}
+                                <span class="badge bg-danger">NOT PAID</span>
+                            {% endif %}
+                        </p>
+                        <p class="mb-3">
+                            <strong>Outstanding Balance:</strong><br>
+                            <span class="fs-5 text-danger">PHP {{ balance|default:"0.00" }}</span>
+                        </p>
+                        {% if not month_1_paid %}
+                            <div class="alert alert-warning py-2 px-3" role="alert">
+                                <small><i class="bi bi-info-circle"></i> You must complete Month 1 payment before enrolling in subjects or taking exams.</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-book"></i> Current Load
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">
+                            <strong>Units Enrolled:</strong><br>
+                            <span class="fs-5">{{ load|default:"0" }} / 30 units</span>
+                        </p>
+                        <div class="progress mb-3" style="height: 24px;">
+                            {% widthratio load 30 100 as load_percent %}
+                            <div class="progress-bar bg-primary" role="progressbar"
+                                 style="width: {{ load_percent }}%;"
+                                 aria-valuenow="{{ load }}" aria-valuemin="0" aria-valuemax="30">
+                                {{ load_percent }}%
+                            </div>
+                        </div>
+                        {% if load < 30 %}
+                            <small class="text-muted">You can enroll in {{ 30|add:load|add:"-30" }} more units.</small>
+                        {% else %}
+                            <small class="text-warning">You have reached the maximum unit cap.</small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-pencil-square"></i> Semester Info
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-1">
+                            <strong>Program:</strong><br>
+                            {{ enrollment.student.program.name|default:"N/A" }}
+                        </p>
+                        <p class="mb-1">
+                            <strong>Year Level:</strong><br>
+                            {{ enrollment.student.year_level|default:"N/A" }}
+                        </p>
+                        <p class="mb-1">
+                            <strong>Semester:</strong><br>
+                            {{ enrollment.semester.name|default:"N/A" }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enrolled Subjects Section -->
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-check-circle"></i> Currently Enrolled Subjects
+                    </div>
+                    <div class="card-body">
+                        {% if enrolled_subjects %}
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>Subject Name</th>
+                                            <th>Units</th>
+                                            <th>Section</th>
+                                            <th>Professor</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for subject_enrollment in enrolled_subjects %}
+                                            <tr>
+                                                <td><strong>{{ subject_enrollment.subject.code }}</strong></td>
+                                                <td>{{ subject_enrollment.subject.name }}</td>
+                                                <td><span class="badge bg-info">{{ subject_enrollment.subject.units }}</span></td>
+                                                <td>
+                                                    {% if subject_enrollment.section %}
+                                                        {{ subject_enrollment.section.name }}
+                                                    {% else %}
+                                                        <small class="text-muted">TBD</small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if subject_enrollment.section.professor %}
+                                                        {{ subject_enrollment.section.professor.get_full_name }}
+                                                    {% else %}
+                                                        <small class="text-muted">TBD</small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-success">{{ subject_enrollment.enrollment_status }}</span>
+                                                </td>
+                                                <td>
+                                                    <a href="{% url 'sis:drop_subject' subject_enrollment.id %}"
+                                                       class="btn btn-sm btn-outline-danger">
+                                                        <i class="bi bi-trash"></i> Drop
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-muted text-center py-3 mb-0">
+                                <i class="bi bi-inbox"></i> No subjects enrolled yet.
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Available Subjects Section -->
+        {% if can_enroll %}
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-plus-circle"></i> Available Subjects for Enrollment
+                        </div>
+                        <div class="card-body">
+                            {% if available_subjects %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Code</th>
+                                                <th>Subject Name</th>
+                                                <th>Units</th>
+                                                <th>Description</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for subject in available_subjects %}
+                                                <tr>
+                                                    <td><strong>{{ subject.code }}</strong></td>
+                                                    <td>{{ subject.name }}</td>
+                                                    <td><span class="badge bg-secondary">{{ subject.units }}</span></td>
+                                                    <td>
+                                                        <small class="text-muted">{{ subject.description|truncatewords:10 }}</small>
+                                                    </td>
+                                                    <td>
+                                                        <a href="{% url 'sis:enroll_subject' %}" class="btn btn-sm btn-primary">
+                                                            <i class="bi bi-check-lg"></i> Enroll
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <p class="text-muted text-center py-3 mb-0">
+                                    <i class="bi bi-inbox"></i> No subjects available for enrollment at this time.
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-circle"></i> <strong>Payment Required:</strong> You must complete your Month 1 payment before you can enroll in subjects. Please contact the cashier.
+            </div>
+        {% endif %}
+    {% endif %}
+{% endif %}
+{% endblock %}
