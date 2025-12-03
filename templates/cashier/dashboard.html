@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Cashier Dashboard - Richwell Colleges{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <h1 class="h2 mb-0">Payment Recording</h1>
+            <p class="text-muted">Record student payments and track payment allocation</p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Form Section -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Record Payment</h5>
+
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
+
+                        <!-- Student Number -->
+                        <div class="mb-3">
+                            <label for="{{ form.student_number.id_for_label }}" class="form-label">
+                                Student Number <span class="text-danger">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                class="form-control {% if form.student_number.errors %}is-invalid{% endif %}"
+                                id="{{ form.student_number.id_for_label }}"
+                                name="student_number"
+                                placeholder="2025-000001"
+                                value="{{ form.student_number.value|default:'' }}"
+                                required
+                            >
+                            {% if form.student_number.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.student_number.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Amount -->
+                        <div class="mb-3">
+                            <label for="{{ form.amount.id_for_label }}" class="form-label">
+                                Payment Amount <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">PHP</span>
+                                <input
+                                    type="number"
+                                    class="form-control {% if form.amount.errors %}is-invalid{% endif %}"
+                                    id="{{ form.amount.id_for_label }}"
+                                    name="amount"
+                                    placeholder="5000.00"
+                                    step="0.01"
+                                    value="{{ form.amount.value|default:'' }}"
+                                    required
+                                >
+                                {% if form.amount.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.amount.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Payment Mode -->
+                        <div class="mb-4">
+                            <label class="form-label">Payment Mode <span class="text-danger">*</span></label>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="radio"
+                                            name="payment_mode"
+                                            id="payment_mode_cash"
+                                            value="CASH"
+                                            {% if form.payment_mode.value == 'CASH' %}checked{% endif %}
+                                            required
+                                        >
+                                        <label class="form-check-label" for="payment_mode_cash">
+                                            Cash
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="radio"
+                                            name="payment_mode"
+                                            id="payment_mode_online"
+                                            value="ONLINE"
+                                            {% if form.payment_mode.value == 'ONLINE' %}checked{% endif %}
+                                            required
+                                        >
+                                        <label class="form-check-label" for="payment_mode_online">
+                                            Online/Bank Transfer
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if form.payment_mode.errors %}
+                                <div class="text-danger small mt-2">
+                                    {% for error in form.payment_mode.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <i class="fas fa-check-circle"></i> Record Payment
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Section -->
+        <div class="col-lg-6">
+            <div class="card bg-light border-0 mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-info-circle text-info"></i> Payment Process
+                    </h5>
+                    <ol class="small mb-0">
+                        <li>Enter student number (format: YYYY-XXXXXX)</li>
+                        <li>Enter payment amount in PHP</li>
+                        <li>Select payment mode (Cash or Online)</li>
+                        <li>Click "Record Payment"</li>
+                        <li>Receipt will be generated automatically</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="card bg-light border-0">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-warning text-warning"></i> Sequential Allocation
+                    </h5>
+                    <p class="small mb-0">
+                        Payments are allocated to monthly buckets sequentially. Month 1 must be fully paid
+                        before Month 2 can receive payments. This ensures student eligibility for exam permits.
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <a href="{% url 'sis:payment_status' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-search"></i> Check Payment Status
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        border-radius: 0.5rem;
+    }
+    .btn-primary {
+        background-color: #0066cc;
+        border-color: #0066cc;
+    }
+    .btn-primary:hover {
+        background-color: #0052a3;
+        border-color: #0052a3;
+    }
+</style>
+{% endblock %}

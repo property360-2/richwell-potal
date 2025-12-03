@@ -7,7 +7,8 @@
       "Bash(python manage.py check:*)",
       "Bash(python manage.py shell:*)",
       "Bash(python manage.py dbshell:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(timeout 5 python:*)"
     ],
     "deny": [],
     "ask": []
