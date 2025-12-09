@@ -1,0 +1,160 @@
+/**
+ * Utility functions for the Richwell Colleges Portal
+ */
+
+/**
+ * Show toast notification
+ * @param {string} message - Message to display
+ * @param {string} type - Type: success, error, warning, info
+ */
+export function showToast(message, type = 'info') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'fixed top-4 right-4 z-50 space-y-2';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+
+    const styles = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        warning: 'bg-yellow-500',
+        info: 'bg-blue-500'
+    };
+
+    const icons = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+        info: 'ℹ'
+    };
+
+    toast.className = `${styles[type]} text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 transform translate-x-full opacity-0 transition-all duration-300`;
+    toast.innerHTML = `
+    <span class="text-lg font-bold">${icons[type]}</span>
+    <span class="font-medium">${message}</span>
+  `;
+
+    container.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => {
+        toast.classList.remove('translate-x-full', 'opacity-0');
+    });
+
+    // Remove after 5 seconds
+    setTimeout(() => {
+        toast.classList.add('translate-x-full', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+/**
+ * Form validation helpers
+ */
+export function validateEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+export function validatePhone(phone) {
+    return /^[0-9]{10,11}$/.test(phone.replace(/[^0-9]/g, ''));
+}
+
+export function validateRequired(value) {
+    return value && value.trim().length > 0;
+}
+
+/**
+ * Format currency (PHP)
+ */
+export function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP'
+    }).format(amount);
+}
+
+/**
+ * Format date
+ */
+export function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('en-PH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+}
+
+/**
+ * Debounce function
+ */
+export function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+/**
+ * Create loading spinner HTML
+ */
+export function createSpinner(size = 'md') {
+    const sizes = {
+        sm: 'w-4 h-4',
+        md: 'w-6 h-6',
+        lg: 'w-10 h-10'
+    };
+
+    return `
+    <svg class="${sizes[size]} animate-spin" viewBox="0 0 24 24" fill="none">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+  `;
+}
+
+/**
+ * Role-based redirect
+ */
+export function redirectByRole(role) {
+    const routes = {
+        STUDENT: '/student-dashboard.html',
+        ADMISSION_STAFF: '/admission-dashboard.html',
+        ADMIN: '/admission-dashboard.html',
+        REGISTRAR: '/admission-dashboard.html',
+        HEAD_REGISTRAR: '/admission-dashboard.html',
+        CASHIER: '/admission-dashboard.html',
+        PROFESSOR: '/student-dashboard.html' // For now
+    };
+
+    const route = routes[role] || '/student-dashboard.html';
+    window.location.href = route;
+}
+
+/**
+ * Check if user is authenticated and redirect if not
+ */
+export function requireAuth() {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = '/login.html';
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Get query parameter from URL
+ */
+export function getQueryParam(param) {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(param);
+}
