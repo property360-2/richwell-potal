@@ -184,16 +184,19 @@ function renderHeader() {
     <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path>
-            </svg>
-          </div>
+          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
           <div>
             <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
             <span class="text-sm text-gray-500 ml-2">${formatRole(state.user?.role)}</span>
           </div>
         </div>
+        
+        <nav class="hidden md:flex items-center gap-6">
+          <a href="/curriculum.html" class="text-gray-600 hover:text-gray-900">Curriculum</a>
+          <a href="/sections.html" class="text-gray-600 hover:text-gray-900">Sections</a>
+          <a href="/schedule.html" class="text-gray-600 hover:text-gray-900">Schedule</a>
+          <a href="/admission-dashboard.html" class="text-blue-600 font-medium">Admissions</a>
+        </nav>
         
         <div class="flex items-center gap-4">
           <div class="text-right hidden sm:block">

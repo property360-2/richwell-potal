@@ -3,32 +3,27 @@ import { api, endpoints, TokenManager } from '../api.js';
 import { showToast, validateEmail, redirectByRole } from '../utils.js';
 
 function init() {
-    // Check if already logged in
-    if (TokenManager.isAuthenticated()) {
-        const user = TokenManager.getUser();
-        if (user) {
-            redirectByRole(user.role);
-            return;
-        }
+  // Check if already logged in
+  if (TokenManager.isAuthenticated()) {
+    const user = TokenManager.getUser();
+    if (user) {
+      redirectByRole(user.role);
+      return;
     }
+  }
 
-    render();
+  render();
 }
 
 function render() {
-    const app = document.getElementById('app');
-    app.innerHTML = `
+  const app = document.getElementById('app');
+  app.innerHTML = `
     <div class="min-h-screen flex">
       <!-- Left Side - Branding -->
       <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 to-indigo-700 p-12 flex-col justify-between">
         <div>
           <div class="flex items-center gap-3">
-            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path>
-              </svg>
-            </div>
+            <img src="/logo.jpg" alt="Richwell Colleges" class="w-12 h-12 rounded-xl object-cover">
             <span class="text-2xl font-bold text-white">Richwell Colleges</span>
           </div>
         </div>
@@ -62,11 +57,7 @@ function render() {
         <div class="w-full max-w-md">
           <!-- Mobile Logo -->
           <div class="lg:hidden text-center mb-8">
-            <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mb-4 shadow-lg">
-              <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path>
-              </svg>
-            </div>
+            <img src="/logo.jpg" alt="Richwell Colleges" class="w-16 h-16 rounded-xl object-cover mx-auto mb-4 shadow-lg">
             <h1 class="text-2xl font-bold text-white">Richwell Colleges</h1>
           </div>
           
@@ -138,6 +129,8 @@ function render() {
             <div class="text-xs text-blue-200 space-y-1">
               <p><span class="text-white">Admin:</span> admin@richwell.edu.ph / admin123</p>
               <p><span class="text-white">Registrar:</span> registrar@richwell.edu.ph / registrar123</p>
+              <p><span class="text-white">Professor:</span> professor@richwell.edu.ph / prof123</p>
+              <p><span class="text-white">Student:</span> student@richwell.edu.ph / student123</p>
             </div>
           </div>
         </div>
@@ -145,39 +138,39 @@ function render() {
     </div>
   `;
 
-    attachEventListeners();
+  attachEventListeners();
 }
 
 function attachEventListeners() {
-    const form = document.getElementById('login-form');
-    const togglePassword = document.getElementById('toggle-password');
-    const passwordInput = document.getElementById('password');
+  const form = document.getElementById('login-form');
+  const togglePassword = document.getElementById('toggle-password');
+  const passwordInput = document.getElementById('password');
 
-    // Toggle password visibility
-    togglePassword?.addEventListener('click', () => {
-        const type = passwordInput.type === 'password' ? 'text' : 'password';
-        passwordInput.type = type;
-    });
+  // Toggle password visibility
+  togglePassword?.addEventListener('click', () => {
+    const type = passwordInput.type === 'password' ? 'text' : 'password';
+    passwordInput.type = type;
+  });
 
-    // Form submission
-    form?.addEventListener('submit', handleLogin);
+  // Form submission
+  form?.addEventListener('submit', handleLogin);
 }
 
 async function handleLogin(e) {
-    e.preventDefault();
+  e.preventDefault();
 
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    const loginBtn = document.getElementById('login-btn');
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const loginBtn = document.getElementById('login-btn');
 
-    if (!validateEmail(email)) {
-        showToast('Please enter a valid email address', 'error');
-        return;
-    }
+  if (!validateEmail(email)) {
+    showToast('Please enter a valid email address', 'error');
+    return;
+  }
 
-    // Disable button and show loading
-    loginBtn.disabled = true;
-    loginBtn.innerHTML = `
+  // Disable button and show loading
+  loginBtn.disabled = true;
+  loginBtn.innerHTML = `
     <svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -185,41 +178,41 @@ async function handleLogin(e) {
     <span>Signing in...</span>
   `;
 
-    try {
-        const response = await fetch('/api/v1/accounts/login/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
+  try {
+    const response = await fetch('/api/v1/accounts/login/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
 
-        if (response.ok) {
-            const data = await response.json();
+    if (response.ok) {
+      const data = await response.json();
 
-            // Store tokens and user info
-            TokenManager.setTokens(data.access, data.refresh);
-            TokenManager.setUser(data.user);
+      // Store tokens and user info
+      TokenManager.setTokens(data.access, data.refresh);
+      TokenManager.setUser(data.user);
 
-            showToast('Login successful!', 'success');
+      showToast('Login successful!', 'success');
 
-            // Redirect based on role
-            setTimeout(() => {
-                redirectByRole(data.user.role);
-            }, 1000);
-        } else {
-            const error = await response.json();
-            showToast(error.detail || 'Invalid email or password', 'error');
-            resetLoginButton();
-        }
-    } catch (error) {
-        showToast('Network error. Please check your connection.', 'error');
-        resetLoginButton();
+      // Redirect based on role
+      setTimeout(() => {
+        redirectByRole(data.user.role);
+      }, 1000);
+    } else {
+      const error = await response.json();
+      showToast(error.detail || 'Invalid email or password', 'error');
+      resetLoginButton();
     }
+  } catch (error) {
+    showToast('Network error. Please check your connection.', 'error');
+    resetLoginButton();
+  }
 }
 
 function resetLoginButton() {
-    const loginBtn = document.getElementById('login-btn');
-    loginBtn.disabled = false;
-    loginBtn.innerHTML = `
+  const loginBtn = document.getElementById('login-btn');
+  loginBtn.disabled = false;
+  loginBtn.innerHTML = `
     <span>Sign In</span>
     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>

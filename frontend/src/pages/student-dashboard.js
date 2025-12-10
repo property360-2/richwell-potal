@@ -4,46 +4,46 @@ import { showToast, formatCurrency, requireAuth } from '../utils.js';
 
 // State
 const state = {
-    user: null,
-    loading: true,
-    paymentBuckets: [
-        { month: 1, required: 5000, paid: 5000, label: 'Month 1' },
-        { month: 2, required: 5000, paid: 3500, label: 'Month 2' },
-        { month: 3, required: 5000, paid: 0, label: 'Month 3' },
-        { month: 4, required: 5000, paid: 0, label: 'Month 4' },
-        { month: 5, required: 5000, paid: 0, label: 'Month 5' },
-        { month: 6, required: 5000, paid: 0, label: 'Month 6' }
-    ]
+  user: null,
+  loading: true,
+  paymentBuckets: [
+    { month: 1, required: 5000, paid: 5000, label: 'Month 1' },
+    { month: 2, required: 5000, paid: 3500, label: 'Month 2' },
+    { month: 3, required: 5000, paid: 0, label: 'Month 3' },
+    { month: 4, required: 5000, paid: 0, label: 'Month 4' },
+    { month: 5, required: 5000, paid: 0, label: 'Month 5' },
+    { month: 6, required: 5000, paid: 0, label: 'Month 6' }
+  ]
 };
 
 async function init() {
-    if (!requireAuth()) return;
+  if (!requireAuth()) return;
 
-    await loadUserProfile();
-    render();
+  await loadUserProfile();
+  render();
 }
 
 async function loadUserProfile() {
-    try {
-        const response = await api.get(endpoints.me);
-        if (response) {
-            state.user = response;
-        }
-    } catch (error) {
-        console.error('Failed to load profile:', error);
+  try {
+    const response = await api.get(endpoints.me);
+    if (response) {
+      state.user = response;
     }
-    state.loading = false;
+  } catch (error) {
+    console.error('Failed to load profile:', error);
+  }
+  state.loading = false;
 }
 
 function render() {
-    const app = document.getElementById('app');
+  const app = document.getElementById('app');
 
-    if (state.loading) {
-        app.innerHTML = renderLoading();
-        return;
-    }
+  if (state.loading) {
+    app.innerHTML = renderLoading();
+    return;
+  }
 
-    app.innerHTML = `
+  app.innerHTML = `
     <!-- Header -->
     ${renderHeader()}
     
@@ -206,15 +206,11 @@ function render() {
 }
 
 function renderHeader() {
-    return `
+  return `
     <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path>
-            </svg>
-          </div>
+          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
           <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
         </div>
         
@@ -244,7 +240,7 @@ function renderHeader() {
 }
 
 function renderLoading() {
-    return `
+  return `
     <div class="min-h-screen flex items-center justify-center">
       <div class="text-center">
         <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
@@ -258,14 +254,14 @@ function renderLoading() {
 }
 
 function renderStatCard(label, value, color, icon) {
-    const colors = {
-        blue: 'from-blue-500 to-blue-600',
-        indigo: 'from-indigo-500 to-indigo-600',
-        green: 'from-green-500 to-green-600',
-        purple: 'from-purple-500 to-purple-600'
-    };
+  const colors = {
+    blue: 'from-blue-500 to-blue-600',
+    indigo: 'from-indigo-500 to-indigo-600',
+    green: 'from-green-500 to-green-600',
+    purple: 'from-purple-500 to-purple-600'
+  };
 
-    return `
+  return `
     <div class="card hover:shadow-lg transition-shadow">
       <div class="flex items-center gap-4">
         <div class="w-12 h-12 bg-gradient-to-br ${colors[color]} rounded-xl flex items-center justify-center text-white shadow-lg">
@@ -281,10 +277,10 @@ function renderStatCard(label, value, color, icon) {
 }
 
 function renderPaymentBucket(bucket) {
-    const percentage = Math.min(100, (bucket.paid / bucket.required) * 100);
-    const isComplete = percentage >= 100;
+  const percentage = Math.min(100, (bucket.paid / bucket.required) * 100);
+  const isComplete = percentage >= 100;
 
-    return `
+  return `
     <div class="flex items-center gap-4">
       <div class="w-20 text-sm font-medium text-gray-600">${bucket.label}</div>
       <div class="flex-1">
@@ -302,15 +298,15 @@ function renderPaymentBucket(bucket) {
 }
 
 function renderDocumentRow(name, status, filename) {
-    const statusStyles = {
-        verified: { badge: 'badge-success', text: 'Verified', icon: '✓' },
-        pending: { badge: 'badge-warning', text: 'Pending', icon: '⏳' },
-        rejected: { badge: 'badge-error', text: 'Rejected', icon: '✕' }
-    };
+  const statusStyles = {
+    verified: { badge: 'badge-success', text: 'Verified', icon: '✓' },
+    pending: { badge: 'badge-warning', text: 'Pending', icon: '⏳' },
+    rejected: { badge: 'badge-error', text: 'Rejected', icon: '✕' }
+  };
 
-    const s = statusStyles[status];
+  const s = statusStyles[status];
 
-    return `
+  return `
     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
@@ -329,7 +325,7 @@ function renderDocumentRow(name, status, filename) {
 }
 
 function renderExamPermit(exam, unlocked) {
-    return `
+  return `
     <div class="flex items-center justify-between p-3 rounded-xl ${unlocked ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}">
       <div class="flex items-center gap-3">
         ${unlocked ? `
@@ -358,11 +354,11 @@ function renderExamPermit(exam, unlocked) {
 
 // Logout function
 window.logout = function () {
-    TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
-    setTimeout(() => {
-        window.location.href = '/login.html';
-    }, 1000);
+  TokenManager.clearTokens();
+  showToast('Logged out successfully', 'success');
+  setTimeout(() => {
+    window.location.href = '/login.html';
+  }, 1000);
 };
 
 document.addEventListener('DOMContentLoaded', init);

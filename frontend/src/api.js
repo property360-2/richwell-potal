@@ -151,7 +151,7 @@ export const api = {
 };
 
 /**
- * API Endpoints for Epic 1
+ * API Endpoints for Epic 1 & Epic 2
  */
 export const endpoints = {
     // Authentication
@@ -160,11 +160,49 @@ export const endpoints = {
     me: '/accounts/me/',
     tokenRefresh: '/accounts/token/refresh/',
 
-    // Admissions
+    // Epic 1: Admissions
     enrollmentStatus: '/admissions/system/enrollment-status/',
     programs: '/admissions/programs/',
     enroll: '/admissions/enroll/',
     applicants: '/admissions/applicants/',
     uploadDocument: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/documents/`,
-    verifyDocument: (documentId) => `/admissions/documents/${documentId}/verify/`
+    verifyDocument: (documentId) => `/admissions/documents/${documentId}/verify/`,
+
+    // Epic 2: Academics - Programs (Public)
+    academicPrograms: '/academics/programs/',
+    academicProgram: (id) => `/academics/programs/${id}/`,
+
+    // Epic 2: Academics - Program Management (Admin/Registrar)
+    managePrograms: '/academics/manage/programs/',
+    manageProgram: (id) => `/academics/manage/programs/${id}/`,
+    programSnapshot: (id) => `/academics/manage/programs/${id}/snapshot/`,
+    programVersions: (id) => `/academics/manage/programs/${id}/versions/`,
+
+    // Epic 2: Academics - Subject Management
+    manageSubjects: '/academics/manage/subjects/',
+    manageSubject: (id) => `/academics/manage/subjects/${id}/`,
+    subjectPrereqTree: (id) => `/academics/manage/subjects/${id}/prerequisite-tree/`,
+    subjectPrereqs: (id) => `/academics/manage/subjects/${id}/prerequisites/`,
+    removeSubjectPrereq: (id, prereqId) => `/academics/manage/subjects/${id}/prerequisites/${prereqId}/`,
+
+    // Epic 2: Academics - Sections
+    sections: '/academics/sections/',
+    section: (id) => `/academics/sections/${id}/`,
+    sectionSubjects: '/academics/section-subjects/',
+    sectionSubject: (id) => `/academics/section-subjects/${id}/`,
+
+    // Epic 2: Academics - Schedule
+    scheduleSlots: '/academics/schedule-slots/',
+    scheduleSlot: (id) => `/academics/schedule-slots/${id}/`,
+    checkProfessorConflict: '/academics/check-professor-conflict/',
+    checkRoomConflict: '/academics/check-room-conflict/',
+    professorSchedule: (profId, semId) => `/academics/professor/${profId}/schedule/${semId}/`,
+
+    // Epic 2: Semesters
+    semesters: '/academics/semesters/',
+    activeSemester: '/academics/semesters/active/',
+
+    // Epic 2: Professors
+    professors: '/accounts/professors/'
 };
+
