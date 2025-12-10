@@ -53,6 +53,12 @@ class AuditLog(models.Model):
         CREDIT_ASSIGNED = 'CREDIT_ASSIGNED', 'Credit Assigned'
         CREDIT_REMOVED = 'CREDIT_REMOVED', 'Credit Removed'
         
+        # Curriculum actions (EPIC 2)
+        CURRICULUM_CHANGED = 'CURRICULUM_CHANGED', 'Curriculum Changed'
+        CURRICULUM_VERSION_CREATED = 'CURRICULUM_VERSION_CREATED', 'Curriculum Version Created'
+        SECTION_CREATED = 'SECTION_CREATED', 'Section Created'
+        SECTION_UPDATED = 'SECTION_UPDATED', 'Section Updated'
+        
         # System actions
         CONFIG_CHANGED = 'CONFIG_CHANGED', 'Configuration Changed'
         SYSTEM_EVENT = 'SYSTEM_EVENT', 'System Event'
