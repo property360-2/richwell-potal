@@ -61,3 +61,43 @@ class SubjectEnrollmentAdmin(admin.ModelAdmin):
 class CreditSourceAdmin(admin.ModelAdmin):
     list_display = ['subject_enrollment', 'original_school', 'original_subject_code', 'credited_by']
     search_fields = ['original_school', 'original_subject_code']
+
+
+# ============================================================
+# EPIC 4 — Payment & Exam Permit Admin
+# ============================================================
+
+from .models import PaymentTransaction, ExamMonthMapping, ExamPermit
+
+
+class PaymentTransactionInline(admin.TabularInline):
+    model = PaymentTransaction
+    extra = 0
+    readonly_fields = ['receipt_number', 'processed_at', 'total_allocated']
+    fields = ['receipt_number', 'amount', 'payment_mode', 'processed_at', 'is_adjustment']
+
+
+@admin.register(PaymentTransaction)
+class PaymentTransactionAdmin(admin.ModelAdmin):
+    list_display = ['receipt_number', 'enrollment', 'amount', 'payment_mode', 'processed_by', 'processed_at', 'is_adjustment']
+    list_filter = ['payment_mode', 'is_adjustment', 'processed_at']
+    search_fields = ['receipt_number', 'reference_number', 'enrollment__student__email', 'enrollment__student__student_number']
+    readonly_fields = ['receipt_number', 'processed_at', 'allocated_buckets', 'total_allocated']
+    raw_id_fields = ['enrollment', 'processed_by', 'original_transaction']
+    date_hierarchy = 'processed_at'
+
+
+@admin.register(ExamMonthMapping)
+class ExamMonthMappingAdmin(admin.ModelAdmin):
+    list_display = ['semester', 'exam_period', 'required_month', 'is_active']
+    list_filter = ['semester', 'exam_period', 'is_active']
+    ordering = ['semester', 'required_month']
+
+
+@admin.register(ExamPermit)
+class ExamPermitAdmin(admin.ModelAdmin):
+    list_display = ['permit_code', 'enrollment', 'exam_period', 'required_month', 'is_printed', 'created_at']
+    list_filter = ['exam_period', 'is_printed', 'created_at']
+    search_fields = ['permit_code', 'enrollment__student__email', 'enrollment__student__student_number']
+    readonly_fields = ['permit_code', 'created_at']
+    raw_id_fields = ['enrollment', 'printed_by']

@@ -43,4 +43,29 @@ urlpatterns = [
     
     # Registrar override
     path('enrollment/<uuid:enrollment_id>/override-enroll/', views.RegistrarOverrideEnrollmentView.as_view(), name='override-enroll'),
+    
+    # ============================================================
+    # Payments & Exam Permits (EPIC 4)
+    # ============================================================
+    
+    # Cashier payment entry
+    path('payments/record/', views.PaymentRecordView.as_view(), name='payment-record'),
+    path('payments/adjust/', views.PaymentAdjustmentView.as_view(), name='payment-adjust'),
+    path('payments/transactions/', views.PaymentTransactionListView.as_view(), name='payment-transactions'),
+    path('payments/student/<uuid:enrollment_id>/', views.StudentPaymentHistoryView.as_view(), name='student-payments'),
+    
+    # Student payment view
+    path('my-enrollment/payments/', views.MyPaymentsView.as_view(), name='my-payments'),
+    
+    # Exam-month mappings (admin/registrar)
+    path('exam-mappings/', views.ExamMonthMappingView.as_view(), name='exam-mappings'),
+    path('exam-mappings/<uuid:pk>/', views.ExamMonthMappingDetailView.as_view(), name='exam-mapping-detail'),
+    
+    # Student exam permits
+    path('my-enrollment/exam-permits/', views.MyExamPermitsView.as_view(), name='my-exam-permits'),
+    path('exam-permits/<str:exam_period>/generate/', views.GenerateExamPermitView.as_view(), name='generate-exam-permit'),
+    path('exam-permits/<uuid:permit_id>/print/', views.PrintExamPermitView.as_view(), name='print-exam-permit'),
+    
+    # Admin exam permit list
+    path('exam-permits/', views.ExamPermitListView.as_view(), name='exam-permit-list'),
 ]

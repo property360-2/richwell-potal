@@ -65,6 +65,10 @@ class AuditLog(models.Model):
         
         # Override actions
         OVERRIDE_APPLIED = 'OVERRIDE_APPLIED', 'Override Applied'
+        
+        # Exam Permit actions (EPIC 4)
+        EXAM_PERMIT_GENERATED = 'EXAM_PERMIT_GENERATED', 'Exam Permit Generated'
+        EXAM_PERMIT_PRINTED = 'EXAM_PERMIT_PRINTED', 'Exam Permit Printed'
     
     id = models.UUIDField(
         primary_key=True,

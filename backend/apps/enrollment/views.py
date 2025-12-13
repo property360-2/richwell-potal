@@ -739,3 +739,498 @@ class RegistrarOverrideEnrollmentView(APIView):
             "message": f"Override enrollment successful for {subject.code}",
             "data": SubjectEnrollmentSerializer(subject_enrollment).data
         }, status=status.HTTP_201_CREATED)
+
+
+# ============================================================
+# Payment & Exam Permit Views (EPIC 4)
+# ============================================================
+
+from .models import PaymentTransaction, ExamMonthMapping, ExamPermit
+from .serializers import (
+    PaymentTransactionSerializer,
+    PaymentRecordSerializer,
+    PaymentAdjustmentSerializer,
+    ExamMonthMappingSerializer,
+    ExamMonthMappingCreateSerializer,
+    ExamPermitSerializer,
+    ExamPermitStatusSerializer,
+    PaymentSummarySerializer
+)
+from .services import PaymentService, ExamPermitService
+from apps.core.permissions import IsCashier
+
+
+class PaymentRecordView(APIView):
+    """
+    Record a new payment (cashier only).
+    """
+    permission_classes = [IsAuthenticated, IsCashier | IsRegistrar]
+    
+    @extend_schema(
+        summary="Record Payment",
+        description="Record a new payment for a student enrollment",
+        tags=["Payments"],
+        request=PaymentRecordSerializer,
+        responses={201: PaymentTransactionSerializer}
+    )
+    @transaction.atomic
+    def post(self, request):
+        serializer = PaymentRecordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        enrollment = Enrollment.objects.get(id=data['enrollment_id'])
+        
+        from decimal import Decimal
+        payment = PaymentService.record_payment(
+            enrollment=enrollment,
+            amount=Decimal(str(data['amount'])),
+            payment_mode=data['payment_mode'],
+            cashier=request.user,
+            reference_number=data.get('reference_number', ''),
+            allocations=data.get('allocations'),
+            notes=data.get('notes', '')
+        )
+        
+        return Response({
+            "success": True,
+            "message": f"Payment of ₱{payment.amount} recorded successfully",
+            "data": PaymentTransactionSerializer(payment).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class PaymentAdjustmentView(APIView):
+    """
+    Create a payment adjustment (cashier only).
+    """
+    permission_classes = [IsAuthenticated, IsCashier | IsRegistrar]
+    
+    @extend_schema(
+        summary="Adjust Payment",
+        description="Create an adjustment for an existing payment",
+        tags=["Payments"],
+        request=PaymentAdjustmentSerializer,
+        responses={201: PaymentTransactionSerializer}
+    )
+    @transaction.atomic
+    def post(self, request):
+        serializer = PaymentAdjustmentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        original = PaymentTransaction.objects.get(id=data['transaction_id'])
+        
+        from decimal import Decimal
+        adjustment = PaymentService.create_adjustment(
+            original_transaction=original,
+            adjustment_amount=Decimal(str(data['adjustment_amount'])),
+            reason=data['reason'],
+            cashier=request.user
+        )
+        
+        return Response({
+            "success": True,
+            "message": "Adjustment recorded successfully",
+            "data": PaymentTransactionSerializer(adjustment).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class StudentPaymentHistoryView(APIView):
+    """
+    Get payment history for a specific student (cashier/registrar).
+    """
+    permission_classes = [IsAuthenticated, IsCashier | IsRegistrar]
+    
+    @extend_schema(
+        summary="Get Student Payments",
+        description="Get payment history for a specific enrollment",
+        tags=["Payments"]
+    )
+    def get(self, request, enrollment_id):
+        try:
+            enrollment = Enrollment.objects.get(id=enrollment_id)
+        except Enrollment.DoesNotExist:
+            raise NotFoundError("Enrollment not found")
+        
+        summary = PaymentService.get_payment_summary(enrollment)
+        
+        return Response({
+            "success": True,
+            "data": summary
+        })
+
+
+class MyPaymentsView(APIView):
+    """
+    Get current student's payment history.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Get My Payments",
+        description="Get the current student's payment history",
+        tags=["Payments"]
+    )
+    def get(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        from .models import Semester
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            raise NotFoundError("No active semester found")
+        
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            semester=semester
+        ).first()
+        
+        if not enrollment:
+            raise NotFoundError("No enrollment found for current semester")
+        
+        summary = PaymentService.get_payment_summary(enrollment)
+        
+        return Response({
+            "success": True,
+            "data": summary
+        })
+
+
+class PaymentTransactionListView(ListAPIView):
+    """
+    List all payment transactions (admin/registrar).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    serializer_class = PaymentTransactionSerializer
+    
+    @extend_schema(
+        summary="List Transactions",
+        description="List all payment transactions with filters",
+        tags=["Payments"]
+    )
+    def get_queryset(self):
+        queryset = PaymentTransaction.objects.select_related(
+            'enrollment__student', 'processed_by'
+        ).order_by('-processed_at')
+        
+        # Filter by date range
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        
+        if date_from:
+            queryset = queryset.filter(processed_at__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(processed_at__date__lte=date_to)
+        
+        # Filter by payment mode
+        payment_mode = self.request.query_params.get('payment_mode')
+        if payment_mode:
+            queryset = queryset.filter(payment_mode=payment_mode)
+        
+        # Filter adjustments
+        is_adjustment = self.request.query_params.get('is_adjustment')
+        if is_adjustment is not None:
+            queryset = queryset.filter(is_adjustment=is_adjustment.lower() == 'true')
+        
+        return queryset[:100]
+
+
+class ExamMonthMappingView(APIView):
+    """
+    Manage exam-month mappings (admin/registrar).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="List Exam Mappings",
+        description="List all exam-month mappings for a semester",
+        tags=["Exam Permits"]
+    )
+    def get(self, request):
+        from .models import Semester
+        
+        semester_id = request.query_params.get('semester_id')
+        if semester_id:
+            mappings = ExamMonthMapping.objects.filter(semester_id=semester_id)
+        else:
+            # Default to current semester
+            semester = Semester.objects.filter(is_current=True).first()
+            if semester:
+                mappings = ExamMonthMapping.objects.filter(semester=semester)
+            else:
+                mappings = ExamMonthMapping.objects.none()
+        
+        serializer = ExamMonthMappingSerializer(mappings, many=True)
+        
+        return Response({
+            "success": True,
+            "data": serializer.data
+        })
+    
+    @extend_schema(
+        summary="Create Exam Mapping",
+        description="Create a new exam-month mapping",
+        tags=["Exam Permits"],
+        request=ExamMonthMappingCreateSerializer,
+        responses={201: ExamMonthMappingSerializer}
+    )
+    @transaction.atomic
+    def post(self, request):
+        serializer = ExamMonthMappingCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        from .models import Semester
+        
+        data = serializer.validated_data
+        semester = Semester.objects.get(id=data['semester_id'])
+        
+        mapping = ExamMonthMapping.objects.create(
+            semester=semester,
+            exam_period=data['exam_period'],
+            required_month=data['required_month']
+        )
+        
+        return Response({
+            "success": True,
+            "message": f"{mapping.get_exam_period_display()} mapped to Month {mapping.required_month}",
+            "data": ExamMonthMappingSerializer(mapping).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class ExamMonthMappingDetailView(APIView):
+    """
+    Update or delete an exam-month mapping.
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Update Exam Mapping",
+        description="Update an exam-month mapping",
+        tags=["Exam Permits"]
+    )
+    @transaction.atomic
+    def patch(self, request, pk):
+        try:
+            mapping = ExamMonthMapping.objects.get(id=pk)
+        except ExamMonthMapping.DoesNotExist:
+            raise NotFoundError("Mapping not found")
+        
+        if 'required_month' in request.data:
+            mapping.required_month = request.data['required_month']
+        if 'is_active' in request.data:
+            mapping.is_active = request.data['is_active']
+        
+        mapping.save()
+        
+        return Response({
+            "success": True,
+            "data": ExamMonthMappingSerializer(mapping).data
+        })
+    
+    @extend_schema(
+        summary="Delete Exam Mapping",
+        description="Delete an exam-month mapping",
+        tags=["Exam Permits"]
+    )
+    @transaction.atomic
+    def delete(self, request, pk):
+        try:
+            mapping = ExamMonthMapping.objects.get(id=pk)
+        except ExamMonthMapping.DoesNotExist:
+            raise NotFoundError("Mapping not found")
+        
+        mapping.delete()
+        
+        return Response({
+            "success": True,
+            "message": "Mapping deleted"
+        }, status=status.HTTP_204_NO_CONTENT)
+
+
+class MyExamPermitsView(APIView):
+    """
+    Get current student's exam permits.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Get My Exam Permits",
+        description="Get the current student's exam permit status for all periods",
+        tags=["Exam Permits"]
+    )
+    def get(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        from .models import Semester
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            raise NotFoundError("No active semester found")
+        
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            semester=semester
+        ).first()
+        
+        if not enrollment:
+            raise NotFoundError("No enrollment found for current semester")
+        
+        permits = ExamPermitService.get_student_permits(enrollment)
+        
+        return Response({
+            "success": True,
+            "data": {
+                "permits": permits,
+                "semester": str(semester)
+            }
+        })
+
+
+class GenerateExamPermitView(APIView):
+    """
+    Generate an exam permit (checks eligibility first).
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Generate Exam Permit",
+        description="Generate an exam permit for a specific exam period",
+        tags=["Exam Permits"],
+        responses={201: ExamPermitSerializer}
+    )
+    @transaction.atomic
+    def post(self, request, exam_period):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Validate exam_period
+        valid_periods = [choice[0] for choice in ExamMonthMapping.ExamPeriod.choices]
+        if exam_period not in valid_periods:
+            return Response({
+                "success": False,
+                "error": f"Invalid exam period. Valid values: {', '.join(valid_periods)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        from .models import Semester
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            raise NotFoundError("No active semester found")
+        
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            semester=semester
+        ).first()
+        
+        if not enrollment:
+            raise NotFoundError("No enrollment found for current semester")
+        
+        # Check eligibility
+        is_eligible, reason = ExamPermitService.check_permit_eligibility(
+            enrollment, exam_period
+        )
+        
+        if not is_eligible and reason != "Permit already generated":
+            return Response({
+                "success": False,
+                "error": reason
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Generate permit
+        permit = ExamPermitService.generate_permit(enrollment, exam_period)
+        
+        return Response({
+            "success": True,
+            "message": f"Exam permit generated for {permit.get_exam_period_display()}",
+            "data": ExamPermitSerializer(permit).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class PrintExamPermitView(APIView):
+    """
+    Mark an exam permit as printed.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Mark Permit Printed",
+        description="Mark an exam permit as printed and record who printed it",
+        tags=["Exam Permits"],
+        responses={200: ExamPermitSerializer}
+    )
+    @transaction.atomic
+    def post(self, request, permit_id):
+        try:
+            permit = ExamPermit.objects.get(id=permit_id)
+        except ExamPermit.DoesNotExist:
+            raise NotFoundError("Permit not found")
+        
+        # Verify ownership if student
+        if request.user.role == 'STUDENT' and permit.enrollment.student_id != request.user.id:
+            return Response({
+                "success": False,
+                "error": "You can only print your own permits"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        permit = ExamPermitService.mark_as_printed(permit, request.user)
+        
+        return Response({
+            "success": True,
+            "message": "Permit marked as printed",
+            "data": ExamPermitSerializer(permit).data
+        })
+
+
+class ExamPermitListView(ListAPIView):
+    """
+    List all exam permits (registrar/admin).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    serializer_class = ExamPermitSerializer
+    
+    @extend_schema(
+        summary="List All Permits",
+        description="List all exam permits with filters",
+        tags=["Exam Permits"]
+    )
+    def get_queryset(self):
+        queryset = ExamPermit.objects.select_related(
+            'enrollment__student', 'printed_by'
+        ).order_by('-created_at')
+        
+        # Filter by semester
+        semester_id = self.request.query_params.get('semester_id')
+        if semester_id:
+            queryset = queryset.filter(enrollment__semester_id=semester_id)
+        
+        # Filter by exam period
+        exam_period = self.request.query_params.get('exam_period')
+        if exam_period:
+            queryset = queryset.filter(exam_period=exam_period)
+        
+        # Filter by printed status
+        is_printed = self.request.query_params.get('is_printed')
+        if is_printed is not None:
+            queryset = queryset.filter(is_printed=is_printed.lower() == 'true')
+        
+        return queryset[:100]

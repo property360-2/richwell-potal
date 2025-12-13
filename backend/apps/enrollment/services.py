@@ -4,18 +4,23 @@ Enrollment services - Business logic for enrollment operations.
 
 import secrets
 import string
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, List, Dict
 
-from django.db import transaction
+from django.db import models, transaction
 from django.conf import settings
+from django.utils import timezone
 
 from apps.accounts.models import User, StudentProfile
 from apps.academics.models import Program
 from apps.audit.models import AuditLog
 
-from .models import Enrollment, MonthlyPaymentBucket, Semester
+from .models import (
+    Enrollment, MonthlyPaymentBucket, Semester,
+    PaymentTransaction, ExamMonthMapping, ExamPermit
+)
+
 
 
 class EnrollmentService:
@@ -736,3 +741,607 @@ class SubjectEnrollmentService:
         elif 'summer' in semester.name.lower():
             return 3
         return 1
+
+
+# ============================================================
+# EPIC 4 — Payment & Exam Permit Services
+# ============================================================
+
+class PaymentService:
+    """
+    Service class for payment-related business logic.
+    Handles payment recording, allocation, adjustments, and receipt generation.
+    """
+    
+    @staticmethod
+    def generate_receipt_number() -> str:
+        """
+        Generate unique receipt number in format: RCV-YYYYMMDD-XXXXX
+        
+        Returns:
+            str: Unique receipt number
+        """
+        today = date.today()
+        date_part = today.strftime('%Y%m%d')
+        
+        # Find the highest existing number for today
+        latest = PaymentTransaction.objects.filter(
+            receipt_number__startswith=f"RCV-{date_part}-"
+        ).order_by('-receipt_number').first()
+        
+        if latest:
+            try:
+                last_number = int(latest.receipt_number.split('-')[-1])
+                new_number = last_number + 1
+            except (ValueError, IndexError):
+                new_number = 1
+        else:
+            new_number = 1
+        
+        receipt_number = f"RCV-{date_part}-{new_number:05d}"
+        
+        # Double-check uniqueness
+        while PaymentTransaction.objects.filter(receipt_number=receipt_number).exists():
+            new_number += 1
+            receipt_number = f"RCV-{date_part}-{new_number:05d}"
+        
+        return receipt_number
+    
+    @staticmethod
+    def auto_allocate(enrollment: Enrollment, amount: Decimal) -> List[Dict]:
+        """
+        Allocate payment to earliest unpaid bucket(s).
+        
+        Args:
+            enrollment: The enrollment to allocate to
+            amount: The amount to allocate
+            
+        Returns:
+            list: List of allocation details
+        """
+        allocations = []
+        remaining = amount
+        
+        # Get unpaid/partially paid buckets in order
+        buckets = enrollment.payment_buckets.filter(
+            is_fully_paid=False
+        ).order_by('month_number')
+        
+        for bucket in buckets:
+            if remaining <= 0:
+                break
+            
+            bucket_remaining = bucket.remaining_amount
+            to_allocate = min(remaining, bucket_remaining)
+            
+            if to_allocate > 0:
+                # Add payment to bucket
+                allocated = bucket.add_payment(to_allocate)
+                
+                allocations.append({
+                    'bucket_id': str(bucket.id),
+                    'month': bucket.month_number,
+                    'amount': float(allocated)
+                })
+                
+                remaining -= allocated
+        
+        return allocations
+    
+    @staticmethod
+    def manual_allocate(
+        enrollment: Enrollment,
+        allocations: List[Dict],
+        cashier: User
+    ) -> List[Dict]:
+        """
+        Manually allocate payment to specific bucket(s).
+        
+        Args:
+            enrollment: The enrollment to allocate to
+            allocations: List of {"month": int, "amount": Decimal}
+            cashier: The cashier making the allocation
+            
+        Returns:
+            list: List of allocation details with bucket IDs
+        """
+        result = []
+        
+        for allocation in allocations:
+            month = allocation['month']
+            amount = Decimal(str(allocation['amount']))
+            
+            bucket = enrollment.payment_buckets.filter(month_number=month).first()
+            if bucket:
+                allocated = bucket.add_payment(amount)
+                result.append({
+                    'bucket_id': str(bucket.id),
+                    'month': month,
+                    'amount': float(allocated)
+                })
+        
+        return result
+    
+    @classmethod
+    @transaction.atomic
+    def record_payment(
+        cls,
+        enrollment: Enrollment,
+        amount: Decimal,
+        payment_mode: str,
+        cashier: User,
+        reference_number: str = '',
+        allocations: List[Dict] = None,
+        notes: str = ''
+    ) -> PaymentTransaction:
+        """
+        Record a payment and allocate to buckets.
+        
+        Args:
+            enrollment: The enrollment receiving payment
+            amount: Payment amount
+            payment_mode: PaymentMode choice value
+            cashier: User processing the payment
+            reference_number: External reference for online payments
+            allocations: Optional manual allocations, auto-allocates if None
+            notes: Optional notes
+            
+        Returns:
+            PaymentTransaction: The created transaction
+        """
+        # Generate receipt number
+        receipt_number = cls.generate_receipt_number()
+        
+        # Allocate the payment
+        if allocations:
+            allocated = cls.manual_allocate(enrollment, allocations, cashier)
+        else:
+            allocated = cls.auto_allocate(enrollment, amount)
+        
+        # Create transaction
+        transaction_obj = PaymentTransaction.objects.create(
+            enrollment=enrollment,
+            amount=amount,
+            payment_mode=payment_mode,
+            receipt_number=receipt_number,
+            reference_number=reference_number,
+            allocated_buckets=allocated,
+            processed_by=cashier,
+            notes=notes
+        )
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.PAYMENT_RECORDED,
+            target_model='PaymentTransaction',
+            target_id=transaction_obj.id,
+            actor=cashier,
+            payload={
+                'receipt_number': receipt_number,
+                'amount': str(amount),
+                'payment_mode': payment_mode,
+                'student_number': enrollment.student.student_number,
+                'allocations': allocated
+            }
+        )
+        
+        # Check if any exam permits should be unlocked
+        ExamPermitService.check_and_unlock_permits(enrollment)
+        
+        return transaction_obj
+    
+    @classmethod
+    @transaction.atomic
+    def create_adjustment(
+        cls,
+        original_transaction: PaymentTransaction,
+        adjustment_amount: Decimal,
+        reason: str,
+        cashier: User
+    ) -> PaymentTransaction:
+        """
+        Create an adjustment transaction.
+        
+        Args:
+            original_transaction: The transaction being adjusted
+            adjustment_amount: The adjustment amount (positive or negative)
+            reason: Justification for the adjustment
+            cashier: The cashier making the adjustment
+            
+        Returns:
+            PaymentTransaction: The adjustment transaction
+        """
+        if not reason.strip():
+            raise ValueError("Adjustment reason is required")
+        
+        receipt_number = cls.generate_receipt_number()
+        
+        # Apply adjustment to buckets (reverse allocation for negative)
+        enrollment = original_transaction.enrollment
+        
+        if adjustment_amount > 0:
+            # Adding funds - allocate normally
+            allocated = cls.auto_allocate(enrollment, adjustment_amount)
+        else:
+            # Removing funds - reverse from latest allocations
+            allocated = cls._reverse_allocate(enrollment, abs(adjustment_amount))
+        
+        # Create adjustment transaction
+        adjustment = PaymentTransaction.objects.create(
+            enrollment=enrollment,
+            amount=adjustment_amount,
+            payment_mode=original_transaction.payment_mode,
+            receipt_number=receipt_number,
+            is_adjustment=True,
+            adjustment_reason=reason,
+            original_transaction=original_transaction,
+            allocated_buckets=allocated,
+            processed_by=cashier
+        )
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.PAYMENT_ADJUSTED,
+            target_model='PaymentTransaction',
+            target_id=adjustment.id,
+            actor=cashier,
+            payload={
+                'original_receipt': original_transaction.receipt_number,
+                'adjustment_amount': str(adjustment_amount),
+                'reason': reason,
+                'student_number': enrollment.student.student_number
+            }
+        )
+        
+        return adjustment
+    
+    @staticmethod
+    def _reverse_allocate(enrollment: Enrollment, amount: Decimal) -> List[Dict]:
+        """
+        Reverse allocation from buckets (for negative adjustments).
+        Removes from latest months first.
+        """
+        allocations = []
+        remaining = amount
+        
+        # Get paid/partially paid buckets in reverse order
+        buckets = enrollment.payment_buckets.filter(
+            paid_amount__gt=0
+        ).order_by('-month_number')
+        
+        for bucket in buckets:
+            if remaining <= 0:
+                break
+            
+            to_remove = min(remaining, bucket.paid_amount)
+            
+            if to_remove > 0:
+                bucket.paid_amount -= to_remove
+                bucket.is_fully_paid = bucket.paid_amount >= bucket.required_amount
+                bucket.save()
+                
+                allocations.append({
+                    'bucket_id': str(bucket.id),
+                    'month': bucket.month_number,
+                    'amount': float(-to_remove)  # Negative to indicate removal
+                })
+                
+                remaining -= to_remove
+        
+        return allocations
+    
+    @staticmethod
+    def get_payment_summary(enrollment: Enrollment) -> Dict:
+        """
+        Get payment summary for an enrollment.
+        
+        Returns:
+            dict: Summary with totals and bucket breakdown
+        """
+        buckets = enrollment.payment_buckets.all().order_by('month_number')
+        
+        bucket_data = []
+        for bucket in buckets:
+            bucket_data.append({
+                'month': bucket.month_number,
+                'required': float(bucket.required_amount),
+                'paid': float(bucket.paid_amount),
+                'remaining': float(bucket.remaining_amount),
+                'is_fully_paid': bucket.is_fully_paid,
+                'percentage': bucket.payment_percentage
+            })
+        
+        transactions = enrollment.transactions.all().order_by('-processed_at')[:10]
+        transaction_data = [
+            {
+                'id': str(t.id),
+                'receipt_number': t.receipt_number,
+                'amount': float(t.amount),
+                'payment_mode': t.payment_mode,
+                'processed_at': t.processed_at.isoformat(),
+                'is_adjustment': t.is_adjustment
+            }
+            for t in transactions
+        ]
+        
+        return {
+            'total_required': float(enrollment.total_required),
+            'total_paid': float(enrollment.total_paid),
+            'balance': float(enrollment.balance),
+            'is_fully_paid': enrollment.is_fully_paid,
+            'buckets': bucket_data,
+            'recent_transactions': transaction_data
+        }
+
+
+class ExamPermitService:
+    """
+    Service class for exam permit business logic.
+    Handles permit eligibility checking and generation.
+    """
+    
+    @staticmethod
+    def generate_permit_code() -> str:
+        """
+        Generate unique permit code in format: EXP-YYYYMMDD-XXXXX
+        
+        Returns:
+            str: Unique permit code
+        """
+        today = date.today()
+        date_part = today.strftime('%Y%m%d')
+        
+        # Find the highest existing number for today
+        latest = ExamPermit.objects.filter(
+            permit_code__startswith=f"EXP-{date_part}-"
+        ).order_by('-permit_code').first()
+        
+        if latest:
+            try:
+                last_number = int(latest.permit_code.split('-')[-1])
+                new_number = last_number + 1
+            except (ValueError, IndexError):
+                new_number = 1
+        else:
+            new_number = 1
+        
+        permit_code = f"EXP-{date_part}-{new_number:05d}"
+        
+        # Double-check uniqueness
+        while ExamPermit.objects.filter(permit_code=permit_code).exists():
+            new_number += 1
+            permit_code = f"EXP-{date_part}-{new_number:05d}"
+        
+        return permit_code
+    
+    @staticmethod
+    def check_permit_eligibility(
+        enrollment: Enrollment,
+        exam_period: str
+    ) -> tuple[bool, str]:
+        """
+        Check if student is eligible for exam permit.
+        
+        Args:
+            enrollment: The enrollment
+            exam_period: ExamPeriod choice value
+            
+        Returns:
+            tuple: (is_eligible: bool, reason: str)
+        """
+        # Check if permit already exists
+        existing = ExamPermit.objects.filter(
+            enrollment=enrollment,
+            exam_period=exam_period
+        ).first()
+        
+        if existing:
+            return True, "Permit already generated"
+        
+        # Get mapping for this exam period
+        mapping = ExamMonthMapping.objects.filter(
+            semester=enrollment.semester,
+            exam_period=exam_period,
+            is_active=True
+        ).first()
+        
+        if not mapping:
+            return False, f"No exam-month mapping found for {exam_period}"
+        
+        # Check if required month is paid
+        bucket = enrollment.payment_buckets.filter(
+            month_number=mapping.required_month
+        ).first()
+        
+        if not bucket:
+            return False, f"Payment bucket for month {mapping.required_month} not found"
+        
+        if not bucket.is_fully_paid:
+            return False, f"Month {mapping.required_month} payment not complete (₱{bucket.remaining_amount} remaining)"
+        
+        return True, "Eligible"
+    
+    @classmethod
+    @transaction.atomic
+    def generate_permit(
+        cls,
+        enrollment: Enrollment,
+        exam_period: str
+    ) -> Optional[ExamPermit]:
+        """
+        Generate exam permit if eligible.
+        
+        Args:
+            enrollment: The enrollment
+            exam_period: ExamPeriod choice value
+            
+        Returns:
+            ExamPermit or None: The generated permit or None if not eligible
+        """
+        # Check if already exists
+        existing = ExamPermit.objects.filter(
+            enrollment=enrollment,
+            exam_period=exam_period
+        ).first()
+        
+        if existing:
+            return existing
+        
+        # Verify eligibility
+        is_eligible, reason = cls.check_permit_eligibility(enrollment, exam_period)
+        if not is_eligible:
+            return None
+        
+        # Get the required month from mapping
+        mapping = ExamMonthMapping.objects.filter(
+            semester=enrollment.semester,
+            exam_period=exam_period,
+            is_active=True
+        ).first()
+        
+        # Generate permit
+        permit = ExamPermit.objects.create(
+            enrollment=enrollment,
+            exam_period=exam_period,
+            permit_code=cls.generate_permit_code(),
+            required_month=mapping.required_month
+        )
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.EXAM_PERMIT_GENERATED,
+            target_model='ExamPermit',
+            target_id=permit.id,
+            payload={
+                'permit_code': permit.permit_code,
+                'exam_period': exam_period,
+                'student_number': enrollment.student.student_number,
+                'required_month': mapping.required_month
+            }
+        )
+        
+        return permit
+    
+    @classmethod
+    def check_and_unlock_permits(cls, enrollment: Enrollment) -> List[ExamPermit]:
+        """
+        Check and generate all eligible exam permits for an enrollment.
+        Called automatically after a payment is recorded.
+        
+        Args:
+            enrollment: The enrollment to check
+            
+        Returns:
+            list: List of newly generated permits
+        """
+        generated = []
+        
+        # Get all active mappings for this semester
+        mappings = ExamMonthMapping.objects.filter(
+            semester=enrollment.semester,
+            is_active=True
+        )
+        
+        for mapping in mappings:
+            # Check if already has permit
+            existing = ExamPermit.objects.filter(
+                enrollment=enrollment,
+                exam_period=mapping.exam_period
+            ).exists()
+            
+            if existing:
+                continue
+            
+            # Check if eligible
+            is_eligible, _ = cls.check_permit_eligibility(enrollment, mapping.exam_period)
+            
+            if is_eligible:
+                permit = cls.generate_permit(enrollment, mapping.exam_period)
+                if permit:
+                    generated.append(permit)
+        
+        return generated
+    
+    @staticmethod
+    def get_student_permits(enrollment: Enrollment) -> List[Dict]:
+        """
+        Get all exam permits for an enrollment.
+        
+        Args:
+            enrollment: The enrollment
+            
+        Returns:
+            list: List of permit data
+        """
+        permits = ExamPermit.objects.filter(enrollment=enrollment).order_by('exam_period')
+        
+        # Get all exam periods to show status
+        all_periods = ExamMonthMapping.ExamPeriod.choices
+        
+        period_status = {}
+        for code, label in all_periods:
+            mapping = ExamMonthMapping.objects.filter(
+                semester=enrollment.semester,
+                exam_period=code,
+                is_active=True
+            ).first()
+            
+            permit = permits.filter(exam_period=code).first()
+            
+            if permit:
+                status = 'GENERATED'
+            elif mapping:
+                bucket = enrollment.payment_buckets.filter(
+                    month_number=mapping.required_month
+                ).first()
+                if bucket and bucket.is_fully_paid:
+                    status = 'ELIGIBLE'
+                else:
+                    status = 'LOCKED'
+            else:
+                status = 'NOT_CONFIGURED'
+            
+            period_status[code] = {
+                'exam_period': code,
+                'exam_period_label': label,
+                'status': status,
+                'permit_code': permit.permit_code if permit else None,
+                'permit_id': str(permit.id) if permit else None,
+                'is_printed': permit.is_printed if permit else False,
+                'required_month': mapping.required_month if mapping else None
+            }
+        
+        return list(period_status.values())
+    
+    @classmethod
+    @transaction.atomic
+    def mark_as_printed(cls, permit: ExamPermit, printed_by: User) -> ExamPermit:
+        """
+        Mark a permit as printed.
+        
+        Args:
+            permit: The permit to mark
+            printed_by: User who printed it
+            
+        Returns:
+            ExamPermit: Updated permit
+        """
+        permit.is_printed = True
+        permit.printed_at = timezone.now()
+        permit.printed_by = printed_by
+        permit.save()
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.EXAM_PERMIT_PRINTED,
+            target_model='ExamPermit',
+            target_id=permit.id,
+            actor=printed_by,
+            payload={
+                'permit_code': permit.permit_code,
+                'exam_period': permit.exam_period,
+                'student_number': permit.student.student_number
+            }
+        )
+        
+        return permit
