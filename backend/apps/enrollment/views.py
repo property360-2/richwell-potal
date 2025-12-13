@@ -2114,3 +2114,115 @@ class DocumentReleaseStatsView(APIView):
             "success": True,
             "data": stats
         })
+
+
+class DownloadDocumentPDFView(APIView):
+    """
+    Download a document release as PDF.
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Download Document PDF",
+        description="Generate and download PDF for a document release",
+        tags=["Documents"]
+    )
+    def get(self, request, document_code):
+        from django.http import HttpResponse
+        from .pdf_generator import DocumentPDFGenerator
+        from .services import GradeService
+        
+        try:
+            release = DocumentRelease.objects.select_related(
+                'student', 'student__student_profile__program'
+            ).get(document_code=document_code)
+        except DocumentRelease.DoesNotExist:
+            raise NotFoundError("Document not found")
+        
+        # Only allow PDF for active documents
+        if release.status != DocumentRelease.Status.ACTIVE:
+            return Response({
+                "success": False,
+                "error": "Cannot generate PDF for revoked or superseded documents"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get student info
+        student = release.student
+        profile = getattr(student, 'student_profile', None)
+        program_name = profile.program.name if profile and profile.program else 'N/A'
+        year_level = profile.year_level if profile else 1
+        
+        # Generate PDF based on document type
+        generator = DocumentPDFGenerator()
+        pdf_bytes = None
+        
+        if release.document_type == 'GOOD_MORAL':
+            pdf_bytes = generator.generate_good_moral(
+                student_name=student.get_full_name(),
+                student_number=student.student_number,
+                program=program_name,
+                document_code=release.document_code,
+                purpose=release.purpose
+            )
+        
+        elif release.document_type == 'ENROLLMENT_CERT':
+            # Get current semester
+            current_semester = Semester.objects.filter(is_current=True).first()
+            semester_name = str(current_semester) if current_semester else 'Current Semester'
+            academic_year = current_semester.academic_year if current_semester else 'N/A'
+            
+            pdf_bytes = generator.generate_enrollment_certificate(
+                student_name=student.get_full_name(),
+                student_number=student.student_number,
+                program=program_name,
+                year_level=year_level,
+                semester=semester_name.split(' ')[0] + ' Semester',  # "1st Semester" etc
+                academic_year=academic_year,
+                document_code=release.document_code,
+                purpose=release.purpose
+            )
+        
+        elif release.document_type == 'TOR':
+            # Get transcript data
+            transcript = GradeService.get_student_transcript(student)
+            
+            pdf_bytes = generator.generate_transcript(
+                student_name=student.get_full_name(),
+                student_number=student.student_number,
+                program=program_name,
+                semesters=transcript.get('semesters', []),
+                cumulative_gpa=transcript.get('cumulative_gpa', 'N/A'),
+                document_code=release.document_code
+            )
+        
+        else:
+            # Generic certificate for other types
+            pdf_bytes = generator.generate_generic_certificate(
+                document_type=release.get_document_type_display(),
+                student_name=student.get_full_name(),
+                student_number=student.student_number,
+                program=program_name,
+                document_code=release.document_code,
+                purpose=release.purpose
+            )
+        
+        # Log PDF generation
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.DOCUMENT_ACCESSED,
+            target_model='DocumentRelease',
+            target_id=release.id,
+            actor=request.user,
+            payload={
+                'document_code': document_code,
+                'document_type': release.document_type,
+                'action': 'PDF_GENERATED'
+            }
+        )
+        
+        # Return PDF response
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        filename = f"{release.document_code}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        return response

@@ -104,6 +104,7 @@ urlpatterns = [
     path('documents/my-releases/', views.MyReleasesView.as_view(), name='my-releases'),
     path('documents/student/<uuid:student_id>/', views.StudentDocumentsView.as_view(), name='student-documents'),
     path('documents/<str:document_code>/', views.DocumentDetailView.as_view(), name='document-detail'),
+    path('documents/<str:document_code>/pdf/', views.DownloadDocumentPDFView.as_view(), name='document-pdf'),
     path('documents/<str:document_code>/revoke/', views.RevokeDocumentView.as_view(), name='revoke-document'),
     path('documents/<str:document_code>/reissue/', views.ReissueDocumentView.as_view(), name='reissue-document'),
     
