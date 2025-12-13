@@ -406,3 +406,336 @@ class EnrollmentDetailView(APIView):
             "success": True,
             "data": EnrollmentSerializer(enrollment).data
         })
+
+
+# ============================================================
+# Subject Enrollment Views (EPIC 3)
+# ============================================================
+
+from .serializers import (
+    SubjectEnrollmentSerializer,
+    RecommendedSubjectSerializer,
+    AvailableSubjectSerializer,
+    EnrollSubjectRequestSerializer,
+    RegistrarOverrideSerializer
+)
+from .services import SubjectEnrollmentService
+
+
+class RecommendedSubjectsView(APIView):
+    """
+    Get recommended subjects for the current student.
+    Based on year level and curriculum.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Get Recommended Subjects",
+        description="Get subjects recommended for the student's current year and semester",
+        tags=["Subject Enrollment"]
+    )
+    def get(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get current semester
+        from .models import Semester
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            raise NotFoundError("No active semester found")
+        
+        service = SubjectEnrollmentService()
+        recommended = service.get_recommended_subjects(request.user, semester)
+        
+        serializer = RecommendedSubjectSerializer(
+            recommended, 
+            many=True,
+            context={
+                'service': service,
+                'student': request.user,
+                'semester': semester
+            }
+        )
+        
+        # Get current enrollment stats
+        current_units = service.get_current_enrolled_units(request.user, semester)
+        max_units = service.max_units
+        
+        return Response({
+            "success": True,
+            "data": {
+                "recommended_subjects": serializer.data,
+                "current_units": current_units,
+                "max_units": max_units,
+                "remaining_units": max_units - current_units
+            }
+        })
+
+
+class AvailableSubjectsView(APIView):
+    """
+    Get all available subjects for the current student.
+    Includes subjects outside the recommended year/semester.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Get Available Subjects",
+        description="Get all subjects the student can enroll in (with sections)",
+        tags=["Subject Enrollment"]
+    )
+    def get(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        from .models import Semester
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            raise NotFoundError("No active semester found")
+        
+        service = SubjectEnrollmentService()
+        available = service.get_available_subjects(request.user, semester)
+        
+        serializer = AvailableSubjectSerializer(
+            available,
+            many=True,
+            context={
+                'service': service,
+                'student': request.user,
+                'semester': semester
+            }
+        )
+        
+        return Response({
+            "success": True,
+            "data": {
+                "available_subjects": serializer.data,
+                "total_available": len(serializer.data)
+            }
+        })
+
+
+class MySubjectEnrollmentsView(APIView):
+    """
+    Get current student's subject enrollments.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Get My Subject Enrollments",
+        description="Get the student's current subject enrollments for the active semester",
+        tags=["Subject Enrollment"]
+    )
+    def get(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        from .models import Semester
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            raise NotFoundError("No active semester found")
+        
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            semester=semester
+        ).first()
+        
+        if not enrollment:
+            raise NotFoundError("No enrollment found for current semester")
+        
+        subject_enrollments = SubjectEnrollment.objects.filter(
+            enrollment=enrollment
+        ).select_related('subject', 'section').order_by('-created_at')
+        
+        serializer = SubjectEnrollmentSerializer(subject_enrollments, many=True)
+        
+        # Calculate total units
+        enrolled_units = sum(
+            se.subject.units for se in subject_enrollments 
+            if se.status == SubjectEnrollment.Status.ENROLLED
+        )
+        
+        return Response({
+            "success": True,
+            "data": {
+                "subject_enrollments": serializer.data,
+                "enrolled_units": enrolled_units,
+                "semester": str(semester)
+            }
+        })
+
+
+class EnrollSubjectView(APIView):
+    """
+    Enroll in a subject.
+    Validates prerequisites, unit cap, payment status, and schedule conflicts.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Enroll in Subject",
+        description="Enroll the student in a subject with full validation",
+        tags=["Subject Enrollment"],
+        request=EnrollSubjectRequestSerializer
+    )
+    @transaction.atomic
+    def post(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = EnrollSubjectRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        from .models import Semester
+        from apps.academics.models import Subject, Section
+        
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            raise NotFoundError("No active semester found")
+        
+        # Get current enrollment
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            semester=semester
+        ).first()
+        
+        if not enrollment:
+            raise NotFoundError("No enrollment found for current semester")
+        
+        # Get subject and section
+        subject = Subject.objects.get(id=serializer.validated_data['subject_id'])
+        section = Section.objects.get(id=serializer.validated_data['section_id'])
+        
+        # Enroll via service (handles all validation)
+        service = SubjectEnrollmentService()
+        subject_enrollment = service.enroll_in_subject(
+            student=request.user,
+            enrollment=enrollment,
+            subject=subject,
+            section=section
+        )
+        
+        return Response({
+            "success": True,
+            "message": f"Successfully enrolled in {subject.code}",
+            "data": SubjectEnrollmentSerializer(subject_enrollment).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class DropSubjectView(APIView):
+    """
+    Drop a subject enrollment.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Drop Subject",
+        description="Drop a subject enrollment (changes status to DROPPED)",
+        tags=["Subject Enrollment"]
+    )
+    @transaction.atomic
+    def post(self, request, pk):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            subject_enrollment = SubjectEnrollment.objects.select_related(
+                'enrollment', 'subject', 'section'
+            ).get(
+                id=pk,
+                enrollment__student=request.user,
+                status=SubjectEnrollment.Status.ENROLLED
+            )
+        except SubjectEnrollment.DoesNotExist:
+            raise NotFoundError("Subject enrollment not found or already dropped")
+        
+        service = SubjectEnrollmentService()
+        subject_enrollment = service.drop_subject(subject_enrollment, request.user)
+        
+        return Response({
+            "success": True,
+            "message": f"Successfully dropped {subject_enrollment.subject.code}",
+            "data": SubjectEnrollmentSerializer(subject_enrollment).data
+        })
+
+
+class RegistrarOverrideEnrollmentView(APIView):
+    """
+    Registrar override enrollment.
+    Bypasses all validation rules with justification.
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Override Enrollment",
+        description="Registrar override to enroll a student bypassing validation rules",
+        tags=["Registrar"],
+        request=RegistrarOverrideSerializer
+    )
+    @transaction.atomic
+    def post(self, request, enrollment_id):
+        serializer = RegistrarOverrideSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        from apps.accounts.models import User
+        from apps.academics.models import Subject, Section
+        
+        # Get enrollment
+        try:
+            enrollment = Enrollment.objects.get(id=enrollment_id)
+        except Enrollment.DoesNotExist:
+            raise NotFoundError("Enrollment not found")
+        
+        # Get entities
+        try:
+            student = User.objects.get(id=serializer.validated_data['student_id'])
+            subject = Subject.objects.get(id=serializer.validated_data['subject_id'])
+            section = Section.objects.get(id=serializer.validated_data['section_id'])
+        except (User.DoesNotExist, Subject.DoesNotExist, Section.DoesNotExist) as e:
+            raise NotFoundError(str(e))
+        
+        # Verify enrollment belongs to student
+        if enrollment.student_id != student.id:
+            return Response({
+                "success": False,
+                "error": "Enrollment does not belong to specified student"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        service = SubjectEnrollmentService()
+        subject_enrollment = service.registrar_override_enroll(
+            registrar=request.user,
+            student=student,
+            enrollment=enrollment,
+            subject=subject,
+            section=section,
+            override_reason=serializer.validated_data['override_reason']
+        )
+        
+        return Response({
+            "success": True,
+            "message": f"Override enrollment successful for {subject.code}",
+            "data": SubjectEnrollmentSerializer(subject_enrollment).data
+        }, status=status.HTTP_201_CREATED)

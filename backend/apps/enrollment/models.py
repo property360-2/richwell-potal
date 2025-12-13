@@ -287,6 +287,7 @@ class SubjectEnrollment(BaseModel):
         DROPPED = 'DROPPED', 'Dropped'
         CREDITED = 'CREDITED', 'Credited (Transferee)'
         RETAKE = 'RETAKE', 'Retake'
+        PENDING_PAYMENT = 'PENDING_PAYMENT', 'Pending Payment'
     
     enrollment = models.ForeignKey(
         Enrollment,

@@ -62,6 +62,9 @@ class AuditLog(models.Model):
         # System actions
         CONFIG_CHANGED = 'CONFIG_CHANGED', 'Configuration Changed'
         SYSTEM_EVENT = 'SYSTEM_EVENT', 'System Event'
+        
+        # Override actions
+        OVERRIDE_APPLIED = 'OVERRIDE_APPLIED', 'Override Applied'
     
     id = models.UUIDField(
         primary_key=True,
