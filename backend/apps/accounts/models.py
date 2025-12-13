@@ -193,9 +193,18 @@ class StudentProfile(BaseModel):
         help_text='Previous course taken (for transferees)'
     )
     
+    # Academic standing (EPIC 5) - manually set by registrar
+    academic_standing = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text='Academic standing (e.g., Good Standing, Dean\'s List, Probation)'
+    )
+    
     class Meta:
         verbose_name = 'Student Profile'
         verbose_name_plural = 'Student Profiles'
+
     
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.user.student_number}"

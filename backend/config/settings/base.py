@@ -170,6 +170,23 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 
+# Celery Beat Schedule (periodic tasks)
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    # Daily: Check and convert expired INCs to FAILED
+    'check-expired-incs-daily': {
+        'task': 'enrollment.check_expired_incs',
+        'schedule': crontab(hour=0, minute=0),  # Midnight
+    },
+    # Weekly: Notify students of expiring INCs (Monday 8 AM)
+    'notify-expiring-incs-weekly': {
+        'task': 'enrollment.notify_expiring_incs',
+        'schedule': crontab(hour=8, minute=0, day_of_week=1),
+        'args': (7,),  # 7 days ahead
+    },
+}
+
 
 # System Configuration (defaults, can be overridden via admin)
 SYSTEM_CONFIG = {

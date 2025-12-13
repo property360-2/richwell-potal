@@ -341,11 +341,45 @@ class SubjectEnrollment(BaseModel):
         help_text='When INC status was set (for expiry calculation)'
     )
     
+    # Grade finalization (EPIC 5)
+    is_finalized = models.BooleanField(
+        default=False,
+        help_text='Whether grade has been finalized by registrar'
+    )
+    finalized_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When grade was finalized'
+    )
+    finalized_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='finalized_grades',
+        help_text='Registrar who finalized this grade'
+    )
+    
+    # Retake tracking (EPIC 5)
+    is_retake = models.BooleanField(
+        default=False,
+        help_text='Whether this is a retake enrollment'
+    )
+    original_enrollment = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='retakes',
+        help_text='Original failed enrollment if this is a retake'
+    )
+    
     class Meta:
         verbose_name = 'Subject Enrollment'
         verbose_name_plural = 'Subject Enrollments'
         unique_together = ['enrollment', 'subject']
         ordering = ['subject__year_level', 'subject__semester_number']
+
     
     def __str__(self):
         return f"{self.enrollment.student.get_full_name()} - {self.subject.code}"
@@ -418,3 +452,490 @@ class CreditSource(BaseModel):
     def __str__(self):
         return f"{self.subject_enrollment.subject.code} from {self.original_school}"
 
+
+# ============================================================
+# EPIC 5 — Grade & GPA Models
+# ============================================================
+
+class GradeHistory(BaseModel):
+    """
+    Tracks grade changes for audit purposes.
+    Every grade submission or change creates a history entry.
+    """
+    
+    subject_enrollment = models.ForeignKey(
+        SubjectEnrollment,
+        on_delete=models.CASCADE,
+        related_name='grade_history'
+    )
+    previous_grade = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Previous grade value'
+    )
+    new_grade = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='New grade value'
+    )
+    previous_status = models.CharField(
+        max_length=20,
+        choices=SubjectEnrollment.Status.choices,
+        help_text='Status before change'
+    )
+    new_status = models.CharField(
+        max_length=20,
+        choices=SubjectEnrollment.Status.choices,
+        help_text='Status after change'
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='grade_changes',
+        help_text='User who made the change'
+    )
+    change_reason = models.TextField(
+        blank=True,
+        help_text='Reason for the change (required for overrides)'
+    )
+    is_system_action = models.BooleanField(
+        default=False,
+        help_text='Whether this was an automated system action (e.g., INC expiry)'
+    )
+    is_finalization = models.BooleanField(
+        default=False,
+        help_text='Whether this was a registrar finalization action'
+    )
+    
+    class Meta:
+        verbose_name = 'Grade History'
+        verbose_name_plural = 'Grade Histories'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.subject_enrollment} - {self.previous_grade} → {self.new_grade}"
+
+
+class SemesterGPA(BaseModel):
+    """
+    Stores calculated GPA per semester for quick access.
+    Updated automatically when grades are finalized.
+    """
+    
+    enrollment = models.OneToOneField(
+        Enrollment,
+        on_delete=models.CASCADE,
+        related_name='gpa_record'
+    )
+    gpa = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Calculated semester GPA'
+    )
+    total_units = models.IntegerField(
+        default=0,
+        help_text='Total units included in GPA calculation'
+    )
+    total_grade_points = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Sum of (grade × units)'
+    )
+    subjects_included = models.IntegerField(
+        default=0,
+        help_text='Number of subjects included in GPA'
+    )
+    calculated_at = models.DateTimeField(
+        auto_now=True,
+        help_text='When GPA was last calculated'
+    )
+    is_finalized = models.BooleanField(
+        default=False,
+        help_text='Whether all grades are finalized'
+    )
+    
+    class Meta:
+        verbose_name = 'Semester GPA'
+        verbose_name_plural = 'Semester GPAs'
+    
+    def __str__(self):
+        return f"{self.enrollment} - GPA: {self.gpa}"
+
+
+# ============================================================
+# EPIC 4 — Payment & Exam Permit Models
+# ============================================================
+
+
+class PaymentTransaction(BaseModel):
+    """
+    Individual payment transaction record.
+    Tracks all payments made by students and their allocation to monthly buckets.
+    """
+    
+    class PaymentMode(models.TextChoices):
+        CASH = 'CASH', 'Cash'
+        ONLINE = 'ONLINE', 'Online Banking'
+        GCASH = 'GCASH', 'GCash'
+        MAYA = 'MAYA', 'Maya'
+        CHECK = 'CHECK', 'Check'
+        OTHER = 'OTHER', 'Other'
+    
+    enrollment = models.ForeignKey(
+        Enrollment,
+        on_delete=models.CASCADE,
+        related_name='transactions'
+    )
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        help_text='Payment amount'
+    )
+    payment_mode = models.CharField(
+        max_length=20,
+        choices=PaymentMode.choices,
+        default=PaymentMode.CASH
+    )
+    receipt_number = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text='Unique receipt number (RCV-YYYYMMDD-XXXXX)'
+    )
+    reference_number = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='External reference number (for online payments)'
+    )
+    
+    # Allocation details - stores which buckets received funds
+    allocated_buckets = models.JSONField(
+        default=list,
+        help_text='List of allocations: [{"bucket_id": uuid, "month": 1, "amount": 1000.00}]'
+    )
+    
+    # Adjustment tracking
+    is_adjustment = models.BooleanField(
+        default=False,
+        help_text='Whether this is an adjustment transaction (not a regular payment)'
+    )
+    adjustment_reason = models.TextField(
+        blank=True,
+        help_text='Justification for adjustment (required if is_adjustment=True)'
+    )
+    original_transaction = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='adjustments',
+        help_text='Original transaction if this is an adjustment'
+    )
+    
+    # Cashier info
+    processed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='processed_payments',
+        help_text='Cashier who processed this payment'
+    )
+    processed_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When the payment was processed'
+    )
+    
+    # Receipt file
+    receipt_file = models.FileField(
+        upload_to='receipts/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text='Generated PDF receipt'
+    )
+    receipt_generated = models.BooleanField(
+        default=False,
+        help_text='Whether the receipt PDF has been generated'
+    )
+    
+    # Notes
+    notes = models.TextField(
+        blank=True,
+        help_text='Additional notes about this payment'
+    )
+    
+    class Meta:
+        verbose_name = 'Payment Transaction'
+        verbose_name_plural = 'Payment Transactions'
+        ordering = ['-processed_at']
+    
+    def __str__(self):
+        return f"{self.receipt_number} - ₱{self.amount} ({self.payment_mode})"
+    
+    @property
+    def student(self):
+        return self.enrollment.student
+    
+    @property
+    def total_allocated(self):
+        """Total amount allocated to buckets."""
+        if not self.allocated_buckets:
+            return Decimal('0.00')
+        return sum(Decimal(str(a.get('amount', 0))) for a in self.allocated_buckets)
+
+
+class ExamMonthMapping(BaseModel):
+    """
+    Maps exam periods to payment months.
+    Admin-configurable per semester.
+    """
+    
+    class ExamPeriod(models.TextChoices):
+        PRELIM = 'PRELIM', 'Preliminary Exam'
+        MIDTERM = 'MIDTERM', 'Midterm Exam'
+        PREFINAL = 'PREFINAL', 'Pre-Final Exam'
+        FINAL = 'FINAL', 'Final Exam'
+    
+    semester = models.ForeignKey(
+        Semester,
+        on_delete=models.CASCADE,
+        related_name='exam_mappings'
+    )
+    exam_period = models.CharField(
+        max_length=20,
+        choices=ExamPeriod.choices,
+        help_text='The exam period'
+    )
+    required_month = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(6)],
+        help_text='Month number (1-6) that must be fully paid'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Whether this mapping is active'
+    )
+    
+    class Meta:
+        verbose_name = 'Exam-Month Mapping'
+        verbose_name_plural = 'Exam-Month Mappings'
+        unique_together = ['semester', 'exam_period']
+        ordering = ['semester', 'required_month']
+    
+    def __str__(self):
+        return f"{self.get_exam_period_display()} → Month {self.required_month} ({self.semester})"
+
+
+class ExamPermit(BaseModel):
+    """
+    Exam permit generated when payment month is completed.
+    Students need this permit to take exams.
+    """
+    
+    enrollment = models.ForeignKey(
+        Enrollment,
+        on_delete=models.CASCADE,
+        related_name='exam_permits'
+    )
+    exam_period = models.CharField(
+        max_length=20,
+        choices=ExamMonthMapping.ExamPeriod.choices,
+        help_text='The exam period this permit is for'
+    )
+    permit_code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text='Unique permit code (EXP-YYYYMMDD-XXXXX)'
+    )
+    required_month = models.PositiveIntegerField(
+        help_text='The month that was paid to unlock this permit'
+    )
+    
+    # Status tracking
+    is_printed = models.BooleanField(
+        default=False,
+        help_text='Whether the permit has been printed'
+    )
+    printed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the permit was printed'
+    )
+    printed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='printed_permits',
+        help_text='Who printed the permit'
+    )
+    
+    class Meta:
+        verbose_name = 'Exam Permit'
+        verbose_name_plural = 'Exam Permits'
+        unique_together = ['enrollment', 'exam_period']
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.permit_code} - {self.get_exam_period_display()}"
+    
+    @property
+    def student(self):
+        return self.enrollment.student
+    
+    @property
+    def is_valid(self):
+        """Check if the permit is still valid (month still paid)."""
+        bucket = self.enrollment.payment_buckets.filter(
+            month_number=self.required_month
+        ).first()
+        return bucket and bucket.is_fully_paid
+
+
+# ============================================================
+# EPIC 6 — Document Release System
+# ============================================================
+
+class DocumentRelease(BaseModel):
+    """
+    Tracks official documents released by the registrar.
+    Documents include TOR, certificates, diplomas, etc.
+    """
+    
+    class DocumentType(models.TextChoices):
+        TOR = 'TOR', 'Transcript of Records'
+        GOOD_MORAL = 'GOOD_MORAL', 'Good Moral Certificate'
+        ENROLLMENT_CERT = 'ENROLLMENT_CERT', 'Certificate of Enrollment'
+        GRADES_CERT = 'GRADES_CERT', 'Certificate of Grades'
+        COMPLETION_CERT = 'COMPLETION_CERT', 'Certificate of Completion'
+        TRANSFER_CRED = 'TRANSFER_CRED', 'Transfer Credentials'
+        HONORABLE_DISMISSAL = 'HONORABLE_DISMISSAL', 'Honorable Dismissal'
+        DIPLOMA = 'DIPLOMA', 'Diploma'
+        OTHER = 'OTHER', 'Other Document'
+    
+    class Status(models.TextChoices):
+        ACTIVE = 'ACTIVE', 'Active'
+        REVOKED = 'REVOKED', 'Revoked'
+        REISSUED = 'REISSUED', 'Reissued (superseded)'
+    
+    # Document identification
+    document_code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text='Unique document code (DOC-YYYYMMDD-XXXXX)'
+    )
+    document_type = models.CharField(
+        max_length=30,
+        choices=DocumentType.choices,
+        help_text='Type of document released'
+    )
+    
+    # Who it's for
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='document_releases',
+        limit_choices_to={'role': 'STUDENT'},
+        help_text='Student receiving the document'
+    )
+    
+    # Who issued it
+    released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='documents_released',
+        help_text='Registrar who released the document'
+    )
+    released_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When the document was released'
+    )
+    
+    # Status
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        help_text='Current status of the document'
+    )
+    
+    # Revocation (if applicable)
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documents_revoked',
+        help_text='Registrar who revoked the document'
+    )
+    revoked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the document was revoked'
+    )
+    revocation_reason = models.TextField(
+        blank=True,
+        help_text='Reason for revocation (required if revoked)'
+    )
+    
+    # Reissue chain (links to replaced document)
+    replaces = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='replaced_by',
+        help_text='Document that this one replaces (for reissues)'
+    )
+    
+    # Document details
+    purpose = models.TextField(
+        blank=True,
+        help_text='Purpose of document request'
+    )
+    copies_released = models.PositiveIntegerField(
+        default=1,
+        help_text='Number of copies released'
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text='Internal notes (not visible to student)'
+    )
+    
+    # Optional file attachment
+    document_file = models.FileField(
+        upload_to='documents/releases/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text='Optional PDF copy of the document'
+    )
+    
+    class Meta:
+        verbose_name = 'Document Release'
+        verbose_name_plural = 'Document Releases'
+        ordering = ['-released_at']
+        indexes = [
+            models.Index(fields=['student', 'status']),
+            models.Index(fields=['released_by', 'released_at']),
+            models.Index(fields=['document_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.document_code} - {self.get_document_type_display()} for {self.student.get_full_name()}"
+    
+    @property
+    def is_active(self):
+        return self.status == self.Status.ACTIVE
+    
+    @property
+    def is_revoked(self):
+        return self.status == self.Status.REVOKED
+    
+    @property
+    def has_replacement(self):
+        return self.replaced_by.exists()

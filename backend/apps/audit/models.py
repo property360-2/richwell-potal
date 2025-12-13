@@ -44,6 +44,8 @@ class AuditLog(models.Model):
         # Document actions
         DOCUMENT_RELEASED = 'DOCUMENT_RELEASED', 'Document Released'
         DOCUMENT_REVOKED = 'DOCUMENT_REVOKED', 'Document Revoked'
+        DOCUMENT_REISSUED = 'DOCUMENT_REISSUED', 'Document Reissued'
+        DOCUMENT_ACCESSED = 'DOCUMENT_ACCESSED', 'Document Accessed'
         DOCUMENT_VERIFIED = 'DOCUMENT_VERIFIED', 'Document Verified'
         
         # Schedule actions
@@ -65,6 +67,10 @@ class AuditLog(models.Model):
         
         # Override actions
         OVERRIDE_APPLIED = 'OVERRIDE_APPLIED', 'Override Applied'
+        
+        # Exam Permit actions (EPIC 4)
+        EXAM_PERMIT_GENERATED = 'EXAM_PERMIT_GENERATED', 'Exam Permit Generated'
+        EXAM_PERMIT_PRINTED = 'EXAM_PERMIT_PRINTED', 'Exam Permit Printed'
     
     id = models.UUIDField(
         primary_key=True,
