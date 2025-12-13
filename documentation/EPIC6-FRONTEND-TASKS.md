@@ -28,6 +28,7 @@ All endpoints are prefixed with `/api/v1/admissions/`
 | GET | `/documents/my-releases/` | Get my releases | Registrar |
 | GET | `/documents/student/{student_id}/` | Get student's documents | Registrar |
 | GET | `/documents/{document_code}/` | Get document details | Registrar |
+| GET | `/documents/{document_code}/pdf/` | **Download document as PDF** | Registrar |
 | POST | `/documents/{document_code}/revoke/` | Revoke a document | Registrar |
 | POST | `/documents/{document_code}/reissue/` | Reissue a revoked document | Registrar |
 
