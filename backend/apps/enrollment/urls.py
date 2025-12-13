@@ -94,4 +94,20 @@ urlpatterns = [
     
     # Academic standing
     path('students/<uuid:student_id>/standing/', views.UpdateAcademicStandingView.as_view(), name='update-standing'),
+    
+    # ============================================================
+    # Document Release (EPIC 6)
+    # ============================================================
+    
+    # Registrar document release
+    path('documents/release/', views.CreateDocumentReleaseView.as_view(), name='create-document-release'),
+    path('documents/my-releases/', views.MyReleasesView.as_view(), name='my-releases'),
+    path('documents/student/<uuid:student_id>/', views.StudentDocumentsView.as_view(), name='student-documents'),
+    path('documents/<str:document_code>/', views.DocumentDetailView.as_view(), name='document-detail'),
+    path('documents/<str:document_code>/revoke/', views.RevokeDocumentView.as_view(), name='revoke-document'),
+    path('documents/<str:document_code>/reissue/', views.ReissueDocumentView.as_view(), name='reissue-document'),
+    
+    # Head-Registrar audit views
+    path('documents/all/', views.AllReleasesView.as_view(), name='all-releases'),
+    path('documents/stats/', views.DocumentReleaseStatsView.as_view(), name='release-stats'),
 ]

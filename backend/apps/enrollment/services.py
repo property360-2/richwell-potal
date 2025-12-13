@@ -19,7 +19,8 @@ from apps.audit.models import AuditLog
 from .models import (
     Enrollment, MonthlyPaymentBucket, Semester,
     PaymentTransaction, ExamMonthMapping, ExamPermit,
-    SubjectEnrollment, GradeHistory, SemesterGPA
+    SubjectEnrollment, GradeHistory, SemesterGPA,
+    DocumentRelease
 )
 
 from datetime import timedelta
@@ -1963,3 +1964,338 @@ class INCAutomationService:
                     print(f"Error converting INC to FAILED: {e}")
         
         return converted
+
+
+# ============================================================
+# EPIC 6 — Document Release Service
+# ============================================================
+
+class DocumentReleaseService:
+    """
+    Service class for document release operations.
+    Handles creating, revoking, and reissuing official documents.
+    """
+    
+    @staticmethod
+    def generate_document_code() -> str:
+        """
+        Generate a unique document code.
+        Format: DOC-YYYYMMDD-XXXXX
+        """
+        today = timezone.now().strftime('%Y%m%d')
+        
+        # Get count of documents created today
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        count = DocumentRelease.objects.filter(
+            released_at__gte=today_start
+        ).count()
+        
+        # Generate code with sequential number
+        code = f"DOC-{today}-{count + 1:05d}"
+        
+        # Ensure uniqueness
+        while DocumentRelease.objects.filter(document_code=code).exists():
+            count += 1
+            code = f"DOC-{today}-{count:05d}"
+        
+        return code
+    
+    @classmethod
+    @transaction.atomic
+    def create_release(
+        cls,
+        student: User,
+        document_type: str,
+        released_by: User,
+        purpose: str = '',
+        copies: int = 1,
+        notes: str = ''
+    ) -> DocumentRelease:
+        """
+        Create a new document release record.
+        
+        Args:
+            student: The student receiving the document
+            document_type: Type of document (TOR, GOOD_MORAL, etc.)
+            released_by: The registrar creating the release
+            purpose: Purpose of the document request
+            copies: Number of copies released
+            notes: Internal notes
+            
+        Returns:
+            DocumentRelease: The created release record
+        """
+        # Validate document type
+        valid_types = [dt[0] for dt in DocumentRelease.DocumentType.choices]
+        if document_type not in valid_types:
+            raise ValueError(f"Invalid document type: {document_type}")
+        
+        # Generate unique code
+        document_code = cls.generate_document_code()
+        
+        # Create the release
+        release = DocumentRelease.objects.create(
+            document_code=document_code,
+            document_type=document_type,
+            student=student,
+            released_by=released_by,
+            purpose=purpose,
+            copies_released=copies,
+            notes=notes,
+            status=DocumentRelease.Status.ACTIVE
+        )
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.DOCUMENT_RELEASED,
+            target_model='DocumentRelease',
+            target_id=release.id,
+            actor=released_by,
+            payload={
+                'document_code': document_code,
+                'document_type': document_type,
+                'student_number': student.student_number,
+                'student_name': student.get_full_name(),
+                'copies': copies
+            }
+        )
+        
+        return release
+    
+    @classmethod
+    @transaction.atomic
+    def revoke_document(
+        cls,
+        document_release: DocumentRelease,
+        revoked_by: User,
+        reason: str
+    ) -> DocumentRelease:
+        """
+        Revoke an active document.
+        
+        Args:
+            document_release: The document to revoke
+            revoked_by: The registrar revoking the document
+            reason: Reason for revocation (required)
+            
+        Returns:
+            DocumentRelease: The updated release record
+        """
+        if document_release.status != DocumentRelease.Status.ACTIVE:
+            raise ValueError(f"Cannot revoke document with status: {document_release.status}")
+        
+        if not reason or len(reason.strip()) < 10:
+            raise ValueError("Revocation reason must be at least 10 characters")
+        
+        # Update status
+        document_release.status = DocumentRelease.Status.REVOKED
+        document_release.revoked_by = revoked_by
+        document_release.revoked_at = timezone.now()
+        document_release.revocation_reason = reason
+        document_release.save()
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.DOCUMENT_REVOKED,
+            target_model='DocumentRelease',
+            target_id=document_release.id,
+            actor=revoked_by,
+            payload={
+                'document_code': document_release.document_code,
+                'document_type': document_release.document_type,
+                'student_number': document_release.student.student_number,
+                'reason': reason
+            }
+        )
+        
+        return document_release
+    
+    @classmethod
+    @transaction.atomic
+    def reissue_document(
+        cls,
+        document_release: DocumentRelease,
+        reissued_by: User,
+        purpose: str = '',
+        notes: str = ''
+    ) -> DocumentRelease:
+        """
+        Reissue a revoked document (creates new record).
+        
+        Args:
+            document_release: The revoked document to reissue
+            reissued_by: The registrar reissuing the document
+            purpose: Optional new purpose
+            notes: Optional notes for the reissue
+            
+        Returns:
+            DocumentRelease: The new release record
+        """
+        if document_release.status != DocumentRelease.Status.REVOKED:
+            raise ValueError("Can only reissue revoked documents")
+        
+        # Mark original as REISSUED (superseded)
+        document_release.status = DocumentRelease.Status.REISSUED
+        document_release.save()
+        
+        # Create new release
+        new_release = cls.create_release(
+            student=document_release.student,
+            document_type=document_release.document_type,
+            released_by=reissued_by,
+            purpose=purpose or document_release.purpose,
+            copies=document_release.copies_released,
+            notes=notes or f"Reissue of {document_release.document_code}"
+        )
+        
+        # Link to original
+        new_release.replaces = document_release
+        new_release.save()
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.DOCUMENT_REISSUED,
+            target_model='DocumentRelease',
+            target_id=new_release.id,
+            actor=reissued_by,
+            payload={
+                'new_document_code': new_release.document_code,
+                'original_document_code': document_release.document_code,
+                'document_type': new_release.document_type,
+                'student_number': new_release.student.student_number
+            }
+        )
+        
+        return new_release
+    
+    @staticmethod
+    def get_student_documents(student: User) -> List[Dict]:
+        """
+        Get all documents for a student.
+        
+        Args:
+            student: The student
+            
+        Returns:
+            list: List of document records
+        """
+        releases = DocumentRelease.objects.filter(
+            student=student,
+            is_deleted=False
+        ).order_by('-released_at')
+        
+        documents = []
+        for release in releases:
+            documents.append({
+                'id': str(release.id),
+                'document_code': release.document_code,
+                'document_type': release.document_type,
+                'document_type_display': release.get_document_type_display(),
+                'status': release.status,
+                'status_display': release.get_status_display(),
+                'released_at': release.released_at.isoformat(),
+                'released_by': release.released_by.get_full_name(),
+                'purpose': release.purpose,
+                'copies_released': release.copies_released,
+                'is_revoked': release.is_revoked,
+                'revocation_reason': release.revocation_reason if release.is_revoked else None,
+                'has_replacement': release.has_replacement
+            })
+        
+        return documents
+    
+    @staticmethod
+    def get_release_logs(
+        registrar: User = None,
+        date_from=None,
+        date_to=None,
+        document_type: str = None,
+        status: str = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """
+        Get release logs (for audit purpose).
+        
+        Args:
+            registrar: Filter by registrar (None for all - head-registrar only)
+            date_from: Start date filter
+            date_to: End date filter
+            document_type: Filter by document type
+            status: Filter by status
+            limit: Maximum records to return
+            
+        Returns:
+            list: List of release log entries
+        """
+        queryset = DocumentRelease.objects.filter(
+            is_deleted=False
+        ).select_related('student', 'released_by', 'revoked_by')
+        
+        if registrar:
+            queryset = queryset.filter(released_by=registrar)
+        
+        if date_from:
+            queryset = queryset.filter(released_at__gte=date_from)
+        
+        if date_to:
+            queryset = queryset.filter(released_at__lte=date_to)
+        
+        if document_type:
+            queryset = queryset.filter(document_type=document_type)
+        
+        if status:
+            queryset = queryset.filter(status=status)
+        
+        queryset = queryset.order_by('-released_at')[:limit]
+        
+        logs = []
+        for release in queryset:
+            logs.append({
+                'id': str(release.id),
+                'document_code': release.document_code,
+                'document_type': release.document_type,
+                'document_type_display': release.get_document_type_display(),
+                'status': release.status,
+                'student_number': release.student.student_number,
+                'student_name': release.student.get_full_name(),
+                'released_by': release.released_by.get_full_name(),
+                'released_at': release.released_at.isoformat(),
+                'revoked_by': release.revoked_by.get_full_name() if release.revoked_by else None,
+                'revoked_at': release.revoked_at.isoformat() if release.revoked_at else None,
+                'revocation_reason': release.revocation_reason,
+                'copies_released': release.copies_released
+            })
+        
+        return logs
+    
+    @staticmethod
+    def get_release_stats(registrar: User = None) -> Dict:
+        """
+        Get release statistics.
+        
+        Args:
+            registrar: Filter by registrar (None for all)
+            
+        Returns:
+            dict: Statistics summary
+        """
+        from django.db.models import Count
+        
+        queryset = DocumentRelease.objects.filter(is_deleted=False)
+        
+        if registrar:
+            queryset = queryset.filter(released_by=registrar)
+        
+        # By status
+        status_counts = dict(queryset.values_list('status').annotate(count=Count('id')))
+        
+        # By document type
+        type_counts = dict(queryset.values_list('document_type').annotate(count=Count('id')))
+        
+        return {
+            'total_released': queryset.count(),
+            'active': status_counts.get('ACTIVE', 0),
+            'revoked': status_counts.get('REVOKED', 0),
+            'reissued': status_counts.get('REISSUED', 0),
+            'by_document_type': type_counts
+        }

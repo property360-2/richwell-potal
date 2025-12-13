@@ -797,3 +797,122 @@ class UpdateStandingSerializer(serializers.Serializer):
         max_length=100,
         help_text="Academic standing (e.g., Good Standing, Dean's List, Probation)"
     )
+
+
+# ============================================================
+# Document Release Serializers (EPIC 6)
+# ============================================================
+
+from .models import DocumentRelease
+
+
+class DocumentReleaseSerializer(serializers.ModelSerializer):
+    """Serializer for document release records."""
+    
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    student_number = serializers.CharField(source='student.student_number', read_only=True)
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    released_by_name = serializers.CharField(source='released_by.get_full_name', read_only=True)
+    revoked_by_name = serializers.CharField(source='revoked_by.get_full_name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = DocumentRelease
+        fields = [
+            'id', 'document_code', 'document_type', 'document_type_display',
+            'student', 'student_number', 'student_name',
+            'released_by', 'released_by_name', 'released_at',
+            'status', 'status_display',
+            'revoked_by', 'revoked_by_name', 'revoked_at', 'revocation_reason',
+            'replaces', 'purpose', 'copies_released', 'notes',
+            'created_at'
+        ]
+        read_only_fields = [
+            'id', 'document_code', 'released_by', 'released_at',
+            'revoked_by', 'revoked_at', 'status', 'replaces', 'created_at'
+        ]
+
+
+class CreateDocumentReleaseSerializer(serializers.Serializer):
+    """Serializer for creating a document release."""
+    
+    student_id = serializers.UUIDField(
+        help_text="UUID of the student receiving the document"
+    )
+    document_type = serializers.ChoiceField(
+        choices=DocumentRelease.DocumentType.choices,
+        help_text="Type of document to release"
+    )
+    purpose = serializers.CharField(
+        max_length=500,
+        required=False,
+        allow_blank=True,
+        help_text="Purpose of the document request"
+    )
+    copies_released = serializers.IntegerField(
+        default=1,
+        min_value=1,
+        max_value=10,
+        help_text="Number of copies released"
+    )
+    notes = serializers.CharField(
+        max_length=1000,
+        required=False,
+        allow_blank=True,
+        help_text="Internal notes"
+    )
+
+
+class RevokeDocumentSerializer(serializers.Serializer):
+    """Serializer for revoking a document."""
+    
+    reason = serializers.CharField(
+        min_length=10,
+        max_length=500,
+        help_text="Reason for revocation (required)"
+    )
+
+
+class ReissueDocumentSerializer(serializers.Serializer):
+    """Serializer for reissuing a document."""
+    
+    purpose = serializers.CharField(
+        max_length=500,
+        required=False,
+        allow_blank=True,
+        help_text="New purpose (optional, defaults to original)"
+    )
+    notes = serializers.CharField(
+        max_length=1000,
+        required=False,
+        allow_blank=True,
+        help_text="Notes for the reissue"
+    )
+
+
+class DocumentReleaseLogSerializer(serializers.Serializer):
+    """Serializer for document release logs."""
+    
+    id = serializers.UUIDField()
+    document_code = serializers.CharField()
+    document_type = serializers.CharField()
+    document_type_display = serializers.CharField()
+    status = serializers.CharField()
+    student_number = serializers.CharField()
+    student_name = serializers.CharField()
+    released_by = serializers.CharField()
+    released_at = serializers.DateTimeField()
+    revoked_by = serializers.CharField(allow_null=True)
+    revoked_at = serializers.DateTimeField(allow_null=True)
+    revocation_reason = serializers.CharField(allow_blank=True)
+    copies_released = serializers.IntegerField()
+
+
+class DocumentReleaseStatsSerializer(serializers.Serializer):
+    """Serializer for document release statistics."""
+    
+    total_released = serializers.IntegerField()
+    active = serializers.IntegerField()
+    revoked = serializers.IntegerField()
+    reissued = serializers.IntegerField()
+    by_document_type = serializers.DictField()

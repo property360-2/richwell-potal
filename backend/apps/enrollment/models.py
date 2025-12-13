@@ -794,3 +794,146 @@ class ExamPermit(BaseModel):
         ).first()
         return bucket and bucket.is_fully_paid
 
+
+# ============================================================
+# EPIC 6 — Document Release System
+# ============================================================
+
+class DocumentRelease(BaseModel):
+    """
+    Tracks official documents released by the registrar.
+    Documents include TOR, certificates, diplomas, etc.
+    """
+    
+    class DocumentType(models.TextChoices):
+        TOR = 'TOR', 'Transcript of Records'
+        GOOD_MORAL = 'GOOD_MORAL', 'Good Moral Certificate'
+        ENROLLMENT_CERT = 'ENROLLMENT_CERT', 'Certificate of Enrollment'
+        GRADES_CERT = 'GRADES_CERT', 'Certificate of Grades'
+        COMPLETION_CERT = 'COMPLETION_CERT', 'Certificate of Completion'
+        TRANSFER_CRED = 'TRANSFER_CRED', 'Transfer Credentials'
+        HONORABLE_DISMISSAL = 'HONORABLE_DISMISSAL', 'Honorable Dismissal'
+        DIPLOMA = 'DIPLOMA', 'Diploma'
+        OTHER = 'OTHER', 'Other Document'
+    
+    class Status(models.TextChoices):
+        ACTIVE = 'ACTIVE', 'Active'
+        REVOKED = 'REVOKED', 'Revoked'
+        REISSUED = 'REISSUED', 'Reissued (superseded)'
+    
+    # Document identification
+    document_code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text='Unique document code (DOC-YYYYMMDD-XXXXX)'
+    )
+    document_type = models.CharField(
+        max_length=30,
+        choices=DocumentType.choices,
+        help_text='Type of document released'
+    )
+    
+    # Who it's for
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='document_releases',
+        limit_choices_to={'role': 'STUDENT'},
+        help_text='Student receiving the document'
+    )
+    
+    # Who issued it
+    released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='documents_released',
+        help_text='Registrar who released the document'
+    )
+    released_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When the document was released'
+    )
+    
+    # Status
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        help_text='Current status of the document'
+    )
+    
+    # Revocation (if applicable)
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documents_revoked',
+        help_text='Registrar who revoked the document'
+    )
+    revoked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the document was revoked'
+    )
+    revocation_reason = models.TextField(
+        blank=True,
+        help_text='Reason for revocation (required if revoked)'
+    )
+    
+    # Reissue chain (links to replaced document)
+    replaces = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='replaced_by',
+        help_text='Document that this one replaces (for reissues)'
+    )
+    
+    # Document details
+    purpose = models.TextField(
+        blank=True,
+        help_text='Purpose of document request'
+    )
+    copies_released = models.PositiveIntegerField(
+        default=1,
+        help_text='Number of copies released'
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text='Internal notes (not visible to student)'
+    )
+    
+    # Optional file attachment
+    document_file = models.FileField(
+        upload_to='documents/releases/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text='Optional PDF copy of the document'
+    )
+    
+    class Meta:
+        verbose_name = 'Document Release'
+        verbose_name_plural = 'Document Releases'
+        ordering = ['-released_at']
+        indexes = [
+            models.Index(fields=['student', 'status']),
+            models.Index(fields=['released_by', 'released_at']),
+            models.Index(fields=['document_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.document_code} - {self.get_document_type_display()} for {self.student.get_full_name()}"
+    
+    @property
+    def is_active(self):
+        return self.status == self.Status.ACTIVE
+    
+    @property
+    def is_revoked(self):
+        return self.status == self.Status.REVOKED
+    
+    @property
+    def has_replacement(self):
+        return self.replaced_by.exists()

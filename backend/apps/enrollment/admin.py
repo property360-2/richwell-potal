@@ -127,3 +127,41 @@ class SemesterGPAAdmin(admin.ModelAdmin):
     search_fields = ['enrollment__student__email', 'enrollment__student__student_number']
     readonly_fields = ['calculated_at']
     raw_id_fields = ['enrollment']
+
+
+# ============================================================
+# EPIC 6 — Document Release Admin
+# ============================================================
+
+from .models import DocumentRelease
+
+
+@admin.register(DocumentRelease)
+class DocumentReleaseAdmin(admin.ModelAdmin):
+    list_display = ['document_code', 'document_type', 'student', 'released_by', 'status', 'released_at']
+    list_filter = ['document_type', 'status', 'released_at']
+    search_fields = ['document_code', 'student__email', 'student__student_number']
+    readonly_fields = ['document_code', 'released_at', 'revoked_at', 'created_at', 'updated_at']
+    raw_id_fields = ['student', 'released_by', 'revoked_by', 'replaces']
+    date_hierarchy = 'released_at'
+    
+    fieldsets = (
+        ('Document Info', {
+            'fields': ('document_code', 'document_type', 'student', 'purpose', 'copies_released')
+        }),
+        ('Release Info', {
+            'fields': ('released_by', 'released_at', 'status', 'notes')
+        }),
+        ('Revocation', {
+            'fields': ('revoked_by', 'revoked_at', 'revocation_reason'),
+            'classes': ('collapse',)
+        }),
+        ('Reissue', {
+            'fields': ('replaces',),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

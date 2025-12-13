@@ -1806,3 +1806,311 @@ class SectionFinalizationListView(APIView):
                 'sections': section_data
             }
         })
+
+
+# ============================================================
+# Document Release Views (EPIC 6)
+# ============================================================
+
+from .models import DocumentRelease
+from .serializers import (
+    DocumentReleaseSerializer,
+    CreateDocumentReleaseSerializer,
+    RevokeDocumentSerializer,
+    ReissueDocumentSerializer,
+    DocumentReleaseLogSerializer,
+    DocumentReleaseStatsSerializer
+)
+from .services import DocumentReleaseService
+from apps.core.permissions import IsHeadRegistrar
+
+
+class CreateDocumentReleaseView(APIView):
+    """
+    Create a new document release (registrar only).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Create Document Release",
+        description="Create a new official document release for a student",
+        tags=["Documents"],
+        request=CreateDocumentReleaseSerializer,
+        responses={201: DocumentReleaseSerializer}
+    )
+    @transaction.atomic
+    def post(self, request):
+        serializer = CreateDocumentReleaseSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        
+        # Get student
+        try:
+            student = User.objects.get(
+                id=data['student_id'],
+                role='STUDENT'
+            )
+        except User.DoesNotExist:
+            raise NotFoundError("Student not found")
+        
+        try:
+            release = DocumentReleaseService.create_release(
+                student=student,
+                document_type=data['document_type'],
+                released_by=request.user,
+                purpose=data.get('purpose', ''),
+                copies=data.get('copies_released', 1),
+                notes=data.get('notes', '')
+            )
+        except ValueError as e:
+            return Response({
+                "success": False,
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            "success": True,
+            "message": "Document released successfully",
+            "data": DocumentReleaseSerializer(release).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class MyReleasesView(APIView):
+    """
+    Get documents released by the current registrar.
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Get My Releases",
+        description="Get document releases created by current registrar",
+        tags=["Documents"]
+    )
+    def get(self, request):
+        logs = DocumentReleaseService.get_release_logs(
+            registrar=request.user,
+            limit=100
+        )
+        
+        return Response({
+            "success": True,
+            "data": logs
+        })
+
+
+class AllReleasesView(APIView):
+    """
+    Get all document releases (head-registrar only).
+    """
+    permission_classes = [IsAuthenticated, IsHeadRegistrar]
+    
+    @extend_schema(
+        summary="Get All Releases",
+        description="Get all document releases (head-registrar audit view)",
+        tags=["Documents"]
+    )
+    def get(self, request):
+        # Parse filters
+        document_type = request.query_params.get('document_type')
+        status_filter = request.query_params.get('status')
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        
+        logs = DocumentReleaseService.get_release_logs(
+            registrar=None,  # All registrars
+            document_type=document_type,
+            status=status_filter,
+            date_from=date_from,
+            date_to=date_to,
+            limit=200
+        )
+        
+        return Response({
+            "success": True,
+            "data": logs
+        })
+
+
+class StudentDocumentsView(APIView):
+    """
+    Get all documents for a student.
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Get Student Documents",
+        description="Get all documents released for a student",
+        tags=["Documents"]
+    )
+    def get(self, request, student_id):
+        try:
+            student = User.objects.get(id=student_id, role='STUDENT')
+        except User.DoesNotExist:
+            raise NotFoundError("Student not found")
+        
+        documents = DocumentReleaseService.get_student_documents(student)
+        
+        return Response({
+            "success": True,
+            "data": {
+                'student_number': student.student_number,
+                'student_name': student.get_full_name(),
+                'documents': documents
+            }
+        })
+
+
+class DocumentDetailView(APIView):
+    """
+    Get document details by code.
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Get Document Details",
+        description="Get details of a specific document release",
+        tags=["Documents"]
+    )
+    def get(self, request, document_code):
+        try:
+            release = DocumentRelease.objects.select_related(
+                'student', 'released_by', 'revoked_by', 'replaces'
+            ).get(document_code=document_code)
+        except DocumentRelease.DoesNotExist:
+            raise NotFoundError("Document not found")
+        
+        # Log document access
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.DOCUMENT_ACCESSED,
+            target_model='DocumentRelease',
+            target_id=release.id,
+            actor=request.user,
+            payload={
+                'document_code': document_code,
+                'document_type': release.document_type
+            }
+        )
+        
+        return Response({
+            "success": True,
+            "data": DocumentReleaseSerializer(release).data
+        })
+
+
+class RevokeDocumentView(APIView):
+    """
+    Revoke an active document.
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Revoke Document",
+        description="Revoke an active document release",
+        tags=["Documents"],
+        request=RevokeDocumentSerializer,
+        responses={200: DocumentReleaseSerializer}
+    )
+    @transaction.atomic
+    def post(self, request, document_code):
+        serializer = RevokeDocumentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            release = DocumentRelease.objects.get(document_code=document_code)
+        except DocumentRelease.DoesNotExist:
+            raise NotFoundError("Document not found")
+        
+        try:
+            updated = DocumentReleaseService.revoke_document(
+                document_release=release,
+                revoked_by=request.user,
+                reason=serializer.validated_data['reason']
+            )
+        except ValueError as e:
+            return Response({
+                "success": False,
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            "success": True,
+            "message": "Document revoked successfully",
+            "data": DocumentReleaseSerializer(updated).data
+        })
+
+
+class ReissueDocumentView(APIView):
+    """
+    Reissue a revoked document.
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Reissue Document",
+        description="Reissue a revoked document (creates new record)",
+        tags=["Documents"],
+        request=ReissueDocumentSerializer,
+        responses={201: DocumentReleaseSerializer}
+    )
+    @transaction.atomic
+    def post(self, request, document_code):
+        serializer = ReissueDocumentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            release = DocumentRelease.objects.get(document_code=document_code)
+        except DocumentRelease.DoesNotExist:
+            raise NotFoundError("Document not found")
+        
+        try:
+            new_release = DocumentReleaseService.reissue_document(
+                document_release=release,
+                reissued_by=request.user,
+                purpose=serializer.validated_data.get('purpose', ''),
+                notes=serializer.validated_data.get('notes', '')
+            )
+        except ValueError as e:
+            return Response({
+                "success": False,
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            "success": True,
+            "message": "Document reissued successfully",
+            "data": DocumentReleaseSerializer(new_release).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class DocumentReleaseStatsView(APIView):
+    """
+    Get document release statistics.
+    """
+    permission_classes = [IsAuthenticated, IsHeadRegistrar]
+    
+    @extend_schema(
+        summary="Get Release Statistics",
+        description="Get document release statistics (head-registrar only)",
+        tags=["Documents"]
+    )
+    def get(self, request):
+        stats = DocumentReleaseService.get_release_stats()
+        
+        return Response({
+            "success": True,
+            "data": stats
+        })
