@@ -3,7 +3,7 @@ Admin configuration for academics app.
 """
 
 from django.contrib import admin
-from .models import Program, Subject, Section, SectionSubject, ScheduleSlot
+from .models import Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion
 
 
 class SubjectInline(admin.TabularInline):
@@ -53,3 +53,19 @@ class SectionSubjectAdmin(admin.ModelAdmin):
     list_filter = ['is_tba', 'section__semester']
     search_fields = ['section__name', 'subject__code']
     inlines = [ScheduleSlotInline]
+
+
+@admin.register(ScheduleSlot)
+class ScheduleSlotAdmin(admin.ModelAdmin):
+    list_display = ['section_subject', 'day', 'start_time', 'end_time', 'room']
+    list_filter = ['day', 'section_subject__section__semester']
+    search_fields = ['room', 'section_subject__subject__code']
+
+
+@admin.register(CurriculumVersion)
+class CurriculumVersionAdmin(admin.ModelAdmin):
+    list_display = ['program', 'semester', 'version_number', 'is_active', 'created_by', 'created_at']
+    list_filter = ['is_active', 'program', 'semester']
+    search_fields = ['program__code', 'notes']
+    readonly_fields = ['subjects_snapshot', 'version_number', 'created_at']
+

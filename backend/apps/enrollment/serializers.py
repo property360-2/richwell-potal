@@ -227,3 +227,207 @@ class BulkCreditSerializer(serializers.Serializer):
         if not value:
             raise serializers.ValidationError("At least one credit is required.")
         return value
+
+
+# ============================================================
+# Subject Enrollment Serializers (EPIC 3)
+# ============================================================
+
+class SubjectEnrollmentSerializer(serializers.ModelSerializer):
+    """Serializer for displaying subject enrollments."""
+    
+    from apps.enrollment.models import SubjectEnrollment
+    
+    subject_code = serializers.CharField(source='subject.code', read_only=True)
+    subject_title = serializers.CharField(source='subject.title', read_only=True)
+    units = serializers.IntegerField(source='subject.units', read_only=True)
+    section_name = serializers.CharField(source='section.name', read_only=True, allow_null=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    # Schedule info
+    schedule = serializers.SerializerMethodField()
+    professor_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        from apps.enrollment.models import SubjectEnrollment
+        model = SubjectEnrollment
+        fields = [
+            'id', 'subject_code', 'subject_title', 'units',
+            'section_name', 'status', 'status_display',
+            'grade', 'is_irregular', 'count_in_gpa',
+            'schedule', 'professor_name', 'created_at'
+        ]
+    
+    def get_schedule(self, obj):
+        """Get schedule slots for the section."""
+        if not obj.section:
+            return []
+        
+        from apps.academics.models import SectionSubject
+        
+        section_subject = SectionSubject.objects.filter(
+            section=obj.section,
+            subject=obj.subject
+        ).first()
+        
+        if not section_subject:
+            return []
+        
+        slots = []
+        for slot in section_subject.schedule_slots.filter(is_deleted=False):
+            slots.append({
+                'day': slot.get_day_display(),
+                'start_time': slot.start_time.strftime('%H:%M'),
+                'end_time': slot.end_time.strftime('%H:%M'),
+                'room': slot.room
+            })
+        return slots
+    
+    def get_professor_name(self, obj):
+        """Get professor name for this subject section."""
+        if not obj.section:
+            return None
+        
+        from apps.academics.models import SectionSubject
+        
+        section_subject = SectionSubject.objects.filter(
+            section=obj.section,
+            subject=obj.subject
+        ).select_related('professor').first()
+        
+        if section_subject and section_subject.professor:
+            return section_subject.professor.get_full_name()
+        return 'TBA'
+
+
+class RecommendedSubjectSerializer(serializers.Serializer):
+    """Serializer for recommended subjects list."""
+    
+    id = serializers.UUIDField()
+    code = serializers.CharField()
+    title = serializers.CharField()
+    units = serializers.IntegerField()
+    is_major = serializers.BooleanField()
+    year_level = serializers.IntegerField()
+    semester_number = serializers.IntegerField()
+    prerequisites = serializers.SerializerMethodField()
+    prerequisites_met = serializers.SerializerMethodField()
+    available_sections = serializers.SerializerMethodField()
+    
+    def get_prerequisites(self, obj):
+        return list(obj.prerequisites.values_list('code', flat=True))
+    
+    def get_prerequisites_met(self, obj):
+        """Check if prerequisites are met for current student."""
+        service = self.context.get('service')
+        student = self.context.get('student')
+        if not service or not student:
+            return True
+        
+        met, _ = service.check_prerequisites(student, obj)
+        return met
+    
+    def get_available_sections(self, obj):
+        """Get sections available for this subject in current semester."""
+        semester = self.context.get('semester')
+        if not semester:
+            return []
+        
+        from apps.academics.models import SectionSubject
+        
+        section_subjects = SectionSubject.objects.filter(
+            subject=obj,
+            section__semester=semester,
+            is_deleted=False
+        ).select_related('section', 'professor')
+        
+        sections = []
+        for ss in section_subjects:
+            slots = []
+            for slot in ss.schedule_slots.filter(is_deleted=False):
+                slots.append({
+                    'day': slot.get_day_display(),
+                    'start_time': slot.start_time.strftime('%H:%M'),
+                    'end_time': slot.end_time.strftime('%H:%M'),
+                    'room': slot.room
+                })
+            
+            sections.append({
+                'section_id': str(ss.section.id),
+                'section_name': ss.section.name,
+                'professor': ss.professor.get_full_name() if ss.professor else 'TBA',
+                'available_slots': ss.section.available_slots,
+                'schedule': slots
+            })
+        
+        return sections
+
+
+class AvailableSubjectSerializer(RecommendedSubjectSerializer):
+    """Serializer for all available subjects (extends recommended)."""
+    
+    # Inherits all fields from RecommendedSubjectSerializer
+    missing_prerequisites = serializers.SerializerMethodField()
+    
+    def get_missing_prerequisites(self, obj):
+        """Get list of missing prerequisite codes."""
+        service = self.context.get('service')
+        student = self.context.get('student')
+        if not service or not student:
+            return []
+        
+        _, missing = service.check_prerequisites(student, obj)
+        return missing
+
+
+class EnrollSubjectRequestSerializer(serializers.Serializer):
+    """Serializer for subject enrollment request."""
+    
+    subject_id = serializers.UUIDField(
+        help_text="UUID of the subject to enroll in"
+    )
+    section_id = serializers.UUIDField(
+        help_text="UUID of the section to enroll in"
+    )
+    
+    def validate_subject_id(self, value):
+        from apps.academics.models import Subject
+        try:
+            Subject.objects.get(id=value, is_deleted=False)
+            return value
+        except Subject.DoesNotExist:
+            raise serializers.ValidationError("Subject not found.")
+    
+    def validate_section_id(self, value):
+        from apps.academics.models import Section
+        try:
+            Section.objects.get(id=value, is_deleted=False)
+            return value
+        except Section.DoesNotExist:
+            raise serializers.ValidationError("Section not found.")
+
+
+class RegistrarOverrideSerializer(serializers.Serializer):
+    """Serializer for registrar override enrollment."""
+    
+    student_id = serializers.UUIDField(
+        help_text="UUID of the student to enroll"
+    )
+    subject_id = serializers.UUIDField(
+        help_text="UUID of the subject"
+    )
+    section_id = serializers.UUIDField(
+        help_text="UUID of the section"
+    )
+    override_reason = serializers.CharField(
+        max_length=500,
+        help_text="Justification for overriding enrollment rules"
+    )
+    
+    def validate_override_reason(self, value):
+        if len(value.strip()) < 10:
+            raise serializers.ValidationError(
+                "Override reason must be at least 10 characters."
+            )
+        return value.strip()
+

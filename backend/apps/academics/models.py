@@ -266,3 +266,102 @@ class ScheduleSlot(BaseModel):
     
     def __str__(self):
         return f"{self.section_subject} - {self.get_day_display()} {self.start_time}-{self.end_time}"
+
+
+class CurriculumVersion(BaseModel):
+    """
+    Tracks curriculum versions per program per semester.
+    Allows rollback and audit of curriculum changes.
+    """
+    
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name='curriculum_versions'
+    )
+    semester = models.ForeignKey(
+        'enrollment.Semester',
+        on_delete=models.PROTECT,
+        related_name='curriculum_versions'
+    )
+    version_number = models.PositiveIntegerField(
+        default=1,
+        help_text='Version number for this semester'
+    )
+    subjects_snapshot = models.JSONField(
+        help_text='JSON snapshot of subjects and prerequisites at the time of version creation'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Whether this is the active curriculum version for the semester'
+    )
+    created_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='curriculum_versions_created'
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text='Notes about this curriculum version'
+    )
+    
+    class Meta:
+        verbose_name = 'Curriculum Version'
+        verbose_name_plural = 'Curriculum Versions'
+        unique_together = ['program', 'semester', 'version_number']
+        ordering = ['-semester', '-version_number']
+    
+    def __str__(self):
+        return f"{self.program.code} - {self.semester} v{self.version_number}"
+    
+    def save(self, *args, **kwargs):
+        # Ensure only one active version per program/semester
+        if self.is_active:
+            CurriculumVersion.objects.filter(
+                program=self.program,
+                semester=self.semester,
+                is_active=True
+            ).exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def create_snapshot(cls, program, semester, user=None, notes=''):
+        """
+        Create a snapshot of the current curriculum.
+        """
+        # Get all subjects for this program
+        subjects = program.subjects.filter(is_deleted=False)
+        
+        snapshot = []
+        for subject in subjects:
+            snapshot.append({
+                'id': str(subject.id),
+                'code': subject.code,
+                'title': subject.title,
+                'units': subject.units,
+                'is_major': subject.is_major,
+                'year_level': subject.year_level,
+                'semester_number': subject.semester_number,
+                'prerequisites': list(subject.prerequisites.values_list('code', flat=True))
+            })
+        
+        # Get next version number
+        last_version = cls.objects.filter(
+            program=program,
+            semester=semester
+        ).order_by('-version_number').first()
+        
+        next_version = (last_version.version_number + 1) if last_version else 1
+        
+        return cls.objects.create(
+            program=program,
+            semester=semester,
+            version_number=next_version,
+            subjects_snapshot=snapshot,
+            created_by=user,
+            notes=notes,
+            is_active=True
+        )
+
