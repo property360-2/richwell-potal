@@ -339,11 +339,45 @@ class SubjectEnrollment(BaseModel):
         help_text='When INC status was set (for expiry calculation)'
     )
     
+    # Grade finalization (EPIC 5)
+    is_finalized = models.BooleanField(
+        default=False,
+        help_text='Whether grade has been finalized by registrar'
+    )
+    finalized_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When grade was finalized'
+    )
+    finalized_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='finalized_grades',
+        help_text='Registrar who finalized this grade'
+    )
+    
+    # Retake tracking (EPIC 5)
+    is_retake = models.BooleanField(
+        default=False,
+        help_text='Whether this is a retake enrollment'
+    )
+    original_enrollment = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='retakes',
+        help_text='Original failed enrollment if this is a retake'
+    )
+    
     class Meta:
         verbose_name = 'Subject Enrollment'
         verbose_name_plural = 'Subject Enrollments'
         unique_together = ['enrollment', 'subject']
         ordering = ['subject__year_level', 'subject__semester_number']
+
     
     def __str__(self):
         return f"{self.enrollment.student.get_full_name()} - {self.subject.code}"
@@ -418,8 +452,125 @@ class CreditSource(BaseModel):
 
 
 # ============================================================
+# EPIC 5 — Grade & GPA Models
+# ============================================================
+
+class GradeHistory(BaseModel):
+    """
+    Tracks grade changes for audit purposes.
+    Every grade submission or change creates a history entry.
+    """
+    
+    subject_enrollment = models.ForeignKey(
+        SubjectEnrollment,
+        on_delete=models.CASCADE,
+        related_name='grade_history'
+    )
+    previous_grade = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Previous grade value'
+    )
+    new_grade = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='New grade value'
+    )
+    previous_status = models.CharField(
+        max_length=20,
+        choices=SubjectEnrollment.Status.choices,
+        help_text='Status before change'
+    )
+    new_status = models.CharField(
+        max_length=20,
+        choices=SubjectEnrollment.Status.choices,
+        help_text='Status after change'
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='grade_changes',
+        help_text='User who made the change'
+    )
+    change_reason = models.TextField(
+        blank=True,
+        help_text='Reason for the change (required for overrides)'
+    )
+    is_system_action = models.BooleanField(
+        default=False,
+        help_text='Whether this was an automated system action (e.g., INC expiry)'
+    )
+    is_finalization = models.BooleanField(
+        default=False,
+        help_text='Whether this was a registrar finalization action'
+    )
+    
+    class Meta:
+        verbose_name = 'Grade History'
+        verbose_name_plural = 'Grade Histories'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.subject_enrollment} - {self.previous_grade} → {self.new_grade}"
+
+
+class SemesterGPA(BaseModel):
+    """
+    Stores calculated GPA per semester for quick access.
+    Updated automatically when grades are finalized.
+    """
+    
+    enrollment = models.OneToOneField(
+        Enrollment,
+        on_delete=models.CASCADE,
+        related_name='gpa_record'
+    )
+    gpa = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Calculated semester GPA'
+    )
+    total_units = models.IntegerField(
+        default=0,
+        help_text='Total units included in GPA calculation'
+    )
+    total_grade_points = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Sum of (grade × units)'
+    )
+    subjects_included = models.IntegerField(
+        default=0,
+        help_text='Number of subjects included in GPA'
+    )
+    calculated_at = models.DateTimeField(
+        auto_now=True,
+        help_text='When GPA was last calculated'
+    )
+    is_finalized = models.BooleanField(
+        default=False,
+        help_text='Whether all grades are finalized'
+    )
+    
+    class Meta:
+        verbose_name = 'Semester GPA'
+        verbose_name_plural = 'Semester GPAs'
+    
+    def __str__(self):
+        return f"{self.enrollment} - GPA: {self.gpa}"
+
+
+# ============================================================
 # EPIC 4 — Payment & Exam Permit Models
 # ============================================================
+
 
 class PaymentTransaction(BaseModel):
     """

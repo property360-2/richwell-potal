@@ -653,3 +653,147 @@ class PaymentSummarySerializer(serializers.Serializer):
     buckets = serializers.ListField()
     recent_transactions = serializers.ListField()
 
+
+# ============================================================
+# Grade & GPA Serializers (EPIC 5)
+# ============================================================
+
+from .models import GradeHistory, SemesterGPA
+
+
+class GradeHistorySerializer(serializers.ModelSerializer):
+    """Serializer for grade history entries."""
+    
+    changed_by_name = serializers.CharField(source='changed_by.get_full_name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = GradeHistory
+        fields = [
+            'id', 'previous_grade', 'new_grade',
+            'previous_status', 'new_status',
+            'changed_by_name', 'change_reason',
+            'is_system_action', 'is_finalization',
+            'created_at'
+        ]
+
+
+class SemesterGPASerializer(serializers.ModelSerializer):
+    """Serializer for semester GPA records."""
+    
+    semester_name = serializers.CharField(source='enrollment.semester.__str__', read_only=True)
+    student_name = serializers.CharField(source='enrollment.student.get_full_name', read_only=True)
+    
+    class Meta:
+        model = SemesterGPA
+        fields = [
+            'id', 'enrollment', 'semester_name', 'student_name',
+            'gpa', 'total_units', 'total_grade_points',
+            'subjects_included', 'calculated_at', 'is_finalized'
+        ]
+
+
+class GradeSubmitSerializer(serializers.Serializer):
+    """Serializer for professor grade submission."""
+    
+    subject_enrollment_id = serializers.UUIDField(
+        help_text="UUID of the subject enrollment to grade"
+    )
+    grade = serializers.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        help_text="Grade value (1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 5.0)"
+    )
+    is_inc = serializers.BooleanField(
+        default=False,
+        help_text="Mark as Incomplete (INC) instead of numeric grade"
+    )
+    change_reason = serializers.CharField(
+        max_length=500,
+        required=False,
+        allow_blank=True,
+        help_text="Optional reason for the grade change"
+    )
+    
+    def validate(self, data):
+        if not data.get('is_inc') and data.get('grade') is None:
+            raise serializers.ValidationError(
+                "Either 'grade' or 'is_inc' must be provided"
+            )
+        return data
+
+
+class GradeOverrideSerializer(serializers.Serializer):
+    """Serializer for registrar grade override."""
+    
+    subject_enrollment_id = serializers.UUIDField(
+        help_text="UUID of the subject enrollment to override"
+    )
+    new_grade = serializers.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        help_text="New grade value"
+    )
+    reason = serializers.CharField(
+        min_length=10,
+        max_length=500,
+        help_text="Required justification for the override"
+    )
+
+
+class SectionGradeListSerializer(serializers.Serializer):
+    """Serializer for listing students with grades in a section."""
+    
+    subject_enrollment_id = serializers.UUIDField()
+    student_number = serializers.CharField()
+    student_name = serializers.CharField()
+    grade = serializers.DecimalField(max_digits=3, decimal_places=2, allow_null=True)
+    status = serializers.CharField()
+    status_display = serializers.CharField()
+    is_finalized = serializers.BooleanField()
+    finalized_at = serializers.DateTimeField(allow_null=True)
+
+
+class MyGradesSerializer(serializers.Serializer):
+    """Serializer for student's own grades view."""
+    
+    subject_code = serializers.CharField()
+    subject_title = serializers.CharField()
+    units = serializers.IntegerField()
+    grade = serializers.DecimalField(max_digits=3, decimal_places=2, allow_null=True)
+    status = serializers.CharField()
+    status_display = serializers.CharField()
+    is_finalized = serializers.BooleanField()
+    professor_name = serializers.CharField(allow_null=True)
+
+
+class TranscriptSerializer(serializers.Serializer):
+    """Serializer for academic transcript."""
+    
+    semesters = serializers.ListField()
+    cumulative_gpa = serializers.CharField()
+    cumulative_units = serializers.IntegerField()
+
+
+class INCReportSerializer(serializers.Serializer):
+    """Serializer for INC status report."""
+    
+    enrollment_id = serializers.CharField()
+    subject_code = serializers.CharField()
+    subject_title = serializers.CharField()
+    student_number = serializers.CharField()
+    student_name = serializers.CharField()
+    is_major = serializers.BooleanField()
+    inc_marked_at = serializers.CharField()
+    expires_at = serializers.CharField()
+    days_remaining = serializers.IntegerField()
+
+
+class UpdateStandingSerializer(serializers.Serializer):
+    """Serializer for updating academic standing."""
+    
+    academic_standing = serializers.CharField(
+        max_length=100,
+        help_text="Academic standing (e.g., Good Standing, Dean's List, Probation)"
+    )

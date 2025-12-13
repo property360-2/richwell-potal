@@ -101,3 +101,29 @@ class ExamPermitAdmin(admin.ModelAdmin):
     search_fields = ['permit_code', 'enrollment__student__email', 'enrollment__student__student_number']
     readonly_fields = ['permit_code', 'created_at']
     raw_id_fields = ['enrollment', 'printed_by']
+
+
+# ============================================================
+# EPIC 5 — Grade & GPA Admin
+# ============================================================
+
+from .models import GradeHistory, SemesterGPA
+
+
+@admin.register(GradeHistory)
+class GradeHistoryAdmin(admin.ModelAdmin):
+    list_display = ['subject_enrollment', 'previous_grade', 'new_grade', 'previous_status', 'new_status', 'changed_by', 'created_at']
+    list_filter = ['new_status', 'is_system_action', 'is_finalization', 'created_at']
+    search_fields = ['subject_enrollment__enrollment__student__email', 'subject_enrollment__subject__code']
+    readonly_fields = ['created_at']
+    raw_id_fields = ['subject_enrollment', 'changed_by']
+    date_hierarchy = 'created_at'
+
+
+@admin.register(SemesterGPA)
+class SemesterGPAAdmin(admin.ModelAdmin):
+    list_display = ['enrollment', 'gpa', 'total_units', 'subjects_included', 'is_finalized', 'calculated_at']
+    list_filter = ['is_finalized', 'calculated_at']
+    search_fields = ['enrollment__student__email', 'enrollment__student__student_number']
+    readonly_fields = ['calculated_at']
+    raw_id_fields = ['enrollment']

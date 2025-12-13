@@ -68,4 +68,30 @@ urlpatterns = [
     
     # Admin exam permit list
     path('exam-permits/', views.ExamPermitListView.as_view(), name='exam-permit-list'),
+    
+    # ============================================================
+    # Grades & GPA (EPIC 5)
+    # ============================================================
+    
+    # Professor grading
+    path('grades/my-sections/', views.ProfessorSectionsView.as_view(), name='professor-sections'),
+    path('grades/section/<uuid:section_id>/subject/<uuid:subject_id>/students/', views.SectionStudentsView.as_view(), name='section-students'),
+    path('grades/submit/', views.SubmitGradeView.as_view(), name='submit-grade'),
+    path('grades/history/<uuid:subject_enrollment_id>/', views.GradeHistoryView.as_view(), name='grade-history'),
+    
+    # Registrar finalization
+    path('grades/sections/', views.SectionFinalizationListView.as_view(), name='sections-for-finalization'),
+    path('grades/section/<uuid:section_id>/finalize/', views.FinalizeSectionGradesView.as_view(), name='finalize-section'),
+    path('grades/override/', views.OverrideGradeView.as_view(), name='override-grade'),
+    
+    # INC management
+    path('grades/inc-report/', views.INCReportView.as_view(), name='inc-report'),
+    path('grades/process-expired-incs/', views.ProcessExpiredINCsView.as_view(), name='process-expired-incs'),
+    
+    # Student grades
+    path('my-enrollment/grades/', views.MyGradesView.as_view(), name='my-grades'),
+    path('my-enrollment/transcript/', views.MyTranscriptView.as_view(), name='my-transcript'),
+    
+    # Academic standing
+    path('students/<uuid:student_id>/standing/', views.UpdateAcademicStandingView.as_view(), name='update-standing'),
 ]

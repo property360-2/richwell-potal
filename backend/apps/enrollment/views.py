@@ -1234,3 +1234,575 @@ class ExamPermitListView(ListAPIView):
             queryset = queryset.filter(is_printed=is_printed.lower() == 'true')
         
         return queryset[:100]
+
+
+# ============================================================
+# Grade Management Views (EPIC 5)
+# ============================================================
+
+from .models import GradeHistory, SemesterGPA
+from .serializers import (
+    GradeHistorySerializer,
+    SemesterGPASerializer,
+    GradeSubmitSerializer,
+    GradeOverrideSerializer,
+    SubjectEnrollmentSerializer,
+    INCReportSerializer,
+    UpdateStandingSerializer
+)
+from .services import GradeService, INCAutomationService
+from apps.core.permissions import IsProfessor
+
+
+class ProfessorSectionsView(APIView):
+    """
+    Get sections where the current professor teaches.
+    """
+    permission_classes = [IsAuthenticated, IsProfessor]
+    
+    @extend_schema(
+        summary="Get My Sections",
+        description="Get sections where the current professor teaches",
+        tags=["Grades"]
+    )
+    def get(self, request):
+        from apps.academics.models import SectionSubject, Section
+        
+        # Get sections where professor is assigned
+        section_subjects = SectionSubject.objects.filter(
+            professor=request.user,
+            is_deleted=False
+        ).select_related('section', 'subject', 'section__semester')
+        
+        # Group by section
+        sections_dict = {}
+        for ss in section_subjects:
+            section = ss.section
+            if section.id not in sections_dict:
+                sections_dict[section.id] = {
+                    'section_id': str(section.id),
+                    'section_name': section.name,
+                    'semester': str(section.semester),
+                    'semester_id': str(section.semester.id),
+                    'subjects': []
+                }
+            
+            sections_dict[section.id]['subjects'].append({
+                'subject_id': str(ss.subject.id),
+                'subject_code': ss.subject.code,
+                'subject_title': ss.subject.title,
+                'units': ss.subject.units
+            })
+        
+        return Response({
+            "success": True,
+            "data": list(sections_dict.values())
+        })
+
+
+class SectionStudentsView(APIView):
+    """
+    Get students in a section with their grades.
+    """
+    permission_classes = [IsAuthenticated, IsProfessor | IsRegistrar]
+    
+    @extend_schema(
+        summary="Get Section Students",
+        description="Get students in a section with grades for a specific subject",
+        tags=["Grades"]
+    )
+    def get(self, request, section_id, subject_id):
+        from apps.academics.models import Section, Subject, SectionSubject
+        
+        try:
+            section = Section.objects.get(id=section_id)
+            subject = Subject.objects.get(id=subject_id)
+        except (Section.DoesNotExist, Subject.DoesNotExist):
+            raise NotFoundError("Section or subject not found")
+        
+        # Verify professor is assigned (if professor)
+        if request.user.role == 'PROFESSOR':
+            is_assigned = SectionSubject.objects.filter(
+                section=section,
+                subject=subject,
+                professor=request.user
+            ).exists()
+            
+            if not is_assigned:
+                return Response({
+                    "success": False,
+                    "error": "You are not assigned to teach this subject in this section"
+                }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get student enrollments
+        enrollments = SubjectEnrollment.objects.filter(
+            section=section,
+            subject=subject
+        ).select_related('enrollment__student').order_by('enrollment__student__last_name')
+        
+        students = []
+        for se in enrollments:
+            students.append({
+                'subject_enrollment_id': str(se.id),
+                'student_number': se.enrollment.student.student_number,
+                'student_name': se.enrollment.student.get_full_name(),
+                'grade': str(se.grade) if se.grade else None,
+                'status': se.status,
+                'status_display': se.get_status_display(),
+                'is_finalized': se.is_finalized,
+                'finalized_at': se.finalized_at.isoformat() if se.finalized_at else None
+            })
+        
+        return Response({
+            "success": True,
+            "data": {
+                'section': section.name,
+                'subject_code': subject.code,
+                'subject_title': subject.title,
+                'students': students,
+                'total_students': len(students)
+            }
+        })
+
+
+class SubmitGradeView(APIView):
+    """
+    Submit or update a grade (professor only).
+    """
+    permission_classes = [IsAuthenticated, IsProfessor]
+    
+    @extend_schema(
+        summary="Submit Grade",
+        description="Submit or update a grade for a student",
+        tags=["Grades"],
+        request=GradeSubmitSerializer,
+        responses={200: SubjectEnrollmentSerializer}
+    )
+    @transaction.atomic
+    def post(self, request):
+        serializer = GradeSubmitSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        
+        try:
+            subject_enrollment = SubjectEnrollment.objects.get(
+                id=data['subject_enrollment_id']
+            )
+        except SubjectEnrollment.DoesNotExist:
+            raise NotFoundError("Subject enrollment not found")
+        
+        try:
+            updated = GradeService.submit_grade(
+                subject_enrollment=subject_enrollment,
+                grade=data.get('grade'),
+                professor=request.user,
+                is_inc=data.get('is_inc', False),
+                change_reason=data.get('change_reason', '')
+            )
+        except ValueError as e:
+            return Response({
+                "success": False,
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            "success": True,
+            "message": "Grade submitted successfully",
+            "data": SubjectEnrollmentSerializer(updated).data
+        })
+
+
+class FinalizeSectionGradesView(APIView):
+    """
+    Finalize all grades for a section (registrar only).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Finalize Section Grades",
+        description="Finalize all grades for a section",
+        tags=["Grades"]
+    )
+    @transaction.atomic
+    def post(self, request, section_id):
+        from apps.academics.models import Section
+        
+        try:
+            section = Section.objects.get(id=section_id)
+        except Section.DoesNotExist:
+            raise NotFoundError("Section not found")
+        
+        finalized = GradeService.finalize_section_grades(
+            section=section,
+            registrar=request.user
+        )
+        
+        return Response({
+            "success": True,
+            "message": f"Finalized {len(finalized)} grades",
+            "data": {
+                'section': section.name,
+                'finalized_count': len(finalized)
+            }
+        })
+
+
+class OverrideGradeView(APIView):
+    """
+    Override a grade (registrar only).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Override Grade",
+        description="Override a grade (even if finalized)",
+        tags=["Grades"],
+        request=GradeOverrideSerializer,
+        responses={200: SubjectEnrollmentSerializer}
+    )
+    @transaction.atomic
+    def post(self, request):
+        serializer = GradeOverrideSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        
+        try:
+            subject_enrollment = SubjectEnrollment.objects.get(
+                id=data['subject_enrollment_id']
+            )
+        except SubjectEnrollment.DoesNotExist:
+            raise NotFoundError("Subject enrollment not found")
+        
+        try:
+            updated = GradeService.override_grade(
+                subject_enrollment=subject_enrollment,
+                new_grade=data['new_grade'],
+                registrar=request.user,
+                reason=data['reason']
+            )
+        except ValueError as e:
+            return Response({
+                "success": False,
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            "success": True,
+            "message": "Grade overridden successfully",
+            "data": SubjectEnrollmentSerializer(updated).data
+        })
+
+
+class GradeHistoryView(APIView):
+    """
+    Get grade change history for a subject enrollment.
+    """
+    permission_classes = [IsAuthenticated, IsProfessor | IsRegistrar]
+    
+    @extend_schema(
+        summary="Get Grade History",
+        description="Get the history of grade changes for a subject enrollment",
+        tags=["Grades"]
+    )
+    def get(self, request, subject_enrollment_id):
+        try:
+            subject_enrollment = SubjectEnrollment.objects.get(
+                id=subject_enrollment_id
+            )
+        except SubjectEnrollment.DoesNotExist:
+            raise NotFoundError("Subject enrollment not found")
+        
+        history = GradeHistory.objects.filter(
+            subject_enrollment=subject_enrollment
+        ).order_by('-created_at')
+        
+        serializer = GradeHistorySerializer(history, many=True)
+        
+        return Response({
+            "success": True,
+            "data": {
+                'subject_code': subject_enrollment.subject.code,
+                'student_name': subject_enrollment.enrollment.student.get_full_name(),
+                'history': serializer.data
+            }
+        })
+
+
+class MyGradesView(APIView):
+    """
+    Get current student's grades.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Get My Grades",
+        description="Get the current student's grades for the current semester",
+        tags=["Grades"]
+    )
+    def get(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            raise NotFoundError("No active semester found")
+        
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            semester=semester
+        ).first()
+        
+        if not enrollment:
+            raise NotFoundError("No enrollment found for current semester")
+        
+        # Get subject enrollments with grades
+        from apps.academics.models import SectionSubject
+        
+        subject_enrollments = SubjectEnrollment.objects.filter(
+            enrollment=enrollment
+        ).select_related('subject', 'section')
+        
+        grades = []
+        for se in subject_enrollments:
+            # Get professor name
+            professor_name = None
+            if se.section:
+                ss = SectionSubject.objects.filter(
+                    section=se.section,
+                    subject=se.subject
+                ).select_related('professor').first()
+                if ss and ss.professor:
+                    professor_name = ss.professor.get_full_name()
+            
+            grades.append({
+                'subject_code': se.subject.code,
+                'subject_title': se.subject.title,
+                'units': se.subject.units,
+                'grade': str(se.grade) if se.grade else None,
+                'status': se.status,
+                'status_display': se.get_status_display(),
+                'is_finalized': se.is_finalized,
+                'professor_name': professor_name or 'TBA'
+            })
+        
+        # Get GPA if available
+        gpa_record = getattr(enrollment, 'gpa_record', None)
+        
+        return Response({
+            "success": True,
+            "data": {
+                'semester': str(semester),
+                'grades': grades,
+                'gpa': str(gpa_record.gpa) if gpa_record else None,
+                'total_units': gpa_record.total_units if gpa_record else 0,
+                'is_finalized': gpa_record.is_finalized if gpa_record else False
+            }
+        })
+
+
+class MyTranscriptView(APIView):
+    """
+    Get student's full academic transcript.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Get My Transcript",
+        description="Get the current student's full academic transcript",
+        tags=["Grades"]
+    )
+    def get(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        transcript = GradeService.get_student_transcript(request.user)
+        
+        return Response({
+            "success": True,
+            "data": transcript
+        })
+
+
+class INCReportView(APIView):
+    """
+    Get INC status report (registrar only).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Get INC Report",
+        description="Get report of all INCs and their expiry status",
+        tags=["Grades"]
+    )
+    def get(self, request):
+        days_ahead = int(request.query_params.get('days_ahead', 30))
+        
+        # Get expiring INCs
+        expiring = INCAutomationService.get_expiring_incs(days_ahead)
+        
+        # Get all current INCs
+        all_incs = SubjectEnrollment.objects.filter(
+            status=SubjectEnrollment.Status.INC
+        ).select_related('subject', 'enrollment__student').count()
+        
+        return Response({
+            "success": True,
+            "data": {
+                'total_incs': all_incs,
+                'expiring_within_days': days_ahead,
+                'expiring_count': len(expiring),
+                'expiring_incs': expiring
+            }
+        })
+
+
+class ProcessExpiredINCsView(APIView):
+    """
+    Manually trigger INC expiry processing (admin only).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Process Expired INCs",
+        description="Convert all expired INCs to FAILED",
+        tags=["Grades"]
+    )
+    @transaction.atomic
+    def post(self, request):
+        converted = INCAutomationService.process_all_expired_incs()
+        
+        converted_data = []
+        for se in converted:
+            converted_data.append({
+                'subject_code': se.subject.code,
+                'student_number': se.enrollment.student.student_number,
+                'student_name': se.enrollment.student.get_full_name()
+            })
+        
+        return Response({
+            "success": True,
+            "message": f"Converted {len(converted)} INCs to FAILED",
+            "data": {
+                'converted_count': len(converted),
+                'converted': converted_data
+            }
+        })
+
+
+class UpdateAcademicStandingView(APIView):
+    """
+    Update a student's academic standing (registrar only).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="Update Academic Standing",
+        description="Update a student's academic standing",
+        tags=["Grades"],
+        request=UpdateStandingSerializer
+    )
+    @transaction.atomic
+    def patch(self, request, student_id):
+        serializer = UpdateStandingSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            student = User.objects.get(id=student_id, role='STUDENT')
+        except User.DoesNotExist:
+            raise NotFoundError("Student not found")
+        
+        profile = getattr(student, 'student_profile', None)
+        if not profile:
+            raise NotFoundError("Student profile not found")
+        
+        profile.academic_standing = serializer.validated_data['academic_standing']
+        profile.save()
+        
+        return Response({
+            "success": True,
+            "message": "Academic standing updated",
+            "data": {
+                'student_number': student.student_number,
+                'student_name': student.get_full_name(),
+                'academic_standing': profile.academic_standing
+            }
+        })
+
+
+class SectionFinalizationListView(APIView):
+    """
+    List sections pending grade finalization (registrar only).
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    
+    @extend_schema(
+        summary="List Sections for Finalization",
+        description="Get sections with unfinalized grades",
+        tags=["Grades"]
+    )
+    def get(self, request):
+        from apps.academics.models import Section
+        
+        semester_id = request.query_params.get('semester_id')
+        
+        if semester_id:
+            semester = Semester.objects.filter(id=semester_id).first()
+        else:
+            semester = Semester.objects.filter(is_current=True).first()
+        
+        if not semester:
+            raise NotFoundError("No semester found")
+        
+        # Get sections with unfinalized grades
+        sections = Section.objects.filter(
+            semester=semester,
+            is_deleted=False
+        ).order_by('name')
+        
+        section_data = []
+        for section in sections:
+            # Count finalized vs unfinalized
+            total = SubjectEnrollment.objects.filter(section=section).count()
+            finalized = SubjectEnrollment.objects.filter(
+                section=section,
+                is_finalized=True
+            ).count()
+            unfinalized = total - finalized
+            
+            if total > 0:
+                section_data.append({
+                    'section_id': str(section.id),
+                    'section_name': section.name,
+                    'total_enrollments': total,
+                    'finalized': finalized,
+                    'unfinalized': unfinalized,
+                    'is_complete': unfinalized == 0
+                })
+        
+        return Response({
+            "success": True,
+            "data": {
+                'semester': str(semester),
+                'sections': section_data
+            }
+        })

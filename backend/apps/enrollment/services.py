@@ -18,9 +18,11 @@ from apps.audit.models import AuditLog
 
 from .models import (
     Enrollment, MonthlyPaymentBucket, Semester,
-    PaymentTransaction, ExamMonthMapping, ExamPermit
+    PaymentTransaction, ExamMonthMapping, ExamPermit,
+    SubjectEnrollment, GradeHistory, SemesterGPA
 )
 
+from datetime import timedelta
 
 
 class EnrollmentService:
@@ -1345,3 +1347,619 @@ class ExamPermitService:
         )
         
         return permit
+
+
+# ============================================================
+# EPIC 5 — Grade & GPA Services
+# ============================================================
+
+class GradeService:
+    """
+    Service class for grade-related business logic.
+    Handles grade submission, validation, finalization, and GPA calculation.
+    """
+    
+    # Allowed grade values as per documentation
+    ALLOWED_GRADES = [
+        Decimal('1.00'),
+        Decimal('1.25'),
+        Decimal('1.50'),
+        Decimal('1.75'),
+        Decimal('2.00'),
+        Decimal('2.25'),
+        Decimal('2.50'),
+        Decimal('2.75'),
+        Decimal('3.00'),
+        Decimal('5.00'),
+    ]
+    
+    PASSING_GRADE = Decimal('3.00')
+    
+    @classmethod
+    def validate_grade(cls, grade: Decimal) -> tuple[bool, str]:
+        """
+        Validate that a grade is in the allowed set.
+        
+        Args:
+            grade: The grade value to validate
+            
+        Returns:
+            tuple: (is_valid, error_message)
+        """
+        if grade is None:
+            return True, ""
+        
+        grade = Decimal(str(grade))
+        
+        if grade not in cls.ALLOWED_GRADES:
+            allowed = ', '.join(str(g) for g in cls.ALLOWED_GRADES)
+            return False, f"Grade must be one of: {allowed}"
+        
+        return True, ""
+    
+    @classmethod
+    def is_passing(cls, grade: Decimal) -> bool:
+        """Check if a grade is passing."""
+        if grade is None:
+            return False
+        return Decimal(str(grade)) <= cls.PASSING_GRADE
+    
+    @classmethod
+    @transaction.atomic
+    def submit_grade(
+        cls,
+        subject_enrollment: SubjectEnrollment,
+        grade: Decimal,
+        professor: User,
+        is_inc: bool = False,
+        change_reason: str = ''
+    ) -> SubjectEnrollment:
+        """
+        Submit or update a grade for a subject enrollment.
+        
+        Args:
+            subject_enrollment: The enrollment to grade
+            grade: The grade value (None if INC)
+            professor: The professor submitting the grade
+            is_inc: Whether to mark as INC instead of numeric grade
+            change_reason: Optional reason for the change
+            
+        Returns:
+            SubjectEnrollment: Updated enrollment
+        """
+        from apps.academics.models import SectionSubject
+        
+        # Check if already finalized
+        if subject_enrollment.is_finalized:
+            raise ValueError("Cannot modify a finalized grade")
+        
+        # Verify professor is assigned to this section
+        if subject_enrollment.section:
+            is_assigned = SectionSubject.objects.filter(
+                section=subject_enrollment.section,
+                subject=subject_enrollment.subject,
+                professor=professor
+            ).exists()
+            
+            if not is_assigned:
+                raise ValueError("You are not assigned to teach this subject in this section")
+        
+        # Store previous values for history
+        previous_grade = subject_enrollment.grade
+        previous_status = subject_enrollment.status
+        
+        if is_inc:
+            # Mark as INC
+            new_grade = None
+            new_status = SubjectEnrollment.Status.INC
+            subject_enrollment.inc_marked_at = timezone.now()
+        else:
+            # Validate grade
+            is_valid, error = cls.validate_grade(grade)
+            if not is_valid:
+                raise ValueError(error)
+            
+            new_grade = Decimal(str(grade))
+            new_status = (
+                SubjectEnrollment.Status.PASSED 
+                if cls.is_passing(new_grade) 
+                else SubjectEnrollment.Status.FAILED
+            )
+            subject_enrollment.inc_marked_at = None
+        
+        # Update the enrollment
+        subject_enrollment.grade = new_grade
+        subject_enrollment.status = new_status
+        subject_enrollment.save()
+        
+        # Create history entry
+        GradeHistory.objects.create(
+            subject_enrollment=subject_enrollment,
+            previous_grade=previous_grade,
+            new_grade=new_grade,
+            previous_status=previous_status,
+            new_status=new_status,
+            changed_by=professor,
+            change_reason=change_reason
+        )
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.GRADE_SUBMITTED,
+            target_model='SubjectEnrollment',
+            target_id=subject_enrollment.id,
+            actor=professor,
+            payload={
+                'subject_code': subject_enrollment.subject.code,
+                'student_number': subject_enrollment.enrollment.student.student_number,
+                'previous_grade': str(previous_grade) if previous_grade else None,
+                'new_grade': str(new_grade) if new_grade else 'INC',
+                'new_status': new_status
+            }
+        )
+        
+        return subject_enrollment
+    
+    @classmethod
+    @transaction.atomic
+    def finalize_section_grades(
+        cls,
+        section,
+        registrar: User
+    ) -> List[SubjectEnrollment]:
+        """
+        Finalize all grades for a section.
+        
+        Args:
+            section: The section to finalize
+            registrar: The registrar performing finalization
+            
+        Returns:
+            list: Finalized subject enrollments
+        """
+        from apps.academics.models import Section
+        
+        # Get all subject enrollments for this section
+        enrollments = SubjectEnrollment.objects.filter(
+            section=section,
+            is_finalized=False,
+            status__in=[
+                SubjectEnrollment.Status.PASSED,
+                SubjectEnrollment.Status.FAILED,
+                SubjectEnrollment.Status.INC
+            ]
+        )
+        
+        finalized = []
+        now = timezone.now()
+        
+        for enrollment in enrollments:
+            enrollment.is_finalized = True
+            enrollment.finalized_at = now
+            enrollment.finalized_by = registrar
+            enrollment.save()
+            
+            # Create history entry for finalization
+            GradeHistory.objects.create(
+                subject_enrollment=enrollment,
+                previous_grade=enrollment.grade,
+                new_grade=enrollment.grade,
+                previous_status=enrollment.status,
+                new_status=enrollment.status,
+                changed_by=registrar,
+                is_finalization=True
+            )
+            
+            finalized.append(enrollment)
+        
+        if finalized:
+            # Log to audit
+            AuditLog.log(
+                action=AuditLog.Action.GRADE_FINALIZED,
+                target_model='Section',
+                target_id=section.id,
+                actor=registrar,
+                payload={
+                    'section_name': section.name,
+                    'grades_finalized': len(finalized)
+                }
+            )
+            
+            # Trigger GPA recalculation for affected enrollments
+            enrollment_ids = set(e.enrollment_id for e in finalized)
+            for eid in enrollment_ids:
+                cls.calculate_semester_gpa(Enrollment.objects.get(id=eid))
+        
+        return finalized
+    
+    @classmethod
+    @transaction.atomic
+    def override_grade(
+        cls,
+        subject_enrollment: SubjectEnrollment,
+        new_grade: Decimal,
+        registrar: User,
+        reason: str
+    ) -> SubjectEnrollment:
+        """
+        Override a grade (even if finalized). Registrar only.
+        
+        Args:
+            subject_enrollment: The enrollment to override
+            new_grade: The new grade value
+            registrar: The registrar making the override
+            reason: Required justification
+            
+        Returns:
+            SubjectEnrollment: Updated enrollment
+        """
+        if not reason or len(reason.strip()) < 10:
+            raise ValueError("Override reason must be at least 10 characters")
+        
+        # Validate grade
+        is_valid, error = cls.validate_grade(new_grade)
+        if not is_valid:
+            raise ValueError(error)
+        
+        # Store previous values
+        previous_grade = subject_enrollment.grade
+        previous_status = subject_enrollment.status
+        
+        # Update grade
+        new_grade = Decimal(str(new_grade))
+        new_status = (
+            SubjectEnrollment.Status.PASSED 
+            if cls.is_passing(new_grade) 
+            else SubjectEnrollment.Status.FAILED
+        )
+        
+        subject_enrollment.grade = new_grade
+        subject_enrollment.status = new_status
+        subject_enrollment.save()
+        
+        # Create history entry
+        GradeHistory.objects.create(
+            subject_enrollment=subject_enrollment,
+            previous_grade=previous_grade,
+            new_grade=new_grade,
+            previous_status=previous_status,
+            new_status=new_status,
+            changed_by=registrar,
+            change_reason=reason
+        )
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.GRADE_UPDATED,
+            target_model='SubjectEnrollment',
+            target_id=subject_enrollment.id,
+            actor=registrar,
+            payload={
+                'subject_code': subject_enrollment.subject.code,
+                'student_number': subject_enrollment.enrollment.student.student_number,
+                'previous_grade': str(previous_grade) if previous_grade else None,
+                'new_grade': str(new_grade),
+                'reason': reason,
+                'was_finalized': subject_enrollment.is_finalized
+            }
+        )
+        
+        # Recalculate GPA if grades were finalized
+        if subject_enrollment.is_finalized:
+            cls.calculate_semester_gpa(subject_enrollment.enrollment)
+        
+        return subject_enrollment
+    
+    @classmethod
+    def calculate_semester_gpa(cls, enrollment: Enrollment) -> SemesterGPA:
+        """
+        Calculate GPA for a semester enrollment.
+        
+        GPA = Σ(grade × units) / Σ(units)
+        Only includes subjects where count_in_gpa=True and status in [PASSED, FAILED]
+        
+        Args:
+            enrollment: The enrollment to calculate GPA for
+            
+        Returns:
+            SemesterGPA: The GPA record
+        """
+        # Get graded subjects
+        graded = SubjectEnrollment.objects.filter(
+            enrollment=enrollment,
+            count_in_gpa=True,
+            status__in=[SubjectEnrollment.Status.PASSED, SubjectEnrollment.Status.FAILED],
+            grade__isnull=False
+        )
+        
+        total_units = 0
+        total_grade_points = Decimal('0.00')
+        subjects_count = 0
+        
+        for subject_enrollment in graded:
+            units = subject_enrollment.subject.units
+            grade = subject_enrollment.grade
+            
+            total_units += units
+            total_grade_points += grade * units
+            subjects_count += 1
+        
+        # Calculate GPA
+        if total_units > 0:
+            gpa = total_grade_points / total_units
+            gpa = gpa.quantize(Decimal('0.01'))
+        else:
+            gpa = Decimal('0.00')
+        
+        # Check if all grades are finalized
+        all_finalized = not SubjectEnrollment.objects.filter(
+            enrollment=enrollment,
+            is_finalized=False,
+            status__in=[
+                SubjectEnrollment.Status.PASSED,
+                SubjectEnrollment.Status.FAILED,
+                SubjectEnrollment.Status.INC
+            ]
+        ).exists()
+        
+        # Update or create GPA record
+        gpa_record, created = SemesterGPA.objects.update_or_create(
+            enrollment=enrollment,
+            defaults={
+                'gpa': gpa,
+                'total_units': total_units,
+                'total_grade_points': total_grade_points,
+                'subjects_included': subjects_count,
+                'is_finalized': all_finalized
+            }
+        )
+        
+        return gpa_record
+    
+    @staticmethod
+    def get_student_transcript(student: User) -> List[Dict]:
+        """
+        Get full academic transcript for a student.
+        
+        Args:
+            student: The student user
+            
+        Returns:
+            list: List of semester records with subjects and grades
+        """
+        from apps.enrollment.models import Enrollment
+        
+        enrollments = Enrollment.objects.filter(
+            student=student
+        ).select_related('semester').order_by('semester__start_date')
+        
+        transcript = []
+        cumulative_units = 0
+        cumulative_points = Decimal('0.00')
+        
+        for enrollment in enrollments:
+            # Get GPA record
+            gpa_record = getattr(enrollment, 'gpa_record', None)
+            
+            # Get subject enrollments
+            subjects = SubjectEnrollment.objects.filter(
+                enrollment=enrollment
+            ).select_related('subject').order_by('subject__code')
+            
+            subject_data = []
+            for se in subjects:
+                subject_data.append({
+                    'code': se.subject.code,
+                    'title': se.subject.title,
+                    'units': se.subject.units,
+                    'grade': str(se.grade) if se.grade else None,
+                    'status': se.status,
+                    'is_finalized': se.is_finalized
+                })
+            
+            semester_record = {
+                'semester': str(enrollment.semester),
+                'semester_id': str(enrollment.semester.id),
+                'enrollment_id': str(enrollment.id),
+                'subjects': subject_data,
+                'gpa': str(gpa_record.gpa) if gpa_record else None,
+                'total_units': gpa_record.total_units if gpa_record else 0,
+                'is_finalized': gpa_record.is_finalized if gpa_record else False
+            }
+            
+            transcript.append(semester_record)
+            
+            # Cumulative totals
+            if gpa_record:
+                cumulative_units += gpa_record.total_units
+                cumulative_points += gpa_record.total_grade_points
+        
+        # Calculate cumulative GPA
+        cumulative_gpa = (
+            cumulative_points / cumulative_units 
+            if cumulative_units > 0 
+            else Decimal('0.00')
+        ).quantize(Decimal('0.01'))
+        
+        return {
+            'semesters': transcript,
+            'cumulative_gpa': str(cumulative_gpa),
+            'cumulative_units': cumulative_units
+        }
+
+
+class INCAutomationService:
+    """
+    Service for handling INC (Incomplete) grade automation.
+    Manages expiry and conversion to FAILED.
+    """
+    
+    MAJOR_INC_EXPIRY_MONTHS = 6
+    MINOR_INC_EXPIRY_MONTHS = 12
+    
+    @classmethod
+    def get_inc_expiry_date(cls, subject_enrollment: SubjectEnrollment):
+        """
+        Calculate when an INC expires based on subject type.
+        
+        Args:
+            subject_enrollment: The enrollment with INC status
+            
+        Returns:
+            datetime or None: Expiry date
+        """
+        if subject_enrollment.status != SubjectEnrollment.Status.INC:
+            return None
+        
+        if not subject_enrollment.inc_marked_at:
+            return None
+        
+        # Check if major or minor subject
+        is_major = subject_enrollment.subject.is_major
+        
+        months = cls.MAJOR_INC_EXPIRY_MONTHS if is_major else cls.MINOR_INC_EXPIRY_MONTHS
+        expiry_date = subject_enrollment.inc_marked_at + timedelta(days=months * 30)
+        
+        return expiry_date
+    
+    @classmethod
+    def check_inc_expired(cls, subject_enrollment: SubjectEnrollment) -> bool:
+        """
+        Check if an INC has expired.
+        
+        Args:
+            subject_enrollment: The enrollment to check
+            
+        Returns:
+            bool: Whether the INC has expired
+        """
+        expiry = cls.get_inc_expiry_date(subject_enrollment)
+        if not expiry:
+            return False
+        
+        return timezone.now() > expiry
+    
+    @classmethod
+    @transaction.atomic
+    def convert_inc_to_failed(
+        cls,
+        subject_enrollment: SubjectEnrollment
+    ) -> SubjectEnrollment:
+        """
+        Convert an INC to FAILED due to expiry.
+        
+        Args:
+            subject_enrollment: The enrollment to convert
+            
+        Returns:
+            SubjectEnrollment: Updated enrollment
+        """
+        if subject_enrollment.status != SubjectEnrollment.Status.INC:
+            raise ValueError("Subject is not marked as INC")
+        
+        previous_grade = subject_enrollment.grade
+        previous_status = subject_enrollment.status
+        
+        # Update to FAILED
+        subject_enrollment.grade = Decimal('5.00')
+        subject_enrollment.status = SubjectEnrollment.Status.FAILED
+        subject_enrollment.save()
+        
+        # Create history entry (system action)
+        GradeHistory.objects.create(
+            subject_enrollment=subject_enrollment,
+            previous_grade=previous_grade,
+            new_grade=Decimal('5.00'),
+            previous_status=previous_status,
+            new_status=SubjectEnrollment.Status.FAILED,
+            changed_by=None,  # System action
+            change_reason='INC automatically converted to FAILED due to expiry',
+            is_system_action=True
+        )
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.INC_CONVERTED_TO_FAILED,
+            target_model='SubjectEnrollment',
+            target_id=subject_enrollment.id,
+            payload={
+                'subject_code': subject_enrollment.subject.code,
+                'student_number': subject_enrollment.enrollment.student.student_number,
+                'inc_marked_at': subject_enrollment.inc_marked_at.isoformat() if subject_enrollment.inc_marked_at else None,
+                'is_major': subject_enrollment.subject.is_major,
+                'expiry_months': cls.MAJOR_INC_EXPIRY_MONTHS if subject_enrollment.subject.is_major else cls.MINOR_INC_EXPIRY_MONTHS
+            }
+        )
+        
+        # Recalculate GPA
+        GradeService.calculate_semester_gpa(subject_enrollment.enrollment)
+        
+        return subject_enrollment
+    
+    @classmethod
+    def get_expiring_incs(cls, days_ahead: int = 7) -> List[Dict]:
+        """
+        Get INCs that will expire within the specified days.
+        
+        Args:
+            days_ahead: Number of days to look ahead
+            
+        Returns:
+            list: List of expiring INC details
+        """
+        expiring = []
+        now = timezone.now()
+        threshold = now + timedelta(days=days_ahead)
+        
+        # Get all INC enrollments
+        incs = SubjectEnrollment.objects.filter(
+            status=SubjectEnrollment.Status.INC,
+            inc_marked_at__isnull=False
+        ).select_related('subject', 'enrollment__student', 'enrollment__semester')
+        
+        for enrollment in incs:
+            expiry = cls.get_inc_expiry_date(enrollment)
+            if expiry and now < expiry <= threshold:
+                days_remaining = (expiry - now).days
+                expiring.append({
+                    'enrollment_id': str(enrollment.id),
+                    'subject_code': enrollment.subject.code,
+                    'subject_title': enrollment.subject.title,
+                    'student_number': enrollment.enrollment.student.student_number,
+                    'student_name': enrollment.enrollment.student.get_full_name(),
+                    'is_major': enrollment.subject.is_major,
+                    'inc_marked_at': enrollment.inc_marked_at.isoformat(),
+                    'expires_at': expiry.isoformat(),
+                    'days_remaining': days_remaining
+                })
+        
+        return sorted(expiring, key=lambda x: x['days_remaining'])
+    
+    @classmethod
+    def process_all_expired_incs(cls) -> List[SubjectEnrollment]:
+        """
+        Process all expired INCs and convert them to FAILED.
+        This should be run as a daily background task.
+        
+        Returns:
+            list: List of converted enrollments
+        """
+        converted = []
+        now = timezone.now()
+        
+        # Get all INC enrollments
+        incs = SubjectEnrollment.objects.filter(
+            status=SubjectEnrollment.Status.INC,
+            inc_marked_at__isnull=False
+        ).select_related('subject')
+        
+        for enrollment in incs:
+            if cls.check_inc_expired(enrollment):
+                try:
+                    cls.convert_inc_to_failed(enrollment)
+                    converted.append(enrollment)
+                except Exception as e:
+                    # Log error but continue processing
+                    print(f"Error converting INC to FAILED: {e}")
+        
+        return converted
