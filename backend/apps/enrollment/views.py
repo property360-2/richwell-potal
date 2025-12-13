@@ -373,6 +373,63 @@ class DocumentVerifyView(APIView):
         })
 
 
+class ApplicantUpdateView(APIView):
+    """
+    Accept or reject an applicant's enrollment.
+    Changes status to ACTIVE (accept) or REJECTED (reject).
+    """
+    permission_classes = [IsAuthenticated, IsAdmissionStaff | IsRegistrar]
+    
+    @extend_schema(
+        summary="Accept/Reject Applicant",
+        description="Update applicant status to accept or reject them",
+        tags=["Admissions"]
+    )
+    def patch(self, request, pk):
+        try:
+            enrollment = Enrollment.objects.select_related('student').get(pk=pk)
+        except Enrollment.DoesNotExist:
+            raise NotFoundError("Enrollment not found")
+        
+        action = request.data.get('action')  # 'accept' or 'reject'
+        
+        if action not in ['accept', 'reject']:
+            return Response({
+                "success": False,
+                "error": "Invalid action. Must be 'accept' or 'reject'"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        old_status = enrollment.status
+        
+        if action == 'accept':
+            enrollment.status = Enrollment.Status.ACTIVE
+            message = f"{enrollment.student.get_full_name()} has been approved"
+        else:
+            enrollment.status = Enrollment.Status.REJECTED
+            message = f"{enrollment.student.get_full_name()} has been rejected"
+        
+        enrollment.save()
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.ENROLLMENT_STATUS_CHANGED,
+            target_model='Enrollment',
+            target_id=enrollment.id,
+            payload={
+                'old_status': old_status,
+                'new_status': enrollment.status,
+                'action': action,
+                'changed_by': request.user.email
+            }
+        )
+        
+        return Response({
+            "success": True,
+            "message": message,
+            "data": EnrollmentSerializer(enrollment).data
+        })
+
+
 class EnrollmentDetailView(APIView):
     """
     Get enrollment details for the current user.

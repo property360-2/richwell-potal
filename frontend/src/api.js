@@ -165,6 +165,7 @@ export const endpoints = {
     programs: '/admissions/programs/',
     enroll: '/admissions/enroll/',
     applicants: '/admissions/applicants/',
+    applicantUpdate: (id) => `/admissions/applicants/${id}/`,
     uploadDocument: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/documents/`,
     verifyDocument: (documentId) => `/admissions/documents/${documentId}/verify/`,
 
@@ -203,6 +204,14 @@ export const endpoints = {
     activeSemester: '/academics/semesters/active/',
 
     // Epic 2: Professors
-    professors: '/accounts/professors/'
+    professors: '/accounts/professors/',
+
+    // Epic 3: Subject Enrollment
+    recommendedSubjects: '/enrollment/subjects/recommended/',
+    availableSubjects: '/enrollment/subjects/available/',
+    myEnrollments: '/enrollment/subjects/my-enrollments/',
+    enrollSubject: '/enrollment/subjects/enroll/',
+    dropSubject: (id) => `/enrollment/subjects/${id}/drop/`,
+    overrideEnroll: (enrollmentId) => `/enrollment/enrollment/${enrollmentId}/override-enroll/`
 };
 

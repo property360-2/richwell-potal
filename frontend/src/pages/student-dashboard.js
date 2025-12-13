@@ -6,6 +6,7 @@ import { showToast, formatCurrency, requireAuth } from '../utils.js';
 const state = {
   user: null,
   loading: true,
+  showChangePasswordModal: false,
   paymentBuckets: [
     { month: 1, required: 5000, paid: 5000, label: 'Month 1' },
     { month: 2, required: 5000, paid: 3500, label: 'Month 2' },
@@ -86,7 +87,15 @@ function render() {
           <div class="card">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-xl font-bold text-gray-800">Payment Progress</h2>
-              <span class="badge badge-info">Semester 1, 2024-2025</span>
+              <div class="flex items-center gap-2">
+                <span class="badge badge-info">Semester 1, 2024-2025</span>
+                <a href="/soa.html" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
+                  View SOA
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </a>
+              </div>
             </div>
             
             <!-- Payment Summary -->
@@ -110,57 +119,14 @@ function render() {
               ${state.paymentBuckets.map(bucket => renderPaymentBucket(bucket)).join('')}
             </div>
           </div>
-          
-          <!-- Documents Card -->
-          <div class="card">
-            <div class="flex items-center justify-between mb-6">
-              <h2 class="text-xl font-bold text-gray-800">My Documents</h2>
-              <button class="btn-primary text-sm py-2 px-4">Upload Document</button>
-            </div>
-            
-            <div class="space-y-3">
-              ${renderDocumentRow('Valid ID', 'verified', 'ID_Card.pdf')}
-              ${renderDocumentRow('Form 138', 'verified', 'Form138.pdf')}
-              ${renderDocumentRow('Birth Certificate', 'pending', 'BirthCert.pdf')}
-              ${renderDocumentRow('Good Moral', 'pending', null)}
-            </div>
-          </div>
         </div>
         
-        <!-- Right Column - Profile & Quick Actions -->
+        <!-- Right Column - Exam Permits -->
         <div class="space-y-6">
-          <!-- Profile Card -->
-          <div class="card">
-            <div class="text-center">
-              <div class="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4">
-                ${(state.user?.first_name?.[0] || 'S') + (state.user?.last_name?.[0] || 'T')}
-              </div>
-              <h3 class="text-lg font-bold text-gray-800">${state.user?.first_name || 'Student'} ${state.user?.last_name || 'User'}</h3>
-              <p class="text-gray-500 text-sm">${state.user?.email || 'student@example.com'}</p>
-              <span class="inline-block mt-2 badge badge-info">${state.user?.role || 'STUDENT'}</span>
-            </div>
-            
-            <div class="mt-6 pt-6 border-t space-y-3">
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500">Contact</span>
-                <span class="font-medium">${state.user?.contact_number || 'N/A'}</span>
-              </div>
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500">Year Level</span>
-                <span class="font-medium">1st Year</span>
-              </div>
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500">Section</span>
-                <span class="font-medium">BSIT-1A</span>
-              </div>
-            </div>
-            
-            <button class="w-full mt-6 btn-secondary text-sm">Edit Profile</button>
-          </div>
-          
           <!-- Exam Permits Card -->
           <div class="card">
             <h3 class="font-bold text-gray-800 mb-4">Exam Permits</h3>
+            <p class="text-sm text-gray-500 mb-4">Pay monthly buckets to unlock exam permits</p>
             <div class="space-y-3">
               ${renderExamPermit('Prelims', true)}
               ${renderExamPermit('Midterms', false)}
@@ -169,35 +135,20 @@ function render() {
             </div>
           </div>
           
-          <!-- Quick Actions -->
+          <!-- Account Settings Card -->
           <div class="card">
-            <h3 class="font-bold text-gray-800 mb-4">Quick Actions</h3>
-            <div class="space-y-2">
-              <button class="w-full text-left p-3 rounded-xl hover:bg-blue-50 transition-colors flex items-center gap-3">
-                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-                  </svg>
-                </div>
-                <span class="font-medium text-gray-700">Enroll Subjects</span>
-              </button>
-              <button class="w-full text-left p-3 rounded-xl hover:bg-green-50 transition-colors flex items-center gap-3">
-                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
-                  </svg>
-                </div>
-                <span class="font-medium text-gray-700">View Grades</span>
-              </button>
-              <button class="w-full text-left p-3 rounded-xl hover:bg-purple-50 transition-colors flex items-center gap-3">
-                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                  </svg>
-                </div>
-                <span class="font-medium text-gray-700">View Schedule</span>
-              </button>
-            </div>
+            <h3 class="font-bold text-gray-800 mb-4">Account Settings</h3>
+            <button onclick="openChangePasswordModal()" class="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors text-left">
+              <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                </svg>
+              </div>
+              <div>
+                <p class="font-medium text-gray-800">Change Password</p>
+                <p class="text-xs text-gray-500">Update your login password</p>
+              </div>
+            </button>
           </div>
         </div>
       </div>
@@ -216,9 +167,8 @@ function renderHeader() {
         
         <nav class="hidden md:flex items-center gap-6">
           <a href="/student-dashboard.html" class="text-blue-600 font-medium">Dashboard</a>
-          <a href="#" class="text-gray-600 hover:text-gray-900">Subjects</a>
-          <a href="#" class="text-gray-600 hover:text-gray-900">Grades</a>
-          <a href="#" class="text-gray-600 hover:text-gray-900">Schedule</a>
+          <a href="/subject-enrollment.html" class="text-gray-600 hover:text-gray-900">Enroll Subjects</a>
+          <a href="/soa.html" class="text-gray-600 hover:text-gray-900">SOA</a>
         </nav>
         
         <div class="flex items-center gap-4">
@@ -360,6 +310,93 @@ window.logout = function () {
     window.location.href = '/login.html';
   }, 1000);
 };
+
+// Change Password functions
+window.openChangePasswordModal = function () {
+  state.showChangePasswordModal = true;
+  renderPasswordModal();
+};
+
+window.closeChangePasswordModal = function () {
+  state.showChangePasswordModal = false;
+  const modal = document.getElementById('changePasswordModal');
+  if (modal) modal.remove();
+};
+
+window.submitPasswordChange = async function (event) {
+  event.preventDefault();
+
+  const currentPassword = document.getElementById('currentPassword').value;
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    showToast('Please fill in all fields', 'error');
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    showToast('New password must be at least 6 characters', 'error');
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    showToast('New passwords do not match', 'error');
+    return;
+  }
+
+  // Simulate API call (mock)
+  showToast('Updating password...', 'info');
+  setTimeout(() => {
+    showToast('Password changed successfully!', 'success');
+    closeChangePasswordModal();
+  }, 1000);
+};
+
+function renderPasswordModal() {
+  // Remove existing modal if any
+  const existingModal = document.getElementById('changePasswordModal');
+  if (existingModal) existingModal.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'changePasswordModal';
+  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+  modal.onclick = (e) => { if (e.target === modal) closeChangePasswordModal(); };
+
+  modal.innerHTML = `
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
+      <h3 class="text-xl font-bold text-gray-800 mb-2">Change Password</h3>
+      <p class="text-gray-600 mb-6">Update your login password</p>
+      
+      <form onsubmit="submitPasswordChange(event)">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+            <input type="password" id="currentPassword" required
+                   class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+            <input type="password" id="newPassword" required minlength="6"
+                   class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+            <input type="password" id="confirmPassword" required
+                   class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </div>
+        </div>
+        
+        <div class="flex gap-3 mt-6">
+          <button type="button" onclick="closeChangePasswordModal()" class="flex-1 btn-secondary">Cancel</button>
+          <button type="submit" class="flex-1 btn-primary">Update Password</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+}
 
 document.addEventListener('DOMContentLoaded', init);
 if (document.readyState !== 'loading') init();

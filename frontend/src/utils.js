@@ -131,7 +131,7 @@ export function redirectByRole(role) {
         ADMIN: '/curriculum.html',
         REGISTRAR: '/curriculum.html',
         HEAD_REGISTRAR: '/curriculum.html',
-        CASHIER: '/admission-dashboard.html',
+        CASHIER: '/cashier-dashboard.html',
         PROFESSOR: '/professor-schedule.html'
     };
 

@@ -4,115 +4,115 @@ import { showToast, requireAuth, formatDate } from '../utils.js';
 
 // State
 const state = {
-    user: null,
-    programs: [],
-    subjects: [],
-    selectedProgram: null,
-    loading: true,
-    showProgramModal: false,
-    showSubjectModal: false,
-    showPrereqModal: false,
-    showVersionsModal: false,
-    editingProgram: null,
-    editingSubject: null,
-    editingSubjectForPrereq: null,
-    versions: []
+  user: null,
+  programs: [],
+  subjects: [],
+  selectedProgram: null,
+  loading: true,
+  showProgramModal: false,
+  showSubjectModal: false,
+  showPrereqModal: false,
+  showVersionsModal: false,
+  editingProgram: null,
+  editingSubject: null,
+  editingSubjectForPrereq: null,
+  versions: []
 };
 
 // Mock data for development
 const MOCK_PROGRAMS = [
-    { id: '1', code: 'BSIT', name: 'Bachelor of Science in Information Technology', description: '4-year IT degree', duration_years: 4, is_active: true },
-    { id: '2', code: 'BSCS', name: 'Bachelor of Science in Computer Science', description: '4-year CS degree', duration_years: 4, is_active: true },
-    { id: '3', code: 'BSBA', name: 'Bachelor of Science in Business Administration', description: '4-year business degree', duration_years: 4, is_active: true }
+  { id: '1', code: 'BSIT', name: 'Bachelor of Science in Information Technology', description: '4-year IT degree', duration_years: 4, is_active: true },
+  { id: '2', code: 'BSCS', name: 'Bachelor of Science in Computer Science', description: '4-year CS degree', duration_years: 4, is_active: true },
+  { id: '3', code: 'BSBA', name: 'Bachelor of Science in Business Administration', description: '4-year business degree', duration_years: 4, is_active: true }
 ];
 
 const MOCK_SUBJECTS = [
-    { id: '1', code: 'IT101', title: 'Introduction to Computing', units: 3, year_level: 1, semester_number: 1, is_major: true, prerequisites: [] },
-    { id: '2', code: 'IT102', title: 'Computer Programming 1', units: 3, year_level: 1, semester_number: 1, is_major: true, prerequisites: [] },
-    { id: '3', code: 'IT103', title: 'Computer Programming 2', units: 3, year_level: 1, semester_number: 2, is_major: true, prerequisites: [{ id: '2', code: 'IT102' }] },
-    { id: '4', code: 'IT201', title: 'Data Structures', units: 3, year_level: 2, semester_number: 1, is_major: true, prerequisites: [{ id: '3', code: 'IT103' }] },
-    { id: '5', code: 'GE101', title: 'English Communication', units: 3, year_level: 1, semester_number: 1, is_major: false, prerequisites: [] }
+  { id: '1', code: 'IT101', title: 'Introduction to Computing', units: 3, year_level: 1, semester_number: 1, is_major: true, prerequisites: [] },
+  { id: '2', code: 'IT102', title: 'Computer Programming 1', units: 3, year_level: 1, semester_number: 1, is_major: true, prerequisites: [] },
+  { id: '3', code: 'IT103', title: 'Computer Programming 2', units: 3, year_level: 1, semester_number: 2, is_major: true, prerequisites: [{ id: '2', code: 'IT102' }] },
+  { id: '4', code: 'IT201', title: 'Data Structures', units: 3, year_level: 2, semester_number: 1, is_major: true, prerequisites: [{ id: '3', code: 'IT103' }] },
+  { id: '5', code: 'GE101', title: 'English Communication', units: 3, year_level: 1, semester_number: 1, is_major: false, prerequisites: [] }
 ];
 
 async function init() {
-    if (!requireAuth()) return;
+  if (!requireAuth()) return;
 
-    await loadUserProfile();
-    await loadPrograms();
-    render();
+  await loadUserProfile();
+  await loadPrograms();
+  render();
 }
 
 async function loadUserProfile() {
-    try {
-        const response = await api.get(endpoints.me);
-        if (response) {
-            state.user = response;
-            TokenManager.setUser(response);
-        }
-    } catch (error) {
-        console.error('Failed to load profile:', error);
-        const savedUser = TokenManager.getUser();
-        if (savedUser) state.user = savedUser;
+  try {
+    const response = await api.get(endpoints.me);
+    if (response) {
+      state.user = response;
+      TokenManager.setUser(response);
     }
+  } catch (error) {
+    console.error('Failed to load profile:', error);
+    const savedUser = TokenManager.getUser();
+    if (savedUser) state.user = savedUser;
+  }
 }
 
 async function loadPrograms() {
-    try {
-        const response = await api.get(endpoints.managePrograms);
-        const programs = response?.results || response;
-        state.programs = (programs && Array.isArray(programs) && programs.length > 0) ? programs : MOCK_PROGRAMS;
-    } catch (error) {
-        console.log('Using mock programs');
-        state.programs = MOCK_PROGRAMS;
-    }
-    state.loading = false;
+  try {
+    const response = await api.get(endpoints.managePrograms);
+    const programs = response?.results || response;
+    state.programs = (programs && Array.isArray(programs) && programs.length > 0) ? programs : MOCK_PROGRAMS;
+  } catch (error) {
+    console.log('Using mock programs');
+    state.programs = MOCK_PROGRAMS;
+  }
+  state.loading = false;
 }
 
 async function loadSubjects(programId) {
-    try {
-        const response = await api.get(`${endpoints.manageSubjects}?program=${programId}`);
-        const subjects = response?.results || response;
-        state.subjects = (subjects && Array.isArray(subjects) && subjects.length > 0) ? subjects : MOCK_SUBJECTS;
-    } catch (error) {
-        console.log('Using mock subjects');
-        state.subjects = MOCK_SUBJECTS;
-    }
-    render();
+  try {
+    const response = await api.get(`${endpoints.manageSubjects}?program=${programId}`);
+    const subjects = response?.results || response;
+    state.subjects = (subjects && Array.isArray(subjects) && subjects.length > 0) ? subjects : MOCK_SUBJECTS;
+  } catch (error) {
+    console.log('Using mock subjects');
+    state.subjects = MOCK_SUBJECTS;
+  }
+  render();
 }
 
 async function loadVersions(programId) {
-    try {
-        const response = await api.get(endpoints.programVersions(programId));
-        if (response && (response.results || Array.isArray(response))) {
-            state.versions = response.results || response;
-        } else {
-            state.versions = [];
-        }
-    } catch (error) {
-        state.versions = [];
+  try {
+    const response = await api.get(endpoints.programVersions(programId));
+    if (response && (response.results || Array.isArray(response))) {
+      state.versions = response.results || response;
+    } else {
+      state.versions = [];
     }
+  } catch (error) {
+    state.versions = [];
+  }
 }
 
 // Format role for display
 function formatRole(role) {
-    const roleNames = {
-        'ADMIN': 'Administrator',
-        'REGISTRAR': 'Registrar',
-        'HEAD_REGISTRAR': 'Head Registrar',
-        'ADMISSION_STAFF': 'Admission Staff'
-    };
-    return roleNames[role] || role;
+  const roleNames = {
+    'ADMIN': 'Administrator',
+    'REGISTRAR': 'Registrar',
+    'HEAD_REGISTRAR': 'Head Registrar',
+    'ADMISSION_STAFF': 'Admission Staff'
+  };
+  return roleNames[role] || role;
 }
 
 function render() {
-    const app = document.getElementById('app');
+  const app = document.getElementById('app');
 
-    if (state.loading) {
-        app.innerHTML = renderLoading();
-        return;
-    }
+  if (state.loading) {
+    app.innerHTML = renderLoading();
+    return;
+  }
 
-    app.innerHTML = `
+  app.innerHTML = `
     ${renderHeader()}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
@@ -160,7 +160,7 @@ function render() {
 }
 
 function renderHeader() {
-    return `
+  return `
     <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -176,6 +176,7 @@ function renderHeader() {
           <a href="/sections.html" class="text-gray-600 hover:text-gray-900">Sections</a>
           <a href="/schedule.html" class="text-gray-600 hover:text-gray-900">Schedule</a>
           <a href="/admission-dashboard.html" class="text-gray-600 hover:text-gray-900">Admissions</a>
+          <a href="/applicant-approval.html" class="text-gray-600 hover:text-gray-900">Approval</a>
         </nav>
         
         <div class="flex items-center gap-4">
@@ -196,7 +197,7 @@ function renderHeader() {
 }
 
 function renderLoading() {
-    return `
+  return `
     <div class="min-h-screen flex items-center justify-center">
       <div class="text-center">
         <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
@@ -210,8 +211,8 @@ function renderLoading() {
 }
 
 function renderProgramCard(program) {
-    const isSelected = state.selectedProgram?.id === program.id;
-    return `
+  const isSelected = state.selectedProgram?.id === program.id;
+  return `
     <div class="p-4 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'}" onclick="selectProgram('${program.id}')">
       <div class="flex items-center justify-between">
         <div>
@@ -232,7 +233,7 @@ function renderProgramCard(program) {
 }
 
 function renderSelectProgramPrompt() {
-    return `
+  return `
     <div class="card text-center py-16">
       <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -244,10 +245,10 @@ function renderSelectProgramPrompt() {
 }
 
 function renderSubjectsPanel() {
-    const program = state.selectedProgram;
-    const groupedSubjects = groupSubjectsByYear();
+  const program = state.selectedProgram;
+  const groupedSubjects = groupSubjectsByYear();
 
-    return `
+  return `
     <div class="space-y-6">
       <!-- Program Info Card -->
       <div class="card bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
@@ -312,19 +313,19 @@ function renderSubjectsPanel() {
 }
 
 function groupSubjectsByYear() {
-    const grouped = {};
-    state.subjects.forEach(subject => {
-        const year = subject.year_level || 1;
-        const sem = subject.semester_number || 1;
-        if (!grouped[year]) grouped[year] = {};
-        if (!grouped[year][sem]) grouped[year][sem] = [];
-        grouped[year][sem].push(subject);
-    });
-    return grouped;
+  const grouped = {};
+  state.subjects.forEach(subject => {
+    const year = subject.year_level || 1;
+    const sem = subject.semester_number || 1;
+    if (!grouped[year]) grouped[year] = {};
+    if (!grouped[year][sem]) grouped[year][sem] = [];
+    grouped[year][sem].push(subject);
+  });
+  return grouped;
 }
 
 function renderSubjectRow(subject) {
-    return `
+  return `
     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
       <div class="flex items-center gap-3">
         <span class="badge ${subject.is_major ? 'badge-info' : 'badge-warning'}">${subject.is_major ? 'Major' : 'Minor'}</span>
@@ -361,10 +362,10 @@ function renderSubjectRow(subject) {
 }
 
 function renderProgramModal() {
-    const isEdit = !!state.editingProgram;
-    const program = isEdit ? state.programs.find(p => p.id === state.editingProgram) : {};
+  const isEdit = !!state.editingProgram;
+  const program = isEdit ? state.programs.find(p => p.id === state.editingProgram) : {};
 
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeProgramModal()">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b flex items-center justify-between">
@@ -412,10 +413,10 @@ function renderProgramModal() {
 }
 
 function renderSubjectModal() {
-    const isEdit = !!state.editingSubject;
-    const subject = isEdit ? state.subjects.find(s => s.id === state.editingSubject) : {};
+  const isEdit = !!state.editingSubject;
+  const subject = isEdit ? state.subjects.find(s => s.id === state.editingSubject) : {};
 
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeSubjectModal()">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b flex items-center justify-between">
@@ -478,16 +479,16 @@ function renderSubjectModal() {
 }
 
 function renderPrereqModal() {
-    const subject = state.subjects.find(s => s.id === state.editingSubjectForPrereq);
-    if (!subject) return '';
+  const subject = state.subjects.find(s => s.id === state.editingSubjectForPrereq);
+  if (!subject) return '';
 
-    const availablePrereqs = state.subjects.filter(s =>
-        s.id !== subject.id &&
-        !subject.prerequisites?.some(p => p.id === s.id) &&
-        (s.year_level < subject.year_level || (s.year_level === subject.year_level && s.semester_number < subject.semester_number))
-    );
+  const availablePrereqs = state.subjects.filter(s =>
+    s.id !== subject.id &&
+    !subject.prerequisites?.some(p => p.id === s.id) &&
+    (s.year_level < subject.year_level || (s.year_level === subject.year_level && s.semester_number < subject.semester_number))
+  );
 
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closePrereqModal()">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b flex items-center justify-between">
@@ -536,7 +537,7 @@ function renderPrereqModal() {
 }
 
 function renderVersionsModal() {
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeVersionsModal()">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto" onclick="event.stopPropagation()">
         <div class="sticky top-0 bg-white px-6 py-4 border-b flex items-center justify-between">
@@ -570,229 +571,229 @@ function renderVersionsModal() {
 
 // Event Handlers
 window.selectProgram = async function (id) {
-    state.selectedProgram = state.programs.find(p => p.id === id);
-    await loadSubjects(id);
+  state.selectedProgram = state.programs.find(p => p.id === id);
+  await loadSubjects(id);
 };
 
 window.openProgramModal = function (id = null) {
-    state.editingProgram = id;
-    state.showProgramModal = true;
-    render();
+  state.editingProgram = id;
+  state.showProgramModal = true;
+  render();
 };
 
 window.closeProgramModal = function () {
-    state.showProgramModal = false;
-    state.editingProgram = null;
-    render();
+  state.showProgramModal = false;
+  state.editingProgram = null;
+  render();
 };
 
 window.editProgram = function (id) {
-    openProgramModal(id);
+  openProgramModal(id);
 };
 
 window.saveProgram = async function (e) {
-    e.preventDefault();
-    const data = {
-        code: document.getElementById('program-code').value,
-        name: document.getElementById('program-name').value,
-        description: document.getElementById('program-description').value,
-        duration_years: parseInt(document.getElementById('program-duration').value),
-        is_active: document.getElementById('program-active').value === 'true'
-    };
+  e.preventDefault();
+  const data = {
+    code: document.getElementById('program-code').value,
+    name: document.getElementById('program-name').value,
+    description: document.getElementById('program-description').value,
+    duration_years: parseInt(document.getElementById('program-duration').value),
+    is_active: document.getElementById('program-active').value === 'true'
+  };
 
-    try {
-        let response;
-        if (state.editingProgram) {
-            response = await api.patch(endpoints.manageProgram(state.editingProgram), data);
-        } else {
-            response = await api.post(endpoints.managePrograms, data);
-        }
-
-        if (response && response.ok) {
-            showToast(`Program ${state.editingProgram ? 'updated' : 'created'} successfully!`, 'success');
-            closeProgramModal();
-            await loadPrograms();
-            render();
-        } else {
-            const error = await response?.json();
-            showToast(error?.detail || 'Failed to save program', 'error');
-        }
-    } catch (error) {
-        // Mock success for development
-        showToast(`Program ${state.editingProgram ? 'updated' : 'created'} (mock)`, 'success');
-        closeProgramModal();
+  try {
+    let response;
+    if (state.editingProgram) {
+      response = await api.patch(endpoints.manageProgram(state.editingProgram), data);
+    } else {
+      response = await api.post(endpoints.managePrograms, data);
     }
+
+    if (response && response.ok) {
+      showToast(`Program ${state.editingProgram ? 'updated' : 'created'} successfully!`, 'success');
+      closeProgramModal();
+      await loadPrograms();
+      render();
+    } else {
+      const error = await response?.json();
+      showToast(error?.detail || 'Failed to save program', 'error');
+    }
+  } catch (error) {
+    // Mock success for development
+    showToast(`Program ${state.editingProgram ? 'updated' : 'created'} (mock)`, 'success');
+    closeProgramModal();
+  }
 };
 
 window.openSubjectModal = function (id = null) {
-    state.editingSubject = id;
-    state.showSubjectModal = true;
-    render();
+  state.editingSubject = id;
+  state.showSubjectModal = true;
+  render();
 };
 
 window.closeSubjectModal = function () {
-    state.showSubjectModal = false;
-    state.editingSubject = null;
-    render();
+  state.showSubjectModal = false;
+  state.editingSubject = null;
+  render();
 };
 
 window.editSubject = function (id) {
-    openSubjectModal(id);
+  openSubjectModal(id);
 };
 
 window.saveSubject = async function (e) {
-    e.preventDefault();
-    const data = {
-        program: state.selectedProgram.id,
-        code: document.getElementById('subject-code').value,
-        title: document.getElementById('subject-title').value,
-        description: document.getElementById('subject-description').value,
-        units: parseInt(document.getElementById('subject-units').value),
-        year_level: parseInt(document.getElementById('subject-year').value),
-        semester_number: parseInt(document.getElementById('subject-semester').value),
-        is_major: document.getElementById('subject-major').value === 'true'
-    };
+  e.preventDefault();
+  const data = {
+    program: state.selectedProgram.id,
+    code: document.getElementById('subject-code').value,
+    title: document.getElementById('subject-title').value,
+    description: document.getElementById('subject-description').value,
+    units: parseInt(document.getElementById('subject-units').value),
+    year_level: parseInt(document.getElementById('subject-year').value),
+    semester_number: parseInt(document.getElementById('subject-semester').value),
+    is_major: document.getElementById('subject-major').value === 'true'
+  };
 
-    try {
-        let response;
-        if (state.editingSubject) {
-            response = await api.patch(endpoints.manageSubject(state.editingSubject), data);
-        } else {
-            response = await api.post(endpoints.manageSubjects, data);
-        }
-
-        if (response && response.ok) {
-            showToast(`Subject ${state.editingSubject ? 'updated' : 'created'} successfully!`, 'success');
-            closeSubjectModal();
-            await loadSubjects(state.selectedProgram.id);
-        } else {
-            const error = await response?.json();
-            showToast(error?.detail || 'Failed to save subject', 'error');
-        }
-    } catch (error) {
-        showToast(`Subject ${state.editingSubject ? 'updated' : 'created'} (mock)`, 'success');
-        closeSubjectModal();
+  try {
+    let response;
+    if (state.editingSubject) {
+      response = await api.patch(endpoints.manageSubject(state.editingSubject), data);
+    } else {
+      response = await api.post(endpoints.manageSubjects, data);
     }
+
+    if (response && response.ok) {
+      showToast(`Subject ${state.editingSubject ? 'updated' : 'created'} successfully!`, 'success');
+      closeSubjectModal();
+      await loadSubjects(state.selectedProgram.id);
+    } else {
+      const error = await response?.json();
+      showToast(error?.detail || 'Failed to save subject', 'error');
+    }
+  } catch (error) {
+    showToast(`Subject ${state.editingSubject ? 'updated' : 'created'} (mock)`, 'success');
+    closeSubjectModal();
+  }
 };
 
 window.deleteSubject = async function (id) {
-    if (!confirm('Are you sure you want to delete this subject?')) return;
+  if (!confirm('Are you sure you want to delete this subject?')) return;
 
-    try {
-        const response = await api.delete(endpoints.manageSubject(id));
-        if (response && response.ok) {
-            showToast('Subject deleted successfully!', 'success');
-            await loadSubjects(state.selectedProgram.id);
-        }
-    } catch (error) {
-        showToast('Subject deleted (mock)', 'success');
-        state.subjects = state.subjects.filter(s => s.id !== id);
-        render();
+  try {
+    const response = await api.delete(endpoints.manageSubject(id));
+    if (response && response.ok) {
+      showToast('Subject deleted successfully!', 'success');
+      await loadSubjects(state.selectedProgram.id);
     }
+  } catch (error) {
+    showToast('Subject deleted (mock)', 'success');
+    state.subjects = state.subjects.filter(s => s.id !== id);
+    render();
+  }
 };
 
 window.openPrereqModal = function (subjectId) {
-    state.editingSubjectForPrereq = subjectId;
-    state.showPrereqModal = true;
-    render();
+  state.editingSubjectForPrereq = subjectId;
+  state.showPrereqModal = true;
+  render();
 };
 
 window.closePrereqModal = function () {
-    state.showPrereqModal = false;
-    state.editingSubjectForPrereq = null;
-    render();
+  state.showPrereqModal = false;
+  state.editingSubjectForPrereq = null;
+  render();
 };
 
 window.addPrereq = async function (subjectId) {
-    const prereqId = document.getElementById('prereq-select').value;
-    if (!prereqId) {
-        showToast('Please select a prerequisite', 'error');
-        return;
-    }
+  const prereqId = document.getElementById('prereq-select').value;
+  if (!prereqId) {
+    showToast('Please select a prerequisite', 'error');
+    return;
+  }
 
-    try {
-        const response = await api.post(endpoints.subjectPrereqs(subjectId), { prerequisite_id: prereqId });
-        if (response && response.ok) {
-            showToast('Prerequisite added successfully!', 'success');
-            await loadSubjects(state.selectedProgram.id);
-            openPrereqModal(subjectId); // Refresh modal
-        } else {
-            const error = await response?.json();
-            showToast(error?.error || error?.detail || 'Failed to add prerequisite', 'error');
-        }
-    } catch (error) {
-        // Mock success
-        const prereq = state.subjects.find(s => s.id === prereqId);
-        const subject = state.subjects.find(s => s.id === subjectId);
-        if (!subject.prerequisites) subject.prerequisites = [];
-        subject.prerequisites.push({ id: prereqId, code: prereq.code });
-        showToast('Prerequisite added (mock)', 'success');
-        render();
+  try {
+    const response = await api.post(endpoints.subjectPrereqs(subjectId), { prerequisite_id: prereqId });
+    if (response && response.ok) {
+      showToast('Prerequisite added successfully!', 'success');
+      await loadSubjects(state.selectedProgram.id);
+      openPrereqModal(subjectId); // Refresh modal
+    } else {
+      const error = await response?.json();
+      showToast(error?.error || error?.detail || 'Failed to add prerequisite', 'error');
     }
+  } catch (error) {
+    // Mock success
+    const prereq = state.subjects.find(s => s.id === prereqId);
+    const subject = state.subjects.find(s => s.id === subjectId);
+    if (!subject.prerequisites) subject.prerequisites = [];
+    subject.prerequisites.push({ id: prereqId, code: prereq.code });
+    showToast('Prerequisite added (mock)', 'success');
+    render();
+  }
 };
 
 window.removePrereq = async function (subjectId, prereqId) {
-    try {
-        const response = await api.delete(endpoints.removeSubjectPrereq(subjectId, prereqId));
-        if (response && response.ok) {
-            showToast('Prerequisite removed!', 'success');
-            await loadSubjects(state.selectedProgram.id);
-            openPrereqModal(subjectId);
-        }
-    } catch (error) {
-        // Mock success
-        const subject = state.subjects.find(s => s.id === subjectId);
-        subject.prerequisites = subject.prerequisites.filter(p => p.id !== prereqId);
-        showToast('Prerequisite removed (mock)', 'success');
-        render();
+  try {
+    const response = await api.delete(endpoints.removeSubjectPrereq(subjectId, prereqId));
+    if (response && response.ok) {
+      showToast('Prerequisite removed!', 'success');
+      await loadSubjects(state.selectedProgram.id);
+      openPrereqModal(subjectId);
     }
+  } catch (error) {
+    // Mock success
+    const subject = state.subjects.find(s => s.id === subjectId);
+    subject.prerequisites = subject.prerequisites.filter(p => p.id !== prereqId);
+    showToast('Prerequisite removed (mock)', 'success');
+    render();
+  }
 };
 
 window.showPrereqs = function (subjectId) {
-    openPrereqModal(subjectId);
+  openPrereqModal(subjectId);
 };
 
 window.openVersionsModal = async function () {
-    if (state.selectedProgram) {
-        await loadVersions(state.selectedProgram.id);
-    }
-    state.showVersionsModal = true;
-    render();
+  if (state.selectedProgram) {
+    await loadVersions(state.selectedProgram.id);
+  }
+  state.showVersionsModal = true;
+  render();
 };
 
 window.closeVersionsModal = function () {
-    state.showVersionsModal = false;
-    render();
+  state.showVersionsModal = false;
+  render();
 };
 
 window.createSnapshot = async function () {
-    if (!state.selectedProgram) return;
+  if (!state.selectedProgram) return;
 
-    const notes = prompt('Enter notes for this curriculum version:');
-    if (notes === null) return;
+  const notes = prompt('Enter notes for this curriculum version:');
+  if (notes === null) return;
 
-    try {
-        const response = await api.post(endpoints.programSnapshot(state.selectedProgram.id), {
-            notes: notes || 'Curriculum snapshot'
-        });
+  try {
+    const response = await api.post(endpoints.programSnapshot(state.selectedProgram.id), {
+      notes: notes || 'Curriculum snapshot'
+    });
 
-        if (response && response.ok) {
-            showToast('Curriculum snapshot saved!', 'success');
-        } else {
-            const error = await response?.json();
-            showToast(error?.detail || 'Failed to save snapshot', 'error');
-        }
-    } catch (error) {
-        showToast('Curriculum snapshot saved (mock)', 'success');
+    if (response && response.ok) {
+      showToast('Curriculum snapshot saved!', 'success');
+    } else {
+      const error = await response?.json();
+      showToast(error?.detail || 'Failed to save snapshot', 'error');
     }
+  } catch (error) {
+    showToast('Curriculum snapshot saved (mock)', 'success');
+  }
 };
 
 window.logout = function () {
-    TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
-    setTimeout(() => {
-        window.location.href = '/login.html';
-    }, 1000);
+  TokenManager.clearTokens();
+  showToast('Logged out successfully', 'success');
+  setTimeout(() => {
+    window.location.href = '/login.html';
+  }, 1000);
 };
 
 document.addEventListener('DOMContentLoaded', init);

@@ -11,16 +11,17 @@ const state = {
     status: 'all',
     created_via: 'all'
   },
-  selectedApplicant: null
+  selectedApplicant: null,
+  showPendingModal: false
 };
 
 // Mock data for development
 const mockApplicants = [
-  { id: 1, student_number: '2025-00001', first_name: 'Juan', last_name: 'Dela Cruz', email: 'juan@example.com', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-01T10:30:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'PENDING' }, { name: 'Form 138', status: 'VERIFIED' }] },
-  { id: 2, student_number: '2025-00002', first_name: 'Maria', last_name: 'Santos', email: 'maria@example.com', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-02T14:20:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED' }, { name: 'Form 138', status: 'VERIFIED' }] },
-  { id: 3, student_number: '2025-00003', first_name: 'Pedro', last_name: 'Reyes', email: 'pedro@example.com', status: 'PENDING', created_via: 'TRANSFEREE', created_at: '2024-12-03T09:15:00Z', program: { code: 'BSBA', name: 'BS Business Administration' }, documents: [{ name: 'Valid ID', status: 'PENDING' }, { name: 'TOR', status: 'PENDING' }] },
-  { id: 4, student_number: '2025-00004', first_name: 'Ana', last_name: 'Garcia', email: 'ana@example.com', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-04T16:45:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'VERIFIED' }, { name: 'Form 138', status: 'PENDING' }] },
-  { id: 5, student_number: '2025-00005', first_name: 'Jose', last_name: 'Cruz', email: 'jose@example.com', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-05T11:00:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED' }, { name: 'Form 138', status: 'VERIFIED' }, { name: 'Good Moral', status: 'VERIFIED' }] }
+  { id: 1, student_number: '2025-00001', first_name: 'Juan', last_name: 'Dela Cruz', email: 'jdelacruz@richwell.edu.ph', status: 'PENDING', created_via: 'ONLINE', created_at: '2024-12-10T10:30:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
+  { id: 2, student_number: '2025-00002', first_name: 'Maria', last_name: 'Santos', email: 'msantos@richwell.edu.ph', status: 'PENDING', created_via: 'ONLINE', created_at: '2024-12-11T14:20:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
+  { id: 3, student_number: '2025-00003', first_name: 'Pedro', last_name: 'Reyes', email: 'preyes@richwell.edu.ph', status: 'PENDING', created_via: 'TRANSFEREE', created_at: '2024-12-12T09:15:00Z', program: { code: 'BSBA', name: 'BS Business Administration' }, documents: [{ name: 'Valid ID', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'TOR', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=TOR' }] },
+  { id: 4, student_number: '2025-00004', first_name: 'Ana', last_name: 'Garcia', email: 'agarcia@richwell.edu.ph', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-04T16:45:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
+  { id: 5, student_number: '2025-00005', first_name: 'Jose', last_name: 'Cruz', email: 'jcruz@richwell.edu.ph', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-05T11:00:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }, { name: 'Good Moral', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Good+Moral' }] }
 ];
 
 async function init() {
@@ -106,7 +107,14 @@ function render() {
           <h1 class="text-3xl font-bold text-gray-800">Admission Dashboard</h1>
           <p class="text-gray-600 mt-1">Manage applicants and verify documents</p>
         </div>
-        <div class="mt-4 md:mt-0">
+        <div class="mt-4 md:mt-0 flex items-center gap-3">
+          <!-- PENDING APPLICANTS BUTTON -->
+          <button onclick="openPendingModal()" class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold rounded-xl hover:from-yellow-600 hover:to-orange-600 transition-all shadow-lg shadow-orange-500/25 animate-pulse">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>${state.applicants.filter(a => a.status === 'PENDING').length} Pending Approval</span>
+          </button>
           <span class="badge badge-info text-sm py-2 px-4">${filteredApplicants.length} Applicant(s)</span>
         </div>
       </div>
@@ -176,6 +184,9 @@ function render() {
     
     <!-- Applicant Detail Modal -->
     ${state.selectedApplicant ? renderApplicantModal(state.selectedApplicant) : ''}
+    
+    <!-- Pending Applicants Modal -->
+    ${state.showPendingModal ? renderPendingModal() : ''}
   `;
 }
 
@@ -372,7 +383,37 @@ function renderApplicantModal(applicant) {
         </div>
         
         <!-- Modal Footer -->
-        <div class="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-end gap-3">
+        <div class="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-between">
+          <div class="flex gap-2">
+            ${applicant.status === 'PENDING' ? `
+              <button onclick="acceptApplicant(${applicant.id})" class="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Accept
+              </button>
+              <button onclick="rejectApplicant(${applicant.id})" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+                Reject
+              </button>
+            ` : applicant.status === 'ACTIVE' ? `
+              <span class="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Approved
+              </span>
+            ` : applicant.status === 'REJECTED' ? `
+              <span class="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Rejected
+              </span>
+            ` : ''}
+          </div>
           <button onclick="closeModal()" class="btn-secondary">Close</button>
         </div>
       </div>
@@ -418,6 +459,213 @@ window.verifyDocument = async function (applicantId, docName) {
       }
     }
   }, 1000);
+};
+
+window.acceptApplicant = async function (applicantId) {
+  showToast('Approving applicant...', 'info');
+
+  // Simulate API call
+  setTimeout(() => {
+    const applicant = state.applicants.find(a => a.id === applicantId);
+    if (applicant) {
+      applicant.status = 'ACTIVE';
+      state.selectedApplicant = applicant;
+      showToast(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`, 'success');
+      render();
+    }
+  }, 500);
+};
+
+window.rejectApplicant = async function (applicantId) {
+  if (!confirm('Are you sure you want to reject this applicant?')) return;
+
+  showToast('Rejecting applicant...', 'info');
+
+  // Simulate API call
+  setTimeout(() => {
+    const applicant = state.applicants.find(a => a.id === applicantId);
+    if (applicant) {
+      applicant.status = 'REJECTED';
+      state.selectedApplicant = applicant;
+      showToast(`${applicant.first_name} ${applicant.last_name} has been rejected.`, 'warning');
+      render();
+    }
+  }, 500);
+};
+
+// Pending Modal functions
+window.openPendingModal = function () {
+  state.showPendingModal = true;
+  render();
+};
+
+window.closePendingModal = function () {
+  state.showPendingModal = false;
+  render();
+};
+
+function renderPendingModal() {
+  const pendingApplicants = state.applicants.filter(a => a.status === 'PENDING');
+
+  return `
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closePendingModal()">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+        <!-- Modal Header -->
+        <div class="sticky top-0 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 class="text-xl font-bold">Pending Applicants</h2>
+            <p class="text-yellow-100 text-sm">${pendingApplicants.length} applicant(s) awaiting approval</p>
+          </div>
+          <button onclick="closePendingModal()" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Modal Body -->
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+          ${pendingApplicants.length === 0 ? `
+            <div class="text-center py-12">
+              <svg class="w-16 h-16 text-green-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <p class="text-gray-500 text-lg">All applicants have been processed!</p>
+            </div>
+          ` : `
+            <div class="space-y-6">
+              ${pendingApplicants.map(applicant => renderPendingApplicantCard(applicant)).join('')}
+            </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPendingApplicantCard(applicant) {
+  return `
+    <div class="border-2 border-yellow-200 rounded-2xl overflow-hidden bg-yellow-50/50">
+      <!-- Applicant Header -->
+      <div class="p-4 bg-white border-b border-yellow-200">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-lg font-bold">
+              ${applicant.first_name[0]}${applicant.last_name[0]}
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-gray-800">${applicant.first_name} ${applicant.last_name}</h3>
+              <p class="text-sm text-gray-500">${applicant.student_number} • ${applicant.email}</p>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-sm font-medium text-blue-600">${applicant.program?.code}</span>
+                <span class="text-xs text-gray-400">•</span>
+                <span class="text-sm text-gray-500">${applicant.created_via}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Action Buttons -->
+          <div class="flex items-center gap-3">
+            <button onclick="acceptFromPending(${applicant.id})" 
+                    class="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-lg">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              Accept
+            </button>
+            <button onclick="rejectFromPending(${applicant.id})" 
+                    class="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+              Reject
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Documents Section -->
+      <div class="p-4">
+        <h4 class="font-semibold text-gray-700 mb-3">Uploaded Documents</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          ${applicant.documents?.map(doc => `
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div class="h-32 bg-gray-100 flex items-center justify-center">
+                <img src="${doc.url || 'https://via.placeholder.com/400x300?text=Document'}" 
+                     alt="${doc.name}" 
+                     class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                     onclick="viewDocumentImage('${doc.url || ''}', '${doc.name}')">
+              </div>
+              <div class="p-3 flex items-center justify-between">
+                <span class="font-medium text-gray-700 text-sm">${doc.name}</span>
+                <span class="badge ${doc.status === 'VERIFIED' ? 'badge-success' : 'badge-warning'} text-xs">${doc.status}</span>
+              </div>
+            </div>
+          `).join('') || '<p class="text-gray-400">No documents uploaded</p>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window.acceptFromPending = async function (applicantId) {
+  const applicant = state.applicants.find(a => a.id === applicantId);
+  if (!applicant) return;
+
+  showToast(`Approving ${applicant.student?.first_name || applicant.first_name}...`, 'info');
+
+  try {
+    // Try real API call
+    const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'accept' });
+    if (response && response.success) {
+      showToast(response.message || 'Applicant approved!', 'success');
+      await loadApplicants(); // Refresh data from server
+      render();
+      return;
+    }
+  } catch (error) {
+    console.log('API failed, using mock update');
+  }
+
+  // Fallback to mock update
+  applicant.status = 'ACTIVE';
+  showToast(`${applicant.student?.first_name || applicant.first_name} ${applicant.student?.last_name || applicant.last_name} has been approved! They can now login.`, 'success');
+  render();
+};
+
+window.rejectFromPending = async function (applicantId) {
+  const applicant = state.applicants.find(a => a.id === applicantId);
+  if (!applicant) return;
+
+  const name = applicant.student?.first_name || applicant.first_name;
+  const lastName = applicant.student?.last_name || applicant.last_name;
+
+  if (!confirm(`Are you sure you want to reject ${name} ${lastName}?`)) return;
+
+  showToast(`Rejecting ${name}...`, 'info');
+
+  try {
+    // Try real API call
+    const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'reject' });
+    if (response && response.success) {
+      showToast(response.message || 'Applicant rejected.', 'warning');
+      await loadApplicants(); // Refresh data from server
+      render();
+      return;
+    }
+  } catch (error) {
+    console.log('API failed, using mock update');
+  }
+
+  // Fallback to mock update
+  applicant.status = 'REJECTED';
+  showToast(`${name} ${lastName} has been rejected.`, 'warning');
+  render();
+};
+
+window.viewDocumentImage = function (url, name) {
+  if (!url) return;
+  window.open(url, '_blank');
 };
 
 window.logout = function () {

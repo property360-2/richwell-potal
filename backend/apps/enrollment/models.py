@@ -66,10 +66,12 @@ class Enrollment(BaseModel):
     """
     
     class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending Approval'
         ACTIVE = 'ACTIVE', 'Active'
         PENDING_PAYMENT = 'PENDING_PAYMENT', 'Pending Payment'
         HOLD = 'HOLD', 'On Hold'
         COMPLETED = 'COMPLETED', 'Completed'
+        REJECTED = 'REJECTED', 'Rejected'
     
     class CreatedVia(models.TextChoices):
         ONLINE = 'ONLINE', 'Online Enrollment'
@@ -90,7 +92,7 @@ class Enrollment(BaseModel):
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
-        default=Status.ACTIVE
+        default=Status.PENDING
     )
     created_via = models.CharField(
         max_length=20,

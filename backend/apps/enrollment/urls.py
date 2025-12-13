@@ -26,6 +26,7 @@ urlpatterns = [
     
     # Admission staff - Applicant management
     path('applicants/', views.ApplicantListView.as_view(), name='applicant-list'),
+    path('applicants/<uuid:pk>/', views.ApplicantUpdateView.as_view(), name='applicant-update'),
     path('documents/<uuid:pk>/verify/', views.DocumentVerifyView.as_view(), name='document-verify'),
     
     # ============================================================

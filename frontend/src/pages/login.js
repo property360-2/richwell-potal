@@ -129,6 +129,7 @@ function render() {
             <div class="text-xs text-blue-200 space-y-1">
               <p><span class="text-white">Admin:</span> admin@richwell.edu.ph / admin123</p>
               <p><span class="text-white">Registrar:</span> registrar@richwell.edu.ph / registrar123</p>
+              <p><span class="text-white">Cashier:</span> cashier@richwell.edu.ph / cashier123</p>
               <p><span class="text-white">Professor:</span> professor@richwell.edu.ph / prof123</p>
               <p><span class="text-white">Student:</span> student@richwell.edu.ph / student123</p>
             </div>
@@ -187,6 +188,20 @@ async function handleLogin(e) {
 
     if (response.ok) {
       const data = await response.json();
+
+      // Check if student account is pending approval
+      if (data.user.role === 'STUDENT' && data.user.enrollment_status === 'PENDING') {
+        showToast('Your account is pending approval. Please wait for the Admissions Office to review your application.', 'warning');
+        resetLoginButton();
+        return;
+      }
+
+      // Check if student account was rejected
+      if (data.user.role === 'STUDENT' && data.user.enrollment_status === 'REJECTED') {
+        showToast('Your application has been rejected. Please contact the Admissions Office.', 'error');
+        resetLoginButton();
+        return;
+      }
 
       // Store tokens and user info
       TokenManager.setTokens(data.access, data.refresh);

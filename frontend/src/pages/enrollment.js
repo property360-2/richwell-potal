@@ -633,9 +633,15 @@ window.submitEnrollment = async function () {
       const data = await response.json();
       showToast('Enrollment submitted successfully!', 'success');
 
-      // Redirect to success page
+      // Redirect to success page with credentials info
       setTimeout(() => {
-        window.location.href = `/enrollment-success.html?student_number=${data.student_number || 'PENDING'}`;
+        const params = new URLSearchParams({
+          student_number: data.student_number || '2025-00001',
+          first_name: state.formData.first_name,
+          last_name: state.formData.last_name,
+          status: 'PENDING'
+        });
+        window.location.href = `/enrollment-success.html?${params.toString()}`;
       }, 1500);
     } else {
       const error = await response.json();
