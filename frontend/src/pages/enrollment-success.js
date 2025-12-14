@@ -5,14 +5,16 @@ function init() {
   const studentNumber = getQueryParam('student_number') || 'PENDING';
   const firstName = getQueryParam('first_name') || 'Student';
   const lastName = getQueryParam('last_name') || 'User';
+  const loginEmail = getQueryParam('login_email') || '';  // Personal email for login
+  const schoolEmail = getQueryParam('school_email') || '';
+  const passwordParam = getQueryParam('password') || '';
   const status = getQueryParam('status') || 'PENDING';
 
-  // Generate username: first letter of first name + last name + timestamp suffix
-  const timestamp = Date.now().toString().slice(-4);
-  const username = (firstName.charAt(0) + lastName).toLowerCase().replace(/\s/g, '') + timestamp;
+  // Login email is the personal email from the form (Backend uses email field for login)
+  const email = loginEmail || schoolEmail || `${firstName[0].toLowerCase()}${lastName.toLowerCase()}@example.com`;
 
   // Password is the student number
-  const password = studentNumber !== 'PENDING' ? studentNumber : '2025-XXXXX';
+  const password = passwordParam || studentNumber;
 
   const app = document.getElementById('app');
   app.innerHTML = `
@@ -33,18 +35,11 @@ function init() {
         <div class="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/30 shadow-2xl p-8">
           <!-- Status Badge -->
           <div class="text-center mb-6">
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full ${status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
-              ${status === 'ACTIVE' ? `
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                Account Active
-              ` : `
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                Pending Approval
-              `}
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-100 text-green-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Account Active - Ready to Login!
             </span>
           </div>
           
@@ -59,10 +54,10 @@ function init() {
                 <p class="text-lg font-bold text-blue-600 font-mono">${studentNumber}</p>
               </div>
               
-              <!-- Username -->
+              <!-- Email/Username -->
               <div class="bg-white rounded-lg p-4 border border-blue-200">
-                <p class="text-xs text-gray-500 mb-1">Username</p>
-                <p class="text-lg font-bold text-blue-600 font-mono">${username}</p>
+                <p class="text-xs text-gray-500 mb-1">Email (Login)</p>
+                <p class="text-lg font-bold text-blue-600 font-mono">${email}</p>
               </div>
               
               <!-- Password -->
@@ -81,42 +76,34 @@ function init() {
             </button>
           </div>
           
-          <!-- Warning for Pending -->
-          ${status !== 'ACTIVE' ? `
-            <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
-              <div class="flex items-start gap-3">
-                <svg class="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                </svg>
-                <div>
-                  <p class="font-semibold text-yellow-800">Account Pending Approval</p>
-                  <p class="text-sm text-yellow-700 mt-1">Your account will be activated once the Admissions Office reviews your application. You will be able to login after approval.</p>
-                </div>
+          <!-- Payment Required Notice -->
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+            <div class="flex items-start gap-3">
+              <svg class="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <div>
+                <p class="font-semibold text-blue-800">Payment Required for Subject Enrollment</p>
+                <p class="text-sm text-blue-700 mt-1">You can login now! To enroll in subjects, please pay your first month fee at the Cashier.</p>
               </div>
             </div>
-          ` : ''}
+          </div>
           
           <!-- What's Next -->
           <div class="bg-blue-50 rounded-xl p-4 mb-6">
             <h3 class="font-semibold text-blue-800 mb-2">What's Next?</h3>
             <ul class="text-sm text-blue-700 space-y-2">
               <li class="flex items-start gap-2">
-                <svg class="w-5 h-5 mt-0.5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
+                <span class="w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
                 Save your credentials (screenshot or copy)
               </li>
               <li class="flex items-start gap-2">
-                <svg class="w-5 h-5 mt-0.5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                Wait for approval from Admissions Office
+                <span class="w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                Login with your email and password
               </li>
               <li class="flex items-start gap-2">
-                <svg class="w-5 h-5 mt-0.5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                Login and pay your first month to enroll in subjects
+                <span class="w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                Pay Month 1 fee at the Cashier to unlock subject enrollment
               </li>
             </ul>
           </div>
@@ -146,15 +133,15 @@ function init() {
   // Store credentials for copy function
   window.credentialsData = {
     studentNumber,
-    username,
+    email,
     password
   };
 }
 
 // Copy credentials to clipboard
 window.copyCredentials = async function () {
-  const { studentNumber, username, password } = window.credentialsData;
-  const text = `Student Number: ${studentNumber}\nUsername: ${username}\nPassword: ${password}`;
+  const { studentNumber, email, password } = window.credentialsData;
+  const text = `Student Number: ${studentNumber}\nEmail (Login): ${email}\nPassword: ${password}`;
 
   try {
     await navigator.clipboard.writeText(text);

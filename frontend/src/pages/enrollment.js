@@ -633,10 +633,15 @@ window.submitEnrollment = async function () {
       const data = await response.json();
       showToast('Enrollment submitted successfully!', 'success');
 
-      // Redirect to success page with credentials info
+
+      // Redirect to success page with credentials from server
       setTimeout(() => {
+        const creds = data.credentials || {};
         const params = new URLSearchParams({
-          student_number: data.student_number || '2025-00001',
+          student_number: creds.student_number || data.data?.student?.student_number || '2025-00001',
+          login_email: creds.login_email || state.formData.email,  // Personal email for login
+          school_email: creds.school_email || '',
+          password: creds.password || creds.student_number || '2025-00001',
           first_name: state.formData.first_name,
           last_name: state.formData.last_name,
           status: 'PENDING'
@@ -645,7 +650,20 @@ window.submitEnrollment = async function () {
       }, 1500);
     } else {
       const error = await response.json();
-      showToast(error.detail || error.message || 'Enrollment failed. Please try again.', 'error');
+      console.error('Enrollment error:', error);
+      // Extract specific error messages
+      let errorMessage = 'Enrollment failed. Please try again.';
+      if (error.errors) {
+        const errorMessages = Object.entries(error.errors)
+          .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+          .join('; ');
+        errorMessage = errorMessages || errorMessage;
+      } else if (error.detail) {
+        errorMessage = error.detail;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      showToast(errorMessage, 'error');
       submitBtn.disabled = false;
       submitBtn.innerHTML = `
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

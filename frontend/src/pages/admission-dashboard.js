@@ -64,15 +64,37 @@ function formatRole(role) {
 }
 
 async function loadApplicants() {
+  console.log('LoadApplicants: Starting to fetch applicants...');
   try {
     const response = await api.get(endpoints.applicants);
-    if (response && response.results) {
-      state.applicants = response.results;
+    console.log('LoadApplicants: Raw API response:', response);
+
+    // Handle paginated response {count, results, ...}
+    const enrollments = response?.results || response;
+
+    if (enrollments && Array.isArray(enrollments) && enrollments.length > 0) {
+      // Map API response to expected format
+      state.applicants = enrollments.map(enrollment => ({
+        id: enrollment.id,
+        student_number: enrollment.student_number,
+        first_name: enrollment.student_name?.split(' ')[0] || 'Unknown',
+        last_name: enrollment.student_name?.split(' ').slice(1).join(' ') || 'Student',
+        email: enrollment.student_email,
+        status: enrollment.status,
+        created_via: enrollment.created_via,
+        created_at: enrollment.created_at,
+        program: { code: 'N/A', name: 'Enrolled Program' },
+        documents: enrollment.documents || [],
+        student: { first_name: enrollment.student_name?.split(' ')[0], last_name: enrollment.student_name?.split(' ').slice(1).join(' ') }
+      }));
+      console.log('LoadApplicants: Mapped', state.applicants.length, 'applicants');
     } else {
+      console.log('LoadApplicants: No applicants from API, response was:', response);
+      console.log('LoadApplicants: Using mock data');
       state.applicants = mockApplicants;
     }
   } catch (error) {
-    console.log('Using mock data');
+    console.error('LoadApplicants: API error:', error);
     state.applicants = mockApplicants;
   }
   state.loading = false;
@@ -295,7 +317,7 @@ function renderApplicantRow(applicant) {
         ${formatDate(applicant.created_at)}
       </td>
       <td class="px-6 py-4 text-center">
-        <button onclick="viewApplicant(${applicant.id})" class="text-blue-600 hover:text-blue-800 font-medium text-sm">
+        <button onclick="viewApplicant('${applicant.id}')" class="text-blue-600 hover:text-blue-800 font-medium text-sm">
           View Details
         </button>
       </td>
@@ -322,20 +344,48 @@ function renderApplicantModal(applicant) {
           <!-- Profile Section -->
           <div class="flex items-center gap-4">
             <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
-              ${applicant.first_name[0]}${applicant.last_name[0]}
+              ${(applicant.first_name || 'U')[0]}${(applicant.last_name || 'N')[0]}
             </div>
             <div>
-              <h3 class="text-xl font-bold text-gray-800">${applicant.first_name} ${applicant.last_name}</h3>
-              <p class="text-gray-500">${applicant.email}</p>
+              <h3 class="text-xl font-bold text-gray-800">${applicant.first_name || 'Unknown'} ${applicant.last_name || 'Student'}</h3>
+              <p class="text-gray-500">${applicant.email || applicant.student_email || 'No email'}</p>
               <div class="flex gap-2 mt-2">
                 <span class="badge badge-info">${applicant.student_number}</span>
-                <span class="badge ${applicant.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}">${applicant.status}</span>
+                <span class="badge ${applicant.status === 'ACTIVE' ? 'badge-success' : applicant.status === 'REJECTED' ? 'badge-error' : 'badge-warning'}">${applicant.status}</span>
               </div>
             </div>
           </div>
           
-          <!-- Info Grid -->
+          <!-- Login Credentials Section (Auto-generated) -->
+          <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+            <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+              </svg>
+              Login Credentials
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-white rounded-lg p-3 border border-blue-100">
+                <p class="text-xs text-gray-500 mb-1">School Email (Username)</p>
+                <p class="font-medium text-blue-600 font-mono text-sm">${applicant.school_email || applicant.email || 'N/A'}</p>
+              </div>
+              <div class="bg-white rounded-lg p-3 border border-blue-100">
+                <p class="text-xs text-gray-500 mb-1">Password</p>
+                <p class="font-medium text-blue-600 font-mono text-sm">${applicant.student_number || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Contact & Info Grid -->
           <div class="grid grid-cols-2 gap-4">
+            <div class="bg-gray-50 rounded-xl p-4">
+              <p class="text-sm text-gray-500">Personal Email</p>
+              <p class="font-medium">${applicant.email || applicant.student_email || 'N/A'}</p>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4">
+              <p class="text-sm text-gray-500">Contact Number</p>
+              <p class="font-medium">${applicant.contact_number || 'N/A'}</p>
+            </div>
             <div class="bg-gray-50 rounded-xl p-4">
               <p class="text-sm text-gray-500">Program</p>
               <p class="font-medium">${applicant.program?.name || 'N/A'}</p>
@@ -344,40 +394,48 @@ function renderApplicantModal(applicant) {
               <p class="text-sm text-gray-500">Created Via</p>
               <p class="font-medium">${applicant.created_via}</p>
             </div>
-            <div class="bg-gray-50 rounded-xl p-4">
+            <div class="bg-gray-50 rounded-xl p-4 col-span-2">
               <p class="text-sm text-gray-500">Applied On</p>
               <p class="font-medium">${formatDate(applicant.created_at)}</p>
-            </div>
-            <div class="bg-gray-50 rounded-xl p-4">
-              <p class="text-sm text-gray-500">Contact</p>
-              <p class="font-medium">${applicant.contact_number || 'N/A'}</p>
             </div>
           </div>
           
           <!-- Documents Section -->
           <div>
-            <h4 class="font-bold text-gray-800 mb-4">Documents</h4>
+            <h4 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+              Documents (${applicant.documents?.length || 0})
+            </h4>
             <div class="space-y-3">
-              ${applicant.documents?.map(doc => `
+              ${applicant.documents?.length > 0 ? applicant.documents.map(doc => `
                 <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                   <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                      <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                      </svg>
+                    ${doc.file_url ? `
+                      <img src="${doc.file_url}" alt="${doc.document_type_display || doc.original_filename}" class="w-12 h-12 rounded-lg object-cover cursor-pointer" onclick="viewDocumentImage('${doc.file_url}', '${doc.document_type_display || doc.original_filename}')">
+                    ` : `
+                      <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                      </div>
+                    `}
+                    <div>
+                      <span class="font-medium text-gray-700">${doc.document_type_display || doc.original_filename || 'Document'}</span>
+                      ${doc.original_filename ? `<p class="text-xs text-gray-400">${doc.original_filename}</p>` : ''}
                     </div>
-                    <span class="font-medium text-gray-700">${doc.name}</span>
                   </div>
                   <div class="flex items-center gap-3">
-                    <span class="badge ${doc.status === 'VERIFIED' ? 'badge-success' : 'badge-warning'}">${doc.status}</span>
-                    ${doc.status === 'PENDING' ? `
-                      <button onclick="verifyDocument(${applicant.id}, '${doc.name}')" class="btn-primary text-xs py-1 px-3">
+                    <span class="badge ${doc.is_verified ? 'badge-success' : 'badge-warning'}">${doc.is_verified ? 'VERIFIED' : 'PENDING'}</span>
+                    ${!doc.is_verified && doc.id ? `
+                      <button onclick="verifyDocument('${applicant.id}', '${doc.id}')" class="btn-primary text-xs py-1 px-3">
                         Verify
                       </button>
                     ` : ''}
                   </div>
                 </div>
-              `).join('') || '<p class="text-gray-500 text-center py-4">No documents uploaded</p>'}
+              `).join('') : '<p class="text-gray-500 text-center py-4">No documents uploaded</p>'}
             </div>
           </div>
         </div>
@@ -566,14 +624,14 @@ function renderPendingApplicantCard(applicant) {
           
           <!-- Action Buttons -->
           <div class="flex items-center gap-3">
-            <button onclick="acceptFromPending(${applicant.id})" 
+            <button onclick="acceptFromPending('${applicant.id}')" 
                     class="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-lg">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
               </svg>
               Accept
             </button>
-            <button onclick="rejectFromPending(${applicant.id})" 
+            <button onclick="rejectFromPending('${applicant.id}')" 
                     class="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 transition-colors">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -591,14 +649,23 @@ function renderPendingApplicantCard(applicant) {
           ${applicant.documents?.map(doc => `
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div class="h-32 bg-gray-100 flex items-center justify-center">
-                <img src="${doc.url || 'https://via.placeholder.com/400x300?text=Document'}" 
-                     alt="${doc.name}" 
-                     class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                     onclick="viewDocumentImage('${doc.url || ''}', '${doc.name}')">
+                ${doc.file_url ? `
+                  <img src="${doc.file_url}" 
+                       alt="${doc.document_type_display || doc.original_filename}" 
+                       class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                       onclick="viewDocumentImage('${doc.file_url}', '${doc.document_type_display || doc.original_filename}')">
+                ` : `
+                  <div class="text-gray-400 text-center p-4">
+                    <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span class="text-sm">${doc.document_type_display || doc.original_filename || 'Document'}</span>
+                  </div>
+                `}
               </div>
               <div class="p-3 flex items-center justify-between">
-                <span class="font-medium text-gray-700 text-sm">${doc.name}</span>
-                <span class="badge ${doc.status === 'VERIFIED' ? 'badge-success' : 'badge-warning'} text-xs">${doc.status}</span>
+                <span class="font-medium text-gray-700 text-sm">${doc.document_type_display || doc.original_filename || 'Document'}</span>
+                <span class="badge ${doc.is_verified ? 'badge-success' : 'badge-warning'} text-xs">${doc.is_verified ? 'VERIFIED' : 'PENDING'}</span>
               </div>
             </div>
           `).join('') || '<p class="text-gray-400">No documents uploaded</p>'}
@@ -615,22 +682,29 @@ window.acceptFromPending = async function (applicantId) {
   showToast(`Approving ${applicant.student?.first_name || applicant.first_name}...`, 'info');
 
   try {
-    // Try real API call
+    // Call real API
     const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'accept' });
-    if (response && response.success) {
-      showToast(response.message || 'Applicant approved!', 'success');
-      await loadApplicants(); // Refresh data from server
+    console.log('Accept API response:', response);
+
+    if (response && (response.success || response.data)) {
+      showToast(response.message || 'Applicant approved successfully!', 'success');
+      // Update local state immediately for instant feedback
+      applicant.status = 'ACTIVE';
+      // Also refresh from server to get latest data
+      await loadApplicants();
+      state.showPendingModal = false;
       render();
       return;
     }
+    throw new Error('API response invalid');
   } catch (error) {
-    console.log('API failed, using mock update');
+    console.error('Accept API error:', error);
+    // Fallback to local update if API fails
+    applicant.status = 'ACTIVE';
+    showToast(`${applicant.student?.first_name || applicant.first_name} ${applicant.student?.last_name || applicant.last_name} has been approved! They can now login.`, 'success');
+    state.showPendingModal = false;
+    render();
   }
-
-  // Fallback to mock update
-  applicant.status = 'ACTIVE';
-  showToast(`${applicant.student?.first_name || applicant.first_name} ${applicant.student?.last_name || applicant.last_name} has been approved! They can now login.`, 'success');
-  render();
 };
 
 window.rejectFromPending = async function (applicantId) {
@@ -645,22 +719,29 @@ window.rejectFromPending = async function (applicantId) {
   showToast(`Rejecting ${name}...`, 'info');
 
   try {
-    // Try real API call
+    // Call real API
     const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'reject' });
-    if (response && response.success) {
+    console.log('Reject API response:', response);
+
+    if (response && (response.success || response.data)) {
       showToast(response.message || 'Applicant rejected.', 'warning');
-      await loadApplicants(); // Refresh data from server
+      // Update local state immediately
+      applicant.status = 'REJECTED';
+      // Also refresh from server
+      await loadApplicants();
+      state.showPendingModal = false;
       render();
       return;
     }
+    throw new Error('API response invalid');
   } catch (error) {
-    console.log('API failed, using mock update');
+    console.error('Reject API error:', error);
+    // Fallback to local update
+    applicant.status = 'REJECTED';
+    showToast(`${name} ${lastName} has been rejected.`, 'warning');
+    state.showPendingModal = false;
+    render();
   }
-
-  // Fallback to mock update
-  applicant.status = 'REJECTED';
-  showToast(`${name} ${lastName} has been rejected.`, 'warning');
-  render();
 };
 
 window.viewDocumentImage = function (url, name) {

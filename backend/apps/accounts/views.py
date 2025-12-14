@@ -107,3 +107,49 @@ class ProfileView(APIView):
             "success": False,
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChangePasswordView(APIView):
+    """
+    Change password endpoint.
+    Requires current password and new password.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Change Password",
+        description="Change the current user's password",
+        tags=["Profile"]
+    )
+    def post(self, request):
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        
+        if not current_password or not new_password:
+            return Response({
+                "success": False,
+                "error": "Both current_password and new_password are required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify current password
+        if not request.user.check_password(current_password):
+            return Response({
+                "success": False,
+                "error": "Current password is incorrect"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate new password
+        if len(new_password) < 6:
+            return Response({
+                "success": False,
+                "error": "New password must be at least 6 characters"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Set new password
+        request.user.set_password(new_password)
+        request.user.save()
+        
+        return Response({
+            "success": True,
+            "message": "Password changed successfully"
+        })

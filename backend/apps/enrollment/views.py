@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.db import transaction
 from drf_spectacular.utils import extend_schema
 
-from apps.core.permissions import IsRegistrar, IsAdmissionStaff
+from apps.core.permissions import IsRegistrar, IsAdmissionStaff, IsAdmin
 from apps.core.exceptions import EnrollmentLinkDisabledError, NotFoundError
 from apps.academics.models import Program, Subject
 from apps.academics.serializers import ProgramSerializer
@@ -99,8 +99,14 @@ class OnlineEnrollmentView(APIView):
             
             return Response({
                 "success": True,
-                "message": "Enrollment successful! Please check your email for login credentials.",
-                "data": EnrollmentSerializer(enrollment).data
+                "message": "Enrollment successful! Please check your credentials below.",
+                "data": EnrollmentSerializer(enrollment).data,
+                "credentials": {
+                    "login_email": enrollment.student.email,  # Personal email (for login)
+                    "school_email": enrollment.student.username,  # School email (username)
+                    "student_number": enrollment.student.student_number,
+                    "password": enrollment.student.student_number  # Password is student number
+                }
             }, status=status.HTTP_201_CREATED)
         
         return Response({
@@ -305,7 +311,7 @@ class ApplicantListView(ListAPIView):
     """
     List recent applicants for the admission dashboard.
     """
-    permission_classes = [IsAuthenticated, IsAdmissionStaff | IsRegistrar]
+    permission_classes = [IsAuthenticated, IsAdmissionStaff | IsRegistrar | IsAdmin]
     serializer_class = EnrollmentSerializer
     
     @extend_schema(
@@ -378,7 +384,7 @@ class ApplicantUpdateView(APIView):
     Accept or reject an applicant's enrollment.
     Changes status to ACTIVE (accept) or REJECTED (reject).
     """
-    permission_classes = [IsAuthenticated, IsAdmissionStaff | IsRegistrar]
+    permission_classes = [IsAuthenticated, IsAdmissionStaff | IsRegistrar | IsAdmin]
     
     @extend_schema(
         summary="Accept/Reject Applicant",
@@ -498,9 +504,19 @@ class RecommendedSubjectsView(APIView):
                 "error": "Only students can access this endpoint"
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Get current semester
-        from .models import Semester
-        semester = Semester.objects.filter(is_current=True).first()
+        # Get current semester - prioritize semester where student is enrolled
+        from .models import Semester, Enrollment
+        
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            semester__is_current=True
+        ).first()
+        
+        if enrollment:
+            semester = enrollment.semester
+        else:
+            semester = Semester.objects.filter(is_current=True).first()
+            
         if not semester:
             raise NotFoundError("No active semester found")
         
@@ -521,13 +537,23 @@ class RecommendedSubjectsView(APIView):
         current_units = service.get_current_enrolled_units(request.user, semester)
         max_units = service.max_units
         
+        # Check if Month 1 is paid
+        
+        month1_paid = False
+        if enrollment:
+            month1_bucket = enrollment.payment_buckets.filter(month_number=1).first()
+            if month1_bucket:
+                month1_paid = month1_bucket.is_fully_paid
+
         return Response({
             "success": True,
             "data": {
                 "recommended_subjects": serializer.data,
                 "current_units": current_units,
                 "max_units": max_units,
-                "remaining_units": max_units - current_units
+                "remaining_units": max_units - current_units,
+                "month1_paid": month1_paid,
+                "can_enroll": month1_paid
             }
         })
 
@@ -659,21 +685,41 @@ class EnrollSubjectView(APIView):
                 "errors": serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        from .models import Semester
+        from .models import Semester, Enrollment
         from apps.academics.models import Subject, Section
         
-        semester = Semester.objects.filter(is_current=True).first()
-        if not semester:
-            raise NotFoundError("No active semester found")
-        
-        # Get current enrollment
+        # Get current enrollment - prioritize where student is already enrolled
         enrollment = Enrollment.objects.filter(
             student=request.user,
-            semester=semester
+            semester__is_current=True
         ).first()
+        
+        if enrollment:
+            semester = enrollment.semester
+        else:
+            semester = Semester.objects.filter(is_current=True).first()
+            if not semester:
+                raise NotFoundError("No active semester found")
+                
+        # If no enrollment found (and we fell back to generic semester), check again or fail
+        if not enrollment:
+             # Try to find enrollment in the fallback semester strictly
+             enrollment = Enrollment.objects.filter(
+                student=request.user,
+                semester=semester
+            ).first()
         
         if not enrollment:
             raise NotFoundError("No enrollment found for current semester")
+        
+        # Check if Month 1 is paid - students cannot enroll until payment is confirmed
+        month1_bucket = enrollment.payment_buckets.filter(month_number=1).first()
+        if not month1_bucket or not month1_bucket.is_fully_paid:
+            return Response({
+                "success": False,
+                "error": "Payment required before enrolling in subjects. Please pay Month 1 at the Cashier's Office.",
+                "payment_required": True
+            }, status=status.HTTP_403_FORBIDDEN)
         
         # Get subject and section
         subject = Subject.objects.get(id=serializer.validated_data['subject_id'])
@@ -2283,3 +2329,138 @@ class DownloadDocumentPDFView(APIView):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         
         return response
+
+
+# ============================================================
+# Cashier Student Search (for payment processing)
+# ============================================================
+
+class CashierStudentSearchView(APIView):
+    """
+    Search for students by student number or name (cashier only).
+    Used for looking up students to process payments.
+    """
+    permission_classes = [IsAuthenticated, IsCashier | IsRegistrar | IsAdmin]
+    
+    @extend_schema(
+        summary="Search Students for Payment",
+        description="Search students by student number or name for cashier payment processing",
+        tags=["Cashier"]
+    )
+    def get(self, request):
+        from django.db.models import Q
+        from apps.accounts.models import User
+        
+        query = request.query_params.get('q', '').strip()
+        if len(query) < 2:
+            return Response({
+                "success": True,
+                "results": []
+            })
+        
+        # Search students
+        students = User.objects.filter(
+            role='STUDENT'
+        ).filter(
+            Q(student_number__icontains=query) |
+            Q(first_name__icontains=query) |
+            Q(last_name__icontains=query) |
+            Q(email__icontains=query)
+        )[:20]
+        
+        results = []
+        for student in students:
+            # Get latest enrollment
+            enrollment = Enrollment.objects.filter(
+                student=student
+            ).prefetch_related('payment_buckets').order_by('-created_at').first()
+            
+            if enrollment:
+                # Get payment buckets
+                buckets = []
+                for bucket in enrollment.payment_buckets.all():
+                    buckets.append({
+                        'month': bucket.month_number,
+                        'required': float(bucket.required_amount),
+                        'paid': float(bucket.paid_amount),
+                        'is_fully_paid': bucket.is_fully_paid
+                    })
+                
+                results.append({
+                    'id': str(student.id),
+                    'student_number': student.student_number,
+                    'first_name': student.first_name,
+                    'last_name': student.last_name,
+                    'email': student.email,
+                    'enrollment_id': str(enrollment.id),
+                    'enrollment_status': enrollment.status,
+                    'payment_buckets': buckets,
+                    'total_paid': float(enrollment.total_paid),
+                    'total_required': float(enrollment.total_required),
+                    'balance': float(enrollment.balance)
+                })
+        
+        return Response({
+            "success": True,
+            "results": results
+        })
+
+
+class CashierPendingPaymentsView(APIView):
+    """
+    Get students with pending Month 1 payments (for cashier dashboard).
+    Shows newly accepted students who need to pay before enrolling.
+    """
+    permission_classes = [IsAuthenticated, IsCashier | IsRegistrar | IsAdmin]
+    
+    @extend_schema(
+        summary="Get Pending Payments",
+        description="Get students with pending Month 1 payments for cashier processing",
+        tags=["Cashier"]
+    )
+    def get(self, request):
+        from apps.accounts.models import User
+        
+        # Get all active enrollments where Month 1 is not fully paid
+        pending_enrollments = Enrollment.objects.filter(
+            status=Enrollment.Status.ACTIVE
+        ).prefetch_related('payment_buckets', 'student').order_by('-created_at')[:20]
+        
+        results = []
+        for enrollment in pending_enrollments:
+            # Check if Month 1 is paid
+            month1 = enrollment.payment_buckets.filter(month_number=1).first()
+            
+            # Only include if Month 1 is NOT fully paid
+            if month1 and not month1.is_fully_paid:
+                student = enrollment.student
+                
+                # Get payment buckets
+                buckets = []
+                for bucket in enrollment.payment_buckets.all():
+                    buckets.append({
+                        'month': bucket.month_number,
+                        'required': float(bucket.required_amount),
+                        'paid': float(bucket.paid_amount),
+                        'is_fully_paid': bucket.is_fully_paid
+                    })
+                
+                results.append({
+                    'id': str(student.id),
+                    'student_number': student.student_number,
+                    'first_name': student.first_name,
+                    'last_name': student.last_name,
+                    'email': student.email,
+                    'enrollment_id': str(enrollment.id),
+                    'enrollment_status': enrollment.status,
+                    'payment_buckets': buckets,
+                    'total_paid': float(enrollment.total_paid),
+                    'total_required': float(enrollment.total_required),
+                    'balance': float(enrollment.balance),
+                    'created_at': enrollment.created_at.isoformat()
+                })
+        
+        return Response({
+            "success": True,
+            "results": results
+        })

@@ -7,14 +7,10 @@ const state = {
   user: null,
   loading: true,
   showChangePasswordModal: false,
-  paymentBuckets: [
-    { month: 1, required: 5000, paid: 5000, label: 'Month 1' },
-    { month: 2, required: 5000, paid: 3500, label: 'Month 2' },
-    { month: 3, required: 5000, paid: 0, label: 'Month 3' },
-    { month: 4, required: 5000, paid: 0, label: 'Month 4' },
-    { month: 5, required: 5000, paid: 0, label: 'Month 5' },
-    { month: 6, required: 5000, paid: 0, label: 'Month 6' }
-  ]
+  month1Paid: false, // Default to false - will be updated from API
+  totalPaid: 0,
+  totalRequired: 0,
+  paymentBuckets: [] // Will be loaded from API
 };
 
 async function init() {
@@ -29,6 +25,39 @@ async function loadUserProfile() {
     const response = await api.get(endpoints.me);
     if (response) {
       state.user = response;
+    }
+
+    // Try to load payment data from API
+    try {
+      const paymentsResponse = await api.get(endpoints.myPayments);
+      console.log('Payment API response:', paymentsResponse);
+
+      if (paymentsResponse?.data?.buckets) {
+        // Update payment buckets from API - API returns 'month', 'required', 'paid'
+        state.paymentBuckets = paymentsResponse.data.buckets.map(b => ({
+          month: b.month,
+          required: b.required,
+          paid: b.paid,
+          label: `Month ${b.month}`
+        }));
+
+        // Check if Month 1 is paid
+        const month1 = state.paymentBuckets.find(b => b.month === 1);
+        state.month1Paid = month1 ? month1.paid >= month1.required : false;
+
+        // Calculate totals
+        state.totalPaid = state.paymentBuckets.reduce((sum, b) => sum + b.paid, 0);
+        state.totalRequired = state.paymentBuckets.reduce((sum, b) => sum + b.required, 0);
+      } else {
+        // No payment data - default to unpaid
+        state.month1Paid = false;
+      }
+    } catch (error) {
+      console.log('Payment API failed:', error);
+      // Default to month1 not paid when API fails
+      state.month1Paid = false;
+      state.totalPaid = 0;
+      state.totalRequired = 30000; // Default estimate
     }
   } catch (error) {
     console.error('Failed to load profile:', error);
@@ -79,6 +108,24 @@ function render() {
         `)}
       </div>
       
+      <!-- Payment Required Banner (if Month 1 not paid) -->
+      ${!state.month1Paid ? `
+        <div class="card bg-gradient-to-r from-yellow-500 to-orange-500 text-white mb-8">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-xl font-bold">💳 Payment Required</h2>
+              <p class="mt-1 text-yellow-100">Please pay Month 1 at the Cashier's Office to start enrolling in subjects.</p>
+              <p class="mt-2 text-sm text-yellow-200">Once your payment is confirmed, you can visit the Subject Enrollment page to select your classes.</p>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+      
       <!-- Main Content Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Left Column - Payment Progress -->
@@ -121,19 +168,8 @@ function render() {
           </div>
         </div>
         
-        <!-- Right Column - Exam Permits -->
+        <!-- Right Column - Account Settings -->
         <div class="space-y-6">
-          <!-- Exam Permits Card -->
-          <div class="card">
-            <h3 class="font-bold text-gray-800 mb-4">Exam Permits</h3>
-            <p class="text-sm text-gray-500 mb-4">Pay monthly buckets to unlock exam permits</p>
-            <div class="space-y-3">
-              ${renderExamPermit('Prelims', true)}
-              ${renderExamPermit('Midterms', false)}
-              ${renderExamPermit('Prefinals', false)}
-              ${renderExamPermit('Finals', false)}
-            </div>
-          </div>
           
           <!-- Account Settings Card -->
           <div class="card">
@@ -345,12 +381,30 @@ window.submitPasswordChange = async function (event) {
     return;
   }
 
-  // Simulate API call (mock)
+  // Call real API to change password
   showToast('Updating password...', 'info');
-  setTimeout(() => {
-    showToast('Password changed successfully!', 'success');
-    closeChangePasswordModal();
-  }, 1000);
+
+  try {
+    const response = await api.post(endpoints.changePassword, {
+      current_password: currentPassword,
+      new_password: newPassword
+    });
+
+    if (response?.success) {
+      showToast('Password changed successfully! Please login again.', 'success');
+      closeChangePasswordModal();
+      // Logout and redirect to login
+      setTimeout(() => {
+        TokenManager.clearTokens();
+        window.location.href = '/login.html';
+      }, 2000);
+    } else {
+      showToast(response?.error || 'Failed to change password', 'error');
+    }
+  } catch (error) {
+    console.error('Password change error:', error);
+    showToast(error?.error || 'Failed to change password. Please try again.', 'error');
+  }
 };
 
 function renderPasswordModal() {
@@ -372,18 +426,42 @@ function renderPasswordModal() {
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-            <input type="password" id="currentPassword" required
-                   class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <div class="relative">
+              <input type="password" id="currentPassword" required
+                     class="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <button type="button" onclick="togglePasswordVisibility('currentPassword', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                </svg>
+              </button>
+            </div>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-            <input type="password" id="newPassword" required minlength="6"
-                   class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <div class="relative">
+              <input type="password" id="newPassword" required minlength="6"
+                     class="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <button type="button" onclick="togglePasswordVisibility('newPassword', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                </svg>
+              </button>
+            </div>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-            <input type="password" id="confirmPassword" required
-                   class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <div class="relative">
+              <input type="password" id="confirmPassword" required
+                     class="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <button type="button" onclick="togglePasswordVisibility('confirmPassword', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
         
@@ -397,6 +475,27 @@ function renderPasswordModal() {
 
   document.body.appendChild(modal);
 }
+
+// Toggle password visibility
+window.togglePasswordVisibility = function (inputId, button) {
+  const input = document.getElementById(inputId);
+  if (input.type === 'password') {
+    input.type = 'text';
+    button.innerHTML = `
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+      </svg>
+    `;
+  } else {
+    input.type = 'password';
+    button.innerHTML = `
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+      </svg>
+    `;
+  }
+};
 
 document.addEventListener('DOMContentLoaded', init);
 if (document.readyState !== 'loading') init();

@@ -4,151 +4,218 @@ import { showToast, formatCurrency, requireAuth } from '../utils.js';
 
 // State
 const state = {
-    user: null,
-    loading: true,
-    recommendedSubjects: [],
-    availableSubjects: [],
-    enrolledSubjects: [],
-    selectedSubjects: [],
-    totalUnits: 0,
-    maxUnits: 30,
-    hasPaymentHold: false,
-    showPaymentHoldModal: false,
-    showSchedulePreview: null
+  user: null,
+  loading: true,
+  recommendedSubjects: [],
+  availableSubjects: [],
+  enrolledSubjects: [],
+  totalUnits: 0,
+  maxUnits: 30,
+  hasPaymentHold: false,
+  showPaymentHoldModal: false,
+  showSchedulePreview: null
 };
 
 // Mock data for development
 const mockRecommendedSubjects = [
-    {
-        id: 1, code: 'IT101', name: 'Introduction to Computing', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-            { id: 1, name: 'A', slots: 40, enrolled: 35, schedule: 'MWF 8:00-9:00 AM' },
-            { id: 2, name: 'B', slots: 40, enrolled: 28, schedule: 'TTH 9:00-10:30 AM' }
-        ]
-    },
-    {
-        id: 2, code: 'IT102', name: 'Computer Programming 1', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-            { id: 3, name: 'A', slots: 35, enrolled: 30, schedule: 'MWF 10:00-11:00 AM' },
-            { id: 4, name: 'B', slots: 35, enrolled: 20, schedule: 'TTH 1:00-2:30 PM' }
-        ]
-    },
-    {
-        id: 3, code: 'GE101', name: 'Understanding the Self', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-            { id: 5, name: 'A', slots: 50, enrolled: 45, schedule: 'MWF 1:00-2:00 PM' }
-        ]
-    },
-    {
-        id: 4, code: 'GE102', name: 'Readings in Philippine History', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-            { id: 6, name: 'A', slots: 50, enrolled: 38, schedule: 'TTH 3:00-4:30 PM' }
-        ]
-    },
-    {
-        id: 5, code: 'MATH101', name: 'Mathematics in the Modern World', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-            { id: 7, name: 'A', slots: 40, enrolled: 35, schedule: 'MWF 9:00-10:00 AM' },
-            { id: 8, name: 'B', slots: 40, enrolled: 32, schedule: 'TTH 10:30-12:00 PM' }
-        ]
-    },
-    {
-        id: 6, code: 'PE101', name: 'Physical Fitness', units: 2, prerequisite: null, prerequisite_met: true, sections: [
-            { id: 9, name: 'A', slots: 60, enrolled: 50, schedule: 'SAT 8:00-10:00 AM' }
-        ]
-    },
-    {
-        id: 7, code: 'NSTP1', name: 'National Service Training Program 1', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-            { id: 10, name: 'A', slots: 100, enrolled: 85, schedule: 'SAT 10:00-1:00 PM' }
-        ]
-    }
+  {
+    id: 1, code: 'IT101', name: 'Introduction to Computing', units: 3, prerequisite: null, prerequisite_met: true, sections: [
+      { id: 1, name: 'A', slots: 40, enrolled: 35, schedule: 'MWF 8:00-9:00 AM' },
+      { id: 2, name: 'B', slots: 40, enrolled: 28, schedule: 'TTH 9:00-10:30 AM' }
+    ]
+  },
+  {
+    id: 2, code: 'IT102', name: 'Computer Programming 1', units: 3, prerequisite: null, prerequisite_met: true, sections: [
+      { id: 3, name: 'A', slots: 35, enrolled: 30, schedule: 'MWF 10:00-11:00 AM' },
+      { id: 4, name: 'B', slots: 35, enrolled: 20, schedule: 'TTH 1:00-2:30 PM' }
+    ]
+  },
+  {
+    id: 3, code: 'GE101', name: 'Understanding the Self', units: 3, prerequisite: null, prerequisite_met: true, sections: [
+      { id: 5, name: 'A', slots: 50, enrolled: 45, schedule: 'MWF 1:00-2:00 PM' }
+    ]
+  },
+  {
+    id: 4, code: 'GE102', name: 'Readings in Philippine History', units: 3, prerequisite: null, prerequisite_met: true, sections: [
+      { id: 6, name: 'A', slots: 50, enrolled: 38, schedule: 'TTH 3:00-4:30 PM' }
+    ]
+  },
+  {
+    id: 5, code: 'MATH101', name: 'Mathematics in the Modern World', units: 3, prerequisite: null, prerequisite_met: true, sections: [
+      { id: 7, name: 'A', slots: 40, enrolled: 35, schedule: 'MWF 9:00-10:00 AM' },
+      { id: 8, name: 'B', slots: 40, enrolled: 32, schedule: 'TTH 10:30-12:00 PM' }
+    ]
+  },
+  {
+    id: 6, code: 'PE101', name: 'Physical Fitness', units: 2, prerequisite: null, prerequisite_met: true, sections: [
+      { id: 9, name: 'A', slots: 60, enrolled: 50, schedule: 'SAT 8:00-10:00 AM' }
+    ]
+  },
+  {
+    id: 7, code: 'NSTP1', name: 'National Service Training Program 1', units: 3, prerequisite: null, prerequisite_met: true, sections: [
+      { id: 10, name: 'A', slots: 100, enrolled: 85, schedule: 'SAT 10:00-1:00 PM' }
+    ]
+  }
 ];
 
 const mockAvailableSubjects = [
-    ...mockRecommendedSubjects,
-    {
-        id: 8, code: 'IT201', name: 'Computer Programming 2', units: 3, prerequisite: 'IT102', prerequisite_met: false, sections: [
-            { id: 11, name: 'A', slots: 35, enrolled: 25, schedule: 'MWF 2:00-3:00 PM' }
-        ]
-    },
-    {
-        id: 9, code: 'IT202', name: 'Data Structures', units: 3, prerequisite: 'IT201', prerequisite_met: false, sections: [
-            { id: 12, name: 'A', slots: 35, enrolled: 20, schedule: 'TTH 8:00-9:30 AM' }
-        ]
-    },
-    {
-        id: 10, code: 'IT301', name: 'Database Management', units: 3, prerequisite: 'IT202', prerequisite_met: false, sections: [
-            { id: 13, name: 'A', slots: 30, enrolled: 18, schedule: 'MWF 3:00-4:00 PM' }
-        ]
-    }
+  ...mockRecommendedSubjects,
+  {
+    id: 8, code: 'IT201', name: 'Computer Programming 2', units: 3, prerequisite: 'IT102', prerequisite_met: false, sections: [
+      { id: 11, name: 'A', slots: 35, enrolled: 25, schedule: 'MWF 2:00-3:00 PM' }
+    ]
+  },
+  {
+    id: 9, code: 'IT202', name: 'Data Structures', units: 3, prerequisite: 'IT201', prerequisite_met: false, sections: [
+      { id: 12, name: 'A', slots: 35, enrolled: 20, schedule: 'TTH 8:00-9:30 AM' }
+    ]
+  },
+  {
+    id: 10, code: 'IT301', name: 'Database Management', units: 3, prerequisite: 'IT202', prerequisite_met: false, sections: [
+      { id: 13, name: 'A', slots: 30, enrolled: 18, schedule: 'MWF 3:00-4:00 PM' }
+    ]
+  }
 ];
 
 const mockEnrolledSubjects = [
-    { id: 101, subject: { code: 'IT101', name: 'Introduction to Computing' }, section: 'A', units: 3, schedule: 'MWF 8:00-9:00 AM', status: 'ENROLLED' },
-    { id: 102, subject: { code: 'IT102', name: 'Computer Programming 1' }, section: 'A', units: 3, schedule: 'MWF 10:00-11:00 AM', status: 'ENROLLED' }
+  { id: 101, subject: { code: 'IT101', name: 'Introduction to Computing' }, section: 'A', units: 3, schedule: 'MWF 8:00-9:00 AM', status: 'ENROLLED' },
+  { id: 102, subject: { code: 'IT102', name: 'Computer Programming 1' }, section: 'A', units: 3, schedule: 'MWF 10:00-11:00 AM', status: 'ENROLLED' }
 ];
 
 async function init() {
-    if (!requireAuth()) return;
+  if (!requireAuth()) return;
 
-    await loadData();
-    render();
-    attachEventListeners();
+  await loadData();
+  render();
+  attachEventListeners();
 }
 
 async function loadData() {
-    try {
-        // Load user profile
-        const userResponse = await api.get(endpoints.me);
-        if (userResponse) {
-            state.user = userResponse;
-        }
-
-        // Try to load recommended subjects
-        try {
-            const recommended = await api.get(endpoints.recommendedSubjects);
-            state.recommendedSubjects = recommended?.length ? recommended : mockRecommendedSubjects;
-        } catch {
-            state.recommendedSubjects = mockRecommendedSubjects;
-        }
-
-        // Try to load all available subjects
-        try {
-            const available = await api.get(endpoints.availableSubjects);
-            state.availableSubjects = available?.length ? available : mockAvailableSubjects;
-        } catch {
-            state.availableSubjects = mockAvailableSubjects;
-        }
-
-        // Try to load enrolled subjects
-        try {
-            const enrolled = await api.get(endpoints.myEnrollments);
-            state.enrolledSubjects = enrolled?.length ? enrolled : mockEnrolledSubjects;
-        } catch {
-            state.enrolledSubjects = mockEnrolledSubjects;
-        }
-
-        // Calculate total enrolled units
-        state.totalUnits = state.enrolledSubjects.reduce((sum, e) => sum + (e.units || e.subject?.units || 0), 0);
-
-        // Check payment hold (Month 1 not paid = hold)
-        // For demo, we'll use mock data - assume Month 1 is paid
-        state.hasPaymentHold = false;
-
-    } catch (error) {
-        console.error('Failed to load data:', error);
-        // Use mock data as fallback
-        state.recommendedSubjects = mockRecommendedSubjects;
-        state.availableSubjects = mockAvailableSubjects;
-        state.enrolledSubjects = mockEnrolledSubjects;
+  try {
+    // Load user profile
+    const userResponse = await api.get(endpoints.me);
+    if (userResponse) {
+      state.user = userResponse;
     }
-    state.loading = false;
+
+    // Try to load recommended subjects - this includes payment status
+    try {
+      const recommendedResponse = await api.get(endpoints.recommendedSubjects);
+      console.log('Recommended subjects response:', recommendedResponse);
+      if (recommendedResponse?.data) {
+        const subjects = recommendedResponse.data.recommended_subjects || [];
+        // Map backend fields to frontend model
+        state.recommendedSubjects = subjects.map(s => ({
+          ...s,
+          name: s.title || s.name,
+          prerequisite_met: s.prerequisites_met,
+          sections: (s.available_sections || s.sections || []).map(sec => ({
+            ...sec,
+            id: sec.section_id || sec.id,
+            name: sec.section_name || sec.name,
+            slots: sec.available_slots || sec.slots,
+            enrolled: 0, // Backend sends available slots, not total/enrolled
+            schedule: Array.isArray(sec.schedule) ? sec.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time}`).join(', ') : sec.schedule
+          }))
+        }));
+
+        state.totalUnits = recommendedResponse.data.current_units || 0;
+        state.maxUnits = recommendedResponse.data.max_units || 30;
+        // Check if Month 1 is paid - if not, student cannot enroll
+        state.hasPaymentHold = !recommendedResponse.data.can_enroll;
+      } else if (recommendedResponse?.length) {
+        state.recommendedSubjects = recommendedResponse;
+        state.hasPaymentHold = true; // Default to blocked
+      } else {
+        state.recommendedSubjects = mockRecommendedSubjects;
+        state.hasPaymentHold = true; // Default to blocked
+      }
+    } catch (err) {
+      console.log('Failed to load recommended subjects:', err);
+      showToast('Error loading subjects: ' + (err.message || 'Unknown error'), 'error');
+      state.recommendedSubjects = mockRecommendedSubjects;
+      state.hasPaymentHold = true; // Default to blocked when API fails
+    }
+
+    // Try to load all available subjects
+    try {
+      const availableResponse = await api.get(endpoints.availableSubjects);
+      if (availableResponse?.data) {
+        const subjects = availableResponse.data.available_subjects || [];
+        state.availableSubjects = subjects.map(s => ({
+          ...s,
+          name: s.title || s.name,
+          prerequisite_met: s.prerequisites_met,
+          sections: (s.available_sections || s.sections || []).map(sec => ({
+            ...sec,
+            id: sec.section_id || sec.id,
+            name: sec.section_name || sec.name,
+            slots: sec.available_slots || sec.slots,
+            enrolled: 0,
+            schedule: Array.isArray(sec.schedule) ? sec.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time}`).join(', ') : sec.schedule
+          }))
+        }));
+      } else if (availableResponse?.length) {
+        state.availableSubjects = availableResponse;
+      } else {
+        state.availableSubjects = mockAvailableSubjects;
+      }
+    } catch {
+      state.availableSubjects = mockAvailableSubjects;
+    }
+
+    // Try to load enrolled subjects
+    try {
+      const enrolledResponse = await api.get(endpoints.myEnrollments);
+      if (enrolledResponse?.data?.subject_enrollments) {
+        // Map backend fields to frontend model
+        state.enrolledSubjects = enrolledResponse.data.subject_enrollments.map(s => ({
+          id: s.id,
+          subject: {
+            code: s.subject_code,
+            name: s.subject_title,
+            units: s.units
+          },
+          section: s.section_name,
+          units: s.units,
+          schedule: Array.isArray(s.schedule) ? s.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time}`).join(', ') : s.schedule,
+          status: s.status
+        }));
+        state.totalUnits = enrolledResponse.data.enrolled_units || 0;
+      } else if (enrolledResponse?.length) {
+        state.enrolledSubjects = enrolledResponse;
+      } else {
+        state.enrolledSubjects = mockEnrolledSubjects;
+      }
+    } catch {
+      state.enrolledSubjects = mockEnrolledSubjects;
+    }
+
+    // Calculate total enrolled units if not set
+    if (!state.totalUnits) {
+      state.totalUnits = state.enrolledSubjects.reduce((sum, e) => sum + (e.units || e.subject?.units || 0), 0);
+    }
+
+  } catch (error) {
+    console.error('Failed to load data:', error);
+    // Use mock data as fallback
+    state.recommendedSubjects = mockRecommendedSubjects;
+    state.availableSubjects = mockAvailableSubjects;
+    state.enrolledSubjects = mockEnrolledSubjects;
+    state.hasPaymentHold = false;
+  }
+  state.loading = false;
 }
 
 function render() {
-    const app = document.getElementById('app');
+  const app = document.getElementById('app');
 
-    if (state.loading) {
-        app.innerHTML = renderLoading();
-        return;
-    }
+  if (state.loading) {
+    app.innerHTML = renderLoading();
+    return;
+  }
 
-    app.innerHTML = `
+  app.innerHTML = `
     ${renderHeader()}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
@@ -158,12 +225,30 @@ function render() {
         <p class="text-gray-600 mt-1">Select subjects for the current semester</p>
       </div>
       
+      <!-- Payment Required Banner -->
+      ${state.hasPaymentHold ? `
+        <div class="card bg-gradient-to-r from-yellow-500 to-orange-500 text-white mb-8">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-xl font-bold">💳 Payment Required</h2>
+              <p class="mt-1 text-yellow-100">Please pay Month 1 at the Cashier's Office before you can enroll in subjects.</p>
+              <p class="mt-2 text-sm text-yellow-200">Once your payment is confirmed, you can return to this page to select and enroll in your subjects.</p>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+      
       <!-- Unit Counter Bar -->
       ${renderUnitCounter()}
       
       <!-- Main Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Left Column - Subject Selection -->
+        <!-- Left Column - Subject Selection (Takes 2 columns) -->
         <div class="lg:col-span-2 space-y-6">
           <!-- Recommended Subjects -->
           <div class="card">
@@ -197,39 +282,11 @@ function render() {
         
         <!-- Right Column - Enrollment Summary -->
         <div class="space-y-6">
-          <!-- Selected Subjects -->
-          <div class="card">
-            <h3 class="font-bold text-gray-800 mb-4">Selected Subjects</h3>
-            ${state.selectedSubjects.length === 0 ? `
-              <div class="text-center py-8 text-gray-400">
-                <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                </svg>
-                <p>No subjects selected</p>
-                <p class="text-sm">Click "Add" on subjects to enroll</p>
-              </div>
-            ` : `
-              <div class="space-y-3 mb-4">
-                ${state.selectedSubjects.map(item => renderSelectedSubject(item)).join('')}
-              </div>
-              
-              <div class="border-t pt-4">
-                <div class="flex justify-between text-sm mb-2">
-                  <span class="text-gray-500">Total Units</span>
-                  <span class="font-bold">${getSelectedUnits()} units</span>
-                </div>
-                <button onclick="confirmEnrollment()" class="w-full btn-primary">
-                  Enroll in ${state.selectedSubjects.length} Subject${state.selectedSubjects.length > 1 ? 's' : ''}
-                </button>
-              </div>
-            `}
-          </div>
-          
           <!-- Currently Enrolled -->
-          <div class="card">
+          <div class="card sticky top-24">
             <div class="flex items-center justify-between mb-4">
               <h3 class="font-bold text-gray-800">Currently Enrolled</h3>
-              <span class="text-sm text-gray-500">${state.totalUnits} units</span>
+              <span class="text-sm text-gray-500">${state.totalUnits} / ${state.maxUnits} units</span>
             </div>
             ${state.enrolledSubjects.length === 0 ? `
               <p class="text-gray-400 text-center py-4">No enrolled subjects yet</p>
@@ -250,11 +307,11 @@ function render() {
     ${state.showSchedulePreview ? renderSchedulePreviewModal() : ''}
   `;
 
-    attachEventListeners();
+  attachEventListeners();
 }
 
 function renderHeader() {
-    return `
+  return `
     <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -282,7 +339,7 @@ function renderHeader() {
 }
 
 function renderLoading() {
-    return `
+  return `
     <div class="min-h-screen flex items-center justify-center">
       <div class="text-center">
         <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
@@ -296,12 +353,12 @@ function renderLoading() {
 }
 
 function renderUnitCounter() {
-    const currentUnits = state.totalUnits + getSelectedUnits();
-    const percentage = (currentUnits / state.maxUnits) * 100;
-    const isNearLimit = currentUnits >= state.maxUnits - 3;
-    const isAtLimit = currentUnits >= state.maxUnits;
+  const currentUnits = state.totalUnits + getSelectedUnits();
+  const percentage = (currentUnits / state.maxUnits) * 100;
+  const isNearLimit = currentUnits >= state.maxUnits - 3;
+  const isAtLimit = currentUnits >= state.maxUnits;
 
-    return `
+  return `
     <div class="card mb-8">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-3">
@@ -329,12 +386,12 @@ function renderUnitCounter() {
 }
 
 function renderSubjectCard(subject, isRecommended) {
-    const isSelected = state.selectedSubjects.find(s => s.subject.id === subject.id);
-    const isEnrolled = state.enrolledSubjects.find(e => e.subject?.code === subject.code);
-    const canAdd = subject.prerequisite_met !== false && !isSelected && !isEnrolled;
-    const wouldExceedLimit = (state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits;
+  const isSelected = false; // Instant enroll has no cart
+  const isEnrolled = state.enrolledSubjects.find(e => e.subject?.code === subject.code);
+  const canAdd = subject.prerequisite_met !== false && !isSelected && !isEnrolled && !state.hasPaymentHold;
+  const wouldExceedLimit = (state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits;
 
-    return `
+  return `
     <div class="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors ${!canAdd ? 'opacity-60' : ''}">
       <div class="flex items-start justify-between">
         <div class="flex-1">
@@ -343,6 +400,7 @@ function renderSubjectCard(subject, isRecommended) {
             ${isRecommended ? '<span class="badge badge-success text-xs">Recommended</span>' : ''}
             ${isEnrolled ? '<span class="badge badge-info text-xs">Enrolled</span>' : ''}
             ${!subject.prerequisite_met && subject.prerequisite ? `<span class="badge badge-error text-xs">Prereq: ${subject.prerequisite}</span>` : ''}
+            ${state.hasPaymentHold ? '<span class="badge badge-warning text-xs">Payment Required</span>' : ''}
           </div>
           <p class="font-medium text-gray-800">${subject.name}</p>
           <p class="text-sm text-gray-500">${subject.units} units</p>
@@ -359,10 +417,14 @@ function renderSubjectCard(subject, isRecommended) {
                 <div class="flex items-center gap-2">
                   <span class="text-gray-500">${section.enrolled}/${section.slots}</span>
                   ${canAdd && !wouldExceedLimit ? `
-                    <button onclick="addSubject(${subject.id}, ${section.id})" 
+                    <button onclick="enrollSubject('${subject.id}', '${section.id}')" 
                             class="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
-                      Add
+                      Enroll
                     </button>
+                  ` : state.hasPaymentHold ? `
+                    <span class="px-3 py-1 text-xs font-medium text-gray-400 bg-gray-200 rounded-lg cursor-not-allowed">
+                      Locked
+                    </span>
                   ` : ''}
                 </div>
               </div>
@@ -374,28 +436,14 @@ function renderSubjectCard(subject, isRecommended) {
   `;
 }
 
-function renderSelectedSubject(item) {
-    return `
-    <div class="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
-      <div>
-        <p class="font-medium text-gray-800">${item.subject.code}</p>
-        <p class="text-xs text-gray-500">Section ${item.section.name} • ${item.subject.units} units</p>
-      </div>
-      <button onclick="removeSubject(${item.subject.id})" class="p-1 text-red-600 hover:bg-red-100 rounded-lg transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-      </button>
-    </div>
-  `;
-}
+
 
 function renderEnrolledSubject(enrollment) {
-    return `
+  return `
     <div class="flex items-center justify-between p-3 bg-green-50 rounded-xl">
       <div>
-        <p class="font-medium text-gray-800">${enrollment.subject?.code || enrollment.code}</p>
-        <p class="text-xs text-gray-500">${enrollment.schedule} • ${enrollment.units || enrollment.subject?.units || 3} units</p>
+        <p class="font-medium text-gray-800">${enrollment.subject?.code} - ${enrollment.subject?.name}</p>
+        <p class="text-xs text-gray-500">${enrollment.schedule} • ${enrollment.units} units</p>
       </div>
       <button onclick="dropSubject(${enrollment.id})" class="text-xs text-red-600 hover:text-red-700 font-medium">
         Drop
@@ -405,7 +453,7 @@ function renderEnrolledSubject(enrollment) {
 }
 
 function renderPaymentHoldModal() {
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closePaymentHoldModal()">
       <div class="bg-white rounded-2xl p-6 max-w-md mx-4" onclick="event.stopPropagation()">
         <div class="text-center">
@@ -427,8 +475,8 @@ function renderPaymentHoldModal() {
 }
 
 function renderSchedulePreviewModal() {
-    const subject = state.showSchedulePreview;
-    return `
+  const subject = state.showSchedulePreview;
+  return `
     <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeSchedulePreview()">
       <div class="bg-white rounded-2xl p-6 max-w-lg mx-4" onclick="event.stopPropagation()">
         <h3 class="text-xl font-bold text-gray-800 mb-4">${subject.code} - Schedule Preview</h3>
@@ -455,135 +503,101 @@ function renderSchedulePreviewModal() {
 }
 
 function getSelectedUnits() {
-    return state.selectedSubjects.reduce((sum, item) => sum + item.subject.units, 0);
+  return 0; // State.selectedSubjects removed
 }
 
 function attachEventListeners() {
-    // Event listeners are attached via onclick in the template
+  // Event listeners are attached via onclick in the template
 }
 
 // Global functions for onclick handlers
-window.addSubject = function (subjectId, sectionId) {
-    const subject = state.availableSubjects.find(s => s.id === subjectId) ||
-        state.recommendedSubjects.find(s => s.id === subjectId);
-    const section = subject?.sections?.find(s => s.id === sectionId);
-
-    if (!subject || !section) return;
-
-    // Check if would exceed unit limit
-    if ((state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits) {
-        showToast('Adding this subject would exceed the 30-unit limit', 'error');
-        return;
-    }
-
-    // Check if already selected
-    if (state.selectedSubjects.find(s => s.subject.id === subjectId)) {
-        showToast('Subject already selected', 'warning');
-        return;
-    }
-
-    state.selectedSubjects.push({ subject, section });
-    showToast(`Added ${subject.code} - Section ${section.name}`, 'success');
+window.enrollSubject = async function (subjectId, sectionId) {
+  if (state.hasPaymentHold) {
+    state.showPaymentHoldModal = true;
     render();
-};
+    return;
+  }
 
-window.removeSubject = function (subjectId) {
-    state.selectedSubjects = state.selectedSubjects.filter(s => s.subject.id !== subjectId);
-    render();
-};
+  // Find subject to check units
+  const subject = state.recommendedSubjects.find(s => s.id === subjectId) || state.availableSubjects.find(s => s.id === subjectId);
+  if (!subject) return;
 
-window.confirmEnrollment = async function () {
-    if (state.hasPaymentHold) {
-        state.showPaymentHoldModal = true;
-        render();
-        return;
+  if (state.totalUnits + subject.units > state.maxUnits) {
+    showToast('Enrolling would exceed max units', 'error');
+    return;
+  }
+
+  if (!confirm(`Are you sure you want to enroll in ${subject.code} - ${subject.name}?`)) return;
+
+  try {
+    const response = await api.post(endpoints.enrollSubject, {
+      subject_id: subjectId,
+      section_id: sectionId
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        showToast('Enrollment successful!', 'success');
+        loadData(); // Reload all data
+      } else {
+        showToast(data.error || 'Enrollment failed', 'error');
+      }
+    } else {
+      const data = await response.json().catch(() => ({}));
+      showToast(data.error || 'Enrollment failed', 'error');
     }
-
-    if (state.selectedSubjects.length === 0) {
-        showToast('Please select subjects to enroll', 'warning');
-        return;
-    }
-
-    try {
-        // Try API enrollment
-        for (const item of state.selectedSubjects) {
-            try {
-                await api.post(endpoints.enrollSubject, {
-                    subject_id: item.subject.id,
-                    section_id: item.section.id
-                });
-            } catch (error) {
-                console.log('API enrollment failed, using mock:', error);
-            }
-        }
-
-        // Add to enrolled subjects (mock)
-        const newEnrollments = state.selectedSubjects.map((item, index) => ({
-            id: 200 + index,
-            subject: { code: item.subject.code, name: item.subject.name },
-            section: item.section.name,
-            units: item.subject.units,
-            schedule: item.section.schedule,
-            status: 'ENROLLED'
-        }));
-
-        state.enrolledSubjects = [...state.enrolledSubjects, ...newEnrollments];
-        state.totalUnits = state.enrolledSubjects.reduce((sum, e) => sum + (e.units || e.subject?.units || 0), 0);
-        state.selectedSubjects = [];
-
-        showToast('Successfully enrolled in subjects!', 'success');
-        render();
-    } catch (error) {
-        console.error('Enrollment failed:', error);
-        showToast('Failed to enroll. Please try again.', 'error');
-    }
+  } catch (error) {
+    console.error('Enrollment failed:', error);
+    showToast('Failed to enroll. Please try again.', 'error');
+  }
 };
 
 window.dropSubject = async function (enrollmentId) {
-    if (!confirm('Are you sure you want to drop this subject?')) return;
+  if (!confirm('Are you sure you want to drop this subject?')) return;
 
+  try {
+    // Try API
     try {
-        // Try API
-        try {
-            await api.post(`${endpoints.myEnrollments}${enrollmentId}/drop/`);
-        } catch (error) {
-            console.log('API drop failed, using mock:', error);
-        }
-
-        // Remove from enrolled (mock)
-        state.enrolledSubjects = state.enrolledSubjects.filter(e => e.id !== enrollmentId);
-        state.totalUnits = state.enrolledSubjects.reduce((sum, e) => sum + (e.units || e.subject?.units || 0), 0);
-
-        showToast('Subject dropped successfully', 'success');
-        render();
+      await api.post(`${endpoints.myEnrollments}${enrollmentId}/drop/`);
     } catch (error) {
-        console.error('Drop failed:', error);
-        showToast('Failed to drop subject', 'error');
+      console.log('API drop failed, using mock:', error);
     }
+
+    // Remove from enrolled (mock)
+    state.enrolledSubjects = state.enrolledSubjects.filter(e => e.id !== enrollmentId);
+    state.totalUnits = state.enrolledSubjects.reduce((sum, e) => sum + (e.units || e.subject?.units || 0), 0);
+
+    showToast('Subject dropped successfully', 'success');
+    render();
+  } catch (error) {
+    console.error('Drop failed:', error);
+    showToast('Failed to drop subject', 'error');
+  }
 };
 
 window.closePaymentHoldModal = function () {
-    state.showPaymentHoldModal = false;
-    render();
+  state.showPaymentHoldModal = false;
+  render();
 };
 
 window.showSchedulePreview = function (subjectId) {
-    const subject = state.availableSubjects.find(s => s.id === subjectId);
-    state.showSchedulePreview = subject;
-    render();
+  const subject = state.availableSubjects.find(s => s.id === subjectId);
+  state.showSchedulePreview = subject;
+  render();
 };
 
 window.closeSchedulePreview = function () {
-    state.showSchedulePreview = null;
-    render();
+  state.showSchedulePreview = null;
+  render();
 };
 
 window.logout = function () {
-    TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
-    setTimeout(() => {
-        window.location.href = '/login.html';
-    }, 1000);
+  TokenManager.clearTokens();
+  showToast('Logged out successfully', 'success');
+  setTimeout(() => {
+    window.location.href = '/login.html';
+  }, 1000);
 };
 
 document.addEventListener('DOMContentLoaded', init);

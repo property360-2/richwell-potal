@@ -176,7 +176,6 @@ function renderHeader() {
           <a href="/sections.html" class="text-gray-600 hover:text-gray-900">Sections</a>
           <a href="/schedule.html" class="text-gray-600 hover:text-gray-900">Schedule</a>
           <a href="/admission-dashboard.html" class="text-gray-600 hover:text-gray-900">Admissions</a>
-          <a href="/applicant-approval.html" class="text-gray-600 hover:text-gray-900">Approval</a>
         </nav>
         
         <div class="flex items-center gap-4">

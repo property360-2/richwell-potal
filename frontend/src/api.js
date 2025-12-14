@@ -125,7 +125,8 @@ export const api = {
             method: 'PATCH',
             body: JSON.stringify(data)
         });
-        return response;
+        if (!response) return null;
+        return response.json();
     },
 
     async delete(endpoint) {
@@ -159,6 +160,7 @@ export const endpoints = {
     logout: '/accounts/logout/',
     me: '/accounts/me/',
     tokenRefresh: '/accounts/token/refresh/',
+    changePassword: '/accounts/change-password/',
 
     // Epic 1: Admissions
     enrollmentStatus: '/admissions/system/enrollment-status/',
@@ -206,12 +208,22 @@ export const endpoints = {
     // Epic 2: Professors
     professors: '/accounts/professors/',
 
-    // Epic 3: Subject Enrollment
-    recommendedSubjects: '/enrollment/subjects/recommended/',
-    availableSubjects: '/enrollment/subjects/available/',
-    myEnrollments: '/enrollment/subjects/my-enrollments/',
-    enrollSubject: '/enrollment/subjects/enroll/',
-    dropSubject: (id) => `/enrollment/subjects/${id}/drop/`,
-    overrideEnroll: (enrollmentId) => `/enrollment/enrollment/${enrollmentId}/override-enroll/`
+    // Epic 3: Subject Enrollment (under /admissions/)
+    recommendedSubjects: '/admissions/subjects/recommended/',
+    availableSubjects: '/admissions/subjects/available/',
+    myEnrollments: '/admissions/subjects/my-enrollments/',
+    enrollSubject: '/admissions/subjects/enroll/',
+    dropSubject: (id) => `/admissions/subjects/${id}/drop/`,
+    overrideEnroll: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/override-enroll/`,
+
+    // My Enrollment (enrollment URLs are under /admissions/)
+    myEnrollment: '/admissions/my-enrollment/',
+    myPayments: '/admissions/my-enrollment/payments/',
+
+    // Cashier endpoints (enrollment URLs are under /admissions/)
+    cashierStudentSearch: '/admissions/cashier/students/search/',
+    cashierPendingPayments: '/admissions/cashier/students/pending-payments/',
+    cashierRecordPayment: '/admissions/payments/record/',
+    cashierStudentPayments: (enrollmentId) => `/admissions/payments/student/${enrollmentId}/`,
 };
 

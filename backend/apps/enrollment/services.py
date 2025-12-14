@@ -63,18 +63,21 @@ class EnrollmentService:
         # Generate student number
         student_number = self.generate_student_number()
         
-        # Generate password if not provided
-        password = data.get('password') or self._generate_password()
+        # Generate school email as username: first_initial + last_name + random_digits + @richwell.edu.ph
+        school_email = self._generate_school_email(data['first_name'], data['last_name'])
+        
+        # Password is the student number (easy to remember)
+        password = student_number
         
         # Create User
         user = User.objects.create_user(
-            email=data['email'],
+            email=data['email'],  # Keep personal email for contact
             password=password,
             first_name=data['first_name'],
             last_name=data['last_name'],
             role=User.Role.STUDENT,
             student_number=student_number,
-            username=data['email']  # Use email as username
+            username=school_email  # School email as login username
         )
         
         # Create StudentProfile
@@ -92,11 +95,11 @@ class EnrollmentService:
             previous_course=data.get('previous_course', '')
         )
         
-        # Create Enrollment
+        # Create Enrollment - Set to ACTIVE immediately (no admin approval needed)
         enrollment = Enrollment.objects.create(
             student=user,
             semester=semester,
-            status=Enrollment.Status.ACTIVE,
+            status=Enrollment.Status.ACTIVE,  # Students can login immediately
             created_via=Enrollment.CreatedVia.ONLINE,
             monthly_commitment=data['monthly_commitment']
         )
@@ -181,7 +184,7 @@ class EnrollmentService:
         enrollment = Enrollment.objects.create(
             student=user,
             semester=semester,
-            status=Enrollment.Status.ACTIVE,
+            status=Enrollment.Status.PENDING,
             created_via=Enrollment.CreatedVia.TRANSFEREE,
             monthly_commitment=data['monthly_commitment']
         )
@@ -295,6 +298,39 @@ class EnrollmentService:
         """
         alphabet = string.ascii_letters + string.digits + "!@#$%"
         return ''.join(secrets.choice(alphabet) for _ in range(length))
+    
+    def _generate_school_email(self, first_name: str, last_name: str) -> str:
+        """
+        Generate a unique school email as username.
+        Format: first_initial + last_name + random_digits + @richwell.edu.ph
+        
+        Example: jdelacruz9104@richwell.edu.ph
+        
+        Args:
+            first_name: Student's first name
+            last_name: Student's last name
+            
+        Returns:
+            str: Unique school email
+        """
+        import random
+        
+        # Clean names: lowercase, remove spaces and special chars
+        first_initial = first_name[0].lower() if first_name else 'x'
+        clean_last = ''.join(c.lower() for c in last_name if c.isalnum())
+        
+        # Generate random 4-digit suffix
+        suffix = str(random.randint(1000, 9999))
+        
+        # Build email
+        school_email = f"{first_initial}{clean_last}{suffix}@richwell.edu.ph"
+        
+        # Ensure uniqueness
+        while User.objects.filter(username=school_email).exists():
+            suffix = str(random.randint(1000, 9999))
+            school_email = f"{first_initial}{clean_last}{suffix}@richwell.edu.ph"
+        
+        return school_email
 
 
 class SubjectEnrollmentService:

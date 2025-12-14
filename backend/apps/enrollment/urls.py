@@ -55,6 +55,10 @@ urlpatterns = [
     path('payments/transactions/', views.PaymentTransactionListView.as_view(), name='payment-transactions'),
     path('payments/student/<uuid:enrollment_id>/', views.StudentPaymentHistoryView.as_view(), name='student-payments'),
     
+    # Cashier student search
+    path('cashier/students/search/', views.CashierStudentSearchView.as_view(), name='cashier-student-search'),
+    path('cashier/students/pending-payments/', views.CashierPendingPaymentsView.as_view(), name='cashier-pending-payments'),
+    
     # Student payment view
     path('my-enrollment/payments/', views.MyPaymentsView.as_view(), name='my-payments'),
     

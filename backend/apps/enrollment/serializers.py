@@ -40,13 +40,23 @@ class EnrollmentDocumentSerializer(serializers.ModelSerializer):
         source='get_document_type_display',
         read_only=True
     )
+    file_url = serializers.SerializerMethodField()
     
     class Meta:
         model = EnrollmentDocument
         fields = [
             'id', 'document_type', 'document_type_display', 'original_filename',
-            'is_verified', 'verified_by_name', 'verified_at', 'notes', 'created_at'
+            'file_url', 'is_verified', 'verified_by_name', 'verified_at', 'notes', 'created_at'
         ]
+    
+    def get_file_url(self, obj):
+        """Get the absolute URL for the file."""
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
 
 
 class DocumentUploadSerializer(serializers.Serializer):
@@ -79,6 +89,8 @@ class EnrollmentSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
     student_number = serializers.CharField(source='student.student_number', read_only=True)
     student_email = serializers.CharField(source='student.email', read_only=True)
+    school_email = serializers.CharField(source='student.username', read_only=True)  # Auto-generated login email
+    contact_number = serializers.SerializerMethodField()
     semester_name = serializers.CharField(source='semester.__str__', read_only=True)
     payment_buckets = MonthlyPaymentBucketSerializer(many=True, read_only=True)
     documents = EnrollmentDocumentSerializer(many=True, read_only=True)
@@ -89,12 +101,19 @@ class EnrollmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Enrollment
         fields = [
-            'id', 'student_name', 'student_number', 'student_email',
-            'semester_name', 'status', 'created_via',
+            'id', 'student_name', 'student_number', 'student_email', 'school_email',
+            'contact_number', 'semester_name', 'status', 'created_via',
             'monthly_commitment', 'first_month_paid',
             'total_required', 'total_paid', 'balance',
             'payment_buckets', 'documents', 'created_at'
         ]
+    
+    def get_contact_number(self, obj):
+        """Get contact number from student profile."""
+        try:
+            return obj.student.student_profile.contact_number
+        except:
+            return None
 
 
 class OnlineEnrollmentSerializer(serializers.Serializer):
