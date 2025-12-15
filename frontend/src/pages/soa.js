@@ -6,25 +6,9 @@ import { showToast, formatCurrency, requireAuth } from '../utils.js';
 const state = {
     user: null,
     loading: true,
-    paymentBuckets: [
-        { month: 1, required: 5000, paid: 5000, dueDate: '2024-09-15', label: 'Month 1' },
-        { month: 2, required: 5000, paid: 3500, dueDate: '2024-10-15', label: 'Month 2' },
-        { month: 3, required: 5000, paid: 0, dueDate: '2024-11-15', label: 'Month 3' },
-        { month: 4, required: 5000, paid: 0, dueDate: '2024-12-15', label: 'Month 4' },
-        { month: 5, required: 5000, paid: 0, dueDate: '2025-01-15', label: 'Month 5' },
-        { month: 6, required: 5000, paid: 0, dueDate: '2025-02-15', label: 'Month 6' }
-    ],
-    paymentHistory: [
-        { id: 1, date: '2024-09-10', amount: 5000, receipt: 'OR-2024-0001', monthApplied: 1, processedBy: 'Maria Santos' },
-        { id: 2, date: '2024-10-08', amount: 2000, receipt: 'OR-2024-0045', monthApplied: 2, processedBy: 'Maria Santos' },
-        { id: 3, date: '2024-10-20', amount: 1500, receipt: 'OR-2024-0067', monthApplied: 2, processedBy: 'Juan Cruz' }
-    ],
-    fees: {
-        tuition: 25000,
-        miscellaneous: 3000,
-        laboratory: 2000,
-        total: 30000
-    }
+    paymentBuckets: [],
+    paymentHistory: [],
+    semester: null
 };
 
 async function init() {
@@ -36,16 +20,61 @@ async function init() {
 
 async function loadData() {
     try {
+        // Load user profile
         const userResponse = await api.get(endpoints.me);
         if (userResponse) {
             state.user = userResponse;
         }
-        // In a real app, we'd load SOA data from an API
-        // For now, using mock data
+
+        // Load payment data from API
+        try {
+            const paymentsResponse = await api.get(endpoints.myPayments);
+            console.log('Payment API response:', paymentsResponse);
+
+            if (paymentsResponse?.data) {
+                const data = paymentsResponse.data;
+
+                // Update payment buckets from API
+                if (data.buckets && Array.isArray(data.buckets)) {
+                    state.paymentBuckets = data.buckets.map(b => ({
+                        month: b.month,
+                        required: b.required,
+                        paid: b.paid,
+                        label: `Month ${b.month}`,
+                        dueDate: calculateDueDate(b.month) // Generate due dates
+                    }));
+                }
+
+                // Update payment history (recent_transactions)
+                if (data.recent_transactions && Array.isArray(data.recent_transactions)) {
+                    state.paymentHistory = data.recent_transactions.map(t => ({
+                        id: t.id,
+                        date: t.processed_at,
+                        amount: t.amount,
+                        receipt: t.receipt_number || `OR-${t.id.substring(0, 8)}`,
+                        monthApplied: 'Multiple', // Transactions can be applied to multiple months
+                        processedBy: 'Cashier'
+                    }));
+                }
+
+                // Store semester info if available
+                state.semester = data.semester || null;
+            }
+        } catch (error) {
+            console.log('Payment API failed, using empty data:', error);
+        }
     } catch (error) {
         console.error('Failed to load data:', error);
     }
     state.loading = false;
+}
+
+// Helper function to calculate due dates based on month number
+function calculateDueDate(month) {
+    const startDate = new Date(2025, 7, 15); // August 15, 2025 (semester start)
+    const dueDate = new Date(startDate);
+    dueDate.setMonth(startDate.getMonth() + (month - 1));
+    return dueDate.toISOString().split('T')[0];
 }
 
 function render() {
@@ -68,7 +97,7 @@ function render() {
       <div class="flex items-center justify-between mb-8">
         <div>
           <h1 class="text-3xl font-bold text-gray-800">Statement of Account</h1>
-          <p class="text-gray-600 mt-1">Academic Year 2024-2025 • 1st Semester</p>
+          <p class="text-gray-600 mt-1">${state.semester || 'Current Semester'}</p>
         </div>
         <button onclick="printSOA()" class="btn-primary flex items-center gap-2">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,26 +149,22 @@ function render() {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Left Column - Payment Buckets & History -->
         <div class="lg:col-span-2 space-y-6">
-          <!-- Fee Breakdown -->
-          <div class="card">
-            <h2 class="text-xl font-bold text-gray-800 mb-6">Fee Breakdown</h2>
-            <div class="space-y-3">
-              ${renderFeeRow('Tuition Fee', state.fees.tuition)}
-              ${renderFeeRow('Miscellaneous Fee', state.fees.miscellaneous)}
-              ${renderFeeRow('Laboratory Fee', state.fees.laboratory)}
-              <div class="flex justify-between pt-3 border-t-2 border-gray-200">
-                <span class="font-bold text-gray-800">Total Assessment</span>
-                <span class="font-bold text-gray-800">${formatCurrency(state.fees.total)}</span>
-              </div>
-            </div>
-          </div>
-          
           <!-- Payment Schedule -->
           <div class="card">
             <h2 class="text-xl font-bold text-gray-800 mb-6">Payment Schedule (6-Month Plan)</h2>
-            <div class="space-y-4">
-              ${state.paymentBuckets.map(bucket => renderPaymentBucket(bucket)).join('')}
-            </div>
+            ${state.paymentBuckets.length === 0 ? `
+              <div class="text-center py-12">
+                <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+                <p class="text-gray-500 text-sm">No payment schedule available</p>
+                <p class="text-gray-400 text-xs mt-1">Please enroll in a semester to see your payment plan</p>
+              </div>
+            ` : `
+              <div class="space-y-4">
+                ${state.paymentBuckets.map(bucket => renderPaymentBucket(bucket)).join('')}
+              </div>
+            `}
           </div>
           
           <!-- Payment History -->
@@ -239,6 +264,7 @@ function renderHeader() {
         <nav class="hidden md:flex items-center gap-6">
           <a href="/student-dashboard.html" class="text-gray-600 hover:text-gray-900">Dashboard</a>
           <a href="/subject-enrollment.html" class="text-gray-600 hover:text-gray-900">Enroll Subjects</a>
+          <a href="/grades.html" class="text-gray-600 hover:text-gray-900">Grades</a>
           <a href="/soa.html" class="text-blue-600 font-medium">SOA</a>
         </nav>
         
@@ -265,15 +291,6 @@ function renderLoading() {
         </svg>
         <p class="mt-4 text-gray-600">Loading your statement...</p>
       </div>
-    </div>
-  `;
-}
-
-function renderFeeRow(label, amount) {
-    return `
-    <div class="flex justify-between py-2">
-      <span class="text-gray-600">${label}</span>
-      <span class="font-medium text-gray-800">${formatCurrency(amount)}</span>
     </div>
   `;
 }

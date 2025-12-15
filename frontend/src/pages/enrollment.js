@@ -317,7 +317,7 @@ function renderStep4() {
       </h2>
       
       <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 mb-6 border border-blue-100">
-        <p class="text-sm text-gray-600">Set your monthly payment commitment. The semester is divided into 6 monthly payments.</p>
+        <p class="text-sm text-gray-600">Set your monthly payment commitment. The semester is divided into 6 monthly payments, this indicates how much you can pay for every month</p>
       </div>
       
       <div class="mb-6">

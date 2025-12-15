@@ -538,7 +538,6 @@ class RecommendedSubjectsView(APIView):
         max_units = service.max_units
         
         # Check if Month 1 is paid
-        
         month1_paid = False
         if enrollment:
             month1_bucket = enrollment.payment_buckets.filter(month_number=1).first()
@@ -553,7 +552,8 @@ class RecommendedSubjectsView(APIView):
                 "max_units": max_units,
                 "remaining_units": max_units - current_units,
                 "month1_paid": month1_paid,
-                "can_enroll": month1_paid
+                "can_enroll": True,  # CHANGED: Always allow enrollment
+                "enrollment_will_be_pending": not month1_paid  # NEW: Flag if enrollments will be pending
             }
         })
 
@@ -660,7 +660,8 @@ class MySubjectEnrollmentsView(APIView):
 class EnrollSubjectView(APIView):
     """
     Enroll in a subject.
-    Validates prerequisites, unit cap, payment status, and schedule conflicts.
+    Validates prerequisites, unit cap, and schedule conflicts.
+    Creates enrollment with PENDING_PAYMENT status if Month 1 is not paid.
     """
     permission_classes = [IsAuthenticated]
     
@@ -711,16 +712,10 @@ class EnrollSubjectView(APIView):
         
         if not enrollment:
             raise NotFoundError("No enrollment found for current semester")
-        
-        # Check if Month 1 is paid - students cannot enroll until payment is confirmed
-        month1_bucket = enrollment.payment_buckets.filter(month_number=1).first()
-        if not month1_bucket or not month1_bucket.is_fully_paid:
-            return Response({
-                "success": False,
-                "error": "Payment required before enrolling in subjects. Please pay Month 1 at the Cashier's Office.",
-                "payment_required": True
-            }, status=status.HTTP_403_FORBIDDEN)
-        
+
+        # REMOVED: Payment validation - students can now enroll without payment
+        # Subject enrollment status will be PENDING_PAYMENT if Month 1 is not paid
+
         # Get subject and section
         subject = Subject.objects.get(id=serializer.validated_data['subject_id'])
         section = Section.objects.get(id=serializer.validated_data['section_id'])

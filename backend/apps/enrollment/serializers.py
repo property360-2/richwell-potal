@@ -85,33 +85,41 @@ class DocumentUploadSerializer(serializers.Serializer):
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     """Full enrollment serializer with related data."""
-    
+
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
     student_number = serializers.CharField(source='student.student_number', read_only=True)
     student_email = serializers.CharField(source='student.email', read_only=True)
     school_email = serializers.CharField(source='student.username', read_only=True)  # Auto-generated login email
     contact_number = serializers.SerializerMethodField()
     semester_name = serializers.CharField(source='semester.__str__', read_only=True)
+    program_code = serializers.SerializerMethodField()
     payment_buckets = MonthlyPaymentBucketSerializer(many=True, read_only=True)
     documents = EnrollmentDocumentSerializer(many=True, read_only=True)
     total_required = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     total_paid = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     balance = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    
+
     class Meta:
         model = Enrollment
         fields = [
             'id', 'student_name', 'student_number', 'student_email', 'school_email',
-            'contact_number', 'semester_name', 'status', 'created_via',
+            'contact_number', 'semester_name', 'program_code', 'status', 'created_via',
             'monthly_commitment', 'first_month_paid',
             'total_required', 'total_paid', 'balance',
             'payment_buckets', 'documents', 'created_at'
         ]
-    
+
     def get_contact_number(self, obj):
         """Get contact number from student profile."""
         try:
             return obj.student.student_profile.contact_number
+        except:
+            return None
+
+    def get_program_code(self, obj):
+        """Get program code from student profile."""
+        try:
+            return obj.student.student_profile.program.code
         except:
             return None
 

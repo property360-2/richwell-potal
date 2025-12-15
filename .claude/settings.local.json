@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python manage.py shell:*)",
+      "Bash(python manage.py check:*)",
+      "Bash(python manage.py showmigrations:*)",
+      "Bash(curl:*)",
+      "Bash(python manage.py setup_test_data:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(python:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(timeout 3 bash:*)"
+    ]
+  }
+}

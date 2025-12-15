@@ -11,8 +11,6 @@ const state = {
   enrolledSubjects: [],
   totalUnits: 0,
   maxUnits: 30,
-  hasPaymentHold: false,
-  showPaymentHoldModal: false,
   showSchedulePreview: null
 };
 
@@ -121,20 +119,15 @@ async function loadData() {
 
         state.totalUnits = recommendedResponse.data.current_units || 0;
         state.maxUnits = recommendedResponse.data.max_units || 30;
-        // Check if Month 1 is paid - if not, student cannot enroll
-        state.hasPaymentHold = !recommendedResponse.data.can_enroll;
       } else if (recommendedResponse?.length) {
         state.recommendedSubjects = recommendedResponse;
-        state.hasPaymentHold = true; // Default to blocked
       } else {
         state.recommendedSubjects = mockRecommendedSubjects;
-        state.hasPaymentHold = true; // Default to blocked
       }
     } catch (err) {
       console.log('Failed to load recommended subjects:', err);
       showToast('Error loading subjects: ' + (err.message || 'Unknown error'), 'error');
       state.recommendedSubjects = mockRecommendedSubjects;
-      state.hasPaymentHold = true; // Default to blocked when API fails
     }
 
     // Try to load all available subjects
@@ -202,7 +195,6 @@ async function loadData() {
     state.recommendedSubjects = mockRecommendedSubjects;
     state.availableSubjects = mockAvailableSubjects;
     state.enrolledSubjects = mockEnrolledSubjects;
-    state.hasPaymentHold = false;
   }
   state.loading = false;
 }
@@ -224,25 +216,7 @@ function render() {
         <h1 class="text-3xl font-bold text-gray-800">Subject Enrollment</h1>
         <p class="text-gray-600 mt-1">Select subjects for the current semester</p>
       </div>
-      
-      <!-- Payment Required Banner -->
-      ${state.hasPaymentHold ? `
-        <div class="card bg-gradient-to-r from-yellow-500 to-orange-500 text-white mb-8">
-          <div class="flex items-start gap-4">
-            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-              </svg>
-            </div>
-            <div>
-              <h2 class="text-xl font-bold">💳 Payment Required</h2>
-              <p class="mt-1 text-yellow-100">Please pay Month 1 at the Cashier's Office before you can enroll in subjects.</p>
-              <p class="mt-2 text-sm text-yellow-200">Once your payment is confirmed, you can return to this page to select and enroll in your subjects.</p>
-            </div>
-          </div>
-        </div>
-      ` : ''}
-      
+
       <!-- Unit Counter Bar -->
       ${renderUnitCounter()}
       
@@ -299,10 +273,7 @@ function render() {
         </div>
       </div>
     </main>
-    
-    <!-- Payment Hold Modal -->
-    ${state.showPaymentHoldModal ? renderPaymentHoldModal() : ''}
-    
+
     <!-- Schedule Preview Modal -->
     ${state.showSchedulePreview ? renderSchedulePreviewModal() : ''}
   `;
@@ -322,6 +293,7 @@ function renderHeader() {
         <nav class="hidden md:flex items-center gap-6">
           <a href="/student-dashboard.html" class="text-gray-600 hover:text-gray-900">Dashboard</a>
           <a href="/subject-enrollment.html" class="text-blue-600 font-medium">Enroll Subjects</a>
+          <a href="/grades.html" class="text-gray-600 hover:text-gray-900">Grades</a>
           <a href="/soa.html" class="text-gray-600 hover:text-gray-900">SOA</a>
         </nav>
         
@@ -388,7 +360,7 @@ function renderUnitCounter() {
 function renderSubjectCard(subject, isRecommended) {
   const isSelected = false; // Instant enroll has no cart
   const isEnrolled = state.enrolledSubjects.find(e => e.subject?.code === subject.code);
-  const canAdd = subject.prerequisite_met !== false && !isSelected && !isEnrolled && !state.hasPaymentHold;
+  const canAdd = subject.prerequisite_met !== false && !isSelected && !isEnrolled;
   const wouldExceedLimit = (state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits;
 
   return `
@@ -400,7 +372,6 @@ function renderSubjectCard(subject, isRecommended) {
             ${isRecommended ? '<span class="badge badge-success text-xs">Recommended</span>' : ''}
             ${isEnrolled ? '<span class="badge badge-info text-xs">Enrolled</span>' : ''}
             ${!subject.prerequisite_met && subject.prerequisite ? `<span class="badge badge-error text-xs">Prereq: ${subject.prerequisite}</span>` : ''}
-            ${state.hasPaymentHold ? '<span class="badge badge-warning text-xs">Payment Required</span>' : ''}
           </div>
           <p class="font-medium text-gray-800">${subject.name}</p>
           <p class="text-sm text-gray-500">${subject.units} units</p>
@@ -417,14 +388,10 @@ function renderSubjectCard(subject, isRecommended) {
                 <div class="flex items-center gap-2">
                   <span class="text-gray-500">${section.enrolled}/${section.slots}</span>
                   ${canAdd && !wouldExceedLimit ? `
-                    <button onclick="enrollSubject('${subject.id}', '${section.id}')" 
+                    <button onclick="enrollSubject('${subject.id}', '${section.id}')"
                             class="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
                       Enroll
                     </button>
-                  ` : state.hasPaymentHold ? `
-                    <span class="px-3 py-1 text-xs font-medium text-gray-400 bg-gray-200 rounded-lg cursor-not-allowed">
-                      Locked
-                    </span>
                   ` : ''}
                 </div>
               </div>
@@ -439,36 +406,19 @@ function renderSubjectCard(subject, isRecommended) {
 
 
 function renderEnrolledSubject(enrollment) {
-  return `
-    <div class="flex items-center justify-between p-3 bg-green-50 rounded-xl">
-      <div>
-        <p class="font-medium text-gray-800">${enrollment.subject?.code} - ${enrollment.subject?.name}</p>
-        <p class="text-xs text-gray-500">${enrollment.schedule} • ${enrollment.units} units</p>
-      </div>
-      <button onclick="dropSubject(${enrollment.id})" class="text-xs text-red-600 hover:text-red-700 font-medium">
-        Drop
-      </button>
-    </div>
-  `;
-}
+  const isPending = enrollment.status === 'PENDING_PAYMENT';
+  const statusBadge = isPending
+    ? '<span class="badge badge-warning text-xs ml-2">Pending Payment</span>'
+    : '<span class="badge badge-success text-xs ml-2">Enrolled</span>';
 
-function renderPaymentHoldModal() {
   return `
-    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closePaymentHoldModal()">
-      <div class="bg-white rounded-2xl p-6 max-w-md mx-4" onclick="event.stopPropagation()">
-        <div class="text-center">
-          <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-            </svg>
-          </div>
-          <h3 class="text-xl font-bold text-gray-800 mb-2">Payment Hold</h3>
-          <p class="text-gray-600 mb-6">You must pay Month 1 before enrolling in subjects. Please visit the Cashier's Office to process your payment.</p>
-          <div class="flex gap-3">
-            <button onclick="closePaymentHoldModal()" class="flex-1 btn-secondary">Close</button>
-            <a href="/soa.html" class="flex-1 btn-primary text-center">View SOA</a>
-          </div>
+    <div class="flex items-center justify-between p-3 ${isPending ? 'bg-yellow-50' : 'bg-green-50'} rounded-xl">
+      <div class="flex-1">
+        <div class="flex items-center gap-1">
+          <p class="font-medium text-gray-800">${enrollment.subject?.code} - ${enrollment.subject?.name}</p>
+          ${statusBadge}
         </div>
+        <p class="text-xs text-gray-500">${enrollment.schedule} • ${enrollment.units} units</p>
       </div>
     </div>
   `;
@@ -512,15 +462,18 @@ function attachEventListeners() {
 
 // Global functions for onclick handlers
 window.enrollSubject = async function (subjectId, sectionId) {
-  if (state.hasPaymentHold) {
-    state.showPaymentHoldModal = true;
-    render();
+  console.log('Enroll clicked - Subject ID:', subjectId, 'Section ID:', sectionId);
+
+  // Find subject to check units
+  const subject = state.recommendedSubjects.find(s => s.id == subjectId) || state.availableSubjects.find(s => s.id == subjectId);
+
+  if (!subject) {
+    console.error('Subject not found. Available subjects:', state.recommendedSubjects, state.availableSubjects);
+    showToast('Subject not found', 'error');
     return;
   }
 
-  // Find subject to check units
-  const subject = state.recommendedSubjects.find(s => s.id === subjectId) || state.availableSubjects.find(s => s.id === subjectId);
-  if (!subject) return;
+  console.log('Subject found:', subject);
 
   if (state.totalUnits + subject.units > state.maxUnits) {
     showToast('Enrolling would exceed max units', 'error');
@@ -530,21 +483,28 @@ window.enrollSubject = async function (subjectId, sectionId) {
   if (!confirm(`Are you sure you want to enroll in ${subject.code} - ${subject.name}?`)) return;
 
   try {
+    console.log('Sending enrollment request...');
     const response = await api.post(endpoints.enrollSubject, {
       subject_id: subjectId,
       section_id: sectionId
     });
 
+    console.log('Response received:', response);
+
     if (response.ok) {
       const data = await response.json();
+      console.log('Response data:', data);
+
       if (data.success) {
         showToast('Enrollment successful!', 'success');
-        loadData(); // Reload all data
+        await loadData(); // Reload all data
+        render(); // Re-render the page
       } else {
         showToast(data.error || 'Enrollment failed', 'error');
       }
     } else {
       const data = await response.json().catch(() => ({}));
+      console.error('Enrollment error response:', data);
       showToast(data.error || 'Enrollment failed', 'error');
     }
   } catch (error) {
@@ -553,33 +513,29 @@ window.enrollSubject = async function (subjectId, sectionId) {
   }
 };
 
-window.dropSubject = async function (enrollmentId) {
-  if (!confirm('Are you sure you want to drop this subject?')) return;
-
-  try {
-    // Try API
-    try {
-      await api.post(`${endpoints.myEnrollments}${enrollmentId}/drop/`);
-    } catch (error) {
-      console.log('API drop failed, using mock:', error);
-    }
-
-    // Remove from enrolled (mock)
-    state.enrolledSubjects = state.enrolledSubjects.filter(e => e.id !== enrollmentId);
-    state.totalUnits = state.enrolledSubjects.reduce((sum, e) => sum + (e.units || e.subject?.units || 0), 0);
-
-    showToast('Subject dropped successfully', 'success');
-    render();
-  } catch (error) {
-    console.error('Drop failed:', error);
-    showToast('Failed to drop subject', 'error');
-  }
-};
-
-window.closePaymentHoldModal = function () {
-  state.showPaymentHoldModal = false;
-  render();
-};
+// DROP FUNCTIONALITY DISABLED - Students cannot drop subjects
+// window.dropSubject = async function (enrollmentId) {
+//   if (!confirm('Are you sure you want to drop this subject?')) return;
+//
+//   try {
+//     // Try API
+//     try {
+//       await api.post(`${endpoints.myEnrollments}${enrollmentId}/drop/`);
+//     } catch (error) {
+//       console.log('API drop failed, using mock:', error);
+//     }
+//
+//     // Remove from enrolled (mock)
+//     state.enrolledSubjects = state.enrolledSubjects.filter(e => e.id !== enrollmentId);
+//     state.totalUnits = state.enrolledSubjects.reduce((sum, e) => sum + (e.units || e.subject?.units || 0), 0);
+//
+//     showToast('Subject dropped successfully', 'success');
+//     render();
+//   } catch (error) {
+//     console.error('Drop failed:', error);
+//     showToast('Failed to drop subject', 'error');
+//   }
+// };
 
 window.showSchedulePreview = function (subjectId) {
   const subject = state.availableSubjects.find(s => s.id === subjectId);

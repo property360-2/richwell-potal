@@ -10,7 +10,12 @@ const state = {
   month1Paid: false, // Default to false - will be updated from API
   totalPaid: 0,
   totalRequired: 0,
-  paymentBuckets: [] // Will be loaded from API
+  monthlyCommitment: 0, // Monthly commitment amount
+  paymentBuckets: [], // Will be loaded from API
+  enrollmentStatus: 'N/A', // Enrollment status from API
+  enrolledUnits: 0, // Units enrolled from API
+  maxUnits: 30, // Maximum units (default)
+  programCode: null // Program code from enrollment
 };
 
 async function init() {
@@ -25,6 +30,36 @@ async function loadUserProfile() {
     const response = await api.get(endpoints.me);
     if (response) {
       state.user = response;
+    }
+
+    // Try to load enrollment data from API
+    try {
+      const enrollmentResponse = await api.get(endpoints.myEnrollment);
+      console.log('Enrollment API response:', enrollmentResponse);
+
+      if (enrollmentResponse?.data) {
+        // Get enrollment status
+        state.enrollmentStatus = enrollmentResponse.data.status || 'N/A';
+        // Get program code from enrollment if available
+        state.programCode = enrollmentResponse.data.program_code || null;
+      }
+    } catch (error) {
+      console.log('Enrollment API failed:', error);
+      state.enrollmentStatus = 'N/A';
+    }
+
+    // Try to load subject enrollments to get units
+    try {
+      const subjectsResponse = await api.get(endpoints.myEnrollments);
+      console.log('Subject enrollments API response:', subjectsResponse);
+
+      if (subjectsResponse?.data) {
+        // Get enrolled units from API
+        state.enrolledUnits = subjectsResponse.data.enrolled_units || 0;
+      }
+    } catch (error) {
+      console.log('Subject enrollments API failed:', error);
+      state.enrolledUnits = 0;
     }
 
     // Try to load payment data from API
@@ -48,6 +83,9 @@ async function loadUserProfile() {
         // Calculate totals
         state.totalPaid = state.paymentBuckets.reduce((sum, b) => sum + b.paid, 0);
         state.totalRequired = state.paymentBuckets.reduce((sum, b) => sum + b.required, 0);
+
+        // Get monthly commitment (should be same for all buckets)
+        state.monthlyCommitment = state.paymentBuckets.length > 0 ? state.paymentBuckets[0].required : 0;
       } else {
         // No payment data - default to unpaid
         state.month1Paid = false;
@@ -85,42 +123,37 @@ function render() {
       </div>
       
       <!-- Stats Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         ${renderStatCard('Student Number', state.user?.student_number || 'N/A', 'blue', `
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path>
           </svg>
         `)}
-        ${renderStatCard('Program', state.user?.program?.code || 'BSIT', 'indigo', `
+        ${renderStatCard('Program', state.programCode || state.user?.program?.code || 'N/A', 'indigo', `
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
           </svg>
         `)}
-        ${renderStatCard('Enrollment Status', 'Active', 'green', `
+        ${renderStatCard('Enrollment Status', state.enrollmentStatus, 'green', `
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
         `)}
-        ${renderStatCard('Units Enrolled', '21 / 30', 'purple', `
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-          </svg>
-        `)}
       </div>
       
-      <!-- Payment Required Banner (if Month 1 not paid) -->
+      <!-- Payment Pending Banner (if Month 1 not paid) -->
       ${!state.month1Paid ? `
-        <div class="card bg-gradient-to-r from-yellow-500 to-orange-500 text-white mb-8">
+        <div class="card bg-gradient-to-r from-blue-500 to-indigo-500 text-white mb-8">
           <div class="flex items-start gap-4">
             <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
             </div>
             <div>
-              <h2 class="text-xl font-bold">💳 Payment Required</h2>
-              <p class="mt-1 text-yellow-100">Please pay Month 1 at the Cashier's Office to start enrolling in subjects.</p>
-              <p class="mt-2 text-sm text-yellow-200">Once your payment is confirmed, you can visit the Subject Enrollment page to select your classes.</p>
+              <h2 class="text-xl font-bold">💳 Payment Pending</h2>
+              <p class="mt-1 text-blue-100">You can enroll in subjects now! Your enrollments will be marked as pending until Month 1 payment is received.</p>
+              <p class="mt-2 text-sm text-blue-200">Please pay Month 1 (${formatCurrency(state.monthlyCommitment)}) at the Cashier's Office to activate your subject enrollments.</p>
             </div>
           </div>
         </div>
@@ -146,18 +179,14 @@ function render() {
             </div>
             
             <!-- Payment Summary -->
-            <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="grid grid-cols-2 gap-4 mb-6">
               <div class="text-center p-4 bg-green-50 rounded-xl">
-                <p class="text-2xl font-bold text-green-600">${formatCurrency(8500)}</p>
-                <p class="text-sm text-green-700">Paid</p>
-              </div>
-              <div class="text-center p-4 bg-yellow-50 rounded-xl">
-                <p class="text-2xl font-bold text-yellow-600">${formatCurrency(21500)}</p>
-                <p class="text-sm text-yellow-700">Remaining</p>
+                <p class="text-2xl font-bold text-green-600">${formatCurrency(state.totalPaid)}</p>
+                <p class="text-sm text-green-700">Total Paid</p>
               </div>
               <div class="text-center p-4 bg-blue-50 rounded-xl">
-                <p class="text-2xl font-bold text-blue-600">${formatCurrency(30000)}</p>
-                <p class="text-sm text-blue-700">Total</p>
+                <p class="text-2xl font-bold text-blue-600">${formatCurrency(state.monthlyCommitment)}</p>
+                <p class="text-sm text-blue-700">Monthly Commitment</p>
               </div>
             </div>
             
@@ -204,6 +233,7 @@ function renderHeader() {
         <nav class="hidden md:flex items-center gap-6">
           <a href="/student-dashboard.html" class="text-blue-600 font-medium">Dashboard</a>
           <a href="/subject-enrollment.html" class="text-gray-600 hover:text-gray-900">Enroll Subjects</a>
+          <a href="/grades.html" class="text-gray-600 hover:text-gray-900">Grades</a>
           <a href="/soa.html" class="text-gray-600 hover:text-gray-900">SOA</a>
         </nav>
         
@@ -265,6 +295,21 @@ function renderStatCard(label, value, color, icon) {
 function renderPaymentBucket(bucket) {
   const percentage = Math.min(100, (bucket.paid / bucket.required) * 100);
   const isComplete = percentage >= 100;
+  const isPartial = percentage > 0 && percentage < 100;
+
+  // Determine status
+  let statusBadge = '';
+  let statusText = '';
+  if (isComplete) {
+    statusBadge = 'badge-success';
+    statusText = 'Complete';
+  } else if (isPartial) {
+    statusBadge = 'badge-warning';
+    statusText = 'Partial';
+  } else {
+    statusBadge = 'badge-error';
+    statusText = 'Pending';
+  }
 
   return `
     <div class="flex items-center gap-4">
@@ -276,9 +321,8 @@ function renderPaymentBucket(bucket) {
       </div>
       <div class="w-32 text-right text-sm">
         <span class="${isComplete ? 'text-green-600 font-semibold' : 'text-gray-600'}">${formatCurrency(bucket.paid)}</span>
-        <span class="text-gray-400"> / ${formatCurrency(bucket.required)}</span>
       </div>
-      ${isComplete ? '<span class="badge badge-success">Paid</span>' : '<span class="badge badge-warning">Pending</span>'}
+      <span class="badge ${statusBadge}">${statusText}</span>
     </div>
   `;
 }

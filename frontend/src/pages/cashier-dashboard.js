@@ -815,9 +815,10 @@ function renderQuickPaymentModal() {
                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Amount</label>
                <div class="flex items-center gap-2">
                  <span class="text-gray-400 font-bold">PHP</span>
-                 <input type="number" id="quickAmount" value="${amount}" readonly
-                        class="w-full bg-transparent text-xl font-bold text-gray-800 focus:outline-none">
+                 <input type="number" id="quickAmount" value="${amount}" required min="1" step="0.01"
+                        class="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xl font-bold text-gray-800 focus:outline-none focus:border-blue-500">
                </div>
+               <p class="text-xs text-gray-500 mt-1">Enter payment amount (can be partial)</p>
             </div>
           </div>
 

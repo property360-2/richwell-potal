@@ -583,20 +583,22 @@ class SubjectEnrollmentService:
     def enroll_in_subject(self, student, enrollment, subject, section) -> 'SubjectEnrollment':
         """
         Enroll a student in a subject with full validation.
-        
+
+        Students can now enroll without payment. If Month 1 is not paid,
+        the subject enrollment will have status=PENDING_PAYMENT.
+
         Args:
             student: User object
             enrollment: Enrollment object for current semester
             subject: Subject object
             section: Section object
-            
+
         Returns:
             SubjectEnrollment: The created enrollment record
-            
+
         Raises:
             PrerequisiteNotSatisfiedError: If prerequisites not met
             UnitCapExceededError: If would exceed unit cap
-            PaymentRequiredError: If Month 1 not paid
             ScheduleConflictError: If schedule conflict detected
             ConflictError: If already enrolled in this subject
         """
@@ -631,11 +633,10 @@ class SubjectEnrollmentService:
             raise UnitCapExceededError(
                 f"Would exceed unit cap ({current} + {subject.units} > {max_units})"
             )
-        
-        # Check payment status
-        if not self.check_payment_status(enrollment):
-            raise PaymentRequiredError()
-        
+
+        # REMOVED: Check payment status - students can now enroll without payment
+        # Payment status will determine if enrollment is PENDING or ENROLLED
+
         # Check schedule conflicts
         has_conflict, conflict_info = self.check_schedule_conflict(
             student, section, enrollment.semester
@@ -645,20 +646,28 @@ class SubjectEnrollmentService:
                 f"Schedule conflict on {conflict_info['day']} {conflict_info['time']} "
                 f"with {conflict_info['conflicting_subject']}"
             )
-        
+
         # Determine if irregular (not in recommended year/semester)
         profile = student.student_profile
         is_irregular = (
-            subject.year_level != profile.year_level or 
+            subject.year_level != profile.year_level or
             self._get_semester_number(enrollment.semester) != subject.semester_number
         )
-        
+
+        # Determine enrollment status based on payment
+        # If Month 1 is not paid, set status to PENDING_PAYMENT
+        # If Month 1 is paid, set status to ENROLLED
+        month1_bucket = enrollment.payment_buckets.filter(month_number=1).first()
+        enrollment_status = SubjectEnrollment.Status.ENROLLED
+        if not month1_bucket or not month1_bucket.is_fully_paid:
+            enrollment_status = SubjectEnrollment.Status.PENDING_PAYMENT
+
         # Create the enrollment
         subject_enrollment = SubjectEnrollment.objects.create(
             enrollment=enrollment,
             subject=subject,
             section=section,
-            status=SubjectEnrollment.Status.ENROLLED,
+            status=enrollment_status,
             is_irregular=is_irregular
         )
         
@@ -966,7 +975,42 @@ class PaymentService:
         
         # Check if any exam permits should be unlocked
         ExamPermitService.check_and_unlock_permits(enrollment)
-        
+
+        # Auto-approve pending subject enrollments if Month 1 is now paid
+        from .models import SubjectEnrollment
+        month1_bucket = enrollment.payment_buckets.filter(month_number=1).first()
+        if month1_bucket and month1_bucket.is_fully_paid:
+            # Change all PENDING_PAYMENT subject enrollments to ENROLLED
+            pending_subjects = enrollment.subject_enrollments.filter(
+                status=SubjectEnrollment.Status.PENDING_PAYMENT
+            )
+            updated_count = pending_subjects.update(
+                status=SubjectEnrollment.Status.ENROLLED
+            )
+
+            # Log the auto-approval
+            if updated_count > 0:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(
+                    f"Auto-approved {updated_count} subject enrollment(s) for "
+                    f"{enrollment.student.student_number} after Month 1 payment"
+                )
+
+                # Also log to audit trail
+                AuditLog.log(
+                    action=AuditLog.Action.SUBJECT_ENROLLMENT_STATUS_CHANGED,
+                    target_model='Enrollment',
+                    target_id=enrollment.id,
+                    actor=cashier,
+                    payload={
+                        'action': 'auto_approve_pending_subjects',
+                        'count': updated_count,
+                        'reason': 'Month 1 payment completed',
+                        'receipt_number': receipt_number
+                    }
+                )
+
         return transaction_obj
     
     @classmethod
