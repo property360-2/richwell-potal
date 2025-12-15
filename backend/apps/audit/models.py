@@ -44,6 +44,8 @@ class AuditLog(models.Model):
         # Document actions
         DOCUMENT_RELEASED = 'DOCUMENT_RELEASED', 'Document Released'
         DOCUMENT_REVOKED = 'DOCUMENT_REVOKED', 'Document Revoked'
+        DOCUMENT_REISSUED = 'DOCUMENT_REISSUED', 'Document Reissued'
+        DOCUMENT_ACCESSED = 'DOCUMENT_ACCESSED', 'Document Accessed'
         DOCUMENT_VERIFIED = 'DOCUMENT_VERIFIED', 'Document Verified'
         
         # Schedule actions
@@ -53,9 +55,22 @@ class AuditLog(models.Model):
         CREDIT_ASSIGNED = 'CREDIT_ASSIGNED', 'Credit Assigned'
         CREDIT_REMOVED = 'CREDIT_REMOVED', 'Credit Removed'
         
+        # Curriculum actions (EPIC 2)
+        CURRICULUM_CHANGED = 'CURRICULUM_CHANGED', 'Curriculum Changed'
+        CURRICULUM_VERSION_CREATED = 'CURRICULUM_VERSION_CREATED', 'Curriculum Version Created'
+        SECTION_CREATED = 'SECTION_CREATED', 'Section Created'
+        SECTION_UPDATED = 'SECTION_UPDATED', 'Section Updated'
+        
         # System actions
         CONFIG_CHANGED = 'CONFIG_CHANGED', 'Configuration Changed'
         SYSTEM_EVENT = 'SYSTEM_EVENT', 'System Event'
+        
+        # Override actions
+        OVERRIDE_APPLIED = 'OVERRIDE_APPLIED', 'Override Applied'
+        
+        # Exam Permit actions (EPIC 4)
+        EXAM_PERMIT_GENERATED = 'EXAM_PERMIT_GENERATED', 'Exam Permit Generated'
+        EXAM_PERMIT_PRINTED = 'EXAM_PERMIT_PRINTED', 'Exam Permit Printed'
     
     id = models.UUIDField(
         primary_key=True,

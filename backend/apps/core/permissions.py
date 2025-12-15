@@ -117,6 +117,10 @@ class IsAdminOrRegistrar(BasePermission):
         )
 
 
+# Alias for consistency
+IsRegistrarOrAdmin = IsAdminOrRegistrar
+
+
 class IsStaff(BasePermission):
     """
     Permission class for any staff member (non-student).

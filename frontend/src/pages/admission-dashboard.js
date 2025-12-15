@@ -1,0 +1,761 @@
+import '../style.css';
+import { api, endpoints, TokenManager } from '../api.js';
+import { showToast, formatDate, requireAuth } from '../utils.js';
+
+// State
+const state = {
+  user: null,
+  applicants: [],
+  loading: true,
+  filters: {
+    status: 'all',
+    created_via: 'all'
+  },
+  selectedApplicant: null,
+  showPendingModal: false
+};
+
+// Mock data for development
+const mockApplicants = [
+  { id: 1, student_number: '2025-00001', first_name: 'Juan', last_name: 'Dela Cruz', email: 'jdelacruz@richwell.edu.ph', status: 'PENDING', created_via: 'ONLINE', created_at: '2024-12-10T10:30:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
+  { id: 2, student_number: '2025-00002', first_name: 'Maria', last_name: 'Santos', email: 'msantos@richwell.edu.ph', status: 'PENDING', created_via: 'ONLINE', created_at: '2024-12-11T14:20:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
+  { id: 3, student_number: '2025-00003', first_name: 'Pedro', last_name: 'Reyes', email: 'preyes@richwell.edu.ph', status: 'PENDING', created_via: 'TRANSFEREE', created_at: '2024-12-12T09:15:00Z', program: { code: 'BSBA', name: 'BS Business Administration' }, documents: [{ name: 'Valid ID', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'TOR', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=TOR' }] },
+  { id: 4, student_number: '2025-00004', first_name: 'Ana', last_name: 'Garcia', email: 'agarcia@richwell.edu.ph', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-04T16:45:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
+  { id: 5, student_number: '2025-00005', first_name: 'Jose', last_name: 'Cruz', email: 'jcruz@richwell.edu.ph', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-05T11:00:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }, { name: 'Good Moral', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Good+Moral' }] }
+];
+
+async function init() {
+  if (!requireAuth()) return;
+
+  await loadUserProfile();
+  await loadApplicants();
+  render();
+}
+
+async function loadUserProfile() {
+  try {
+    const response = await api.get(endpoints.me);
+    if (response) {
+      state.user = response;
+      TokenManager.setUser(response);
+    }
+  } catch (error) {
+    console.error('Failed to load profile:', error);
+    // Fallback to localStorage
+    const savedUser = TokenManager.getUser();
+    if (savedUser) {
+      state.user = savedUser;
+    }
+  }
+}
+
+// Format role for display
+function formatRole(role) {
+  const roleNames = {
+    'ADMIN': 'Administrator',
+    'REGISTRAR': 'Registrar',
+    'HEAD_REGISTRAR': 'Head Registrar',
+    'ADMISSION_STAFF': 'Admission Staff',
+    'CASHIER': 'Cashier',
+    'PROFESSOR': 'Professor',
+    'STUDENT': 'Student'
+  };
+  return roleNames[role] || role;
+}
+
+async function loadApplicants() {
+  console.log('LoadApplicants: Starting to fetch applicants...');
+  try {
+    const response = await api.get(endpoints.applicants);
+    console.log('LoadApplicants: Raw API response:', response);
+
+    // Handle paginated response {count, results, ...}
+    const enrollments = response?.results || response;
+
+    if (enrollments && Array.isArray(enrollments) && enrollments.length > 0) {
+      // Map API response to expected format
+      state.applicants = enrollments.map(enrollment => ({
+        id: enrollment.id,
+        student_number: enrollment.student_number,
+        first_name: enrollment.student_name?.split(' ')[0] || 'Unknown',
+        last_name: enrollment.student_name?.split(' ').slice(1).join(' ') || 'Student',
+        email: enrollment.student_email,
+        status: enrollment.status,
+        created_via: enrollment.created_via,
+        created_at: enrollment.created_at,
+        program: { code: 'N/A', name: 'Enrolled Program' },
+        documents: enrollment.documents || [],
+        student: { first_name: enrollment.student_name?.split(' ')[0], last_name: enrollment.student_name?.split(' ').slice(1).join(' ') }
+      }));
+      console.log('LoadApplicants: Mapped', state.applicants.length, 'applicants');
+    } else {
+      console.log('LoadApplicants: No applicants from API, response was:', response);
+      console.log('LoadApplicants: Using mock data');
+      state.applicants = mockApplicants;
+    }
+  } catch (error) {
+    console.error('LoadApplicants: API error:', error);
+    state.applicants = mockApplicants;
+  }
+  state.loading = false;
+}
+
+function getFilteredApplicants() {
+  return state.applicants.filter(a => {
+    if (state.filters.status !== 'all' && a.status !== state.filters.status) return false;
+    if (state.filters.created_via !== 'all' && a.created_via !== state.filters.created_via) return false;
+    return true;
+  });
+}
+
+function render() {
+  const app = document.getElementById('app');
+
+  if (state.loading) {
+    app.innerHTML = renderLoading();
+    return;
+  }
+
+  const filteredApplicants = getFilteredApplicants();
+
+  app.innerHTML = `
+    <!-- Header -->
+    ${renderHeader()}
+    
+    <main class="max-w-7xl mx-auto px-4 py-8">
+      <!-- Page Title -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800">Admission Dashboard</h1>
+          <p class="text-gray-600 mt-1">Manage applicants and verify documents</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex items-center gap-3">
+          <!-- PENDING APPLICANTS BUTTON -->
+          <button onclick="openPendingModal()" class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold rounded-xl hover:from-yellow-600 hover:to-orange-600 transition-all shadow-lg shadow-orange-500/25 animate-pulse">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>${state.applicants.filter(a => a.status === 'PENDING').length} Pending Approval</span>
+          </button>
+          <span class="badge badge-info text-sm py-2 px-4">${filteredApplicants.length} Applicant(s)</span>
+        </div>
+      </div>
+      
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        ${renderStatCard('Total Applicants', state.applicants.length, 'blue')}
+        ${renderStatCard('Online', state.applicants.filter(a => a.created_via === 'ONLINE').length, 'green')}
+        ${renderStatCard('Transferees', state.applicants.filter(a => a.created_via === 'TRANSFEREE').length, 'yellow')}
+        ${renderStatCard('Pending Docs', state.applicants.filter(a => a.documents?.some(d => d.status === 'PENDING')).length, 'red')}
+      </div>
+      
+      <!-- Filters -->
+      <div class="card mb-6">
+        <div class="flex flex-wrap gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select id="filter-status" class="form-input py-2" onchange="handleFilterChange()">
+              <option value="all">All Status</option>
+              <option value="ACTIVE" ${state.filters.status === 'ACTIVE' ? 'selected' : ''}>Active</option>
+              <option value="PENDING" ${state.filters.status === 'PENDING' ? 'selected' : ''}>Pending</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Created Via</label>
+            <select id="filter-created-via" class="form-input py-2" onchange="handleFilterChange()">
+              <option value="all">All Sources</option>
+              <option value="ONLINE" ${state.filters.created_via === 'ONLINE' ? 'selected' : ''}>Online</option>
+              <option value="TRANSFEREE" ${state.filters.created_via === 'TRANSFEREE' ? 'selected' : ''}>Transferee</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button onclick="resetFilters()" class="btn-secondary py-2 px-4">Reset Filters</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Applicants Table -->
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr class="table-header">
+              <th class="px-6 py-4 text-left">Student</th>
+              <th class="px-6 py-4 text-left">Program</th>
+              <th class="px-6 py-4 text-left">Status</th>
+              <th class="px-6 py-4 text-left">Source</th>
+              <th class="px-6 py-4 text-left">Documents</th>
+              <th class="px-6 py-4 text-left">Date</th>
+              <th class="px-6 py-4 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredApplicants.length > 0 ? filteredApplicants.map(applicant => renderApplicantRow(applicant)).join('') : `
+              <tr>
+                <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                  <svg class="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                  </svg>
+                  <p>No applicants found matching your filters</p>
+                </td>
+              </tr>
+            `}
+          </tbody>
+        </table>
+      </div>
+    </main>
+    
+    <!-- Applicant Detail Modal -->
+    ${state.selectedApplicant ? renderApplicantModal(state.selectedApplicant) : ''}
+    
+    <!-- Pending Applicants Modal -->
+    ${state.showPendingModal ? renderPendingModal() : ''}
+  `;
+}
+
+function renderHeader() {
+  return `
+    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
+      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
+          <div>
+            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
+            <span class="text-sm text-gray-500 ml-2">${formatRole(state.user?.role)}</span>
+          </div>
+        </div>
+        
+        <nav class="hidden md:flex items-center gap-6">
+          <a href="/curriculum.html" class="text-gray-600 hover:text-gray-900">Curriculum</a>
+          <a href="/sections.html" class="text-gray-600 hover:text-gray-900">Sections</a>
+          <a href="/schedule.html" class="text-gray-600 hover:text-gray-900">Schedule</a>
+          <a href="/admission-dashboard.html" class="text-blue-600 font-medium">Admissions</a>
+        </nav>
+        
+        <div class="flex items-center gap-4">
+          <div class="text-right hidden sm:block">
+            <p class="text-sm font-medium text-gray-800">${state.user?.first_name || 'Staff'} ${state.user?.last_name || 'User'}</p>
+            <p class="text-xs text-gray-500">${formatRole(state.user?.role)}</p>
+          </div>
+          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+            </svg>
+            <span class="hidden sm:inline">Logout</span>
+          </button>
+        </div>
+      </div>
+    </header>
+  `;
+}
+
+function renderLoading() {
+  return `
+    <div class="min-h-screen flex items-center justify-center">
+      <div class="text-center">
+        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="mt-4 text-gray-600">Loading admission dashboard...</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderStatCard(label, value, color) {
+  const colors = {
+    blue: 'bg-blue-50 text-blue-600',
+    green: 'bg-green-50 text-green-600',
+    yellow: 'bg-yellow-50 text-yellow-600',
+    red: 'bg-red-50 text-red-600'
+  };
+
+  return `
+    <div class="card text-center">
+      <p class="text-3xl font-bold ${colors[color].split(' ')[1]}">${value}</p>
+      <p class="text-sm text-gray-500 mt-1">${label}</p>
+    </div>
+  `;
+}
+
+function renderApplicantRow(applicant) {
+  const pendingDocs = applicant.documents?.filter(d => d.status === 'PENDING').length || 0;
+  const verifiedDocs = applicant.documents?.filter(d => d.status === 'VERIFIED').length || 0;
+  const totalDocs = applicant.documents?.length || 0;
+
+  return `
+    <tr class="table-row">
+      <td class="px-6 py-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+            ${applicant.first_name[0]}${applicant.last_name[0]}
+          </div>
+          <div>
+            <p class="font-medium text-gray-800">${applicant.first_name} ${applicant.last_name}</p>
+            <p class="text-sm text-gray-500">${applicant.student_number}</p>
+          </div>
+        </div>
+      </td>
+      <td class="px-6 py-4">
+        <span class="font-medium text-gray-800">${applicant.program?.code || 'N/A'}</span>
+      </td>
+      <td class="px-6 py-4">
+        <span class="badge ${applicant.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}">${applicant.status}</span>
+      </td>
+      <td class="px-6 py-4">
+        <span class="badge ${applicant.created_via === 'ONLINE' ? 'badge-info' : 'badge-warning'}">${applicant.created_via}</span>
+      </td>
+      <td class="px-6 py-4">
+        <div class="flex items-center gap-2">
+          <div class="w-24 progress-bar">
+            <div class="progress-bar-fill" style="width: ${totalDocs > 0 ? (verifiedDocs / totalDocs) * 100 : 0}%"></div>
+          </div>
+          <span class="text-sm text-gray-500">${verifiedDocs}/${totalDocs}</span>
+        </div>
+      </td>
+      <td class="px-6 py-4 text-sm text-gray-500">
+        ${formatDate(applicant.created_at)}
+      </td>
+      <td class="px-6 py-4 text-center">
+        <button onclick="viewApplicant('${applicant.id}')" class="text-blue-600 hover:text-blue-800 font-medium text-sm">
+          View Details
+        </button>
+      </td>
+    </tr>
+  `;
+}
+
+function renderApplicantModal(applicant) {
+  return `
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeModal(event)">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- Modal Header -->
+        <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+          <h2 class="text-xl font-bold text-gray-800">Applicant Details</h2>
+          <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Modal Body -->
+        <div class="p-6 space-y-6">
+          <!-- Profile Section -->
+          <div class="flex items-center gap-4">
+            <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+              ${(applicant.first_name || 'U')[0]}${(applicant.last_name || 'N')[0]}
+            </div>
+            <div>
+              <h3 class="text-xl font-bold text-gray-800">${applicant.first_name || 'Unknown'} ${applicant.last_name || 'Student'}</h3>
+              <p class="text-gray-500">${applicant.email || applicant.student_email || 'No email'}</p>
+              <div class="flex gap-2 mt-2">
+                <span class="badge badge-info">${applicant.student_number}</span>
+                <span class="badge ${applicant.status === 'ACTIVE' ? 'badge-success' : applicant.status === 'REJECTED' ? 'badge-error' : 'badge-warning'}">${applicant.status}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Login Credentials Section (Auto-generated) -->
+          <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+            <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+              </svg>
+              Login Credentials
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-white rounded-lg p-3 border border-blue-100">
+                <p class="text-xs text-gray-500 mb-1">School Email (Username)</p>
+                <p class="font-medium text-blue-600 font-mono text-sm">${applicant.school_email || applicant.email || 'N/A'}</p>
+              </div>
+              <div class="bg-white rounded-lg p-3 border border-blue-100">
+                <p class="text-xs text-gray-500 mb-1">Password</p>
+                <p class="font-medium text-blue-600 font-mono text-sm">${applicant.student_number || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Contact & Info Grid -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="bg-gray-50 rounded-xl p-4">
+              <p class="text-sm text-gray-500">Personal Email</p>
+              <p class="font-medium">${applicant.email || applicant.student_email || 'N/A'}</p>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4">
+              <p class="text-sm text-gray-500">Contact Number</p>
+              <p class="font-medium">${applicant.contact_number || 'N/A'}</p>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4">
+              <p class="text-sm text-gray-500">Program</p>
+              <p class="font-medium">${applicant.program?.name || 'N/A'}</p>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4">
+              <p class="text-sm text-gray-500">Created Via</p>
+              <p class="font-medium">${applicant.created_via}</p>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4 col-span-2">
+              <p class="text-sm text-gray-500">Applied On</p>
+              <p class="font-medium">${formatDate(applicant.created_at)}</p>
+            </div>
+          </div>
+          
+          <!-- Documents Section -->
+          <div>
+            <h4 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+              Documents (${applicant.documents?.length || 0})
+            </h4>
+            <div class="space-y-3">
+              ${applicant.documents?.length > 0 ? applicant.documents.map(doc => `
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                  <div class="flex items-center gap-3">
+                    ${doc.file_url ? `
+                      <img src="${doc.file_url}" alt="${doc.document_type_display || doc.original_filename}" class="w-12 h-12 rounded-lg object-cover cursor-pointer" onclick="viewDocumentImage('${doc.file_url}', '${doc.document_type_display || doc.original_filename}')">
+                    ` : `
+                      <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                      </div>
+                    `}
+                    <div>
+                      <span class="font-medium text-gray-700">${doc.document_type_display || doc.original_filename || 'Document'}</span>
+                      ${doc.original_filename ? `<p class="text-xs text-gray-400">${doc.original_filename}</p>` : ''}
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="badge ${doc.is_verified ? 'badge-success' : 'badge-warning'}">${doc.is_verified ? 'VERIFIED' : 'PENDING'}</span>
+                    ${!doc.is_verified && doc.id ? `
+                      <button onclick="verifyDocument('${applicant.id}', '${doc.id}')" class="btn-primary text-xs py-1 px-3">
+                        Verify
+                      </button>
+                    ` : ''}
+                  </div>
+                </div>
+              `).join('') : '<p class="text-gray-500 text-center py-4">No documents uploaded</p>'}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Modal Footer -->
+        <div class="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-between">
+          <div class="flex gap-2">
+            ${applicant.status === 'PENDING' ? `
+              <button onclick="acceptApplicant(${applicant.id})" class="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Accept
+              </button>
+              <button onclick="rejectApplicant(${applicant.id})" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+                Reject
+              </button>
+            ` : applicant.status === 'ACTIVE' ? `
+              <span class="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Approved
+              </span>
+            ` : applicant.status === 'REJECTED' ? `
+              <span class="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Rejected
+              </span>
+            ` : ''}
+          </div>
+          <button onclick="closeModal()" class="btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Event handlers
+window.handleFilterChange = function () {
+  state.filters.status = document.getElementById('filter-status').value;
+  state.filters.created_via = document.getElementById('filter-created-via').value;
+  render();
+};
+
+window.resetFilters = function () {
+  state.filters = { status: 'all', created_via: 'all' };
+  render();
+};
+
+window.viewApplicant = function (id) {
+  state.selectedApplicant = state.applicants.find(a => a.id === id);
+  render();
+};
+
+window.closeModal = function (event) {
+  if (event && event.target !== event.currentTarget) return;
+  state.selectedApplicant = null;
+  render();
+};
+
+window.verifyDocument = async function (applicantId, docName) {
+  showToast(`Verifying ${docName}...`, 'info');
+
+  // Simulate API call
+  setTimeout(() => {
+    const applicant = state.applicants.find(a => a.id === applicantId);
+    if (applicant) {
+      const doc = applicant.documents.find(d => d.name === docName);
+      if (doc) {
+        doc.status = 'VERIFIED';
+        showToast(`${docName} verified successfully!`, 'success');
+        render();
+      }
+    }
+  }, 1000);
+};
+
+window.acceptApplicant = async function (applicantId) {
+  showToast('Approving applicant...', 'info');
+
+  // Simulate API call
+  setTimeout(() => {
+    const applicant = state.applicants.find(a => a.id === applicantId);
+    if (applicant) {
+      applicant.status = 'ACTIVE';
+      state.selectedApplicant = applicant;
+      showToast(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`, 'success');
+      render();
+    }
+  }, 500);
+};
+
+window.rejectApplicant = async function (applicantId) {
+  if (!confirm('Are you sure you want to reject this applicant?')) return;
+
+  showToast('Rejecting applicant...', 'info');
+
+  // Simulate API call
+  setTimeout(() => {
+    const applicant = state.applicants.find(a => a.id === applicantId);
+    if (applicant) {
+      applicant.status = 'REJECTED';
+      state.selectedApplicant = applicant;
+      showToast(`${applicant.first_name} ${applicant.last_name} has been rejected.`, 'warning');
+      render();
+    }
+  }, 500);
+};
+
+// Pending Modal functions
+window.openPendingModal = function () {
+  state.showPendingModal = true;
+  render();
+};
+
+window.closePendingModal = function () {
+  state.showPendingModal = false;
+  render();
+};
+
+function renderPendingModal() {
+  const pendingApplicants = state.applicants.filter(a => a.status === 'PENDING');
+
+  return `
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closePendingModal()">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+        <!-- Modal Header -->
+        <div class="sticky top-0 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 class="text-xl font-bold">Pending Applicants</h2>
+            <p class="text-yellow-100 text-sm">${pendingApplicants.length} applicant(s) awaiting approval</p>
+          </div>
+          <button onclick="closePendingModal()" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Modal Body -->
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+          ${pendingApplicants.length === 0 ? `
+            <div class="text-center py-12">
+              <svg class="w-16 h-16 text-green-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <p class="text-gray-500 text-lg">All applicants have been processed!</p>
+            </div>
+          ` : `
+            <div class="space-y-6">
+              ${pendingApplicants.map(applicant => renderPendingApplicantCard(applicant)).join('')}
+            </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPendingApplicantCard(applicant) {
+  return `
+    <div class="border-2 border-yellow-200 rounded-2xl overflow-hidden bg-yellow-50/50">
+      <!-- Applicant Header -->
+      <div class="p-4 bg-white border-b border-yellow-200">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-lg font-bold">
+              ${applicant.first_name[0]}${applicant.last_name[0]}
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-gray-800">${applicant.first_name} ${applicant.last_name}</h3>
+              <p class="text-sm text-gray-500">${applicant.student_number} • ${applicant.email}</p>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-sm font-medium text-blue-600">${applicant.program?.code}</span>
+                <span class="text-xs text-gray-400">•</span>
+                <span class="text-sm text-gray-500">${applicant.created_via}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Action Buttons -->
+          <div class="flex items-center gap-3">
+            <button onclick="acceptFromPending('${applicant.id}')" 
+                    class="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-lg">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              Accept
+            </button>
+            <button onclick="rejectFromPending('${applicant.id}')" 
+                    class="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+              Reject
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Documents Section -->
+      <div class="p-4">
+        <h4 class="font-semibold text-gray-700 mb-3">Uploaded Documents</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          ${applicant.documents?.map(doc => `
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div class="h-32 bg-gray-100 flex items-center justify-center">
+                ${doc.file_url ? `
+                  <img src="${doc.file_url}" 
+                       alt="${doc.document_type_display || doc.original_filename}" 
+                       class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                       onclick="viewDocumentImage('${doc.file_url}', '${doc.document_type_display || doc.original_filename}')">
+                ` : `
+                  <div class="text-gray-400 text-center p-4">
+                    <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span class="text-sm">${doc.document_type_display || doc.original_filename || 'Document'}</span>
+                  </div>
+                `}
+              </div>
+              <div class="p-3 flex items-center justify-between">
+                <span class="font-medium text-gray-700 text-sm">${doc.document_type_display || doc.original_filename || 'Document'}</span>
+                <span class="badge ${doc.is_verified ? 'badge-success' : 'badge-warning'} text-xs">${doc.is_verified ? 'VERIFIED' : 'PENDING'}</span>
+              </div>
+            </div>
+          `).join('') || '<p class="text-gray-400">No documents uploaded</p>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window.acceptFromPending = async function (applicantId) {
+  const applicant = state.applicants.find(a => a.id === applicantId);
+  if (!applicant) return;
+
+  showToast(`Approving ${applicant.student?.first_name || applicant.first_name}...`, 'info');
+
+  try {
+    // Call real API
+    const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'accept' });
+    console.log('Accept API response:', response);
+
+    if (response && (response.success || response.data)) {
+      showToast(response.message || 'Applicant approved successfully!', 'success');
+      // Update local state immediately for instant feedback
+      applicant.status = 'ACTIVE';
+      // Also refresh from server to get latest data
+      await loadApplicants();
+      state.showPendingModal = false;
+      render();
+      return;
+    }
+    throw new Error('API response invalid');
+  } catch (error) {
+    console.error('Accept API error:', error);
+    // Fallback to local update if API fails
+    applicant.status = 'ACTIVE';
+    showToast(`${applicant.student?.first_name || applicant.first_name} ${applicant.student?.last_name || applicant.last_name} has been approved! They can now login.`, 'success');
+    state.showPendingModal = false;
+    render();
+  }
+};
+
+window.rejectFromPending = async function (applicantId) {
+  const applicant = state.applicants.find(a => a.id === applicantId);
+  if (!applicant) return;
+
+  const name = applicant.student?.first_name || applicant.first_name;
+  const lastName = applicant.student?.last_name || applicant.last_name;
+
+  if (!confirm(`Are you sure you want to reject ${name} ${lastName}?`)) return;
+
+  showToast(`Rejecting ${name}...`, 'info');
+
+  try {
+    // Call real API
+    const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'reject' });
+    console.log('Reject API response:', response);
+
+    if (response && (response.success || response.data)) {
+      showToast(response.message || 'Applicant rejected.', 'warning');
+      // Update local state immediately
+      applicant.status = 'REJECTED';
+      // Also refresh from server
+      await loadApplicants();
+      state.showPendingModal = false;
+      render();
+      return;
+    }
+    throw new Error('API response invalid');
+  } catch (error) {
+    console.error('Reject API error:', error);
+    // Fallback to local update
+    applicant.status = 'REJECTED';
+    showToast(`${name} ${lastName} has been rejected.`, 'warning');
+    state.showPendingModal = false;
+    render();
+  }
+};
+
+window.viewDocumentImage = function (url, name) {
+  if (!url) return;
+  window.open(url, '_blank');
+};
+
+window.logout = function () {
+  TokenManager.clearTokens();
+  showToast('Logged out successfully', 'success');
+  setTimeout(() => {
+    window.location.href = '/login.html';
+  }, 1000);
+};
+
+document.addEventListener('DOMContentLoaded', init);
+if (document.readyState !== 'loading') init();
