@@ -129,6 +129,7 @@ function render() {
             <div class="text-xs text-blue-200 space-y-1">
               <p><span class="text-white">Admin:</span> admin@richwell.edu.ph / admin123</p>
               <p><span class="text-white">Registrar:</span> registrar@richwell.edu.ph / registrar123</p>
+              <p><span class="text-white">Dept Head:</span> jcentita@richwell.edu.ph / head123</p>
               <p><span class="text-white">Cashier:</span> cashier@richwell.edu.ph / cashier123</p>
               <p><span class="text-white">Professor:</span> professor@richwell.edu.ph / prof123</p>
               <p><span class="text-white">Student:</span> student@richwell.edu.ph / student123</p>

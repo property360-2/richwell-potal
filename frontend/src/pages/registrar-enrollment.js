@@ -4,113 +4,103 @@ import { showToast, formatCurrency, requireAuth } from '../utils.js';
 
 // State
 const state = {
-    user: null,
-    loading: true,
-    searchQuery: '',
-    selectedStudent: null,
-    availableSubjects: [],
-    selectedSubject: null,
-    selectedSection: null,
-    overrideReason: '',
-    showConfirmModal: false
+  user: null,
+  loading: true,
+  searchQuery: '',
+  searchResults: [],
+  selectedStudent: null,
+  availableSubjects: [],
+  selectedSubject: null,
+  selectedSection: null,
+  overrideReason: '',
+  showConfirmModal: false
 };
 
-// Mock students data
-const mockStudents = [
-    {
-        id: 1,
-        student_number: '2024-00001',
-        first_name: 'Juan',
-        last_name: 'Dela Cruz',
-        email: 'jdelacruz@richwell.edu.ph',
-        program: { code: 'BSIT', name: 'BS Information Technology' },
-        year_level: 1,
-        enrollment_status: 'ACTIVE',
-        enrolledSubjects: [
-            { id: 101, code: 'IT101', name: 'Introduction to Computing', section: 'A', units: 3 },
-            { id: 102, code: 'IT102', name: 'Computer Programming 1', section: 'A', units: 3 }
-        ],
-        totalUnits: 6
-    },
-    {
-        id: 2,
-        student_number: '2024-00002',
-        first_name: 'Maria',
-        last_name: 'Santos',
-        email: 'msantos@richwell.edu.ph',
-        program: { code: 'BSCS', name: 'BS Computer Science' },
-        year_level: 2,
-        enrollment_status: 'PENDING',
-        enrolledSubjects: [],
-        totalUnits: 0
-    }
-];
-
 const mockSubjects = [
-    {
-        id: 1, code: 'IT101', name: 'Introduction to Computing', units: 3, sections: [
-            { id: 1, name: 'A', slots: 40, enrolled: 38, schedule: 'MWF 8:00-9:00 AM' },
-            { id: 2, name: 'B', slots: 40, enrolled: 35, schedule: 'TTH 9:00-10:30 AM' }
-        ]
-    },
-    {
-        id: 2, code: 'IT102', name: 'Computer Programming 1', units: 3, sections: [
-            { id: 3, name: 'A', slots: 35, enrolled: 35, schedule: 'MWF 10:00-11:00 AM' },
-            { id: 4, name: 'B', slots: 35, enrolled: 30, schedule: 'TTH 1:00-2:30 PM' }
-        ]
-    },
-    {
-        id: 3, code: 'IT201', name: 'Computer Programming 2', units: 3, prerequisite: 'IT102', sections: [
-            { id: 5, name: 'A', slots: 35, enrolled: 25, schedule: 'MWF 2:00-3:00 PM' }
-        ]
-    },
-    {
-        id: 4, code: 'IT202', name: 'Data Structures', units: 3, prerequisite: 'IT201', sections: [
-            { id: 6, name: 'A', slots: 30, enrolled: 20, schedule: 'TTH 8:00-9:30 AM' }
-        ]
-    },
-    {
-        id: 5, code: 'IT301', name: 'Database Management', units: 3, prerequisite: 'IT202', sections: [
-            { id: 7, name: 'A', slots: 30, enrolled: 30, schedule: 'MWF 3:00-4:00 PM' }
-        ]
-    },
-    {
-        id: 6, code: 'GE101', name: 'Understanding the Self', units: 3, sections: [
-            { id: 8, name: 'A', slots: 50, enrolled: 50, schedule: 'MWF 1:00-2:00 PM' }
-        ]
-    }
+  {
+    id: 1, code: 'IT101', name: 'Introduction to Computing', units: 3, sections: [
+      { id: 1, name: 'A', slots: 40, enrolled: 38, schedule: 'MWF 8:00-9:00 AM' },
+      { id: 2, name: 'B', slots: 40, enrolled: 35, schedule: 'TTH 9:00-10:30 AM' }
+    ]
+  },
+  {
+    id: 2, code: 'IT102', name: 'Computer Programming 1', units: 3, sections: [
+      { id: 3, name: 'A', slots: 35, enrolled: 35, schedule: 'MWF 10:00-11:00 AM' },
+      { id: 4, name: 'B', slots: 35, enrolled: 30, schedule: 'TTH 1:00-2:30 PM' }
+    ]
+  },
+  {
+    id: 3, code: 'GE101', name: 'Understanding the Self', units: 3, sections: [
+      { id: 5, name: 'A', slots: 50, enrolled: 40, schedule: 'MWF 1:00-2:00 PM' }
+    ]
+  },
+  {
+    id: 4, code: 'GE102', name: 'Readings in Philippine History', units: 3, sections: [
+      { id: 6, name: 'A', slots: 50, enrolled: 45, schedule: 'TTH 3:00-4:30 PM' }
+    ]
+  },
+  {
+    id: 5, code: 'MATH101', name: 'Mathematics in the Modern World', units: 3, sections: [
+      { id: 7, name: 'A', slots: 40, enrolled: 35, schedule: 'MWF 2:00-3:00 PM' }
+    ]
+  }
 ];
 
 async function init() {
-    if (!requireAuth()) return;
+  if (!requireAuth()) return;
 
-    await loadData();
-    render();
+  await loadData();
+  render();
 }
 
 async function loadData() {
-    try {
-        const userResponse = await api.get(endpoints.me);
-        if (userResponse) {
-            state.user = userResponse;
-        }
-        state.availableSubjects = mockSubjects;
-    } catch (error) {
-        console.error('Failed to load data:', error);
-        state.availableSubjects = mockSubjects;
+  try {
+    const userResponse = await api.get(endpoints.me);
+    if (userResponse) {
+      state.user = userResponse;
     }
-    state.loading = false;
+  } catch (error) {
+    console.error('Failed to load data:', error);
+  }
+  state.availableSubjects = mockSubjects; // Always load mock subjects for now
+  state.loading = false;
+}
+
+async function searchStudentsFromAPI(query) {
+  try {
+    const response = await api.get(`${endpoints.cashierStudentSearch}?q=${encodeURIComponent(query)}`);
+    const students = response?.results || [];
+
+    // Transform to the format needed by the UI
+    state.searchResults = students.map(s => ({
+      id: s.id || s.enrollment_id,
+      student_number: s.student_number,
+      first_name: s.first_name,
+      last_name: s.last_name,
+      email: s.email,
+      program: { code: s.program_code || 'N/A', name: s.program_name || s.program_code || 'N/A' },
+      year_level: s.year_level || 1,
+      enrollment_status: s.enrollment_status || 'ACTIVE',
+      enrolledSubjects: [],
+      totalUnits: 0
+    }));
+
+    console.log(`Found ${state.searchResults.length} students`);
+  } catch (error) {
+    console.error('Failed to search students:', error);
+    state.searchResults = [];
+  }
 }
 
 function render() {
-    const app = document.getElementById('app');
+  const app = document.getElementById('app');
 
-    if (state.loading) {
-        app.innerHTML = renderLoading();
-        return;
-    }
+  if (state.loading) {
+    app.innerHTML = renderLoading();
+    return;
+  }
 
-    app.innerHTML = `
+  app.innerHTML = `
     ${renderHeader()}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
@@ -152,7 +142,12 @@ function render() {
               <button onclick="searchStudent()" class="btn-primary px-6">Search</button>
             </div>
             
-            ${state.searchQuery ? renderSearchResults() : ''}
+            ${state.searchQuery && state.searchResults.length > 0 ? renderSearchResults() :
+      (state.searchQuery && state.searchResults.length === 0 ? `
+                <div class="mt-4 p-4 bg-gray-50 rounded-xl text-center text-gray-500">
+                  No students found matching "${state.searchQuery}". Type at least 2 characters.
+                </div>
+              ` : '')}
           </div>
           
           <!-- Selected Student Details -->
@@ -195,11 +190,11 @@ function render() {
     ${state.showConfirmModal ? renderConfirmModal() : ''}
   `;
 
-    attachEventListeners();
+  attachEventListeners();
 }
 
 function renderHeader() {
-    return `
+  return `
     <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -210,11 +205,10 @@ function renderHeader() {
           </div>
         </div>
         
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/curriculum.html" class="text-gray-600 hover:text-gray-900">Curriculum</a>
-          <a href="/sections.html" class="text-gray-600 hover:text-gray-900">Sections</a>
-          <a href="/schedule.html" class="text-gray-600 hover:text-gray-900">Schedule</a>
-          <a href="/registrar-enrollment.html" class="text-blue-600 font-medium">Manual Enroll</a>
+        <nav class="hidden md:flex items-center gap-2">
+          <a href="/registrar-dashboard.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Dashboard</a>
+          <a href="/registrar-cor.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">COR</a>
+          <a href="/registrar-enrollment.html" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-lg font-medium">Override</a>
         </nav>
         
         <div class="flex items-center gap-4">
@@ -235,7 +229,7 @@ function renderHeader() {
 }
 
 function renderLoading() {
-    return `
+  return `
     <div class="min-h-screen flex items-center justify-center">
       <div class="text-center">
         <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
@@ -249,30 +243,24 @@ function renderLoading() {
 }
 
 function renderSearchResults() {
-    const query = state.searchQuery.toLowerCase();
-    const results = mockStudents.filter(s =>
-        s.student_number.toLowerCase().includes(query) ||
-        s.first_name.toLowerCase().includes(query) ||
-        s.last_name.toLowerCase().includes(query) ||
-        `${s.first_name} ${s.last_name}`.toLowerCase().includes(query)
-    );
+  const results = state.searchResults;
 
-    if (results.length === 0) {
-        return `
+  if (results.length === 0) {
+    return `
       <div class="mt-4 p-4 bg-gray-50 rounded-xl text-center text-gray-500">
         No students found matching "${state.searchQuery}"
       </div>
     `;
-    }
+  }
 
-    return `
+  return `
     <div class="mt-4 space-y-2">
       ${results.map(student => `
-        <div onclick="selectStudent(${student.id})" 
+        <div onclick="selectStudent('${student.id}')" 
              class="p-4 bg-gray-50 rounded-xl hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between ${state.selectedStudent?.id === student.id ? 'ring-2 ring-blue-500' : ''}">
           <div>
             <p class="font-medium text-gray-800">${student.first_name} ${student.last_name}</p>
-            <p class="text-sm text-gray-500">${student.student_number} • ${student.program.code}</p>
+            <p class="text-sm text-gray-500">${student.student_number} • ${student.program.code} Year ${student.year_level}</p>
           </div>
           <span class="badge ${student.enrollment_status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}">${student.enrollment_status}</span>
         </div>
@@ -282,9 +270,9 @@ function renderSearchResults() {
 }
 
 function renderStudentDetails() {
-    const student = state.selectedStudent;
+  const student = state.selectedStudent;
 
-    return `
+  return `
     <div class="card">
       <div class="flex items-start justify-between mb-6">
         <div>
@@ -334,11 +322,11 @@ function renderStudentDetails() {
 }
 
 function renderSubjectOption(subject) {
-    const isEnrolled = state.selectedStudent?.enrolledSubjects?.find(s => s.code === subject.code);
-    const isSelected = state.selectedSubject?.id === subject.id;
-    const hasPrereq = subject.prerequisite;
+  const isEnrolled = state.selectedStudent?.enrolledSubjects?.find(s => s.code === subject.code);
+  const isSelected = state.selectedSubject?.id === subject.id;
+  const hasPrereq = subject.prerequisite;
 
-    return `
+  return `
     <div onclick="${isEnrolled ? '' : `selectSubject(${subject.id})`}" 
          class="p-4 rounded-xl transition-colors ${isEnrolled ? 'bg-gray-100 opacity-50 cursor-not-allowed' : isSelected ? 'bg-blue-50 ring-2 ring-blue-500 cursor-pointer' : 'bg-gray-50 hover:bg-blue-50 cursor-pointer'}">
       <div class="flex items-start justify-between">
@@ -362,26 +350,26 @@ function renderSubjectOption(subject) {
 }
 
 function renderOverrideForm() {
-    const subject = state.selectedSubject;
-    const issues = [];
+  const subject = state.selectedSubject;
+  const issues = [];
 
-    if (subject.prerequisite) {
-        const hasPrereq = state.selectedStudent.enrolledSubjects.find(s => s.code === subject.prerequisite);
-        if (!hasPrereq) {
-            issues.push(`Missing prerequisite: ${subject.prerequisite}`);
-        }
+  if (subject.prerequisite) {
+    const hasPrereq = state.selectedStudent.enrolledSubjects.find(s => s.code === subject.prerequisite);
+    if (!hasPrereq) {
+      issues.push(`Missing prerequisite: ${subject.prerequisite}`);
     }
+  }
 
-    const fullSections = subject.sections.filter(s => s.enrolled >= s.slots);
-    if (fullSections.length > 0) {
-        issues.push(`${fullSections.length} section(s) at full capacity`);
-    }
+  const fullSections = subject.sections.filter(s => s.enrolled >= s.slots);
+  if (fullSections.length > 0) {
+    issues.push(`${fullSections.length} section(s) at full capacity`);
+  }
 
-    if ((state.selectedStudent.totalUnits + subject.units) > 30) {
-        issues.push(`Would exceed 30-unit limit`);
-    }
+  if ((state.selectedStudent.totalUnits + subject.units) > 30) {
+    issues.push(`Would exceed 30-unit limit`);
+  }
 
-    return `
+  return `
     <div class="card border-2 border-yellow-200">
       <h3 class="font-bold text-gray-800 mb-4">Override Enrollment</h3>
       
@@ -432,10 +420,10 @@ function renderOverrideForm() {
 }
 
 function renderConfirmModal() {
-    const subject = state.selectedSubject;
-    const section = subject.sections.find(s => s.id === parseInt(state.selectedSection));
+  const subject = state.selectedSubject;
+  const section = subject.sections.find(s => s.id === parseInt(state.selectedSection));
 
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeConfirmModal()">
       <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
         <div class="text-center mb-6">
@@ -469,109 +457,115 @@ function renderConfirmModal() {
 }
 
 function attachEventListeners() {
-    const searchInput = document.getElementById('studentSearch');
-    if (searchInput) {
-        searchInput.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') {
-                searchStudent();
-            }
-        });
-        searchInput.addEventListener('input', (e) => {
-            state.searchQuery = e.target.value;
-        });
-    }
+  const searchInput = document.getElementById('studentSearch');
+  if (searchInput) {
+    searchInput.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') {
+        searchStudent();
+      }
+    });
+    searchInput.addEventListener('input', (e) => {
+      state.searchQuery = e.target.value;
+    });
+  }
 }
 
 // Global functions
-window.searchStudent = function () {
-    const input = document.getElementById('studentSearch');
-    state.searchQuery = input?.value || '';
-    render();
+window.searchStudent = async function () {
+  const input = document.getElementById('studentSearch');
+  state.searchQuery = input?.value || '';
+
+  if (state.searchQuery.length >= 2) {
+    await searchStudentsFromAPI(state.searchQuery);
+  } else {
+    state.searchResults = [];
+  }
+  render();
 };
 
 window.selectStudent = function (studentId) {
-    state.selectedStudent = mockStudents.find(s => s.id === studentId);
-    state.selectedSubject = null;
-    state.selectedSection = null;
-    render();
+  state.selectedStudent = state.searchResults.find(s => s.id === studentId);
+  state.selectedSubject = null;
+  state.selectedSection = null;
+  render();
 };
 
 window.selectSubject = function (subjectId) {
-    state.selectedSubject = mockSubjects.find(s => s.id === subjectId);
-    state.selectedSection = null;
-    render();
+  state.selectedSubject = mockSubjects.find(s => s.id === subjectId);
+  state.selectedSection = null;
+  render();
 };
 
 window.confirmOverride = function () {
-    const sectionSelect = document.getElementById('sectionSelect');
-    const reasonInput = document.getElementById('overrideReason');
+  const sectionSelect = document.getElementById('sectionSelect');
+  const reasonInput = document.getElementById('overrideReason');
 
-    if (!sectionSelect?.value) {
-        showToast('Please select a section', 'error');
-        return;
-    }
+  if (!sectionSelect?.value) {
+    showToast('Please select a section', 'error');
+    return;
+  }
 
-    if (!reasonInput?.value?.trim()) {
-        showToast('Override reason is required', 'error');
-        return;
-    }
+  if (!reasonInput?.value?.trim()) {
+    showToast('Override reason is required', 'error');
+    return;
+  }
 
-    state.selectedSection = sectionSelect.value;
-    state.overrideReason = reasonInput.value.trim();
-    state.showConfirmModal = true;
-    render();
+  state.selectedSection = sectionSelect.value;
+  state.overrideReason = reasonInput.value.trim();
+  state.showConfirmModal = true;
+  render();
 };
 
 window.closeConfirmModal = function () {
-    state.showConfirmModal = false;
-    render();
+  state.showConfirmModal = false;
+  render();
 };
 
 window.executeOverride = async function () {
+  try {
+    // Try API call
     try {
-        // Try API call
-        try {
-            await api.post(`/enrollment/enrollment/${state.selectedStudent.id}/override-enroll/`, {
-                subject_id: state.selectedSubject.id,
-                section_id: parseInt(state.selectedSection),
-                override_reason: state.overrideReason
-            });
-        } catch (error) {
-            console.log('API override failed, using mock:', error);
-        }
-
-        // Add to student's enrolled subjects (mock)
-        const section = state.selectedSubject.sections.find(s => s.id === parseInt(state.selectedSection));
-        state.selectedStudent.enrolledSubjects.push({
-            id: Date.now(),
-            code: state.selectedSubject.code,
-            name: state.selectedSubject.name,
-            section: section.name,
-            units: state.selectedSubject.units
-        });
-        state.selectedStudent.totalUnits += state.selectedSubject.units;
-
-        showToast(`Successfully enrolled ${state.selectedStudent.first_name} in ${state.selectedSubject.code}!`, 'success');
-
-        // Reset form
-        state.selectedSubject = null;
-        state.selectedSection = null;
-        state.overrideReason = '';
-        state.showConfirmModal = false;
-
-        render();
+      await api.post(`/enrollment/enrollment/${state.selectedStudent.id}/override-enroll/`, {
+        subject_id: state.selectedSubject.id,
+        section_id: parseInt(state.selectedSection),
+        override_reason: state.overrideReason
+      });
     } catch (error) {
-        console.error('Override enrollment failed:', error);
-        showToast('Failed to enroll student', 'error');
+      console.log('API override failed, using mock:', error);
     }
+
+    // Add to student's enrolled subjects (mock)
+    const section = state.selectedSubject.sections.find(s => s.id === parseInt(state.selectedSection));
+    state.selectedStudent.enrolledSubjects.push({
+      id: Date.now(),
+      code: state.selectedSubject.code,
+      name: state.selectedSubject.name,
+      section: section.name,
+      units: state.selectedSubject.units
+    });
+    state.selectedStudent.totalUnits += state.selectedSubject.units;
+
+    showToast(`Successfully enrolled ${state.selectedStudent.first_name} in ${state.selectedSubject.code}!`, 'success');
+
+    // Reset form
+    state.selectedSubject = null;
+    state.selectedSection = null;
+    state.overrideReason = '';
+    state.showConfirmModal = false;
+
+    render();
+  } catch (error) {
+    console.error('Override enrollment failed:', error);
+    showToast('Failed to enroll student', 'error');
+  }
 };
 
 window.logout = function () {
-    TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
-    setTimeout(() => {
-        window.location.href = '/login.html';
-    }, 1000);
+  TokenManager.clearTokens();
+  showToast('Logged out successfully', 'success');
+  setTimeout(() => {
+    window.location.href = '/login.html';
+  }, 1000);
 };
 
 document.addEventListener('DOMContentLoaded', init);

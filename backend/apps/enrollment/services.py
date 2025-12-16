@@ -60,14 +60,14 @@ class EnrollmentService:
         # Get program
         program = Program.objects.get(id=data['program_id'])
         
-        # Generate student number
-        student_number = self.generate_student_number()
+        # student_number will be generated upon Admission approval
+        student_number = None
         
         # Generate school email as username: first_initial + last_name + random_digits + @richwell.edu.ph
         school_email = self._generate_school_email(data['first_name'], data['last_name'])
         
-        # Password is the student number (easy to remember)
-        password = student_number
+        # Password is the school email initially (until approved)
+        password = school_email
         
         # Create User
         user = User.objects.create_user(
@@ -99,7 +99,7 @@ class EnrollmentService:
         enrollment = Enrollment.objects.create(
             student=user,
             semester=semester,
-            status=Enrollment.Status.ACTIVE,  # Students can login immediately
+            status=Enrollment.Status.PENDING,  # Wait for Admission approval
             created_via=Enrollment.CreatedVia.ONLINE,
             monthly_commitment=data['monthly_commitment']
         )
@@ -654,13 +654,10 @@ class SubjectEnrollmentService:
             self._get_semester_number(enrollment.semester) != subject.semester_number
         )
 
-        # Determine enrollment status based on payment
-        # If Month 1 is not paid, set status to PENDING_PAYMENT
-        # If Month 1 is paid, set status to ENROLLED
-        month1_bucket = enrollment.payment_buckets.filter(month_number=1).first()
-        enrollment_status = SubjectEnrollment.Status.ENROLLED
-        if not month1_bucket or not month1_bucket.is_fully_paid:
-            enrollment_status = SubjectEnrollment.Status.PENDING_PAYMENT
+        # Determine enrollment status:
+        # NEW FLOW: Subject enrollments now require Head approval
+        # Status is set to PENDING_HEAD, Head will approve to change to ENROLLED
+        enrollment_status = SubjectEnrollment.Status.PENDING_HEAD
 
         # Create the enrollment
         subject_enrollment = SubjectEnrollment.objects.create(
@@ -976,40 +973,8 @@ class PaymentService:
         # Check if any exam permits should be unlocked
         ExamPermitService.check_and_unlock_permits(enrollment)
 
-        # Auto-approve pending subject enrollments if Month 1 is now paid
-        from .models import SubjectEnrollment
-        month1_bucket = enrollment.payment_buckets.filter(month_number=1).first()
-        if month1_bucket and month1_bucket.is_fully_paid:
-            # Change all PENDING_PAYMENT subject enrollments to ENROLLED
-            pending_subjects = enrollment.subject_enrollments.filter(
-                status=SubjectEnrollment.Status.PENDING_PAYMENT
-            )
-            updated_count = pending_subjects.update(
-                status=SubjectEnrollment.Status.ENROLLED
-            )
-
-            # Log the auto-approval
-            if updated_count > 0:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.info(
-                    f"Auto-approved {updated_count} subject enrollment(s) for "
-                    f"{enrollment.student.student_number} after Month 1 payment"
-                )
-
-                # Also log to audit trail
-                AuditLog.log(
-                    action=AuditLog.Action.ENROLLMENT_STATUS_CHANGED,
-                    target_model='Enrollment',
-                    target_id=enrollment.id,
-                    actor=cashier,
-                    payload={
-                        'action': 'auto_approve_pending_subjects',
-                        'count': updated_count,
-                        'reason': 'Month 1 payment completed',
-                        'receipt_number': receipt_number
-                    }
-                )
+    # REMOVED: Auto-approve logic
+    # Head Approval is now required.
 
         return transaction_obj
     

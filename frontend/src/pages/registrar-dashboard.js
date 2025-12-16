@@ -1,0 +1,276 @@
+import '../style.css';
+import { api, endpoints, TokenManager } from '../api.js';
+import { showToast, requireAuth } from '../utils.js';
+
+// State
+const state = {
+  user: null,
+  loading: true,
+  stats: {
+    totalStudents: 0,
+    pendingCOR: 0,
+    pendingOverride: 0,
+    incStudents: 0
+  },
+  recentStudents: []
+};
+
+async function init() {
+  if (!requireAuth()) return;
+  await loadUserProfile();
+  await loadStudents();
+  state.loading = false;
+  render();
+}
+
+async function loadUserProfile() {
+  try {
+    const response = await api.get(endpoints.me);
+    if (response) {
+      state.user = response;
+      TokenManager.setUser(response);
+    }
+  } catch (error) {
+    console.error('Failed to load profile:', error);
+    const savedUser = TokenManager.getUser();
+    if (savedUser) state.user = savedUser;
+  }
+}
+
+async function loadStudents() {
+  try {
+    // Fetch enrolled students using cashier search endpoint
+    const response = await api.get(endpoints.cashierStudentSearch);
+    const students = response?.results || response || [];
+
+    console.log('Dashboard students response:', students);
+
+    // Transform to dashboard format
+    state.recentStudents = students.slice(0, 10).map(s => ({
+      id: s.id || s.enrollment_id,
+      student_number: s.student_number || 'N/A',
+      name: s.student_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown',
+      program: s.program_code || s.program?.code || 'N/A',
+      year_level: s.year_level || 1,
+      status: 'complete',  // Default to complete since we don't have INC data yet
+      inc_count: 0
+    }));
+
+    // Update stats with real count
+    state.stats.totalStudents = students.length;
+    state.stats.pendingCOR = students.length;  // All enrolled students can print COR
+
+    console.log(`Loaded ${state.recentStudents.length} students for dashboard`);
+  } catch (error) {
+    console.error('Failed to load students:', error);
+    state.recentStudents = [];
+  }
+}
+
+function render() {
+  const app = document.getElementById('app');
+
+  if (state.loading) {
+    app.innerHTML = renderLoading();
+    return;
+  }
+
+  app.innerHTML = `
+    ${renderHeader()}
+    
+    <main class="max-w-7xl mx-auto px-4 py-8">
+      <!-- Welcome Section -->
+      <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800">Welcome, ${state.user?.first_name || 'Registrar'}!</h1>
+        <p class="text-gray-600 mt-1">Manage student records, COR printing, and enrollments</p>
+      </div>
+      
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        ${renderStatCard('Total Students', state.stats.totalStudents, 'blue', 'users', '/registrar-cor.html')}
+        ${renderStatCard('COR Requests', state.stats.pendingCOR, 'green', 'document', '/registrar-cor.html')}
+        ${renderStatCard('Override Pending', state.stats.pendingOverride, 'yellow', 'clipboard', '/registrar-enrollment.html')}
+        ${renderStatCard('Students with INC', state.stats.incStudents, 'orange', 'alert', '/registrar-cor.html')}
+      </div>
+      
+      <!-- Quick Actions -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- COR Printing Card -->
+        <a href="/registrar-cor.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-blue-200">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-blue-600 transition-colors">COR Printing</h3>
+              <p class="text-gray-600 text-sm mt-1">Print Certificate of Registration for students. View grades and INC status.</p>
+              <span class="inline-flex items-center gap-1 text-blue-600 text-sm font-medium mt-2">
+                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+            </div>
+          </div>
+        </a>
+        
+        <!-- Override Enrollment Card -->
+        <a href="/registrar-enrollment.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-green-200">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-green-600 transition-colors">Override Enrollment</h3>
+              <p class="text-gray-600 text-sm mt-1">Manually enroll students in subjects. Override prerequisites and capacity.</p>
+              <span class="inline-flex items-center gap-1 text-green-600 text-sm font-medium mt-2">
+                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+            </div>
+          </div>
+        </a>
+      </div>
+      
+      <!-- Recent Students Table -->
+      <div class="card">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-gray-800">Recent Students</h2>
+          <a href="/registrar-cor.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View All →</a>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Student</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Program</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Year</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${state.recentStudents.map(student => `
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-3">
+                      <div class="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                        ${student.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div>
+                        <p class="font-medium text-gray-800">${student.name}</p>
+                        <p class="text-xs text-gray-500">${student.student_number}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-gray-700">${student.program}</td>
+                  <td class="px-4 py-3 text-center text-gray-700">Year ${student.year_level}</td>
+                  <td class="px-4 py-3 text-center">
+                    ${student.status === 'has_inc' ?
+      `<span class="badge badge-warning">${student.inc_count} INC</span>` :
+      '<span class="badge badge-success">Complete</span>'
+    }
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <a href="/registrar-cor.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View COR</a>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  `;
+}
+
+function renderHeader() {
+  return `
+    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
+      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
+          <div>
+            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
+            <span class="text-sm text-gray-500 ml-2">Registrar Portal</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+          <nav class="hidden md:flex items-center gap-2">
+            <a href="/registrar-dashboard.html" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-lg font-medium">Dashboard</a>
+            <a href="/registrar-cor.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">COR</a>
+            <a href="/registrar-enrollment.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Override</a>
+          </nav>
+          <div class="text-right hidden sm:block">
+            <p class="text-sm font-medium text-gray-800">${state.user?.first_name || 'Registrar'} ${state.user?.last_name || ''}</p>
+            <p class="text-xs text-gray-500">Registrar</p>
+          </div>
+          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+  `;
+}
+
+function renderLoading() {
+  return `
+    <div class="min-h-screen flex items-center justify-center">
+      <div class="text-center">
+        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="mt-4 text-gray-600">Loading...</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderStatCard(label, value, color, icon, link) {
+  const colors = {
+    blue: 'from-blue-400 to-blue-600',
+    green: 'from-green-400 to-emerald-600',
+    yellow: 'from-yellow-400 to-orange-500',
+    orange: 'from-orange-400 to-red-500'
+  };
+
+  const icons = {
+    users: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>`,
+    document: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>`,
+    clipboard: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>`,
+    alert: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>`
+  };
+
+  return `
+    <a href="${link}" class="card relative overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">
+      <div class="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${colors[color]} opacity-10 rounded-full -translate-y-8 translate-x-8"></div>
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-gradient-to-br ${colors[color]} rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            ${icons[icon]}
+          </svg>
+        </div>
+        <div>
+          <p class="text-3xl font-bold text-gray-800">${value}</p>
+          <p class="text-sm text-gray-500">${label}</p>
+        </div>
+      </div>
+    </a>
+  `;
+}
+
+window.logout = function () {
+  TokenManager.clearTokens();
+  showToast('Logged out successfully', 'success');
+  setTimeout(() => {
+    window.location.href = '/login.html';
+  }, 1000);
+};
+
+document.addEventListener('DOMContentLoaded', init);
+if (document.readyState !== 'loading') init();

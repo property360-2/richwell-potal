@@ -29,7 +29,7 @@ async function loadUserProfile() {
   try {
     const response = await api.get(endpoints.me);
     if (response) {
-      state.user = response;
+      state.user = response.data || response;
     }
 
     // Try to load enrollment data from API

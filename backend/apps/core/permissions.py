@@ -89,6 +89,20 @@ class IsAdmissionStaff(BasePermission):
         )
 
 
+class IsDepartmentHead(BasePermission):
+    """
+    Permission class for department head access.
+    """
+    message = 'Only department heads can access this resource.'
+    
+    def has_permission(self, request, view):
+        return (
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.role == 'DEPARTMENT_HEAD'
+        )
+
+
 class IsAdmin(BasePermission):
     """
     Permission class for admin-only access.

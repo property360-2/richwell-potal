@@ -13,8 +13,8 @@ function init() {
   // Login email is the personal email from the form (Backend uses email field for login)
   const email = loginEmail || schoolEmail || `${firstName[0].toLowerCase()}${lastName.toLowerCase()}@example.com`;
 
-  // Password is the student number
-  const password = passwordParam || studentNumber;
+  // Password is set by backend or defaults to 'richwell123'
+  const password = passwordParam || 'richwell123';
 
   const app = document.getElementById('app');
   app.innerHTML = `
@@ -48,12 +48,6 @@ function init() {
             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 text-center">Your Login Credentials</h3>
             
             <div class="space-y-4">
-              <!-- Student Number -->
-              <div class="bg-white rounded-lg p-4 border border-blue-200">
-                <p class="text-xs text-gray-500 mb-1">Student Number</p>
-                <p class="text-lg font-bold text-blue-600 font-mono">${studentNumber}</p>
-              </div>
-              
               <!-- Email/Username -->
               <div class="bg-white rounded-lg p-4 border border-blue-200">
                 <p class="text-xs text-gray-500 mb-1">Email (Login)</p>
@@ -132,7 +126,6 @@ function init() {
 
   // Store credentials for copy function
   window.credentialsData = {
-    studentNumber,
     email,
     password
   };
@@ -140,8 +133,8 @@ function init() {
 
 // Copy credentials to clipboard
 window.copyCredentials = async function () {
-  const { studentNumber, email, password } = window.credentialsData;
-  const text = `Student Number: ${studentNumber}\nEmail (Login): ${email}\nPassword: ${password}`;
+  const { email, password } = window.credentialsData;
+  const text = `Email (Login): ${email}\nPassword: ${password}`;
 
   try {
     await navigator.clipboard.writeText(text);
