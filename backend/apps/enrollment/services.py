@@ -999,7 +999,7 @@ class PaymentService:
 
                 # Also log to audit trail
                 AuditLog.log(
-                    action=AuditLog.Action.SUBJECT_ENROLLMENT_STATUS_CHANGED,
+                    action=AuditLog.Action.ENROLLMENT_STATUS_CHANGED,
                     target_model='Enrollment',
                     target_id=enrollment.id,
                     actor=cashier,
