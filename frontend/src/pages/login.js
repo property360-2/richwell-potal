@@ -133,6 +133,7 @@ function render() {
               <p><span class="text-white">Cashier:</span> cashier@richwell.edu.ph / cashier123</p>
               <p><span class="text-white">Professor:</span> professor@richwell.edu.ph / prof123</p>
               <p><span class="text-white">Student:</span> student@richwell.edu.ph / student123</p>
+              <p><span class="text-white">Admission:</span> admission@richwell.edu.ph / admission123</p>
             </div>
           </div>
         </div>

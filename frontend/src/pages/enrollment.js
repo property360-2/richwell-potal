@@ -331,15 +331,15 @@ function renderStep4() {
         ${[1, 2, 3, 4, 5, 6].map(month => `
           <div class="text-center p-3 bg-gray-50 rounded-lg">
             <div class="text-xs text-gray-500">Month ${month}</div>
-            <div class="text-sm font-bold text-gray-700">₱${state.formData.monthly_commitment.toLocaleString()}</div>
+            <div class="text-sm font-bold text-gray-700" data-month-preview>₱${state.formData.monthly_commitment.toLocaleString()}</div>
           </div>
         `).join('')}
       </div>
-      
+
       <div class="border-t pt-4">
         <div class="flex justify-between text-lg font-bold">
           <span>Total Semester Payment:</span>
-          <span class="text-blue-600">₱${(state.formData.monthly_commitment * 6).toLocaleString()}</span>
+          <span class="text-blue-600" id="total-semester-payment">₱${(state.formData.monthly_commitment * 6).toLocaleString()}</span>
         </div>
       </div>
       
@@ -509,6 +509,24 @@ function handleInputChange(e) {
   const { id, value, type, checked } = e.target;
   if (state.formData.hasOwnProperty(id)) {
     state.formData[id] = type === 'checkbox' ? checked : type === 'number' ? parseFloat(value) : value;
+
+    // Auto-update payment preview when monthly_commitment changes
+    if (id === 'monthly_commitment') {
+      updatePaymentPreview(parseFloat(value) || 0);
+    }
+  }
+}
+
+// Update payment preview in real-time
+function updatePaymentPreview(amount) {
+  const monthElements = document.querySelectorAll('[data-month-preview]');
+  monthElements.forEach(el => {
+    el.textContent = `₱${amount.toLocaleString()}`;
+  });
+
+  const totalElement = document.getElementById('total-semester-payment');
+  if (totalElement) {
+    totalElement.textContent = `₱${(amount * 6).toLocaleString()}`;
   }
 }
 

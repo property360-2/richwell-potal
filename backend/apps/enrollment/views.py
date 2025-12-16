@@ -105,7 +105,7 @@ class OnlineEnrollmentView(APIView):
                     "login_email": enrollment.student.email,  # Personal email (for login)
                     "school_email": enrollment.student.username,  # School email (username)
                     "student_number": enrollment.student.student_number,
-                    "password": enrollment.student.student_number  # Password is student number
+                    "password": enrollment.student.username  # Password is the school email (username)
                 }
             }, status=status.HTTP_201_CREATED)
         
