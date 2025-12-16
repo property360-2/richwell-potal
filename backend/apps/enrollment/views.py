@@ -2606,10 +2606,18 @@ class HeadApproveEnrollmentView(APIView):
         except SubjectEnrollment.DoesNotExist:
             raise NotFoundError("Subject enrollment not found or already processed")
         
-        # Update status to ENROLLED
-        subject_enrollment.status = SubjectEnrollment.Status.ENROLLED
-        subject_enrollment.save()
-        
+        # Set head approval flag
+        subject_enrollment.head_approved = True
+
+        # If payment is also approved, change status to ENROLLED
+        if subject_enrollment.payment_approved:
+            subject_enrollment.status = SubjectEnrollment.Status.ENROLLED
+        else:
+            # Keep as PENDING_HEAD (will become ENROLLED when payment comes)
+            subject_enrollment.status = SubjectEnrollment.Status.PENDING_HEAD
+
+        subject_enrollment.save(update_fields=['head_approved', 'status'])
+
         # Log to audit
         AuditLog.log(
             action=AuditLog.Action.ENROLLMENT_STATUS_CHANGED,
@@ -2619,14 +2627,18 @@ class HeadApproveEnrollmentView(APIView):
                 'student': subject_enrollment.enrollment.student.student_number,
                 'subject': subject_enrollment.subject.code,
                 'old_status': 'PENDING_HEAD',
-                'new_status': 'ENROLLED',
+                'new_status': subject_enrollment.status,
+                'head_approved': True,
+                'payment_approved': subject_enrollment.payment_approved,
                 'approved_by': request.user.email
             }
         )
-        
+
         return Response({
             "success": True,
-            "message": f"Approved {subject_enrollment.subject.code} for {subject_enrollment.enrollment.student.get_full_name()}"
+            "message": f"Approved {subject_enrollment.subject.code} for {subject_enrollment.enrollment.student.get_full_name()}",
+            "status": subject_enrollment.status,
+            "approval_status": subject_enrollment.get_approval_status_display()
         })
 
 
@@ -2707,10 +2719,19 @@ class HeadBulkApproveView(APIView):
         
         approved_count = 0
         for se in subject_enrollments:
-            se.status = SubjectEnrollment.Status.ENROLLED
-            se.save()
+            # Set head approval flag
+            se.head_approved = True
+
+            # If payment is also approved, change status to ENROLLED
+            if se.payment_approved:
+                se.status = SubjectEnrollment.Status.ENROLLED
+            else:
+                # Keep as PENDING_HEAD (will become ENROLLED when payment comes)
+                se.status = SubjectEnrollment.Status.PENDING_HEAD
+
+            se.save(update_fields=['head_approved', 'status'])
             approved_count += 1
-            
+
             # Log each approval
             AuditLog.log(
                 action=AuditLog.Action.ENROLLMENT_STATUS_CHANGED,
@@ -2720,7 +2741,9 @@ class HeadBulkApproveView(APIView):
                     'student': se.enrollment.student.student_number,
                     'subject': se.subject.code,
                     'old_status': 'PENDING_HEAD',
-                    'new_status': 'ENROLLED',
+                    'new_status': se.status,
+                    'head_approved': True,
+                    'payment_approved': se.payment_approved,
                     'approved_by': request.user.email,
                     'bulk_action': True
                 }
@@ -2731,4 +2754,53 @@ class HeadBulkApproveView(APIView):
             "message": f"Approved {approved_count} subject enrollment(s)",
             "approved_count": approved_count
         })
+
+
+class GenerateCORView(APIView):
+    """
+    Generate Certificate of Registration (COR) PDF for an enrollment.
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar | IsAdmin]
+
+    @extend_schema(
+        summary="Generate COR PDF",
+        description="Generate and download Certificate of Registration PDF for a student",
+        tags=["Registrar"]
+    )
+    def get(self, request, enrollment_id):
+        """Generate and download COR PDF."""
+        from django.http import HttpResponse
+        from .cor_service import CORService
+
+        try:
+            enrollment = Enrollment.objects.select_related(
+                'student__student_profile__program',
+                'semester'
+            ).get(id=enrollment_id)
+        except Enrollment.DoesNotExist:
+            raise NotFoundError("Enrollment not found")
+
+        try:
+            pdf_bytes = CORService.generate_cor_pdf(enrollment)
+
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            filename = f"COR-{enrollment.student.student_number}-{enrollment.semester.code}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            # Log to audit
+            AuditLog.log(
+                action=AuditLog.Action.COR_GENERATED,
+                target_model='Enrollment',
+                target_id=enrollment.id,
+                actor=request.user,
+                payload={
+                    'student_number': enrollment.student.student_number,
+                    'semester': enrollment.semester.name,
+                    'generated_by': request.user.email
+                }
+            )
+
+            return response
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -290,6 +290,7 @@ class SubjectEnrollment(BaseModel):
         CREDITED = 'CREDITED', 'Credited (Transferee)'
         RETAKE = 'RETAKE', 'Retake'
         PENDING_PAYMENT = 'PENDING_PAYMENT', 'Pending Payment'
+        PENDING_HEAD = 'PENDING_HEAD', 'Pending Head Approval'
     
     enrollment = models.ForeignKey(
         Enrollment,
@@ -373,7 +374,17 @@ class SubjectEnrollment(BaseModel):
         related_name='retakes',
         help_text='Original failed enrollment if this is a retake'
     )
-    
+
+    # Dual approval tracking
+    payment_approved = models.BooleanField(
+        default=False,
+        help_text='Whether first month payment requirement is satisfied'
+    )
+    head_approved = models.BooleanField(
+        default=False,
+        help_text='Whether department head approval is complete'
+    )
+
     class Meta:
         verbose_name = 'Subject Enrollment'
         verbose_name_plural = 'Subject Enrollments'
@@ -396,6 +407,22 @@ class SubjectEnrollment(BaseModel):
     @property
     def is_passed(self):
         return self.status in [self.Status.PASSED, self.Status.CREDITED]
+
+    @property
+    def is_fully_enrolled(self):
+        """Subject is fully enrolled when both approvals are satisfied."""
+        return self.payment_approved and self.head_approved and self.status == self.Status.ENROLLED
+
+    def get_approval_status_display(self):
+        """Get human-readable approval status for UI."""
+        if self.payment_approved and self.head_approved:
+            return "Enrolled"
+        elif self.payment_approved and not self.head_approved:
+            return "Payment Complete - Awaiting Head Approval"
+        elif not self.payment_approved and self.head_approved:
+            return "Head Approved - Payment Pending"
+        else:
+            return "Pending Approval"
 
 
 class CreditSource(BaseModel):

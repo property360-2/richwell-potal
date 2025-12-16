@@ -142,9 +142,9 @@ class OnlineEnrollmentSerializer(serializers.Serializer):
     
     # Payment info
     monthly_commitment = serializers.DecimalField(
-        max_digits=10, 
+        max_digits=10,
         decimal_places=2,
-        min_value=Decimal('1.00')
+        min_value=Decimal('0.01')
     )
     
     # Transferee fields (optional)
@@ -270,11 +270,20 @@ class SubjectEnrollmentSerializer(serializers.ModelSerializer):
     units = serializers.IntegerField(source='subject.units', read_only=True)
     section_name = serializers.CharField(source='section.name', read_only=True, allow_null=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
+    # Dual approval fields
+    payment_approved = serializers.BooleanField(read_only=True)
+    head_approved = serializers.BooleanField(read_only=True)
+    approval_status_display = serializers.CharField(
+        source='get_approval_status_display',
+        read_only=True
+    )
+    is_fully_enrolled = serializers.BooleanField(read_only=True)
+
     # Schedule info
     schedule = serializers.SerializerMethodField()
     professor_name = serializers.SerializerMethodField()
-    
+
     class Meta:
         from apps.enrollment.models import SubjectEnrollment
         model = SubjectEnrollment
@@ -282,6 +291,7 @@ class SubjectEnrollmentSerializer(serializers.ModelSerializer):
             'id', 'subject_code', 'subject_title', 'units',
             'section_name', 'status', 'status_display',
             'grade', 'is_irregular', 'count_in_gpa',
+            'payment_approved', 'head_approved', 'approval_status_display', 'is_fully_enrolled',
             'schedule', 'professor_name', 'created_at'
         ]
     

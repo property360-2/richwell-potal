@@ -98,6 +98,12 @@ async function loadData() {
       state.user = userResponse;
     }
 
+    // Check if student has student_number (admission approved)
+    if (!state.user?.student_number) {
+      state.loading = false;
+      return; // Stop loading, will show admission pending message in render
+    }
+
     // Try to load recommended subjects - this includes payment status
     try {
       const recommendedResponse = await api.get(endpoints.recommendedSubjects);
@@ -209,9 +215,43 @@ function render() {
     return;
   }
 
+  // Check if student has student_number (admission approved)
+  if (!state.user?.student_number) {
+    app.innerHTML = `
+      ${renderHeader()}
+
+      <main class="max-w-7xl mx-auto px-4 py-8">
+        <div class="max-w-2xl mx-auto mt-12 p-8 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
+          <div class="text-center">
+            <svg class="mx-auto h-16 w-16 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <h2 class="mt-4 text-2xl font-bold text-gray-900">Account Pending Admission Approval</h2>
+            <p class="mt-3 text-gray-700">
+              Your enrollment application is being reviewed by the Admission Office.
+              You will be able to enroll in subjects once your account is approved and a Student ID Number is assigned.
+            </p>
+            <p class="mt-4 text-sm text-gray-600">
+              Please check back later or contact the Admission Office for updates on your application status.
+            </p>
+            <div class="mt-6">
+              <a href="/student-dashboard.html" class="inline-flex items-center gap-2 px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                Back to Dashboard
+              </a>
+            </div>
+          </div>
+        </div>
+      </main>
+    `;
+    return;
+  }
+
   app.innerHTML = `
     ${renderHeader()}
-    
+
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
       <div class="mb-8">
@@ -332,7 +372,7 @@ function renderLoading() {
 function renderUnitCounter() {
   const currentUnits = state.totalUnits + getSelectedUnits();
   const percentage = (currentUnits / state.maxUnits) * 100;
-  const isNearLimit = currentUnits >= state.maxUnits - 3;
+  const isNearLimit = currentUnits >= 27; // Warning when reaching 27 units (30-unit cap)
   const isAtLimit = currentUnits >= state.maxUnits;
 
   return `
@@ -411,31 +451,45 @@ function renderSubjectCard(subject, isRecommended) {
 
 
 function renderEnrolledSubject(enrollment) {
-  const isPendingPayment = enrollment.status === 'PENDING_PAYMENT';
-  const isPendingHead = enrollment.status === 'PENDING_HEAD';
+  // Get dual approval status from API
+  const paymentApproved = enrollment.payment_approved || false;
+  const headApproved = enrollment.head_approved || false;
+  const isFullyEnrolled = paymentApproved && headApproved && enrollment.status === 'ENROLLED';
 
-  let statusBadge;
-  let bgClass;
-
-  if (isPendingPayment) {
-    statusBadge = '<span class="badge badge-warning text-xs ml-2">Pending Payment</span>';
-    bgClass = 'bg-yellow-50';
-  } else if (isPendingHead) {
-    statusBadge = '<span class="badge badge-warning text-xs ml-2">Pending Approval</span>';
-    bgClass = 'bg-orange-50';
-  } else {
-    statusBadge = '<span class="badge badge-success text-xs ml-2">Enrolled</span>';
+  // Determine background class
+  let bgClass = 'bg-gray-50';
+  if (isFullyEnrolled) {
     bgClass = 'bg-green-50';
+  } else if (paymentApproved || headApproved) {
+    bgClass = 'bg-yellow-50';
   }
 
+  // Render dual status badges
+  const paymentBadge = paymentApproved
+    ? '<span class="badge badge-success text-xs">✓ Payment Complete</span>'
+    : '<span class="badge badge-warning text-xs">⏳ Payment Pending</span>';
+
+  const headBadge = headApproved
+    ? '<span class="badge badge-success text-xs">✓ Head Approved</span>'
+    : '<span class="badge badge-warning text-xs">⏳ Awaiting Head</span>';
+
+  const finalBadge = isFullyEnrolled
+    ? '<span class="badge badge-success text-xs font-bold">ENROLLED</span>'
+    : '';
+
   return `
-    <div class="flex items-center justify-between p-3 ${bgClass} rounded-xl">
+    <div class="flex items-center justify-between p-3 ${bgClass} rounded-xl border ${isFullyEnrolled ? 'border-green-200' : 'border-gray-200'}">
       <div class="flex-1">
-        <div class="flex items-center gap-1">
-          <p class="font-medium text-gray-800">${enrollment.subject?.code} - ${enrollment.subject?.name}</p>
-          ${statusBadge}
+        <div class="flex items-center gap-1 mb-2">
+          <p class="font-medium text-gray-800">${enrollment.subject_code || enrollment.subject?.code} - ${enrollment.subject_title || enrollment.subject?.name}</p>
         </div>
-        <p class="text-xs text-gray-500">${enrollment.schedule} • ${enrollment.units} units</p>
+        <p class="text-xs text-gray-500 mb-2">${enrollment.section_name ? 'Section ' + enrollment.section_name : ''} • ${enrollment.units} units</p>
+        <div class="flex flex-wrap gap-1">
+          ${paymentBadge}
+          ${headBadge}
+          ${finalBadge}
+        </div>
+        ${enrollment.approval_status_display ? `<p class="text-xs text-gray-600 mt-1 italic">${enrollment.approval_status_display}</p>` : ''}
       </div>
     </div>
   `;

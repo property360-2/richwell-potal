@@ -340,7 +340,7 @@ class SubjectEnrollmentService:
     """
     
     def __init__(self):
-        self.max_units = settings.SYSTEM_CONFIG.get('MAX_UNITS_PER_SEMESTER', 24)
+        self.max_units = settings.SYSTEM_CONFIG.get('MAX_UNITS_PER_SEMESTER', 30)
     
     def get_student_passed_subjects(self, student) -> set:
         """
@@ -509,7 +509,38 @@ class SubjectEnrollmentService:
                 missing.append(prereq.code)
         
         return len(missing) == 0, missing
-    
+
+    def check_inc_prerequisites(self, student, subject) -> tuple[bool, list]:
+        """
+        Check if any prerequisites have INC status - HARD BLOCK.
+
+        Args:
+            student: User object (student)
+            subject: Subject object
+
+        Returns:
+            tuple: (is_valid: bool, inc_prerequisites: list of dicts with code and name)
+        """
+        from .models import SubjectEnrollment
+
+        inc_prerequisites = []
+
+        for prereq in subject.prerequisites.all():
+            # Check if student has this prerequisite with INC status
+            has_inc = SubjectEnrollment.objects.filter(
+                enrollment__student=student,
+                subject=prereq,
+                status=SubjectEnrollment.Status.INC
+            ).exists()
+
+            if has_inc:
+                inc_prerequisites.append({
+                    'code': prereq.code,
+                    'name': prereq.name
+                })
+
+        return len(inc_prerequisites) == 0, inc_prerequisites
+
     def check_unit_cap(self, student, semester, new_units: int) -> tuple[bool, int, int]:
         """
         Check if enrolling in a subject would exceed the unit cap.
@@ -624,6 +655,14 @@ class SubjectEnrollmentService:
             raise PrerequisiteNotSatisfiedError(
                 f"Missing prerequisites: {', '.join(missing)}"
             )
+
+        # NEW: Check for INC prerequisites
+        has_no_inc, inc_prereqs = self.check_inc_prerequisites(student, subject)
+        if not has_no_inc:
+            inc_list = ', '.join([f"{p['code']} - {p['name']}" for p in inc_prereqs])
+            raise PrerequisiteNotSatisfiedError(
+                f"Cannot enroll in {subject.code}: Prerequisites with INC status must be completed first: {inc_list}"
+            )
         
         # Check unit cap
         within_cap, current, max_units = self.check_unit_cap(
@@ -659,13 +698,15 @@ class SubjectEnrollmentService:
         # Status is set to PENDING_HEAD, Head will approve to change to ENROLLED
         enrollment_status = SubjectEnrollment.Status.PENDING_HEAD
 
-        # Create the enrollment
+        # Create the enrollment with dual approval flags
         subject_enrollment = SubjectEnrollment.objects.create(
             enrollment=enrollment,
             subject=subject,
             section=section,
             status=enrollment_status,
-            is_irregular=is_irregular
+            is_irregular=is_irregular,
+            payment_approved=enrollment.first_month_paid,  # Set based on current payment status
+            head_approved=False  # Initially False, awaiting head approval
         )
         
         # Audit log
@@ -973,8 +1014,28 @@ class PaymentService:
         # Check if any exam permits should be unlocked
         ExamPermitService.check_and_unlock_permits(enrollment)
 
-    # REMOVED: Auto-approve logic
-    # Head Approval is now required.
+        # Check if Month 1 is now fully paid and update approval flags
+        month_1_bucket = enrollment.payment_buckets.filter(month_number=1).first()
+        if month_1_bucket and month_1_bucket.is_fully_paid:
+            # Set enrollment first_month_paid flag
+            enrollment.first_month_paid = True
+            enrollment.save(update_fields=['first_month_paid'])
+
+            # Update all subject enrollments to mark payment as approved
+            from .models import SubjectEnrollment
+            subject_enrollments = SubjectEnrollment.objects.filter(
+                enrollment=enrollment,
+                payment_approved=False
+            )
+
+            for se in subject_enrollments:
+                se.payment_approved = True
+
+                # If head has also approved, change status to ENROLLED
+                if se.head_approved and se.status == SubjectEnrollment.Status.PENDING_HEAD:
+                    se.status = SubjectEnrollment.Status.ENROLLED
+
+                se.save(update_fields=['payment_approved', 'status'])
 
         return transaction_obj
     

@@ -322,8 +322,8 @@ function renderStep4() {
       
       <div class="mb-6">
         <label class="form-label">Monthly Commitment Amount (₱) <span class="text-red-500">*</span></label>
-        <input type="number" id="monthly_commitment" class="form-input text-2xl font-bold text-center" value="${state.formData.monthly_commitment}" min="1000" step="500">
-        <p class="text-sm text-gray-500 mt-2 text-center">Minimum: ₱1,000 per month</p>
+        <input type="number" id="monthly_commitment" class="form-input text-2xl font-bold text-center" value="${state.formData.monthly_commitment}" min="0" step="100">
+        <p class="text-sm text-gray-500 mt-2 text-center">Enter your monthly payment commitment</p>
       </div>
       
       <!-- 6 Month Preview -->
@@ -587,8 +587,8 @@ function validateCurrentStep() {
       return true;
 
     case 4:
-      if (state.formData.monthly_commitment < 1000) {
-        showToast('Monthly commitment must be at least ₱1,000', 'error');
+      if (!state.formData.monthly_commitment || state.formData.monthly_commitment <= 0) {
+        showToast('Please enter a valid monthly commitment amount', 'error');
         return false;
       }
       if (state.formData.is_transferee) {

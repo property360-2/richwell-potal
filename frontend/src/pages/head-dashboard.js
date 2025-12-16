@@ -337,10 +337,12 @@ function renderEnrollmentCard(enrollment) {
           <div>
             <h3 class="text-lg font-bold text-gray-800">${enrollment.student_name}</h3>
             <p class="text-sm text-gray-500">${enrollment.student_number} • ${enrollment.program} - Year ${enrollment.year_level}</p>
-            <div class="flex items-center gap-3 mt-2">
+            <div class="flex items-center gap-2 mt-2 flex-wrap">
               <span class="badge badge-info">${enrollment.subjects.length} Subjects</span>
               <span class="badge badge-success">${enrollment.total_units} Units</span>
-              <span class="badge badge-warning">${enrollment.payment_status}</span>
+              ${enrollment.payment_approved
+                ? '<span class="badge badge-success text-xs">✓ Payment Complete</span>'
+                : '<span class="badge badge-warning text-xs">⏳ Payment Pending</span>'}
             </div>
           </div>
         </div>

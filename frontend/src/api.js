@@ -235,5 +235,8 @@ export const endpoints = {
     headApprove: (id) => `/admissions/head/approve/${id}/`,
     headReject: (id) => `/admissions/head/reject/${id}/`,
     headBulkApprove: '/admissions/head/bulk-approve/',
+
+    // COR Generation
+    generateCOR: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/cor/`,
 };
 

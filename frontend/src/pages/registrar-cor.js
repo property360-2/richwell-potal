@@ -562,35 +562,72 @@ window.closeCORPreview = function () {
   render();
 };
 
-window.printCOR = function () {
-  const content = document.getElementById('cor-content').innerHTML;
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>COR - ${state.selectedStudent.student_number}</title>
-      <style>
-        body { font-family: 'Times New Roman', serif; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #333; padding: 8px; }
-        th { background: #f0f0f0; }
-        .text-center { text-align: center; }
-        .font-bold { font-weight: bold; }
-        .font-mono { font-family: monospace; }
-        .text-orange-600 { color: #ea580c; }
-        @media print {
-          body { margin: 0; padding: 10mm; }
-        }
-      </style>
-    </head>
-    <body>
-      ${content}
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.print();
+window.printCOR = async function () {
+  try {
+    showToast('Generating COR PDF...', 'info');
+
+    // Call backend API to generate PDF
+    const enrollmentId = state.selectedStudent.id; // This should be enrollment ID from API
+    const token = TokenManager.getToken();
+
+    const response = await fetch(`${endpoints.generateCOR.replace('{enrollment_id}', enrollmentId)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to generate COR');
+    }
+
+    // Download PDF
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `COR-${state.selectedStudent.student_number}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    showToast('COR generated successfully', 'success');
+  } catch (error) {
+    console.error('Failed to generate COR:', error);
+    showToast(error.message || 'Failed to generate COR', 'error');
+
+    // Fallback to client-side printing if backend fails
+    const content = document.getElementById('cor-content').innerHTML;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>COR - ${state.selectedStudent.student_number}</title>
+        <style>
+          body { font-family: 'Times New Roman', serif; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #333; padding: 8px; }
+          th { background: #f0f0f0; }
+          .text-center { text-align: center; }
+          .font-bold { font-weight: bold; }
+          .font-mono { font-family: monospace; }
+          .text-orange-600 { color: #ea580c; }
+          @media print {
+            body { margin: 0; padding: 10mm; }
+          }
+        </style>
+      </head>
+      <body>
+        ${content}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  }
 };
 
 window.logout = function () {

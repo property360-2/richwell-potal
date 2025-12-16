@@ -140,7 +140,10 @@ function render() {
           </svg>
         `)}
       </div>
-      
+
+      <!-- Admission Status Banner -->
+      ${renderAdmissionStatusBanner()}
+
       <!-- Payment Pending Banner (if Month 1 not paid) -->
       ${!state.month1Paid ? `
         <div class="card bg-gradient-to-r from-blue-500 to-indigo-500 text-white mb-8">
@@ -186,7 +189,7 @@ function render() {
               </div>
               <div class="text-center p-4 bg-blue-50 rounded-xl">
                 <p class="text-2xl font-bold text-blue-600">${formatCurrency(state.monthlyCommitment)}</p>
-                <p class="text-sm text-blue-700">Monthly Commitment</p>
+                <p class="text-sm text-blue-700">Remaining on monthly Commitment</p>
               </div>
             </div>
             
@@ -267,6 +270,58 @@ function renderLoading() {
       </div>
     </div>
   `;
+}
+
+function renderAdmissionStatusBanner() {
+  // Check if student has student_number (admission approved)
+  if (!state.user?.student_number) {
+    // Account pending admission approval
+    return `
+      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-8 rounded-r-xl">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0">
+            <svg class="h-8 w-8 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"/>
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold text-yellow-800">Account Pending – Awaiting Admission Approval</h3>
+            <p class="text-sm text-yellow-700 mt-2">
+              Your enrollment application is being reviewed by the Admission Office. You cannot enroll in subjects until your account is approved and a Student ID Number is assigned.
+            </p>
+            <p class="text-sm text-yellow-600 mt-3 font-medium">
+              Please check back later or contact the Admission Office for updates on your application status.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    // Account approved
+    return `
+      <div class="bg-green-50 border-l-4 border-green-400 p-6 mb-8 rounded-r-xl">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0">
+            <svg class="h-8 w-8 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/>
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold text-green-800">Account Approved – Student ID: ${state.user.student_number}</h3>
+            <p class="text-sm text-green-700 mt-2">
+              Your enrollment application has been approved! You are now eligible to enroll in subjects.
+            </p>
+            <a href="/subject-enrollment.html" class="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+              </svg>
+              Enroll in Subjects
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 }
 
 function renderStatCard(label, value, color, icon) {
