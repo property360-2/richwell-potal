@@ -4,92 +4,92 @@ import { showToast, formatCurrency, requireAuth } from '../utils.js';
 
 // State
 const state = {
-    user: null,
-    loading: true,
-    paymentBuckets: [],
-    paymentHistory: [],
-    semester: null
+  user: null,
+  loading: true,
+  paymentBuckets: [],
+  paymentHistory: [],
+  semester: null
 };
 
 async function init() {
-    if (!requireAuth()) return;
+  if (!requireAuth()) return;
 
-    await loadData();
-    render();
+  await loadData();
+  render();
 }
 
 async function loadData() {
-    try {
-        // Load user profile
-        const userResponse = await api.get(endpoints.me);
-        if (userResponse) {
-            state.user = userResponse;
-        }
-
-        // Load payment data from API
-        try {
-            const paymentsResponse = await api.get(endpoints.myPayments);
-            console.log('Payment API response:', paymentsResponse);
-
-            if (paymentsResponse?.data) {
-                const data = paymentsResponse.data;
-
-                // Update payment buckets from API
-                if (data.buckets && Array.isArray(data.buckets)) {
-                    state.paymentBuckets = data.buckets.map(b => ({
-                        month: b.month,
-                        required: b.required,
-                        paid: b.paid,
-                        label: `Month ${b.month}`,
-                        dueDate: calculateDueDate(b.month) // Generate due dates
-                    }));
-                }
-
-                // Update payment history (recent_transactions)
-                if (data.recent_transactions && Array.isArray(data.recent_transactions)) {
-                    state.paymentHistory = data.recent_transactions.map(t => ({
-                        id: t.id,
-                        date: t.processed_at,
-                        amount: t.amount,
-                        receipt: t.receipt_number || `OR-${t.id.substring(0, 8)}`,
-                        monthApplied: 'Multiple', // Transactions can be applied to multiple months
-                        processedBy: 'Cashier'
-                    }));
-                }
-
-                // Store semester info if available
-                state.semester = data.semester || null;
-            }
-        } catch (error) {
-            console.log('Payment API failed, using empty data:', error);
-        }
-    } catch (error) {
-        console.error('Failed to load data:', error);
+  try {
+    // Load user profile
+    const userResponse = await api.get(endpoints.me);
+    if (userResponse) {
+      state.user = userResponse.data || userResponse;
     }
-    state.loading = false;
+
+    // Load payment data from API
+    try {
+      const paymentsResponse = await api.get(endpoints.myPayments);
+      console.log('Payment API response:', paymentsResponse);
+
+      if (paymentsResponse?.data) {
+        const data = paymentsResponse.data;
+
+        // Update payment buckets from API
+        if (data.buckets && Array.isArray(data.buckets)) {
+          state.paymentBuckets = data.buckets.map(b => ({
+            month: b.month,
+            required: b.required,
+            paid: b.paid,
+            label: `Month ${b.month}`,
+            dueDate: calculateDueDate(b.month) // Generate due dates
+          }));
+        }
+
+        // Update payment history (recent_transactions)
+        if (data.recent_transactions && Array.isArray(data.recent_transactions)) {
+          state.paymentHistory = data.recent_transactions.map(t => ({
+            id: t.id,
+            date: t.processed_at,
+            amount: t.amount,
+            receipt: t.receipt_number || `OR-${t.id.substring(0, 8)}`,
+            monthApplied: 'Multiple', // Transactions can be applied to multiple months
+            processedBy: 'Cashier'
+          }));
+        }
+
+        // Store semester info if available
+        state.semester = data.semester || null;
+      }
+    } catch (error) {
+      console.log('Payment API failed, using empty data:', error);
+    }
+  } catch (error) {
+    console.error('Failed to load data:', error);
+  }
+  state.loading = false;
 }
 
 // Helper function to calculate due dates based on month number
 function calculateDueDate(month) {
-    const startDate = new Date(2025, 7, 15); // August 15, 2025 (semester start)
-    const dueDate = new Date(startDate);
-    dueDate.setMonth(startDate.getMonth() + (month - 1));
-    return dueDate.toISOString().split('T')[0];
+  const startDate = new Date(2025, 7, 15); // August 15, 2025 (semester start)
+  const dueDate = new Date(startDate);
+  dueDate.setMonth(startDate.getMonth() + (month - 1));
+  return dueDate.toISOString().split('T')[0];
 }
 
 function render() {
-    const app = document.getElementById('app');
+  const app = document.getElementById('app');
 
-    if (state.loading) {
-        app.innerHTML = renderLoading();
-        return;
-    }
+  if (state.loading) {
+    app.innerHTML = renderLoading();
+    return;
+  }
 
-    const totalPaid = state.paymentBuckets.reduce((sum, b) => sum + b.paid, 0);
-    const totalRequired = state.paymentBuckets.reduce((sum, b) => sum + b.required, 0);
-    const balance = totalRequired - totalPaid;
+  const totalPaid = state.paymentBuckets.reduce((sum, b) => sum + b.paid, 0);
+  const totalRequired = state.paymentBuckets.reduce((sum, b) => sum + b.required, 0);
+  const balance = totalRequired - totalPaid;
 
-    app.innerHTML = `
+  app.innerHTML = `
     ${renderHeader()}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
@@ -253,7 +253,7 @@ function render() {
 }
 
 function renderHeader() {
-    return `
+  return `
     <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -282,7 +282,7 @@ function renderHeader() {
 }
 
 function renderLoading() {
-    return `
+  return `
     <div class="min-h-screen flex items-center justify-center">
       <div class="text-center">
         <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
@@ -296,12 +296,12 @@ function renderLoading() {
 }
 
 function renderPaymentBucket(bucket) {
-    const percentage = Math.min(100, (bucket.paid / bucket.required) * 100);
-    const isComplete = percentage >= 100;
-    const isPartial = percentage > 0 && percentage < 100;
-    const isPastDue = new Date(bucket.dueDate) < new Date() && !isComplete;
+  const percentage = Math.min(100, (bucket.paid / bucket.required) * 100);
+  const isComplete = percentage >= 100;
+  const isPartial = percentage > 0 && percentage < 100;
+  const isPastDue = new Date(bucket.dueDate) < new Date() && !isComplete;
 
-    return `
+  return `
     <div class="p-4 rounded-xl ${isPastDue ? 'bg-red-50 border border-red-200' : 'bg-gray-50'}">
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-3">
@@ -333,10 +333,10 @@ function renderPaymentBucket(bucket) {
 }
 
 function renderExamPermitStatus(exam, monthRequired) {
-    const bucket = state.paymentBuckets.find(b => b.month === monthRequired);
-    const isUnlocked = bucket && bucket.paid >= bucket.required;
+  const bucket = state.paymentBuckets.find(b => b.month === monthRequired);
+  const isUnlocked = bucket && bucket.paid >= bucket.required;
 
-    return `
+  return `
     <div class="flex items-center justify-between p-3 rounded-xl ${isUnlocked ? 'bg-green-50' : 'bg-gray-100'}">
       <div class="flex items-center gap-2">
         ${isUnlocked ? `
@@ -358,21 +358,21 @@ function renderExamPermitStatus(exam, monthRequired) {
 }
 
 function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 // Global functions
 window.printSOA = function () {
-    window.print();
+  window.print();
 };
 
 window.logout = function () {
-    TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
-    setTimeout(() => {
-        window.location.href = '/login.html';
-    }, 1000);
+  TokenManager.clearTokens();
+  showToast('Logged out successfully', 'success');
+  setTimeout(() => {
+    window.location.href = '/login.html';
+  }, 1000);
 };
 
 document.addEventListener('DOMContentLoaded', init);

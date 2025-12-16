@@ -11,7 +11,9 @@ const state = {
   enrolledSubjects: [],
   totalUnits: 0,
   maxUnits: 30,
-  showSchedulePreview: null
+  showSchedulePreview: null,
+  showConfirmModal: false,
+  pendingEnrollment: null // { subject, section }
 };
 
 // Mock data for development
@@ -190,11 +192,11 @@ async function loadData() {
     }
 
   } catch (error) {
-    console.error('Failed to load data:', error);
-    // Use mock data as fallback
-    state.recommendedSubjects = mockRecommendedSubjects;
-    state.availableSubjects = mockAvailableSubjects;
-    state.enrolledSubjects = mockEnrolledSubjects;
+    // REMOVED: Mock data fallback prevents seeing real errors
+    state.recommendedSubjects = [];
+    state.availableSubjects = [];
+    state.enrolledSubjects = [];
+    showToast('Failed to load data. Please refresh.', 'error');
   }
   state.loading = false;
 }
@@ -276,6 +278,9 @@ function render() {
 
     <!-- Schedule Preview Modal -->
     ${state.showSchedulePreview ? renderSchedulePreviewModal() : ''}
+    
+    <!-- Enrollment Confirmation Modal -->
+    ${state.showConfirmModal ? renderConfirmEnrollModal() : ''}
   `;
 
   attachEventListeners();
@@ -406,13 +411,25 @@ function renderSubjectCard(subject, isRecommended) {
 
 
 function renderEnrolledSubject(enrollment) {
-  const isPending = enrollment.status === 'PENDING_PAYMENT';
-  const statusBadge = isPending
-    ? '<span class="badge badge-warning text-xs ml-2">Pending Payment</span>'
-    : '<span class="badge badge-success text-xs ml-2">Enrolled</span>';
+  const isPendingPayment = enrollment.status === 'PENDING_PAYMENT';
+  const isPendingHead = enrollment.status === 'PENDING_HEAD';
+
+  let statusBadge;
+  let bgClass;
+
+  if (isPendingPayment) {
+    statusBadge = '<span class="badge badge-warning text-xs ml-2">Pending Payment</span>';
+    bgClass = 'bg-yellow-50';
+  } else if (isPendingHead) {
+    statusBadge = '<span class="badge badge-warning text-xs ml-2">Pending Approval</span>';
+    bgClass = 'bg-orange-50';
+  } else {
+    statusBadge = '<span class="badge badge-success text-xs ml-2">Enrolled</span>';
+    bgClass = 'bg-green-50';
+  }
 
   return `
-    <div class="flex items-center justify-between p-3 ${isPending ? 'bg-yellow-50' : 'bg-green-50'} rounded-xl">
+    <div class="flex items-center justify-between p-3 ${bgClass} rounded-xl">
       <div class="flex-1">
         <div class="flex items-center gap-1">
           <p class="font-medium text-gray-800">${enrollment.subject?.code} - ${enrollment.subject?.name}</p>
@@ -452,6 +469,96 @@ function renderSchedulePreviewModal() {
   `;
 }
 
+function renderConfirmEnrollModal() {
+  const { subject, section } = state.pendingEnrollment || {};
+  if (!subject || !section) return '';
+
+  return `
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn" onclick="closeConfirmModal()">
+      <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl transform animate-slideUp" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="text-center mb-6">
+          <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+            </svg>
+          </div>
+          <h3 class="text-2xl font-bold text-gray-800">Confirm Enrollment</h3>
+          <p class="text-gray-500 mt-1">Please review the subject details below</p>
+        </div>
+        
+        <!-- Subject Details Card -->
+        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 mb-6 border border-blue-100">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm">
+              <span class="text-lg font-bold text-blue-600">${subject.code?.slice(0, 2) || 'SB'}</span>
+            </div>
+            <div class="flex-1">
+              <p class="font-mono text-sm font-bold text-blue-600">${subject.code}</p>
+              <p class="font-semibold text-gray-800 text-lg">${subject.name}</p>
+              <div class="flex items-center gap-3 mt-2 text-sm text-gray-600">
+                <span class="flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                  </svg>
+                  ${subject.units} units
+                </span>
+                <span class="text-gray-300">|</span>
+                <span class="flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                  </svg>
+                  Section ${section.name}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Schedule -->
+          <div class="mt-4 pt-4 border-t border-blue-200">
+            <div class="flex items-center gap-2 text-sm">
+              <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span class="font-medium text-gray-700">Schedule:</span>
+              <span class="text-gray-600">${section.schedule}</span>
+            </div>
+            <div class="flex items-center gap-2 text-sm mt-2">
+              <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              <span class="font-medium text-gray-700">Available Slots:</span>
+              <span class="text-gray-600">${section.slots - (section.enrolled || 0)} remaining</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Warning Note -->
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
+          <div class="flex items-start gap-2">
+            <svg class="w-5 h-5 text-amber-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <p class="text-sm text-amber-700">Once enrolled, this subject will be pending for approval. Please make sure the schedule fits your timetable.</p>
+          </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="flex gap-3">
+          <button onclick="closeConfirmModal()" 
+                  class="flex-1 px-6 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors">
+            Cancel
+          </button>
+          <button onclick="confirmEnrollment()" 
+                  class="flex-1 px-6 py-3 text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl font-medium transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40">
+            Confirm Enrollment
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function getSelectedUnits() {
   return 0; // State.selectedSubjects removed
 }
@@ -461,7 +568,7 @@ function attachEventListeners() {
 }
 
 // Global functions for onclick handlers
-window.enrollSubject = async function (subjectId, sectionId) {
+window.enrollSubject = function (subjectId, sectionId) {
   console.log('Enroll clicked - Subject ID:', subjectId, 'Section ID:', sectionId);
 
   // Find subject to check units
@@ -473,20 +580,46 @@ window.enrollSubject = async function (subjectId, sectionId) {
     return;
   }
 
-  console.log('Subject found:', subject);
+  // Find the section
+  const section = subject.sections?.find(sec => sec.id == sectionId);
+  if (!section) {
+    showToast('Section not found', 'error');
+    return;
+  }
+
+  console.log('Subject found:', subject, 'Section:', section);
 
   if (state.totalUnits + subject.units > state.maxUnits) {
     showToast('Enrolling would exceed max units', 'error');
     return;
   }
 
-  if (!confirm(`Are you sure you want to enroll in ${subject.code} - ${subject.name}?`)) return;
+  // Store pending enrollment and show confirmation modal
+  state.pendingEnrollment = { subject, section };
+  state.showConfirmModal = true;
+  render();
+};
+
+window.closeConfirmModal = function () {
+  state.showConfirmModal = false;
+  state.pendingEnrollment = null;
+  render();
+};
+
+window.confirmEnrollment = async function () {
+  if (!state.pendingEnrollment) return;
+
+  const { subject, section } = state.pendingEnrollment;
+
+  // Close modal immediately and show loading state
+  state.showConfirmModal = false;
+  render();
 
   try {
     console.log('Sending enrollment request...');
     const response = await api.post(endpoints.enrollSubject, {
-      subject_id: subjectId,
-      section_id: sectionId
+      subject_id: subject.id,
+      section_id: section.id
     });
 
     console.log('Response received:', response);
@@ -497,6 +630,7 @@ window.enrollSubject = async function (subjectId, sectionId) {
 
       if (data.success) {
         showToast('Enrollment successful!', 'success');
+        state.pendingEnrollment = null;
         await loadData(); // Reload all data
         render(); // Re-render the page
       } else {
@@ -511,6 +645,8 @@ window.enrollSubject = async function (subjectId, sectionId) {
     console.error('Enrollment failed:', error);
     showToast('Failed to enroll. Please try again.', 'error');
   }
+
+  state.pendingEnrollment = null;
 };
 
 // DROP FUNCTIONALITY DISABLED - Students cannot drop subjects

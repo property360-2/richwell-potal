@@ -83,7 +83,7 @@ async function loadApplicants() {
         status: enrollment.status,
         created_via: enrollment.created_via,
         created_at: enrollment.created_at,
-        program: { code: 'N/A', name: 'Enrolled Program' },
+        program: { code: enrollment.program_code || 'N/A', name: 'Enrolled Program' },
         documents: enrollment.documents || [],
         student: { first_name: enrollment.student_name?.split(' ')[0], last_name: enrollment.student_name?.split(' ').slice(1).join(' ') }
       }));

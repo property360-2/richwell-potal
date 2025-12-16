@@ -4,178 +4,178 @@ import { showToast, requireAuth, formatDate } from '../utils.js';
 
 // State
 const state = {
-    user: null,
-    programs: [],
-    sections: [],
-    subjects: [],
-    professors: [],
-    semesters: [],
-    activeSemester: null,
-    selectedSection: null,
-    loading: true,
-    filters: {
-        program: 'all',
-        semester: 'active'
-    },
-    showSectionModal: false,
-    showAssignModal: false,
-    editingSection: null
+  user: null,
+  programs: [],
+  sections: [],
+  subjects: [],
+  professors: [],
+  semesters: [],
+  activeSemester: null,
+  selectedSection: null,
+  loading: true,
+  filters: {
+    program: 'all',
+    semester: 'active'
+  },
+  showSectionModal: false,
+  showAssignModal: false,
+  editingSection: null
 };
 
 // Mock data
 const MOCK_PROGRAMS = [
-    { id: '1', code: 'BSIT', name: 'BS Information Technology' },
-    { id: '2', code: 'BSCS', name: 'BS Computer Science' }
+  { id: '1', code: 'BSIT', name: 'BS Information Technology' },
+  { id: '2', code: 'BSCS', name: 'BS Computer Science' }
 ];
 
 const MOCK_SEMESTERS = [
-    { id: '1', name: '1st Semester 2024-2025', is_active: true },
-    { id: '2', name: '2nd Semester 2024-2025', is_active: false }
+  { id: '1', name: '1st Semester 2024-2025', is_active: true },
+  { id: '2', name: '2nd Semester 2024-2025', is_active: false }
 ];
 
 const MOCK_SECTIONS = [
-    { id: '1', name: 'BSIT-1A', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 40, enrolled_count: 35 },
-    { id: '2', name: 'BSIT-1B', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 40, enrolled_count: 38 },
-    { id: '3', name: 'BSIT-2A', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 2, capacity: 40, enrolled_count: 32 },
-    { id: '4', name: 'BSCS-1A', program: { id: '2', code: 'BSCS' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 35, enrolled_count: 30 }
+  { id: '1', name: 'BSIT-1A', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 40, enrolled_count: 35 },
+  { id: '2', name: 'BSIT-1B', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 40, enrolled_count: 38 },
+  { id: '3', name: 'BSIT-2A', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 2, capacity: 40, enrolled_count: 32 },
+  { id: '4', name: 'BSCS-1A', program: { id: '2', code: 'BSCS' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 35, enrolled_count: 30 }
 ];
 
 const MOCK_SUBJECTS = [
-    { id: '1', code: 'IT101', title: 'Introduction to Computing', units: 3 },
-    { id: '2', code: 'IT102', title: 'Computer Programming 1', units: 3 },
-    { id: '3', code: 'GE101', title: 'English Communication', units: 3 }
+  { id: '1', code: 'IT101', title: 'Introduction to Computing', units: 3 },
+  { id: '2', code: 'IT102', title: 'Computer Programming 1', units: 3 },
+  { id: '3', code: 'GE101', title: 'English Communication', units: 3 }
 ];
 
 const MOCK_PROFESSORS = [
-    { id: '1', first_name: 'Juan', last_name: 'Dela Cruz', email: 'juan.prof@richwell.edu.ph' },
-    { id: '2', first_name: 'Maria', last_name: 'Santos', email: 'maria.prof@richwell.edu.ph' },
-    { id: '3', first_name: 'Pedro', last_name: 'Reyes', email: 'pedro.prof@richwell.edu.ph' }
+  { id: '1', first_name: 'Juan', last_name: 'Dela Cruz', email: 'juan.prof@richwell.edu.ph' },
+  { id: '2', first_name: 'Maria', last_name: 'Santos', email: 'maria.prof@richwell.edu.ph' },
+  { id: '3', first_name: 'Pedro', last_name: 'Reyes', email: 'pedro.prof@richwell.edu.ph' }
 ];
 
 const MOCK_SECTION_SUBJECTS = [
-    { id: '1', subject: { id: '1', code: 'IT101', title: 'Introduction to Computing' }, professor: { id: '1', first_name: 'Juan', last_name: 'Dela Cruz' }, is_tba: false },
-    { id: '2', subject: { id: '2', code: 'IT102', title: 'Computer Programming 1' }, professor: null, is_tba: true }
+  { id: '1', subject: { id: '1', code: 'IT101', title: 'Introduction to Computing' }, professor: { id: '1', first_name: 'Juan', last_name: 'Dela Cruz' }, is_tba: false },
+  { id: '2', subject: { id: '2', code: 'IT102', title: 'Computer Programming 1' }, professor: null, is_tba: true }
 ];
 
 async function init() {
-    if (!requireAuth()) return;
+  if (!requireAuth()) return;
 
-    await loadUserProfile();
-    await loadInitialData();
-    render();
+  await loadUserProfile();
+  await loadInitialData();
+  render();
 }
 
 async function loadUserProfile() {
-    try {
-        const response = await api.get(endpoints.me);
-        if (response) {
-            state.user = response;
-            TokenManager.setUser(response);
-        }
-    } catch (error) {
-        const savedUser = TokenManager.getUser();
-        if (savedUser) state.user = savedUser;
+  try {
+    const response = await api.get(endpoints.me);
+    if (response) {
+      state.user = response;
+      TokenManager.setUser(response);
     }
+  } catch (error) {
+    const savedUser = TokenManager.getUser();
+    if (savedUser) state.user = savedUser;
+  }
 }
 
 async function loadInitialData() {
-    // Load programs
-    try {
-        const response = await api.get(endpoints.academicPrograms);
-        const programs = response?.results || response;
-        state.programs = (programs && programs.length > 0) ? programs : MOCK_PROGRAMS;
-    } catch (error) {
-        state.programs = MOCK_PROGRAMS;
-    }
+  // Load programs
+  try {
+    const response = await api.get(endpoints.academicPrograms);
+    const programs = response?.results || response;
+    state.programs = (programs && programs.length > 0) ? programs : MOCK_PROGRAMS;
+  } catch (error) {
+    state.programs = MOCK_PROGRAMS;
+  }
 
-    // Load semesters
-    try {
-        const response = await api.get(endpoints.semesters);
-        const semesters = response?.results || response;
-        state.semesters = (semesters && semesters.length > 0) ? semesters : MOCK_SEMESTERS;
-        state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0];
-    } catch (error) {
-        state.semesters = MOCK_SEMESTERS;
-        state.activeSemester = MOCK_SEMESTERS[0];
-    }
+  // Load semesters
+  try {
+    const response = await api.get(endpoints.semesters);
+    const semesters = response?.results || response;
+    state.semesters = (semesters && semesters.length > 0) ? semesters : MOCK_SEMESTERS;
+    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0];
+  } catch (error) {
+    state.semesters = MOCK_SEMESTERS;
+    state.activeSemester = MOCK_SEMESTERS[0];
+  }
 
-    // Load professors
-    try {
-        const response = await api.get(endpoints.professors);
-        const professors = response?.results || response;
-        state.professors = (professors && professors.length > 0) ? professors : MOCK_PROFESSORS;
-    } catch (error) {
-        state.professors = MOCK_PROFESSORS;
-    }
+  // Load professors
+  try {
+    const response = await api.get(endpoints.professors);
+    const professors = response?.results || response;
+    state.professors = (professors && professors.length > 0) ? professors : MOCK_PROFESSORS;
+  } catch (error) {
+    state.professors = MOCK_PROFESSORS;
+  }
 
-    await loadSections();
-    state.loading = false;
+  await loadSections();
+  state.loading = false;
 }
 
 async function loadSections() {
-    try {
-        let url = endpoints.sections;
-        const params = [];
-        if (state.filters.semester !== 'all') {
-            const semId = state.filters.semester === 'active' ? state.activeSemester?.id : state.filters.semester;
-            if (semId) params.push(`semester=${semId}`);
-        }
-        if (state.filters.program !== 'all') {
-            params.push(`program=${state.filters.program}`);
-        }
-        if (params.length) url += '?' + params.join('&');
-
-        const response = await api.get(url);
-        state.sections = response?.results || response || MOCK_SECTIONS;
-    } catch (error) {
-        state.sections = MOCK_SECTIONS;
+  try {
+    let url = endpoints.sections;
+    const params = [];
+    if (state.filters.semester !== 'all') {
+      const semId = state.filters.semester === 'active' ? state.activeSemester?.id : state.filters.semester;
+      if (semId) params.push(`semester=${semId}`);
     }
+    if (state.filters.program !== 'all') {
+      params.push(`program=${state.filters.program}`);
+    }
+    if (params.length) url += '?' + params.join('&');
+
+    const response = await api.get(url);
+    state.sections = response?.results || response || MOCK_SECTIONS;
+  } catch (error) {
+    state.sections = MOCK_SECTIONS;
+  }
 }
 
 async function loadSectionDetails(sectionId) {
-    try {
-        const response = await api.get(endpoints.section(sectionId));
-        state.selectedSection = response;
-        // Load section subjects
-        const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
-        state.selectedSection.section_subjects = subjectsResponse?.results || subjectsResponse || MOCK_SECTION_SUBJECTS;
-    } catch (error) {
-        state.selectedSection = state.sections.find(s => s.id === sectionId);
-        state.selectedSection.section_subjects = MOCK_SECTION_SUBJECTS;
-    }
+  try {
+    const response = await api.get(endpoints.section(sectionId));
+    state.selectedSection = response;
+    // Load section subjects
+    const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
+    state.selectedSection.section_subjects = subjectsResponse?.results || subjectsResponse || MOCK_SECTION_SUBJECTS;
+  } catch (error) {
+    state.selectedSection = state.sections.find(s => s.id === sectionId);
+    state.selectedSection.section_subjects = MOCK_SECTION_SUBJECTS;
+  }
 
-    // Load available subjects for the program
-    try {
-        const programId = state.selectedSection?.program?.id;
-        if (programId) {
-            const response = await api.get(`${endpoints.manageSubjects}?program=${programId}`);
-            state.subjects = response?.results || response || MOCK_SUBJECTS;
-        }
-    } catch (error) {
-        state.subjects = MOCK_SUBJECTS;
+  // Load available subjects for the program
+  try {
+    const programId = state.selectedSection?.program?.id;
+    if (programId) {
+      const response = await api.get(`${endpoints.manageSubjects}?program=${programId}`);
+      state.subjects = response?.results || response || MOCK_SUBJECTS;
     }
+  } catch (error) {
+    state.subjects = MOCK_SUBJECTS;
+  }
 
-    render();
+  render();
 }
 
 function formatRole(role) {
-    const roleNames = {
-        'ADMIN': 'Administrator',
-        'REGISTRAR': 'Registrar',
-        'HEAD_REGISTRAR': 'Head Registrar'
-    };
-    return roleNames[role] || role;
+  const roleNames = {
+    'ADMIN': 'Administrator',
+    'REGISTRAR': 'Registrar',
+    'HEAD_REGISTRAR': 'Head Registrar'
+  };
+  return roleNames[role] || role;
 }
 
 function render() {
-    const app = document.getElementById('app');
+  const app = document.getElementById('app');
 
-    if (state.loading) {
-        app.innerHTML = renderLoading();
-        return;
-    }
+  if (state.loading) {
+    app.innerHTML = renderLoading();
+    return;
+  }
 
-    app.innerHTML = `
+  app.innerHTML = `
     ${renderHeader()}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
@@ -246,7 +246,7 @@ function render() {
 }
 
 function renderHeader() {
-    return `
+  return `
     <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -282,7 +282,7 @@ function renderHeader() {
 }
 
 function renderLoading() {
-    return `
+  return `
     <div class="min-h-screen flex items-center justify-center">
       <div class="text-center">
         <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
@@ -296,10 +296,10 @@ function renderLoading() {
 }
 
 function renderSectionCard(section) {
-    const isSelected = state.selectedSection?.id === section.id;
-    const occupancy = section.capacity ? Math.round((section.enrolled_count || 0) / section.capacity * 100) : 0;
+  const isSelected = state.selectedSection?.id === section.id;
+  const occupancy = section.capacity ? Math.round((section.enrolled_count || 0) / section.capacity * 100) : 0;
 
-    return `
+  return `
     <div class="p-4 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'}" onclick="selectSection('${section.id}')">
       <div class="flex items-center justify-between mb-2">
         <span class="font-bold text-gray-800">${section.name}</span>
@@ -320,7 +320,7 @@ function renderSectionCard(section) {
 }
 
 function renderSelectSectionPrompt() {
-    return `
+  return `
     <div class="card text-center py-16">
       <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
@@ -332,10 +332,10 @@ function renderSelectSectionPrompt() {
 }
 
 function renderSectionDetails() {
-    const section = state.selectedSection;
-    const sectionSubjects = section.section_subjects || [];
+  const section = state.selectedSection;
+  const sectionSubjects = section.section_subjects || [];
 
-    return `
+  return `
     <div class="space-y-6">
       <!-- Section Info -->
       <div class="card bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
@@ -415,10 +415,10 @@ function renderSectionDetails() {
 }
 
 function renderSectionModal() {
-    const isEdit = !!state.editingSection;
-    const section = isEdit ? state.sections.find(s => s.id === state.editingSection) : {};
+  const isEdit = !!state.editingSection;
+  const section = isEdit ? state.sections.find(s => s.id === state.editingSection) : {};
 
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeSectionModal()">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b flex items-center justify-between">
@@ -471,10 +471,10 @@ function renderSectionModal() {
 }
 
 function renderAssignModal() {
-    const assignedSubjectIds = (state.selectedSection?.section_subjects || []).map(ss => ss.subject?.id);
-    const availableSubjects = state.subjects.filter(s => !assignedSubjectIds.includes(s.id));
+  const assignedSubjectIds = (state.selectedSection?.section_subjects || []).map(ss => ss.subject?.id);
+  const availableSubjects = state.subjects.filter(s => !assignedSubjectIds.includes(s.id));
 
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeAssignModal()">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b flex items-center justify-between">
@@ -516,143 +516,167 @@ function renderAssignModal() {
 
 // Event Handlers
 window.selectSection = async function (id) {
-    await loadSectionDetails(id);
+  await loadSectionDetails(id);
 };
 
 window.handleFilterChange = async function () {
-    state.filters.program = document.getElementById('filter-program').value;
-    state.filters.semester = document.getElementById('filter-semester').value;
-    state.selectedSection = null;
-    await loadSections();
-    render();
+  state.filters.program = document.getElementById('filter-program').value;
+  state.filters.semester = document.getElementById('filter-semester').value;
+  state.selectedSection = null;
+  await loadSections();
+  render();
 };
 
 window.openSectionModal = function (id = null) {
-    state.editingSection = id;
-    state.showSectionModal = true;
-    render();
+  state.editingSection = id;
+  state.showSectionModal = true;
+  render();
 };
 
 window.closeSectionModal = function () {
-    state.showSectionModal = false;
-    state.editingSection = null;
-    render();
+  state.showSectionModal = false;
+  state.editingSection = null;
+  render();
 };
 
 window.editSection = function (id) {
-    openSectionModal(id);
+  openSectionModal(id);
 };
 
 window.saveSection = async function (e) {
-    e.preventDefault();
-    const data = {
-        name: document.getElementById('section-name').value,
-        program: document.getElementById('section-program').value,
-        semester: document.getElementById('section-semester').value,
-        year_level: parseInt(document.getElementById('section-year').value),
-        capacity: parseInt(document.getElementById('section-capacity').value)
-    };
+  e.preventDefault();
+  const data = {
+    name: document.getElementById('section-name').value,
+    program: document.getElementById('section-program').value,
+    semester: document.getElementById('section-semester').value,
+    year_level: parseInt(document.getElementById('section-year').value),
+    capacity: parseInt(document.getElementById('section-capacity').value)
+  };
 
-    try {
-        let response;
-        if (state.editingSection) {
-            response = await api.patch(endpoints.section(state.editingSection), data);
-        } else {
-            response = await api.post(endpoints.sections, data);
-        }
-
-        if (response && response.ok) {
-            showToast(`Section ${state.editingSection ? 'updated' : 'created'} successfully!`, 'success');
-            closeSectionModal();
-            await loadSections();
-            render();
-        } else {
-            const error = await response?.json();
-            showToast(error?.detail || 'Failed to save section', 'error');
-        }
-    } catch (error) {
-        showToast(`Section ${state.editingSection ? 'updated' : 'created'} (mock)`, 'success');
-        closeSectionModal();
+  try {
+    let response;
+    if (state.editingSection) {
+      response = await api.patch(endpoints.section(state.editingSection), data);
+    } else {
+      response = await api.post(endpoints.sections, data);
     }
+
+    if (response && response.ok) {
+      showToast(`Section ${state.editingSection ? 'updated' : 'created'} successfully!`, 'success');
+      closeSectionModal();
+      await loadSections();
+      render();
+    } else {
+      const errorData = await response?.json();
+      console.error('Section save error:', errorData);
+
+      let errorMessage = 'Failed to save section';
+
+      // Handle custom exception handler format { success: false, error: { message, details } }
+      if (errorData?.error) {
+        if (errorData.error.details) {
+          // Combine field errors from details
+          errorMessage = Object.entries(errorData.error.details)
+            .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+            .join('\n');
+        } else if (errorData.error.message) {
+          errorMessage = errorData.error.message;
+        }
+      } else if (errorData?.detail) {
+        // Standard DRF error
+        errorMessage = errorData.detail;
+      } else if (typeof errorData === 'object') {
+        // Fallback for flat field errors
+        errorMessage = Object.entries(errorData)
+          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+          .join('\n');
+      }
+
+      showToast(errorMessage, 'error');
+    }
+  } catch (error) {
+    console.error('Save failed:', error);
+    showToast('An unexpected error occurred', 'error');
+  }
 };
 
 window.openAssignModal = function () {
-    state.showAssignModal = true;
-    render();
+  state.showAssignModal = true;
+  render();
 };
 
 window.closeAssignModal = function () {
-    state.showAssignModal = false;
-    render();
+  state.showAssignModal = false;
+  render();
 };
 
 window.assignSubject = async function (e) {
-    e.preventDefault();
-    const subjectId = document.getElementById('assign-subject').value;
-    const professorId = document.getElementById('assign-professor').value;
-    const isTba = document.getElementById('assign-tba').checked;
+  e.preventDefault();
+  const subjectId = document.getElementById('assign-subject').value;
+  const professorId = document.getElementById('assign-professor').value;
+  const isTba = document.getElementById('assign-tba').checked;
 
-    if (!subjectId) {
-        showToast('Please select a subject', 'error');
-        return;
+  if (!subjectId) {
+    showToast('Please select a subject', 'error');
+    return;
+  }
+
+  const data = {
+    section: state.selectedSection.id,
+    subject: subjectId,
+    professor: professorId || null,
+    is_tba: isTba || !professorId
+  };
+
+  try {
+    const response = await api.post(endpoints.sectionSubjects, data);
+    if (response && response.ok) {
+      showToast('Subject assigned successfully!', 'success');
+      closeAssignModal();
+      await loadSectionDetails(state.selectedSection.id);
+    } else {
+      const error = await response?.json();
+      showToast(error?.detail || 'Failed to assign subject', 'error');
     }
-
-    const data = {
-        section: state.selectedSection.id,
-        subject: subjectId,
-        professor: professorId || null,
-        is_tba: isTba || !professorId
-    };
-
-    try {
-        const response = await api.post(endpoints.sectionSubjects, data);
-        if (response && response.ok) {
-            showToast('Subject assigned successfully!', 'success');
-            closeAssignModal();
-            await loadSectionDetails(state.selectedSection.id);
-        } else {
-            const error = await response?.json();
-            showToast(error?.detail || 'Failed to assign subject', 'error');
-        }
-    } catch (error) {
-        // Mock success
-        const subject = state.subjects.find(s => s.id === subjectId);
-        const professor = state.professors.find(p => p.id === professorId);
-        if (!state.selectedSection.section_subjects) state.selectedSection.section_subjects = [];
-        state.selectedSection.section_subjects.push({
-            id: Date.now().toString(),
-            subject: { id: subjectId, code: subject.code, title: subject.title },
-            professor: professor ? { id: professorId, first_name: professor.first_name, last_name: professor.last_name } : null,
-            is_tba: isTba || !professorId
-        });
-        showToast('Subject assigned (mock)', 'success');
-        closeAssignModal();
-        render();
-    }
+  } catch (error) {
+    // Mock success
+    const subject = state.subjects.find(s => s.id === subjectId);
+    const professor = state.professors.find(p => p.id === professorId);
+    if (!state.selectedSection.section_subjects) state.selectedSection.section_subjects = [];
+    state.selectedSection.section_subjects.push({
+      id: Date.now().toString(),
+      subject: { id: subjectId, code: subject.code, title: subject.title },
+      professor: professor ? { id: professorId, first_name: professor.first_name, last_name: professor.last_name } : null,
+      is_tba: isTba || !professorId
+    });
+    showToast('Subject assigned (mock)', 'success');
+    closeAssignModal();
+    render();
+  }
 };
 
 window.removeAssignment = async function (id) {
-    if (!confirm('Remove this subject from the section?')) return;
+  if (!confirm('Remove this subject from the section?')) return;
 
-    try {
-        const response = await api.delete(endpoints.sectionSubject(id));
-        if (response && response.ok) {
-            showToast('Subject removed!', 'success');
-            await loadSectionDetails(state.selectedSection.id);
-        }
-    } catch (error) {
-        state.selectedSection.section_subjects = state.selectedSection.section_subjects.filter(ss => ss.id !== id);
-        showToast('Subject removed (mock)', 'success');
-        render();
+  try {
+    const response = await api.delete(endpoints.sectionSubject(id));
+    if (response && response.ok) {
+      showToast('Subject removed!', 'success');
+      await loadSectionDetails(state.selectedSection.id);
     }
+  } catch (error) {
+    state.selectedSection.section_subjects = state.selectedSection.section_subjects.filter(ss => ss.id !== id);
+    showToast('Subject removed (mock)', 'success');
+    render();
+  }
 };
 
 window.logout = function () {
-    TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
-    setTimeout(() => {
-        window.location.href = '/login.html';
-    }, 1000);
+  TokenManager.clearTokens();
+  showToast('Logged out successfully', 'success');
+  setTimeout(() => {
+    window.location.href = '/login.html';
+  }, 1000);
 };
 
 document.addEventListener('DOMContentLoaded', init);

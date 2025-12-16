@@ -409,6 +409,17 @@ class ApplicantUpdateView(APIView):
         
         if action == 'accept':
             enrollment.status = Enrollment.Status.ACTIVE
+            
+            # Generate Student ID if missing (Delayed Generation)
+            if not enrollment.student.student_number:
+                from .services import EnrollmentService
+                service = EnrollmentService()
+                student_number = service.generate_student_number()
+                
+                enrollment.student.student_number = student_number
+                enrollment.student.set_password(student_number)
+                enrollment.student.save()
+                
             message = f"{enrollment.student.get_full_name()} has been approved"
         else:
             enrollment.status = Enrollment.Status.REJECTED
@@ -2344,16 +2355,49 @@ class CashierStudentSearchView(APIView):
     )
     def get(self, request):
         from django.db.models import Q
-        from apps.accounts.models import User
+        from apps.accounts.models import User, StudentProfile
         
         query = request.query_params.get('q', '').strip()
+        
+        # If no query, return all enrolled students (limit to 50)
         if len(query) < 2:
+            # Get all students with active enrollments
+            enrollments = Enrollment.objects.filter(
+                status='ACTIVE'
+            ).select_related('student').prefetch_related('payment_buckets').order_by('-created_at')[:50]
+            
+            results = []
+            for enrollment in enrollments:
+                student = enrollment.student
+                
+                # Get program from student profile
+                try:
+                    profile = StudentProfile.objects.get(user=student)
+                    program_code = profile.program.code if profile.program else 'N/A'
+                    year_level = profile.year_level
+                except StudentProfile.DoesNotExist:
+                    program_code = 'N/A'
+                    year_level = 1
+                
+                results.append({
+                    'id': str(student.id),
+                    'enrollment_id': str(enrollment.id),
+                    'student_number': student.student_number,
+                    'first_name': student.first_name,
+                    'last_name': student.last_name,
+                    'student_name': f"{student.first_name} {student.last_name}",
+                    'email': student.email,
+                    'program_code': program_code,
+                    'year_level': year_level,
+                    'enrollment_status': enrollment.status,
+                })
+            
             return Response({
                 "success": True,
-                "results": []
+                "results": results
             })
         
-        # Search students
+        # Search students by query
         students = User.objects.filter(
             role='STUDENT'
         ).filter(
@@ -2371,6 +2415,15 @@ class CashierStudentSearchView(APIView):
             ).prefetch_related('payment_buckets').order_by('-created_at').first()
             
             if enrollment:
+                # Get program from student profile
+                try:
+                    profile = StudentProfile.objects.get(user=student)
+                    program_code = profile.program.code if profile.program else 'N/A'
+                    year_level = profile.year_level
+                except StudentProfile.DoesNotExist:
+                    program_code = 'N/A'
+                    year_level = 1
+                
                 # Get payment buckets
                 buckets = []
                 for bucket in enrollment.payment_buckets.all():
@@ -2386,7 +2439,10 @@ class CashierStudentSearchView(APIView):
                     'student_number': student.student_number,
                     'first_name': student.first_name,
                     'last_name': student.last_name,
+                    'student_name': f"{student.first_name} {student.last_name}",
                     'email': student.email,
+                    'program_code': program_code,
+                    'year_level': year_level,
                     'enrollment_id': str(enrollment.id),
                     'enrollment_status': enrollment.status,
                     'payment_buckets': buckets,
@@ -2459,3 +2515,220 @@ class CashierPendingPaymentsView(APIView):
             "success": True,
             "results": results
         })
+
+
+# ============================================================
+# Head/Department Head Approval Views
+# ============================================================
+
+from apps.core.permissions import IsDepartmentHead
+from apps.accounts.models import StudentProfile
+
+
+class HeadPendingEnrollmentsView(APIView):
+    """
+    Get subject enrollments pending Head approval.
+    Used by Department Head to see subjects awaiting approval.
+    """
+    permission_classes = [IsAuthenticated, IsDepartmentHead | IsAdmin]
+    
+    @extend_schema(
+        summary="Get Pending Subject Enrollments",
+        description="Get subject enrollments waiting for Head approval",
+        tags=["Head Dashboard"]
+    )
+    def get(self, request):
+        # Get all subject enrollments with PENDING_HEAD status
+        pending = SubjectEnrollment.objects.filter(
+            status=SubjectEnrollment.Status.PENDING_HEAD
+        ).select_related(
+            'enrollment__student', 
+            'subject', 
+            'section'
+        ).order_by('-created_at')
+        
+        results = []
+        for se in pending:
+            student = se.enrollment.student
+            
+            # Get program from student profile
+            try:
+                profile = StudentProfile.objects.get(user=student)
+                program_code = profile.program.code if profile.program else 'N/A'
+                program_name = profile.program.name if profile.program else 'N/A'
+                year_level = profile.year_level
+            except StudentProfile.DoesNotExist:
+                program_code = 'N/A'
+                program_name = 'N/A'
+                year_level = 1
+            
+            results.append({
+                'id': str(se.id),
+                'student_id': str(student.id),
+                'student_number': student.student_number,
+                'student_name': f"{student.first_name} {student.last_name}",
+                'program_code': program_code,
+                'program_name': program_name,
+                'year_level': year_level,
+                'subject_code': se.subject.code,
+                'subject_name': se.subject.title,
+                'subject_units': se.subject.units,
+                'section_name': se.section.name if se.section else 'N/A',
+                'is_month1_paid': se.enrollment.payment_buckets.filter(month_number=1, is_fully_paid=True).exists(),
+                'created_at': se.created_at.isoformat()
+            })
+        
+        return Response({
+            "success": True,
+            "count": len(results),
+            "results": results
+        })
+
+
+class HeadApproveEnrollmentView(APIView):
+    """
+    Approve a pending subject enrollment.
+    Changes status from PENDING_HEAD to ENROLLED.
+    """
+    permission_classes = [IsAuthenticated, IsDepartmentHead | IsAdmin]
+    
+    @extend_schema(
+        summary="Approve Subject Enrollment",
+        description="Approve a subject enrollment (changes status to ENROLLED)",
+        tags=["Head Dashboard"]
+    )
+    @transaction.atomic
+    def post(self, request, pk):
+        try:
+            subject_enrollment = SubjectEnrollment.objects.select_related(
+                'enrollment__student', 'subject'
+            ).get(pk=pk, status=SubjectEnrollment.Status.PENDING_HEAD)
+        except SubjectEnrollment.DoesNotExist:
+            raise NotFoundError("Subject enrollment not found or already processed")
+        
+        # Update status to ENROLLED
+        subject_enrollment.status = SubjectEnrollment.Status.ENROLLED
+        subject_enrollment.save()
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.ENROLLMENT_STATUS_CHANGED,
+            target_model='SubjectEnrollment',
+            target_id=subject_enrollment.id,
+            payload={
+                'student': subject_enrollment.enrollment.student.student_number,
+                'subject': subject_enrollment.subject.code,
+                'old_status': 'PENDING_HEAD',
+                'new_status': 'ENROLLED',
+                'approved_by': request.user.email
+            }
+        )
+        
+        return Response({
+            "success": True,
+            "message": f"Approved {subject_enrollment.subject.code} for {subject_enrollment.enrollment.student.get_full_name()}"
+        })
+
+
+class HeadRejectEnrollmentView(APIView):
+    """
+    Reject a pending subject enrollment.
+    Changes status from PENDING_HEAD to DROPPED.
+    """
+    permission_classes = [IsAuthenticated, IsDepartmentHead | IsAdmin]
+    
+    @extend_schema(
+        summary="Reject Subject Enrollment",
+        description="Reject a subject enrollment (changes status to DROPPED)",
+        tags=["Head Dashboard"]
+    )
+    @transaction.atomic
+    def post(self, request, pk):
+        try:
+            subject_enrollment = SubjectEnrollment.objects.select_related(
+                'enrollment__student', 'subject'
+            ).get(pk=pk, status=SubjectEnrollment.Status.PENDING_HEAD)
+        except SubjectEnrollment.DoesNotExist:
+            raise NotFoundError("Subject enrollment not found or already processed")
+        
+        reason = request.data.get('reason', 'Rejected by Head')
+        
+        # Update status to DROPPED
+        subject_enrollment.status = SubjectEnrollment.Status.DROPPED
+        subject_enrollment.save()
+        
+        # Log to audit
+        AuditLog.log(
+            action=AuditLog.Action.ENROLLMENT_STATUS_CHANGED,
+            target_model='SubjectEnrollment',
+            target_id=subject_enrollment.id,
+            payload={
+                'student': subject_enrollment.enrollment.student.student_number,
+                'subject': subject_enrollment.subject.code,
+                'old_status': 'PENDING_HEAD',
+                'new_status': 'DROPPED',
+                'reason': reason,
+                'rejected_by': request.user.email
+            }
+        )
+        
+        return Response({
+            "success": True,
+            "message": f"Rejected {subject_enrollment.subject.code} for {subject_enrollment.enrollment.student.get_full_name()}"
+        })
+
+
+class HeadBulkApproveView(APIView):
+    """
+    Bulk approve multiple subject enrollments.
+    """
+    permission_classes = [IsAuthenticated, IsDepartmentHead | IsAdmin]
+    
+    @extend_schema(
+        summary="Bulk Approve Subject Enrollments",
+        description="Approve multiple subject enrollments at once",
+        tags=["Head Dashboard"]
+    )
+    @transaction.atomic
+    def post(self, request):
+        ids = request.data.get('ids', [])
+        
+        if not ids:
+            return Response({
+                "success": False,
+                "error": "No enrollment IDs provided"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get all pending enrollments with matching IDs
+        subject_enrollments = SubjectEnrollment.objects.filter(
+            id__in=ids,
+            status=SubjectEnrollment.Status.PENDING_HEAD
+        ).select_related('enrollment__student', 'subject')
+        
+        approved_count = 0
+        for se in subject_enrollments:
+            se.status = SubjectEnrollment.Status.ENROLLED
+            se.save()
+            approved_count += 1
+            
+            # Log each approval
+            AuditLog.log(
+                action=AuditLog.Action.ENROLLMENT_STATUS_CHANGED,
+                target_model='SubjectEnrollment',
+                target_id=se.id,
+                payload={
+                    'student': se.enrollment.student.student_number,
+                    'subject': se.subject.code,
+                    'old_status': 'PENDING_HEAD',
+                    'new_status': 'ENROLLED',
+                    'approved_by': request.user.email,
+                    'bulk_action': True
+                }
+            )
+        
+        return Response({
+            "success": True,
+            "message": f"Approved {approved_count} subject enrollment(s)",
+            "approved_count": approved_count
+        })
+

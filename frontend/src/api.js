@@ -225,5 +225,15 @@ export const endpoints = {
     cashierPendingPayments: '/admissions/cashier/students/pending-payments/',
     cashierRecordPayment: '/admissions/payments/record/',
     cashierStudentPayments: (enrollmentId) => `/admissions/payments/student/${enrollmentId}/`,
+
+    // Registrar endpoints
+    registrarStudentSearch: '/admissions/cashier/students/search/',  // Reuse cashier search
+    registrarAllStudents: '/admissions/applicants/',  // Get all enrolled students
+
+    // Head/Department Head endpoints
+    headPendingEnrollments: '/admissions/head/pending-enrollments/',
+    headApprove: (id) => `/admissions/head/approve/${id}/`,
+    headReject: (id) => `/admissions/head/reject/${id}/`,
+    headBulkApprove: '/admissions/head/bulk-approve/',
 };
 

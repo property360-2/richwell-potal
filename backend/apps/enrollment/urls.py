@@ -116,4 +116,13 @@ urlpatterns = [
     # Head-Registrar audit views
     path('documents/all/', views.AllReleasesView.as_view(), name='all-releases'),
     path('documents/stats/', views.DocumentReleaseStatsView.as_view(), name='release-stats'),
+    
+    # ============================================================
+    # Head/Department Head Approval
+    # ============================================================
+    
+    path('head/pending-enrollments/', views.HeadPendingEnrollmentsView.as_view(), name='head-pending-enrollments'),
+    path('head/approve/<uuid:pk>/', views.HeadApproveEnrollmentView.as_view(), name='head-approve-enrollment'),
+    path('head/reject/<uuid:pk>/', views.HeadRejectEnrollmentView.as_view(), name='head-reject-enrollment'),
+    path('head/bulk-approve/', views.HeadBulkApproveView.as_view(), name='head-bulk-approve'),
 ]
