@@ -1,0 +1,2015 @@
+[
+{
+  "model": "academics.subject",
+  "pk": "01f9b3a4-0975-4b46-961b-582a6ab03b91",
+  "fields": {
+    "created_at": "2025-12-17T11:00:05.864Z",
+    "updated_at": "2025-12-17T11:00:05.864Z",
+    "is_deleted": false,
+    "program": "b3dcfa56-27f4-4476-85e7-09991b5a69ae",
+    "code": "ICT101",
+    "title": "Computer Systems Servicing",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "05b2280c-078c-41cb-9f17-6e3acd56d313",
+  "fields": {
+    "created_at": "2025-12-17T11:00:05.870Z",
+    "updated_at": "2025-12-17T11:00:05.870Z",
+    "is_deleted": false,
+    "program": "b3dcfa56-27f4-4476-85e7-09991b5a69ae",
+    "code": "ICT102",
+    "title": "Animation",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "0f001983-35aa-4835-92e5-9f3977513447",
+  "fields": {
+    "created_at": "2025-12-17T10:52:40.557Z",
+    "updated_at": "2025-12-17T10:52:40.557Z",
+    "is_deleted": false,
+    "program": "8cb956f6-0f8e-4bdc-b699-625aa157b557",
+    "code": "EDUC102-BEED",
+    "title": "The Teaching Profession",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "16172543-aa17-4bb7-a493-1bf14ad65560",
+  "fields": {
+    "created_at": "2025-12-17T10:59:59.073Z",
+    "updated_at": "2025-12-17T10:59:59.073Z",
+    "is_deleted": false,
+    "program": "9b19a4f7-64e4-43b5-b97a-2a20a83fe112",
+    "code": "GE101-TVL-HE",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "1a0ff777-6a62-429d-82ad-36ea9e1bdc0a",
+  "fields": {
+    "created_at": "2025-12-17T10:52:35.888Z",
+    "updated_at": "2025-12-17T10:52:35.888Z",
+    "is_deleted": false,
+    "program": "126a51ef-f30b-443b-b84e-6de428f94ac7",
+    "code": "GE102-BSHM",
+    "title": "Readings in Philippine History",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "1a25ee7d-d310-4516-ac9c-025d1db6a21c",
+  "fields": {
+    "created_at": "2025-12-17T10:51:30.280Z",
+    "updated_at": "2025-12-17T10:51:30.280Z",
+    "is_deleted": false,
+    "program": "e82cf580-26ea-4d16-b606-9993b052fe80",
+    "code": "GE102-BSCS",
+    "title": "Readings in Philippine History",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "1ee63930-6e89-438a-94e3-d03f406f54db",
+  "fields": {
+    "created_at": "2025-12-17T10:51:25.824Z",
+    "updated_at": "2025-12-17T10:51:25.824Z",
+    "is_deleted": false,
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "code": "GE101-BSIT",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "236a5713-870d-445f-8da6-3eeccb5c23c8",
+  "fields": {
+    "created_at": "2025-12-15T18:23:01.573Z",
+    "updated_at": "2025-12-15T18:23:45.702Z",
+    "is_deleted": false,
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "code": "IS101",
+    "title": "Introduction to Computing",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "25e579aa-28ae-48f4-870c-5d1b6b6c8503",
+  "fields": {
+    "created_at": "2025-12-17T10:52:35.877Z",
+    "updated_at": "2025-12-17T10:52:35.877Z",
+    "is_deleted": false,
+    "program": "126a51ef-f30b-443b-b84e-6de428f94ac7",
+    "code": "GE101-BSHM",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "26c61c68-f3f5-4079-8ce5-553e5c7d2222",
+  "fields": {
+    "created_at": "2025-12-17T10:52:40.552Z",
+    "updated_at": "2025-12-17T10:52:40.552Z",
+    "is_deleted": false,
+    "program": "8cb956f6-0f8e-4bdc-b699-625aa157b557",
+    "code": "EDUC101-BEED",
+    "title": "The Child and Adolescent Learners",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "2bb40c04-ba1f-4d5e-b986-36c5dcf36868",
+  "fields": {
+    "created_at": "2025-12-17T10:51:35.927Z",
+    "updated_at": "2025-12-17T10:51:35.927Z",
+    "is_deleted": false,
+    "program": "38c8ce42-90e8-46ff-8d08-f581163c56ec",
+    "code": "BA101",
+    "title": "Introduction to Business",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "3127f1a0-6b5a-431a-b996-8c5b8b27153e",
+  "fields": {
+    "created_at": "2025-12-17T10:52:40.562Z",
+    "updated_at": "2025-12-17T10:52:40.562Z",
+    "is_deleted": false,
+    "program": "8cb956f6-0f8e-4bdc-b699-625aa157b557",
+    "code": "PE101-BEED",
+    "title": "Physical Education 1",
+    "description": "",
+    "units": 2,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "3130a175-bb5e-4a51-95a8-11df7f4a0918",
+  "fields": {
+    "created_at": "2025-12-17T11:12:37.227Z",
+    "updated_at": "2025-12-17T11:12:37.227Z",
+    "is_deleted": false,
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "code": "IT202",
+    "title": "Data Structures and Algorithms",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 2,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": [
+      "d407d084-0375-4ef9-82bf-02a8eb814ad7"
+    ]
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "33f5884e-ef1e-422a-90af-086ed10f1d55",
+  "fields": {
+    "created_at": "2025-12-17T10:52:35.897Z",
+    "updated_at": "2025-12-17T10:52:35.897Z",
+    "is_deleted": false,
+    "program": "126a51ef-f30b-443b-b84e-6de428f94ac7",
+    "code": "HM101",
+    "title": "Introduction to Hospitality Management",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "3507bcd8-05da-4f4d-8b2c-85c33b58f6dd",
+  "fields": {
+    "created_at": "2025-12-17T10:37:12.970Z",
+    "updated_at": "2025-12-17T10:37:12.970Z",
+    "is_deleted": false,
+    "program": "629187c3-512a-42c0-86ea-a3a097bb41e5",
+    "code": "GE103-BSED",
+    "title": "Mathematics in the Modern World",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "3c2b1ee2-a29a-49ba-8f51-fd3f1da93e98",
+  "fields": {
+    "created_at": "2025-12-17T10:51:30.285Z",
+    "updated_at": "2025-12-17T10:51:30.285Z",
+    "is_deleted": false,
+    "program": "e82cf580-26ea-4d16-b606-9993b052fe80",
+    "code": "CS101",
+    "title": "Introduction to Computer Science",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "3e9a2fdd-da38-4472-acfc-220f737d385a",
+  "fields": {
+    "created_at": "2025-12-17T10:51:25.851Z",
+    "updated_at": "2025-12-17T10:51:25.851Z",
+    "is_deleted": false,
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "code": "PE101-BSIT",
+    "title": "Physical Education 1",
+    "description": "",
+    "units": 2,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "441ce599-9dfe-4d84-8db4-fd9a682ae0e4",
+  "fields": {
+    "created_at": "2025-12-17T10:51:35.937Z",
+    "updated_at": "2025-12-17T10:51:35.937Z",
+    "is_deleted": false,
+    "program": "38c8ce42-90e8-46ff-8d08-f581163c56ec",
+    "code": "PE101-BSBA",
+    "title": "Physical Education 1",
+    "description": "",
+    "units": 2,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "55703259-cbb7-4d67-989d-111611b4ef0f",
+  "fields": {
+    "created_at": "2025-12-17T10:51:30.293Z",
+    "updated_at": "2025-12-17T10:51:30.293Z",
+    "is_deleted": false,
+    "program": "e82cf580-26ea-4d16-b606-9993b052fe80",
+    "code": "PE101-BSCS",
+    "title": "Physical Education 1",
+    "description": "",
+    "units": 2,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "5f4a3076-3cf3-477d-8952-70b98c166900",
+  "fields": {
+    "created_at": "2025-12-10T06:55:05.520Z",
+    "updated_at": "2025-12-10T06:55:05.520Z",
+    "is_deleted": false,
+    "program": "26a2df80-ea39-4844-8535-ac99bddf9038",
+    "code": "2321",
+    "title": "Ethics",
+    "description": "hahabait",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "6070ef65-b968-48a1-b4ba-611538b0d249",
+  "fields": {
+    "created_at": "2025-12-17T10:37:18.143Z",
+    "updated_at": "2025-12-17T10:37:18.143Z",
+    "is_deleted": false,
+    "program": "629187c3-512a-42c0-86ea-a3a097bb41e5",
+    "code": "EDUC101",
+    "title": "The Child and Adolescent Learners",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "630d41e8-eb50-4e33-ba20-8ad34a8793d0",
+  "fields": {
+    "created_at": "2025-12-15T18:23:01.589Z",
+    "updated_at": "2025-12-15T18:23:45.712Z",
+    "is_deleted": false,
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "code": "PE001",
+    "title": "Physical Education 1",
+    "description": "",
+    "units": 2,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "6579809e-244b-43ac-9053-6ac6f1f5215b",
+  "fields": {
+    "created_at": "2025-12-15T18:23:01.557Z",
+    "updated_at": "2025-12-15T18:23:45.691Z",
+    "is_deleted": false,
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "code": "GE003",
+    "title": "The Contemporary World",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "698eaa51-4a4b-48a8-b88d-77dc4bdc4955",
+  "fields": {
+    "created_at": "2025-12-17T10:51:30.289Z",
+    "updated_at": "2025-12-17T10:51:30.289Z",
+    "is_deleted": false,
+    "program": "e82cf580-26ea-4d16-b606-9993b052fe80",
+    "code": "CS102",
+    "title": "Discrete Mathematics",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "713072fa-1b26-4795-b5d6-06ed7f70a52e",
+  "fields": {
+    "created_at": "2025-12-17T10:51:35.932Z",
+    "updated_at": "2025-12-17T10:51:35.932Z",
+    "is_deleted": false,
+    "program": "38c8ce42-90e8-46ff-8d08-f581163c56ec",
+    "code": "BA102",
+    "title": "Principles of Management",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "7456a9f3-f44e-4b66-9e9a-2fec5f42b9e7",
+  "fields": {
+    "created_at": "2025-12-17T10:52:35.908Z",
+    "updated_at": "2025-12-17T10:52:35.908Z",
+    "is_deleted": false,
+    "program": "126a51ef-f30b-443b-b84e-6de428f94ac7",
+    "code": "PE101-BSHM",
+    "title": "Physical Education 1",
+    "description": "",
+    "units": 2,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "7831a5d0-c334-4e8e-b6cc-1eab3eb96716",
+  "fields": {
+    "created_at": "2025-12-17T10:52:49.086Z",
+    "updated_at": "2025-12-17T10:52:49.086Z",
+    "is_deleted": false,
+    "program": "26a2df80-ea39-4844-8535-ac99bddf9038",
+    "code": "GE101-BTSM",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "7c3fe303-98d8-4f23-a815-c5735aa179d0",
+  "fields": {
+    "created_at": "2025-12-17T10:52:40.540Z",
+    "updated_at": "2025-12-17T10:52:40.540Z",
+    "is_deleted": false,
+    "program": "8cb956f6-0f8e-4bdc-b699-625aa157b557",
+    "code": "GE101-BEED",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "8e5299a1-17d2-4c61-b99b-fdbb9ef71d32",
+  "fields": {
+    "created_at": "2025-12-17T10:51:30.275Z",
+    "updated_at": "2025-12-17T10:51:30.275Z",
+    "is_deleted": false,
+    "program": "e82cf580-26ea-4d16-b606-9993b052fe80",
+    "code": "GE101-BSCS",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "920320cb-2598-4b07-b7e0-5d93d0297aa8",
+  "fields": {
+    "created_at": "2025-12-17T10:52:40.547Z",
+    "updated_at": "2025-12-17T10:52:40.547Z",
+    "is_deleted": false,
+    "program": "8cb956f6-0f8e-4bdc-b699-625aa157b557",
+    "code": "GE102-BEED",
+    "title": "Readings in Philippine History",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "92697923-330a-4ba3-a2ed-ca1231cb442c",
+  "fields": {
+    "created_at": "2025-12-15T18:23:01.565Z",
+    "updated_at": "2025-12-15T18:23:45.696Z",
+    "is_deleted": false,
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "code": "GE004",
+    "title": "Mathematics in the Modern World",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "9a5c4b0c-3c11-4f6a-b298-3f6fc6898dc0",
+  "fields": {
+    "created_at": "2025-12-17T11:12:37.239Z",
+    "updated_at": "2025-12-17T11:12:37.239Z",
+    "is_deleted": false,
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "code": "IT203",
+    "title": "Object Oriented Programming",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 2,
+    "semester_number": 2,
+    "allow_multiple_sections": false,
+    "prerequisites": [
+      "d407d084-0375-4ef9-82bf-02a8eb814ad7"
+    ]
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "9b25a999-3963-4ed7-9b0a-76f145bc4b1f",
+  "fields": {
+    "created_at": "2025-12-17T10:52:49.096Z",
+    "updated_at": "2025-12-17T10:52:49.096Z",
+    "is_deleted": false,
+    "program": "26a2df80-ea39-4844-8535-ac99bddf9038",
+    "code": "TM101",
+    "title": "Introduction to Tourism",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "a2c830c3-919b-4f09-936d-b75a59fa3b59",
+  "fields": {
+    "created_at": "2025-12-17T10:51:25.845Z",
+    "updated_at": "2025-12-17T10:51:25.845Z",
+    "is_deleted": false,
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "code": "IT102",
+    "title": "Computer Programming 1",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "a596481b-a9b7-4d0b-8b7b-265ac1bafffa",
+  "fields": {
+    "created_at": "2025-12-17T10:37:18.155Z",
+    "updated_at": "2025-12-17T10:37:18.155Z",
+    "is_deleted": false,
+    "program": "629187c3-512a-42c0-86ea-a3a097bb41e5",
+    "code": "PE101-BSED",
+    "title": "Physical Education 1",
+    "description": "",
+    "units": 2,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "b2c39941-9de2-4106-a7f7-dd66661863b4",
+  "fields": {
+    "created_at": "2025-12-17T10:51:35.923Z",
+    "updated_at": "2025-12-17T10:51:35.923Z",
+    "is_deleted": false,
+    "program": "38c8ce42-90e8-46ff-8d08-f581163c56ec",
+    "code": "GE102-BSBA",
+    "title": "Readings in Philippine History",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "c1c4acc4-45b8-4646-8616-7585e1ad8606",
+  "fields": {
+    "created_at": "2025-12-17T10:52:35.902Z",
+    "updated_at": "2025-12-17T10:52:35.902Z",
+    "is_deleted": false,
+    "program": "126a51ef-f30b-443b-b84e-6de428f94ac7",
+    "code": "HM102",
+    "title": "Food and Beverage Service",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "c200f20d-73e2-4d0a-b184-bd3065c1eb72",
+  "fields": {
+    "created_at": "2025-12-17T10:59:59.082Z",
+    "updated_at": "2025-12-17T10:59:59.082Z",
+    "is_deleted": false,
+    "program": "9b19a4f7-64e4-43b5-b97a-2a20a83fe112",
+    "code": "HE102",
+    "title": "Food Processing",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "c6bb742c-4b77-41bf-8615-a58d6deb8378",
+  "fields": {
+    "created_at": "2025-12-17T10:37:12.958Z",
+    "updated_at": "2025-12-17T10:37:12.958Z",
+    "is_deleted": false,
+    "program": "629187c3-512a-42c0-86ea-a3a097bb41e5",
+    "code": "GE101-BSED",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "c7ae12dd-772c-401b-b6f1-1071e581a3e8",
+  "fields": {
+    "created_at": "2025-12-15T18:23:01.549Z",
+    "updated_at": "2025-12-15T18:23:45.686Z",
+    "is_deleted": false,
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "code": "GE002",
+    "title": "Readings in Philippine History",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "d1c0beae-dcb3-4a8b-8224-58989b3ee814",
+  "fields": {
+    "created_at": "2025-12-17T10:37:18.149Z",
+    "updated_at": "2025-12-17T10:37:18.149Z",
+    "is_deleted": false,
+    "program": "629187c3-512a-42c0-86ea-a3a097bb41e5",
+    "code": "EDUC102",
+    "title": "The Teaching Profession",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "d407d084-0375-4ef9-82bf-02a8eb814ad7",
+  "fields": {
+    "created_at": "2025-12-17T11:12:37.215Z",
+    "updated_at": "2025-12-17T11:12:37.215Z",
+    "is_deleted": false,
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "code": "IT201",
+    "title": "Computer Programming 2",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 2,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": [
+      "a2c830c3-919b-4f09-936d-b75a59fa3b59"
+    ]
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "daa28431-e395-4df6-b0a2-13f812b261b4",
+  "fields": {
+    "created_at": "2025-12-17T10:51:35.917Z",
+    "updated_at": "2025-12-17T10:51:35.917Z",
+    "is_deleted": false,
+    "program": "38c8ce42-90e8-46ff-8d08-f581163c56ec",
+    "code": "GE101-BSBA",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "db2ad5d5-7870-4fe0-99f0-e714c6b48942",
+  "fields": {
+    "created_at": "2025-12-17T10:51:25.834Z",
+    "updated_at": "2025-12-17T10:51:25.834Z",
+    "is_deleted": false,
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "code": "GE102-BSIT",
+    "title": "Readings in Philippine History",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "dc14dbb7-e7a5-4d85-9ac8-5a88c6d230d4",
+  "fields": {
+    "created_at": "2025-12-15T18:23:01.539Z",
+    "updated_at": "2025-12-15T18:23:45.680Z",
+    "is_deleted": false,
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "code": "GE001",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "ddc82b47-a051-4d9b-857f-576db4aba493",
+  "fields": {
+    "created_at": "2025-12-17T10:37:12.965Z",
+    "updated_at": "2025-12-17T10:37:12.965Z",
+    "is_deleted": false,
+    "program": "629187c3-512a-42c0-86ea-a3a097bb41e5",
+    "code": "GE102-BSED",
+    "title": "Readings in Philippine History",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "deb22cec-0d2d-4264-b4f5-e905e94e75bc",
+  "fields": {
+    "created_at": "2025-12-17T10:52:49.090Z",
+    "updated_at": "2025-12-17T10:52:49.090Z",
+    "is_deleted": false,
+    "program": "26a2df80-ea39-4844-8535-ac99bddf9038",
+    "code": "GE102-BTSM",
+    "title": "Readings in Philippine History",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "ede2ea10-3518-4270-9eec-ced3e6957b7e",
+  "fields": {
+    "created_at": "2025-12-17T10:52:49.100Z",
+    "updated_at": "2025-12-17T10:52:49.100Z",
+    "is_deleted": false,
+    "program": "26a2df80-ea39-4844-8535-ac99bddf9038",
+    "code": "TM102",
+    "title": "Tourism Geography",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "f23e7e00-e48e-4f6c-b900-710436162a83",
+  "fields": {
+    "created_at": "2025-12-15T18:23:01.596Z",
+    "updated_at": "2025-12-15T18:23:45.716Z",
+    "is_deleted": false,
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "code": "NSTP1",
+    "title": "NSTP 1",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "f5bbf6da-6651-4742-95b7-e1e905ca5f95",
+  "fields": {
+    "created_at": "2025-12-17T11:00:05.857Z",
+    "updated_at": "2025-12-17T11:00:05.857Z",
+    "is_deleted": false,
+    "program": "b3dcfa56-27f4-4476-85e7-09991b5a69ae",
+    "code": "GE101-TVL-ICT",
+    "title": "Understanding the Self",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "f67ba95a-4e86-4732-8a49-38e53f207cdc",
+  "fields": {
+    "created_at": "2025-12-17T10:51:25.839Z",
+    "updated_at": "2025-12-17T10:51:25.840Z",
+    "is_deleted": false,
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "code": "IT101",
+    "title": "Introduction to Computing",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "f7c1a07e-3134-4111-91f4-f8a67f44cf8b",
+  "fields": {
+    "created_at": "2025-12-17T10:52:49.104Z",
+    "updated_at": "2025-12-17T10:52:49.104Z",
+    "is_deleted": false,
+    "program": "26a2df80-ea39-4844-8535-ac99bddf9038",
+    "code": "PE101-BTSM",
+    "title": "Physical Education 1",
+    "description": "",
+    "units": 2,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "fa218d52-8a31-4d5e-a548-6334a2e66375",
+  "fields": {
+    "created_at": "2025-12-15T18:23:01.581Z",
+    "updated_at": "2025-12-15T18:23:45.707Z",
+    "is_deleted": false,
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "code": "IS102",
+    "title": "Computer Programming 1",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.subject",
+  "pk": "fdd89a16-70d1-4c49-9388-be9a84cce928",
+  "fields": {
+    "created_at": "2025-12-17T10:59:59.078Z",
+    "updated_at": "2025-12-17T10:59:59.078Z",
+    "is_deleted": false,
+    "program": "9b19a4f7-64e4-43b5-b97a-2a20a83fe112",
+    "code": "HE101",
+    "title": "Home Economics Basics",
+    "description": "",
+    "units": 3,
+    "is_major": false,
+    "year_level": 1,
+    "semester_number": 1,
+    "allow_multiple_sections": false,
+    "prerequisites": []
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "0cb487e5-ad54-4d4c-b390-6793936f152a",
+  "fields": {
+    "created_at": "2025-12-17T10:59:59.087Z",
+    "updated_at": "2025-12-17T10:59:59.087Z",
+    "is_deleted": false,
+    "name": "TVL-HE-1A",
+    "program": "9b19a4f7-64e4-43b5-b97a-2a20a83fe112",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "1fb47eb1-7069-44b1-b3e4-fbee225ff41b",
+  "fields": {
+    "created_at": "2025-12-17T10:53:13.917Z",
+    "updated_at": "2025-12-17T10:53:13.917Z",
+    "is_deleted": false,
+    "name": "BEED-1A",
+    "program": "8cb956f6-0f8e-4bdc-b699-625aa157b557",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "2828fd44-9b83-49bf-a1ba-332581371cb2",
+  "fields": {
+    "created_at": "2025-12-17T10:53:13.901Z",
+    "updated_at": "2025-12-17T10:53:13.901Z",
+    "is_deleted": false,
+    "name": "BSCS-1A",
+    "program": "e82cf580-26ea-4d16-b606-9993b052fe80",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "3035fea7-85ad-48b3-a4fa-d39960972345",
+  "fields": {
+    "created_at": "2025-12-15T18:23:45.723Z",
+    "updated_at": "2025-12-15T18:23:45.723Z",
+    "is_deleted": false,
+    "name": "BSIS-1A",
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "35e7b5cd-5b35-47bd-905c-465b046c9955",
+  "fields": {
+    "created_at": "2025-12-17T10:53:13.911Z",
+    "updated_at": "2025-12-17T10:53:13.911Z",
+    "is_deleted": false,
+    "name": "BSHM-1A",
+    "program": "126a51ef-f30b-443b-b84e-6de428f94ac7",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "5698121b-5fef-423d-ae7d-0c41610f8400",
+  "fields": {
+    "created_at": "2025-12-14T15:56:07.901Z",
+    "updated_at": "2025-12-14T15:56:07.901Z",
+    "is_deleted": false,
+    "name": "A",
+    "program": "26a2df80-ea39-4844-8535-ac99bddf9038",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "68f85753-f7aa-420e-a3c7-e6b99792a3e9",
+  "fields": {
+    "created_at": "2025-12-15T18:52:51.950Z",
+    "updated_at": "2025-12-15T18:52:51.950Z",
+    "is_deleted": false,
+    "name": "BSIS-2A",
+    "program": "665f0af6-1928-4545-a68b-dfea687e9c85",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "78c41145-0efe-4f40-954b-fd92339f9ea8",
+  "fields": {
+    "created_at": "2025-12-17T10:38:33.785Z",
+    "updated_at": "2025-12-17T10:38:33.785Z",
+    "is_deleted": false,
+    "name": "BSED-1A",
+    "program": "629187c3-512a-42c0-86ea-a3a097bb41e5",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "868d7d26-d462-44fd-94c2-218aea43f7e0",
+  "fields": {
+    "created_at": "2025-12-17T10:53:13.906Z",
+    "updated_at": "2025-12-17T10:53:13.906Z",
+    "is_deleted": false,
+    "name": "BSBA-1A",
+    "program": "38c8ce42-90e8-46ff-8d08-f581163c56ec",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "95c7903d-ce8e-4175-b60b-bc016900109c",
+  "fields": {
+    "created_at": "2025-12-17T10:53:13.893Z",
+    "updated_at": "2025-12-17T10:53:13.893Z",
+    "is_deleted": false,
+    "name": "BSIT-1A",
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "ac97bc66-96a8-44e3-a1fa-284f00a9f17d",
+  "fields": {
+    "created_at": "2025-12-17T11:12:37.253Z",
+    "updated_at": "2025-12-17T11:12:37.253Z",
+    "is_deleted": false,
+    "name": "BSIT-2A",
+    "program": "ea378731-ec06-4dcc-8c49-5e7b4a4bab2b",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 2,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "bf0bf558-8ede-40b4-a1f7-f0e7ad29553e",
+  "fields": {
+    "created_at": "2025-12-17T11:00:05.875Z",
+    "updated_at": "2025-12-17T11:00:05.875Z",
+    "is_deleted": false,
+    "name": "TVL-ICT-1A",
+    "program": "b3dcfa56-27f4-4476-85e7-09991b5a69ae",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.section",
+  "pk": "c26f5aa4-296b-4ae2-abb4-2efe33d64fe9",
+  "fields": {
+    "created_at": "2025-12-17T10:53:13.923Z",
+    "updated_at": "2025-12-17T10:53:13.923Z",
+    "is_deleted": false,
+    "name": "BTSM-1A",
+    "program": "26a2df80-ea39-4844-8535-ac99bddf9038",
+    "semester": "0d358643-6566-47b0-ad06-43750b65645f",
+    "year_level": 1,
+    "capacity": 40
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "02e706c5-a8cc-47cf-9200-28f3b72078e0",
+  "fields": {
+    "created_at": "2025-12-17T10:59:22.426Z",
+    "updated_at": "2025-12-17T10:59:22.426Z",
+    "is_deleted": false,
+    "section": "1fb47eb1-7069-44b1-b3e4-fbee225ff41b",
+    "subject": "3127f1a0-6b5a-431a-b996-8c5b8b27153e",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "048aaae6-8350-45f0-b18d-f46e3fded688",
+  "fields": {
+    "created_at": "2025-12-15T18:23:45.729Z",
+    "updated_at": "2025-12-15T18:23:45.729Z",
+    "is_deleted": false,
+    "section": "3035fea7-85ad-48b3-a4fa-d39960972345",
+    "subject": "dc14dbb7-e7a5-4d85-9ac8-5a88c6d230d4",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "1012f7b5-36c3-4de3-8745-5bf2d2759f58",
+  "fields": {
+    "created_at": "2025-12-17T11:12:37.260Z",
+    "updated_at": "2025-12-17T11:12:37.260Z",
+    "is_deleted": false,
+    "section": "ac97bc66-96a8-44e3-a1fa-284f00a9f17d",
+    "subject": "d407d084-0375-4ef9-82bf-02a8eb814ad7",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "14e697c1-7d90-488b-992f-c09a062cf788",
+  "fields": {
+    "created_at": "2025-12-15T18:23:45.762Z",
+    "updated_at": "2025-12-15T18:23:45.762Z",
+    "is_deleted": false,
+    "section": "3035fea7-85ad-48b3-a4fa-d39960972345",
+    "subject": "630d41e8-eb50-4e33-ba20-8ad34a8793d0",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "1715afb5-23af-4be1-b28e-bbb35a526e37",
+  "fields": {
+    "created_at": "2025-12-17T10:59:29.905Z",
+    "updated_at": "2025-12-17T10:59:29.905Z",
+    "is_deleted": false,
+    "section": "c26f5aa4-296b-4ae2-abb4-2efe33d64fe9",
+    "subject": "7831a5d0-c334-4e8e-b6cc-1eab3eb96716",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "19fa861a-4c9b-477d-abe9-73a759decae8",
+  "fields": {
+    "created_at": "2025-12-17T10:59:22.387Z",
+    "updated_at": "2025-12-17T10:59:22.387Z",
+    "is_deleted": false,
+    "section": "1fb47eb1-7069-44b1-b3e4-fbee225ff41b",
+    "subject": "26c61c68-f3f5-4079-8ce5-553e5c7d2222",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "1bd3ab41-bf86-4d53-ba9a-9702e8b3c629",
+  "fields": {
+    "created_at": "2025-12-17T10:59:08.284Z",
+    "updated_at": "2025-12-17T10:59:08.284Z",
+    "is_deleted": false,
+    "section": "2828fd44-9b83-49bf-a1ba-332581371cb2",
+    "subject": "55703259-cbb7-4d67-989d-111611b4ef0f",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "1c13159c-803e-403e-bae9-e344ab0ef76c",
+  "fields": {
+    "created_at": "2025-12-15T18:23:45.757Z",
+    "updated_at": "2025-12-15T18:23:45.757Z",
+    "is_deleted": false,
+    "section": "3035fea7-85ad-48b3-a4fa-d39960972345",
+    "subject": "fa218d52-8a31-4d5e-a548-6334a2e66375",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "291b81c5-7b9a-4dc9-890b-a3891882c75a",
+  "fields": {
+    "created_at": "2025-12-17T10:59:22.393Z",
+    "updated_at": "2025-12-17T10:59:22.393Z",
+    "is_deleted": false,
+    "section": "1fb47eb1-7069-44b1-b3e4-fbee225ff41b",
+    "subject": "0f001983-35aa-4835-92e5-9f3977513447",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "2a541c9a-7bf1-452c-973f-4d9a44e895a6",
+  "fields": {
+    "created_at": "2025-12-17T10:59:08.280Z",
+    "updated_at": "2025-12-17T10:59:08.280Z",
+    "is_deleted": false,
+    "section": "2828fd44-9b83-49bf-a1ba-332581371cb2",
+    "subject": "1a25ee7d-d310-4516-ac9c-025d1db6a21c",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "2a8bb32c-f774-4910-a594-c411d1ae087a",
+  "fields": {
+    "created_at": "2025-12-17T10:59:59.097Z",
+    "updated_at": "2025-12-17T10:59:59.097Z",
+    "is_deleted": false,
+    "section": "0cb487e5-ad54-4d4c-b390-6793936f152a",
+    "subject": "fdd89a16-70d1-4c49-9388-be9a84cce928",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "2b0bef7f-67e9-47a4-a08a-3d9ed60ad2cf",
+  "fields": {
+    "created_at": "2025-12-17T10:38:58.248Z",
+    "updated_at": "2025-12-17T10:38:58.248Z",
+    "is_deleted": false,
+    "section": "78c41145-0efe-4f40-954b-fd92339f9ea8",
+    "subject": "3507bcd8-05da-4f4d-8b2c-85c33b58f6dd",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "2f93d9c1-bfde-477b-a2e2-2ae8b9b375c4",
+  "fields": {
+    "created_at": "2025-12-17T10:59:03.436Z",
+    "updated_at": "2025-12-17T10:59:03.436Z",
+    "is_deleted": false,
+    "section": "95c7903d-ce8e-4175-b60b-bc016900109c",
+    "subject": "f67ba95a-4e86-4732-8a49-38e53f207cdc",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "322a6aa0-d2aa-446e-a87e-ba9a730a5923",
+  "fields": {
+    "created_at": "2025-12-17T10:38:58.238Z",
+    "updated_at": "2025-12-17T10:38:58.238Z",
+    "is_deleted": false,
+    "section": "78c41145-0efe-4f40-954b-fd92339f9ea8",
+    "subject": "c6bb742c-4b77-41bf-8615-a58d6deb8378",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "393a5d4a-fb22-4896-85bf-2241bafe9d6c",
+  "fields": {
+    "created_at": "2025-12-17T10:59:03.422Z",
+    "updated_at": "2025-12-17T10:59:03.422Z",
+    "is_deleted": false,
+    "section": "95c7903d-ce8e-4175-b60b-bc016900109c",
+    "subject": "1ee63930-6e89-438a-94e3-d03f406f54db",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "3fee071d-06f7-4983-bbd7-1870dea325fd",
+  "fields": {
+    "created_at": "2025-12-17T10:59:29.935Z",
+    "updated_at": "2025-12-17T10:59:29.935Z",
+    "is_deleted": false,
+    "section": "c26f5aa4-296b-4ae2-abb4-2efe33d64fe9",
+    "subject": "ede2ea10-3518-4270-9eec-ced3e6957b7e",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "43fad253-b345-4661-8650-09633d79f32d",
+  "fields": {
+    "created_at": "2025-12-17T10:59:29.893Z",
+    "updated_at": "2025-12-17T10:59:29.893Z",
+    "is_deleted": false,
+    "section": "c26f5aa4-296b-4ae2-abb4-2efe33d64fe9",
+    "subject": "5f4a3076-3cf3-477d-8952-70b98c166900",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "457b8b40-30bd-40c7-97db-6dd92a09b5c9",
+  "fields": {
+    "created_at": "2025-12-17T10:59:29.913Z",
+    "updated_at": "2025-12-17T10:59:29.913Z",
+    "is_deleted": false,
+    "section": "c26f5aa4-296b-4ae2-abb4-2efe33d64fe9",
+    "subject": "deb22cec-0d2d-4264-b4f5-e905e94e75bc",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "46fde354-7c9b-4963-9fb7-cc9fafb024ea",
+  "fields": {
+    "created_at": "2025-12-15T18:23:45.735Z",
+    "updated_at": "2025-12-15T18:23:45.735Z",
+    "is_deleted": false,
+    "section": "3035fea7-85ad-48b3-a4fa-d39960972345",
+    "subject": "c7ae12dd-772c-401b-b6f1-1071e581a3e8",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "4e941fb5-d3ba-4fc3-9909-cd7f7d1c7c7b",
+  "fields": {
+    "created_at": "2025-12-17T10:59:18.361Z",
+    "updated_at": "2025-12-17T10:59:18.361Z",
+    "is_deleted": false,
+    "section": "35e7b5cd-5b35-47bd-905c-465b046c9955",
+    "subject": "33f5884e-ef1e-422a-90af-086ed10f1d55",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "523ef81e-1561-4524-9185-ad095b7737c2",
+  "fields": {
+    "created_at": "2025-12-17T10:59:18.371Z",
+    "updated_at": "2025-12-17T10:59:18.371Z",
+    "is_deleted": false,
+    "section": "35e7b5cd-5b35-47bd-905c-465b046c9955",
+    "subject": "7456a9f3-f44e-4b66-9e9a-2fec5f42b9e7",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "524ff977-e7ee-4cac-9072-5fedbcd0b856",
+  "fields": {
+    "created_at": "2025-12-17T10:59:22.407Z",
+    "updated_at": "2025-12-17T10:59:22.407Z",
+    "is_deleted": false,
+    "section": "1fb47eb1-7069-44b1-b3e4-fbee225ff41b",
+    "subject": "920320cb-2598-4b07-b7e0-5d93d0297aa8",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "5e00ff9d-5433-49cc-bb09-a67b0709c65f",
+  "fields": {
+    "created_at": "2025-12-17T10:59:12.734Z",
+    "updated_at": "2025-12-17T10:59:12.734Z",
+    "is_deleted": false,
+    "section": "868d7d26-d462-44fd-94c2-218aea43f7e0",
+    "subject": "441ce599-9dfe-4d84-8db4-fd9a682ae0e4",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "5f60923b-5775-454d-bbe9-47fd60dd91b5",
+  "fields": {
+    "created_at": "2025-12-17T10:59:22.399Z",
+    "updated_at": "2025-12-17T10:59:22.399Z",
+    "is_deleted": false,
+    "section": "1fb47eb1-7069-44b1-b3e4-fbee225ff41b",
+    "subject": "7c3fe303-98d8-4f23-a815-c5735aa179d0",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "62f53f09-1efd-45e2-b029-7aafd2366b5d",
+  "fields": {
+    "created_at": "2025-12-17T10:59:08.265Z",
+    "updated_at": "2025-12-17T10:59:08.265Z",
+    "is_deleted": false,
+    "section": "2828fd44-9b83-49bf-a1ba-332581371cb2",
+    "subject": "3c2b1ee2-a29a-49ba-8f51-fd3f1da93e98",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "62f74569-7326-48bf-906c-b7d288517e93",
+  "fields": {
+    "created_at": "2025-12-15T18:23:45.746Z",
+    "updated_at": "2025-12-15T18:23:45.746Z",
+    "is_deleted": false,
+    "section": "3035fea7-85ad-48b3-a4fa-d39960972345",
+    "subject": "92697923-330a-4ba3-a2ed-ca1231cb442c",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "665d647c-a254-435f-923c-75d1733ae25a",
+  "fields": {
+    "created_at": "2025-12-17T10:59:18.366Z",
+    "updated_at": "2025-12-17T10:59:18.366Z",
+    "is_deleted": false,
+    "section": "35e7b5cd-5b35-47bd-905c-465b046c9955",
+    "subject": "c1c4acc4-45b8-4646-8616-7585e1ad8606",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "7a38c657-bd9d-46a1-b2c2-a63ffbf61ddf",
+  "fields": {
+    "created_at": "2025-12-17T10:59:12.717Z",
+    "updated_at": "2025-12-17T10:59:12.717Z",
+    "is_deleted": false,
+    "section": "868d7d26-d462-44fd-94c2-218aea43f7e0",
+    "subject": "713072fa-1b26-4795-b5d6-06ed7f70a52e",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "7c917207-5470-4fe4-8e9f-02f9278f1f65",
+  "fields": {
+    "created_at": "2025-12-17T10:59:59.092Z",
+    "updated_at": "2025-12-17T10:59:59.092Z",
+    "is_deleted": false,
+    "section": "0cb487e5-ad54-4d4c-b390-6793936f152a",
+    "subject": "16172543-aa17-4bb7-a493-1bf14ad65560",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "7d7b81ed-4972-4e44-a208-b0de5df0bfab",
+  "fields": {
+    "created_at": "2025-12-17T10:59:08.272Z",
+    "updated_at": "2025-12-17T10:59:08.272Z",
+    "is_deleted": false,
+    "section": "2828fd44-9b83-49bf-a1ba-332581371cb2",
+    "subject": "698eaa51-4a4b-48a8-b88d-77dc4bdc4955",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "859db3bc-25c6-46be-8940-9c89f16e0f96",
+  "fields": {
+    "created_at": "2025-12-17T10:59:18.357Z",
+    "updated_at": "2025-12-17T10:59:18.357Z",
+    "is_deleted": false,
+    "section": "35e7b5cd-5b35-47bd-905c-465b046c9955",
+    "subject": "1a0ff777-6a62-429d-82ad-36ea9e1bdc0a",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "88fcf000-7b86-4ec8-b437-3bd19c53663c",
+  "fields": {
+    "created_at": "2025-12-17T10:38:58.252Z",
+    "updated_at": "2025-12-17T10:38:58.252Z",
+    "is_deleted": false,
+    "section": "78c41145-0efe-4f40-954b-fd92339f9ea8",
+    "subject": "a596481b-a9b7-4d0b-8b7b-265ac1bafffa",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "a3917ea6-4f85-4791-80f9-991a5018b469",
+  "fields": {
+    "created_at": "2025-12-17T10:59:12.722Z",
+    "updated_at": "2025-12-17T10:59:12.722Z",
+    "is_deleted": false,
+    "section": "868d7d26-d462-44fd-94c2-218aea43f7e0",
+    "subject": "daa28431-e395-4df6-b0a2-13f812b261b4",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "ad19bf28-47cc-4cd7-bf3c-62b133e9b349",
+  "fields": {
+    "created_at": "2025-12-17T10:59:29.921Z",
+    "updated_at": "2025-12-17T10:59:29.921Z",
+    "is_deleted": false,
+    "section": "c26f5aa4-296b-4ae2-abb4-2efe33d64fe9",
+    "subject": "f7c1a07e-3134-4111-91f4-f8a67f44cf8b",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "b0539b8b-a64f-44f4-8b12-220117b018e0",
+  "fields": {
+    "created_at": "2025-12-17T10:38:58.227Z",
+    "updated_at": "2025-12-17T10:38:58.227Z",
+    "is_deleted": false,
+    "section": "78c41145-0efe-4f40-954b-fd92339f9ea8",
+    "subject": "6070ef65-b968-48a1-b4ba-611538b0d249",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "b354b12f-75a7-4b35-9f86-24962952c151",
+  "fields": {
+    "created_at": "2025-12-17T11:00:05.882Z",
+    "updated_at": "2025-12-17T11:00:05.882Z",
+    "is_deleted": false,
+    "section": "bf0bf558-8ede-40b4-a1f7-f0e7ad29553e",
+    "subject": "f5bbf6da-6651-4742-95b7-e1e905ca5f95",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "bc6a43dd-49c8-4252-ad88-d881c5f42e57",
+  "fields": {
+    "created_at": "2025-12-15T18:23:45.767Z",
+    "updated_at": "2025-12-15T18:23:45.767Z",
+    "is_deleted": false,
+    "section": "3035fea7-85ad-48b3-a4fa-d39960972345",
+    "subject": "f23e7e00-e48e-4f6c-b900-710436162a83",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "c621d425-a6b2-4e93-81d8-945c0e391763",
+  "fields": {
+    "created_at": "2025-12-15T18:23:45.751Z",
+    "updated_at": "2025-12-15T18:23:45.751Z",
+    "is_deleted": false,
+    "section": "3035fea7-85ad-48b3-a4fa-d39960972345",
+    "subject": "236a5713-870d-445f-8da6-3eeccb5c23c8",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "c9685f30-02e5-4c71-827f-e67c7130a450",
+  "fields": {
+    "created_at": "2025-12-17T10:59:59.101Z",
+    "updated_at": "2025-12-17T10:59:59.101Z",
+    "is_deleted": false,
+    "section": "0cb487e5-ad54-4d4c-b390-6793936f152a",
+    "subject": "c200f20d-73e2-4d0a-b184-bd3065c1eb72",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "cd4e8516-0656-4998-b7b8-21d1975a1638",
+  "fields": {
+    "created_at": "2025-12-17T11:00:05.893Z",
+    "updated_at": "2025-12-17T11:00:05.893Z",
+    "is_deleted": false,
+    "section": "bf0bf558-8ede-40b4-a1f7-f0e7ad29553e",
+    "subject": "05b2280c-078c-41cb-9f17-6e3acd56d313",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "ce7ce065-e892-422d-a6ae-df5e75a43697",
+  "fields": {
+    "created_at": "2025-12-14T15:56:07.908Z",
+    "updated_at": "2025-12-14T15:56:07.908Z",
+    "is_deleted": false,
+    "section": "5698121b-5fef-423d-ae7d-0c41610f8400",
+    "subject": "5f4a3076-3cf3-477d-8952-70b98c166900",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "cec8b4ac-658b-4573-b4aa-ce495990a1f7",
+  "fields": {
+    "created_at": "2025-12-17T10:38:58.243Z",
+    "updated_at": "2025-12-17T10:38:58.243Z",
+    "is_deleted": false,
+    "section": "78c41145-0efe-4f40-954b-fd92339f9ea8",
+    "subject": "ddc82b47-a051-4d9b-857f-576db4aba493",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "d1e7ad25-f07b-4193-b28a-0fe4acc44e71",
+  "fields": {
+    "created_at": "2025-12-17T10:59:03.430Z",
+    "updated_at": "2025-12-17T10:59:03.430Z",
+    "is_deleted": false,
+    "section": "95c7903d-ce8e-4175-b60b-bc016900109c",
+    "subject": "db2ad5d5-7870-4fe0-99f0-e714c6b48942",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "d4215105-361c-42d6-8f29-18a5c7966626",
+  "fields": {
+    "created_at": "2025-12-17T10:59:03.449Z",
+    "updated_at": "2025-12-17T10:59:03.449Z",
+    "is_deleted": false,
+    "section": "95c7903d-ce8e-4175-b60b-bc016900109c",
+    "subject": "3e9a2fdd-da38-4472-acfc-220f737d385a",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "d59d2eb1-eecc-4fc4-afad-4588c2601f83",
+  "fields": {
+    "created_at": "2025-12-17T10:59:08.276Z",
+    "updated_at": "2025-12-17T10:59:08.276Z",
+    "is_deleted": false,
+    "section": "2828fd44-9b83-49bf-a1ba-332581371cb2",
+    "subject": "8e5299a1-17d2-4c61-b99b-fdbb9ef71d32",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "d6e8fdba-d81a-4ee2-8cde-9b90811bca15",
+  "fields": {
+    "created_at": "2025-12-17T10:59:29.929Z",
+    "updated_at": "2025-12-17T10:59:29.929Z",
+    "is_deleted": false,
+    "section": "c26f5aa4-296b-4ae2-abb4-2efe33d64fe9",
+    "subject": "9b25a999-3963-4ed7-9b0a-76f145bc4b1f",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "d7938f72-fe6b-4e6a-af95-581e309d0286",
+  "fields": {
+    "created_at": "2025-12-17T10:59:18.351Z",
+    "updated_at": "2025-12-17T10:59:18.351Z",
+    "is_deleted": false,
+    "section": "35e7b5cd-5b35-47bd-905c-465b046c9955",
+    "subject": "25e579aa-28ae-48f4-870c-5d1b6b6c8503",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "df111726-111d-464e-bac6-895dd6c0752a",
+  "fields": {
+    "created_at": "2025-12-15T18:23:45.741Z",
+    "updated_at": "2025-12-15T18:23:45.741Z",
+    "is_deleted": false,
+    "section": "3035fea7-85ad-48b3-a4fa-d39960972345",
+    "subject": "6579809e-244b-43ac-9053-6ac6f1f5215b",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "ee8e5196-49d0-4748-86a8-92cc1434e276",
+  "fields": {
+    "created_at": "2025-12-17T10:59:12.728Z",
+    "updated_at": "2025-12-17T10:59:12.728Z",
+    "is_deleted": false,
+    "section": "868d7d26-d462-44fd-94c2-218aea43f7e0",
+    "subject": "b2c39941-9de2-4106-a7f7-dd66661863b4",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "ef88042a-b63b-41d9-aaf3-214f185ae769",
+  "fields": {
+    "created_at": "2025-12-17T11:12:37.266Z",
+    "updated_at": "2025-12-17T11:12:37.266Z",
+    "is_deleted": false,
+    "section": "ac97bc66-96a8-44e3-a1fa-284f00a9f17d",
+    "subject": "3130a175-bb5e-4a51-95a8-11df7f4a0918",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "f1496f07-0b2d-4e83-99b1-3a699310bbc9",
+  "fields": {
+    "created_at": "2025-12-17T10:59:12.711Z",
+    "updated_at": "2025-12-17T10:59:12.711Z",
+    "is_deleted": false,
+    "section": "868d7d26-d462-44fd-94c2-218aea43f7e0",
+    "subject": "2bb40c04-ba1f-4d5e-b986-36c5dcf36868",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "f5edaa1b-cb43-4ed5-b031-e4a8650d54b9",
+  "fields": {
+    "created_at": "2025-12-17T11:00:05.888Z",
+    "updated_at": "2025-12-17T11:00:05.888Z",
+    "is_deleted": false,
+    "section": "bf0bf558-8ede-40b4-a1f7-f0e7ad29553e",
+    "subject": "01f9b3a4-0975-4b46-961b-582a6ab03b91",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "f826d55c-17c8-4695-a116-c8cbccfd6971",
+  "fields": {
+    "created_at": "2025-12-17T11:12:37.270Z",
+    "updated_at": "2025-12-17T11:12:37.270Z",
+    "is_deleted": false,
+    "section": "ac97bc66-96a8-44e3-a1fa-284f00a9f17d",
+    "subject": "9a5c4b0c-3c11-4f6a-b298-3f6fc6898dc0",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "f91bc817-2b81-46d9-a3e2-f8a20d16364e",
+  "fields": {
+    "created_at": "2025-12-17T10:38:58.232Z",
+    "updated_at": "2025-12-17T10:38:58.232Z",
+    "is_deleted": false,
+    "section": "78c41145-0efe-4f40-954b-fd92339f9ea8",
+    "subject": "d1c0beae-dcb3-4a8b-8224-58989b3ee814",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.sectionsubject",
+  "pk": "fead7b56-e777-40c1-945b-1069e4ccd158",
+  "fields": {
+    "created_at": "2025-12-17T10:59:03.443Z",
+    "updated_at": "2025-12-17T10:59:03.443Z",
+    "is_deleted": false,
+    "section": "95c7903d-ce8e-4175-b60b-bc016900109c",
+    "subject": "a2c830c3-919b-4f09-936d-b75a59fa3b59",
+    "professor": null,
+    "is_tba": true
+  }
+},
+{
+  "model": "academics.scheduleslot",
+  "pk": "38a9ec5a-3209-461a-8e1e-87ada2a03983",
+  "fields": {
+    "created_at": "2025-12-14T15:56:07.919Z",
+    "updated_at": "2025-12-14T15:56:07.919Z",
+    "is_deleted": false,
+    "section_subject": "ce7ce065-e892-422d-a6ae-df5e75a43697",
+    "day": "WED",
+    "start_time": "10:00:00",
+    "end_time": "11:00:00",
+    "room": "Room 101"
+  }
+},
+{
+  "model": "academics.scheduleslot",
+  "pk": "55c0a986-763b-41c0-8014-fcab95fe128b",
+  "fields": {
+    "created_at": "2025-12-17T11:19:15.182Z",
+    "updated_at": "2025-12-17T11:19:15.182Z",
+    "is_deleted": false,
+    "section_subject": "1012f7b5-36c3-4de3-8745-5bf2d2759f58",
+    "day": "MWF",
+    "start_time": "08:00:00",
+    "end_time": "09:30:00",
+    "room": "Room 101"
+  }
+},
+{
+  "model": "academics.scheduleslot",
+  "pk": "c4224899-b720-4d28-82e7-e961298fd6d6",
+  "fields": {
+    "created_at": "2025-12-14T15:56:07.914Z",
+    "updated_at": "2025-12-14T15:56:07.914Z",
+    "is_deleted": false,
+    "section_subject": "ce7ce065-e892-422d-a6ae-df5e75a43697",
+    "day": "MON",
+    "start_time": "10:00:00",
+    "end_time": "11:00:00",
+    "room": "Room 101"
+  }
+},
+{
+  "model": "academics.scheduleslot",
+  "pk": "db2cc288-10bc-4fe0-a617-8852fe7edaf2",
+  "fields": {
+    "created_at": "2025-12-14T15:56:07.923Z",
+    "updated_at": "2025-12-14T15:56:07.923Z",
+    "is_deleted": false,
+    "section_subject": "ce7ce065-e892-422d-a6ae-df5e75a43697",
+    "day": "FRI",
+    "start_time": "10:00:00",
+    "end_time": "11:00:00",
+    "room": "Room 101"
+  }
+},
+{
+  "model": "academics.scheduleslot",
+  "pk": "e1477f0e-7203-4246-a23c-bc7382003a8c",
+  "fields": {
+    "created_at": "2025-12-17T11:19:15.193Z",
+    "updated_at": "2025-12-17T11:19:15.193Z",
+    "is_deleted": false,
+    "section_subject": "f826d55c-17c8-4695-a116-c8cbccfd6971",
+    "day": "MWF",
+    "start_time": "08:00:00",
+    "end_time": "09:30:00",
+    "room": "Room 101"
+  }
+},
+{
+  "model": "academics.scheduleslot",
+  "pk": "f0943895-783f-4403-a86e-91cf4f066210",
+  "fields": {
+    "created_at": "2025-12-17T11:19:15.186Z",
+    "updated_at": "2025-12-17T11:19:15.187Z",
+    "is_deleted": false,
+    "section_subject": "ef88042a-b63b-41d9-aaf3-214f185ae769",
+    "day": "MWF",
+    "start_time": "08:00:00",
+    "end_time": "09:30:00",
+    "room": "Room 101"
+  }
+}
+]

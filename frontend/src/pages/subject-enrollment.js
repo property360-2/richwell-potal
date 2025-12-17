@@ -13,7 +13,8 @@ const state = {
   maxUnits: 30,
   showSchedulePreview: null,
   showConfirmModal: false,
-  pendingEnrollment: null // { subject, section }
+  pendingEnrollment: null, // { subject, section }
+  enrollmentStatus: null // Enrollment status from API
 };
 
 // Mock data for development
@@ -95,11 +96,24 @@ async function loadData() {
     // Load user profile
     const userResponse = await api.get(endpoints.me);
     if (userResponse) {
-      state.user = userResponse;
+      state.user = userResponse.data || userResponse;
     }
 
-    // Check if student has student_number (admission approved)
-    if (!state.user?.student_number) {
+    // Try to load enrollment data to get status
+    try {
+      const enrollmentResponse = await api.get(endpoints.myEnrollment);
+      if (enrollmentResponse?.data) {
+        state.enrollmentStatus = enrollmentResponse.data.status || null;
+      }
+    } catch (err) {
+      console.log('Could not load enrollment status:', err);
+    }
+
+    // Check if student has student_number AND enrollment is approved (ACTIVE status)
+    const isApproved = state.user?.student_number &&
+      (state.enrollmentStatus === 'ACTIVE' || state.enrollmentStatus === 'ENROLLED');
+
+    if (!isApproved) {
       state.loading = false;
       return; // Stop loading, will show admission pending message in render
     }
@@ -178,9 +192,17 @@ async function loadData() {
             units: s.units
           },
           section: s.section_name,
+          section_name: s.section_name,
+          subject_code: s.subject_code,
+          subject_title: s.subject_title,
           units: s.units,
           schedule: Array.isArray(s.schedule) ? s.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time}`).join(', ') : s.schedule,
-          status: s.status
+          status: s.status,
+          // Dual approval fields
+          payment_approved: s.payment_approved,
+          head_approved: s.head_approved,
+          approval_status_display: s.approval_status_display,
+          is_fully_enrolled: s.is_fully_enrolled
         }));
         state.totalUnits = enrolledResponse.data.enrolled_units || 0;
       } else if (enrolledResponse?.length) {
@@ -215,8 +237,11 @@ function render() {
     return;
   }
 
-  // Check if student has student_number (admission approved)
-  if (!state.user?.student_number) {
+  // Check if student has student_number AND enrollment is approved
+  const isApproved = state.user?.student_number &&
+    (state.enrollmentStatus === 'ACTIVE' || state.enrollmentStatus === 'ENROLLED');
+
+  if (!isApproved) {
     app.innerHTML = `
       ${renderHeader()}
 
@@ -405,21 +430,48 @@ function renderUnitCounter() {
 function renderSubjectCard(subject, isRecommended) {
   const isSelected = false; // Instant enroll has no cart
   const isEnrolled = state.enrolledSubjects.find(e => e.subject?.code === subject.code);
-  const canAdd = subject.prerequisite_met !== false && !isSelected && !isEnrolled;
+  const hasPrerequisiteIssue = subject.prerequisite_met === false;
+  const hasIncPrerequisite = subject.has_inc_prerequisite === true;
+  const canAdd = !hasPrerequisiteIssue && !hasIncPrerequisite && !isSelected && !isEnrolled;
   const wouldExceedLimit = (state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits;
 
+  // Determine block reason for display
+  let blockReason = '';
+  let blockClass = '';
+  if (isEnrolled) {
+    blockReason = '✓ Already enrolled in this subject';
+    blockClass = 'bg-blue-50 text-blue-700 border-blue-200';
+  } else if (hasIncPrerequisite) {
+    blockReason = `⚠️ Cannot enroll: You have INC in prerequisite ${subject.inc_prerequisite_code || subject.prerequisite || ''}. Complete it first.`;
+    blockClass = 'bg-red-50 text-red-700 border-red-200';
+  } else if (hasPrerequisiteIssue) {
+    blockReason = `🔒 Missing prerequisite: ${subject.missing_prerequisites?.join(', ') || subject.prerequisite || 'Required subject not passed'}`;
+    blockClass = 'bg-yellow-50 text-yellow-700 border-yellow-200';
+  } else if (wouldExceedLimit) {
+    blockReason = `⚠️ Adding this subject would exceed the ${state.maxUnits} unit limit`;
+    blockClass = 'bg-orange-50 text-orange-700 border-orange-200';
+  }
+
   return `
-    <div class="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors ${!canAdd ? 'opacity-60' : ''}">
+    <div class="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors ${!canAdd ? 'opacity-75' : ''}">
       <div class="flex items-start justify-between">
         <div class="flex-1">
           <div class="flex items-center gap-2 mb-1">
             <span class="font-mono text-sm font-bold text-blue-600">${subject.code}</span>
             ${isRecommended ? '<span class="badge badge-success text-xs">Recommended</span>' : ''}
             ${isEnrolled ? '<span class="badge badge-info text-xs">Enrolled</span>' : ''}
-            ${!subject.prerequisite_met && subject.prerequisite ? `<span class="badge badge-error text-xs">Prereq: ${subject.prerequisite}</span>` : ''}
+            ${hasIncPrerequisite ? '<span class="badge badge-error text-xs">INC Blocked</span>' : ''}
+            ${hasPrerequisiteIssue && !hasIncPrerequisite ? '<span class="badge badge-warning text-xs">Prereq Missing</span>' : ''}
           </div>
           <p class="font-medium text-gray-800">${subject.name}</p>
           <p class="text-sm text-gray-500">${subject.units} units</p>
+          
+          <!-- Block Reason Message -->
+          ${blockReason ? `
+            <div class="mt-2 p-2 rounded-lg border text-xs ${blockClass}">
+              ${blockReason}
+            </div>
+          ` : ''}
           
           <!-- Sections -->
           <div class="mt-3 space-y-2">
@@ -428,10 +480,10 @@ function renderSubjectCard(subject, isRecommended) {
                 <div class="flex items-center gap-2">
                   <span class="font-medium">Section ${section.name}</span>
                   <span class="text-gray-400">|</span>
-                  <span class="text-gray-600">${section.schedule}</span>
+                  <span class="text-gray-600">${section.schedule || 'TBA'}</span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="text-gray-500">${section.enrolled}/${section.slots}</span>
+                  <span class="text-gray-500">${section.enrolled || 0}/${section.slots || 40}</span>
                   ${canAdd && !wouldExceedLimit ? `
                     <button onclick="enrollSubject('${subject.id}', '${section.id}')"
                             class="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">

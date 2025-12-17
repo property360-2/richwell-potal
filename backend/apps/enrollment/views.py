@@ -417,7 +417,7 @@ class ApplicantUpdateView(APIView):
                 student_number = service.generate_student_number()
                 
                 enrollment.student.student_number = student_number
-                enrollment.student.set_password(student_number)
+                # NOTE: Password is NOT reset here - student keeps their original password
                 enrollment.student.save()
                 
             message = f"{enrollment.student.get_full_name()} has been approved"
