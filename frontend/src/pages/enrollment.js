@@ -248,7 +248,7 @@ function renderStep2() {
             <input type="radio" name="program" value="${program.id}" ${state.formData.program_id === program.id ? 'checked' : ''} class="w-5 h-5 text-blue-600">
             <div class="ml-4 flex-1">
               <div class="font-semibold text-gray-800">${program.name}</div>
-              <div class="text-sm text-gray-500">${program.code} • ₱${program.tuition_per_semester?.toLocaleString() || '30,000'} per semester</div>
+              <div class="text-sm text-gray-500">${program.code}</div>
             </div>
           </label>
         `).join('')}

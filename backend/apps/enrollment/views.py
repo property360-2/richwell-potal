@@ -379,6 +379,25 @@ class DocumentVerifyView(APIView):
         })
 
 
+class NextStudentNumberView(APIView):
+    """Get the next available student number for ID assignment preview."""
+    permission_classes = [IsAuthenticated, IsAdmissionStaff | IsRegistrar | IsAdmin]
+
+    @extend_schema(
+        summary="Get Next Student Number",
+        description="Returns the next available student number in YYYY-XXXXX format",
+        tags=["Admissions"]
+    )
+    def get(self, request):
+        service = EnrollmentService()
+        next_number = service.generate_student_number()
+
+        return Response({
+            "success": True,
+            "next_student_number": next_number
+        })
+
+
 class ApplicantUpdateView(APIView):
     """
     Accept or reject an applicant's enrollment.
@@ -409,17 +428,37 @@ class ApplicantUpdateView(APIView):
         
         if action == 'accept':
             enrollment.status = Enrollment.Status.ACTIVE
-            
-            # Generate Student ID if missing (Delayed Generation)
-            if not enrollment.student.student_number:
-                from .services import EnrollmentService
-                service = EnrollmentService()
-                student_number = service.generate_student_number()
-                
-                enrollment.student.student_number = student_number
-                enrollment.student.set_password(student_number)
-                enrollment.student.save()
-                
+
+            # Get student_number from request (required for acceptance)
+            student_number = request.data.get('student_number')
+
+            if not student_number:
+                return Response({
+                    "success": False,
+                    "error": "Student number is required for approval"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Validate format: YYYY-XXXXX
+            import re
+            if not re.match(r'^\d{4}-\d{5}$', student_number):
+                return Response({
+                    "success": False,
+                    "error": "Invalid student number format. Must be YYYY-XXXXX"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Check for duplicate student number
+            from apps.accounts.models import User
+            if User.objects.filter(student_number=student_number).exclude(id=enrollment.student.id).exists():
+                return Response({
+                    "success": False,
+                    "error": f"Student number {student_number} already exists"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Assign student number WITHOUT changing password
+            enrollment.student.student_number = student_number
+            enrollment.student.save()
+            # CRITICAL: Removed set_password() call - password stays as school email
+
             message = f"{enrollment.student.get_full_name()} has been approved"
         else:
             enrollment.status = Enrollment.Status.REJECTED

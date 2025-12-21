@@ -167,6 +167,7 @@ export const endpoints = {
     programs: '/admissions/programs/',
     enroll: '/admissions/enroll/',
     applicants: '/admissions/applicants/',
+    nextStudentNumber: '/admissions/next-student-number/',
     applicantUpdate: (id) => `/admissions/applicants/${id}/`,
     uploadDocument: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/documents/`,
     verifyDocument: (documentId) => `/admissions/documents/${documentId}/verify/`,

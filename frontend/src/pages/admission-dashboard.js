@@ -12,7 +12,11 @@ const state = {
     created_via: 'all'
   },
   selectedApplicant: null,
-  showPendingModal: false
+  showPendingModal: false,
+  showIdAssignmentModal: false,
+  selectedApplicantForId: null,
+  suggestedIdNumber: '',
+  idNumberError: ''
 };
 
 // Mock data for development
@@ -206,9 +210,12 @@ function render() {
     
     <!-- Applicant Detail Modal -->
     ${state.selectedApplicant ? renderApplicantModal(state.selectedApplicant) : ''}
-    
+
     <!-- Pending Applicants Modal -->
     ${state.showPendingModal ? renderPendingModal() : ''}
+
+    <!-- ID Assignment Modal -->
+    ${state.showIdAssignmentModal ? renderIdAssignmentModal() : ''}
   `;
 }
 
@@ -562,6 +569,104 @@ window.closePendingModal = function () {
   render();
 };
 
+window.openIdAssignmentModal = async function(applicant) {
+  state.selectedApplicantForId = applicant;
+  state.idNumberError = '';
+
+  // Fetch suggested ID from backend
+  try {
+    const response = await api.get(endpoints.nextStudentNumber);
+    if (response && response.next_student_number) {
+      state.suggestedIdNumber = response.next_student_number;
+    } else {
+      // Fallback
+      const year = new Date().getFullYear();
+      state.suggestedIdNumber = `${year}-00001`;
+    }
+  } catch (error) {
+    console.error('Failed to fetch next student number:', error);
+    const year = new Date().getFullYear();
+    state.suggestedIdNumber = `${year}-00001`;
+  }
+
+  state.showIdAssignmentModal = true;
+  render();
+
+  // Focus input
+  setTimeout(() => {
+    const input = document.getElementById('id-number-input');
+    if (input) input.focus();
+  }, 100);
+};
+
+window.closeIdAssignmentModal = function(event) {
+  if (event && event.target !== event.currentTarget) return;
+  state.showIdAssignmentModal = false;
+  state.selectedApplicantForId = null;
+  state.suggestedIdNumber = '';
+  state.idNumberError = '';
+  render();
+};
+
+window.handleIdNumberInput = function(event) {
+  state.suggestedIdNumber = event.target.value;
+  state.idNumberError = ''; // Clear error on input
+};
+
+window.submitIdAssignment = async function() {
+  const idNumber = state.suggestedIdNumber.trim();
+  const applicant = state.selectedApplicantForId;
+
+  if (!applicant) return;
+
+  // Validate format
+  const idPattern = /^\d{4}-\d{5}$/;
+  if (!idPattern.test(idNumber)) {
+    state.idNumberError = 'Invalid format. Must be YYYY-XXXXX (e.g., 2025-00001)';
+    render();
+    return;
+  }
+
+  showToast('Assigning ID and approving applicant...', 'info');
+
+  try {
+    const response = await api.patch(
+      endpoints.applicantUpdate(applicant.id),
+      {
+        action: 'accept',
+        student_number: idNumber
+      }
+    );
+
+    if (response && (response.success || response.data)) {
+      showToast(`${applicant.first_name} ${applicant.last_name} approved with ID: ${idNumber}`, 'success');
+
+      // Update local state
+      applicant.status = 'ACTIVE';
+      applicant.student_number = idNumber;
+
+      // Close modal and refresh
+      state.showIdAssignmentModal = false;
+      state.selectedApplicantForId = null;
+      await loadApplicants();
+      render();
+      return;
+    }
+    throw new Error('Invalid API response');
+  } catch (error) {
+    console.error('ID Assignment error:', error);
+
+    // Handle duplicate error
+    if (error.response?.data?.error?.includes('already exists')) {
+      state.idNumberError = `ID number ${idNumber} is already assigned to another student`;
+      render();
+    } else {
+      showToast('Failed to assign ID. Please try again.', 'error');
+      closeIdAssignmentModal();
+    }
+  }
+};
+
 function renderPendingModal() {
   const pendingApplicants = state.applicants.filter(a => a.status === 'PENDING');
 
@@ -595,6 +700,77 @@ function renderPendingModal() {
               ${pendingApplicants.map(applicant => renderPendingApplicantCard(applicant)).join('')}
             </div>
           `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderIdAssignmentModal() {
+  if (!state.selectedApplicantForId) return '';
+
+  const applicant = state.selectedApplicantForId;
+
+  return `
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeIdAssignmentModal(event)">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="sticky top-0 bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <h2 class="text-xl font-bold">Assign Student ID Number</h2>
+            <p class="text-blue-100 text-sm">${applicant.first_name} ${applicant.last_name}</p>
+          </div>
+          <button onclick="closeIdAssignmentModal()" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-6">
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Student ID Number <span class="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="id-number-input"
+              class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all text-lg font-mono"
+              placeholder="YYYY-XXXXX"
+              value="${state.suggestedIdNumber}"
+              oninput="handleIdNumberInput(event)"
+            >
+            <p class="text-xs text-gray-500 mt-2">Format: YYYY-XXXXX (e.g., 2025-00001)</p>
+            ${state.idNumberError ? `
+              <p class="text-sm text-red-600 mt-2 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                ${state.idNumberError}
+              </p>
+            ` : ''}
+          </div>
+
+          <!-- Info Box -->
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+            <h4 class="font-semibold text-blue-800 mb-2">Credentials Info</h4>
+            <div class="text-sm text-blue-700 space-y-1">
+              <p><strong>Login Email:</strong> ${applicant.email}</p>
+              <p><strong>Program:</strong> ${applicant.program?.code || 'N/A'}</p>
+              <p><strong>Password:</strong> School email (unchanged on approval)</p>
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex gap-3">
+            <button onclick="closeIdAssignmentModal()" class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors">
+              Cancel
+            </button>
+            <button onclick="submitIdAssignment()" class="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-lg">
+              Approve & Assign ID
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -679,32 +855,8 @@ window.acceptFromPending = async function (applicantId) {
   const applicant = state.applicants.find(a => a.id === applicantId);
   if (!applicant) return;
 
-  showToast(`Approving ${applicant.student?.first_name || applicant.first_name}...`, 'info');
-
-  try {
-    // Call real API
-    const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'accept' });
-    console.log('Accept API response:', response);
-
-    if (response && (response.success || response.data)) {
-      showToast(response.message || 'Applicant approved successfully!', 'success');
-      // Update local state immediately for instant feedback
-      applicant.status = 'ACTIVE';
-      // Also refresh from server to get latest data
-      await loadApplicants();
-      state.showPendingModal = false;
-      render();
-      return;
-    }
-    throw new Error('API response invalid');
-  } catch (error) {
-    console.error('Accept API error:', error);
-    // Fallback to local update if API fails
-    applicant.status = 'ACTIVE';
-    showToast(`${applicant.student?.first_name || applicant.first_name} ${applicant.student?.last_name || applicant.last_name} has been approved! They can now login.`, 'success');
-    state.showPendingModal = false;
-    render();
-  }
+  // Open modal instead of direct approval
+  openIdAssignmentModal(applicant);
 };
 
 window.rejectFromPending = async function (applicantId) {
