@@ -209,7 +209,8 @@ function renderStep1() {
       
       <div class="mt-4">
         <label class="form-label">Email Address <span class="text-red-500">*</span></label>
-        <input type="email" id="email" class="form-input" placeholder="juan@example.com" value="${state.formData.email}" required>
+        <input type="email" id="email" class="form-input" placeholder="juan@example.com" value="${state.formData.email}" required onblur="checkEmailAvailabilityAuto()">
+        <p id="email-status" class="text-sm mt-1"></p>
       </div>
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -541,6 +542,59 @@ function handleFiles(files) {
   }
   render();
 }
+
+// Email availability check
+async function checkEmailAvailability(email) {
+  if (!validateEmail(email)) {
+    return { available: false, message: 'Invalid email format' };
+  }
+
+  try {
+    // Check via API endpoint
+    const response = await fetch(`/api/v1/admissions/check-email/?email=${encodeURIComponent(email)}`);
+    const data = await response.json();
+
+    return {
+      available: data.available,
+      message: data.available ? 'Email is available' : 'This email is already registered'
+    };
+  } catch (error) {
+    console.error('Email check error:', error);
+    return { available: true, message: '' }; // Fail open - let backend validate
+  }
+}
+
+// Automatic email availability check on blur
+window.checkEmailAvailabilityAuto = async function() {
+  const email = state.formData.email;
+  const statusEl = document.getElementById('email-status');
+
+  if (!email) {
+    statusEl.className = 'text-sm mt-1';
+    statusEl.textContent = '';
+    return;
+  }
+
+  // Validate email format first
+  if (!validateEmail(email)) {
+    statusEl.className = 'text-sm mt-1 text-red-600';
+    statusEl.textContent = '✗ Invalid email format';
+    return;
+  }
+
+  statusEl.className = 'text-sm mt-1 text-gray-500';
+  statusEl.textContent = 'Checking availability...';
+
+  const result = await checkEmailAvailability(email);
+
+  if (result.available) {
+    statusEl.className = 'text-sm mt-1 text-green-600';
+    statusEl.textContent = '✓ Email is available';
+  } else {
+    statusEl.className = 'text-sm mt-1 text-red-600';
+    statusEl.textContent = '✗ ' + result.message;
+  }
+};
 
 // Remove file
 window.removeFile = function (index) {

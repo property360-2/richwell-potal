@@ -9,10 +9,12 @@ const state = {
   recommendedSubjects: [],
   availableSubjects: [],
   enrolledSubjects: [],
+  cart: [], // Shopping cart for picked subjects: [{ subject, section }]
   totalUnits: 0,
   maxUnits: 30,
   showSchedulePreview: null,
   showConfirmModal: false,
+  showCartConfirmModal: false, // For confirming all cart items
   pendingEnrollment: null // { subject, section }
 };
 
@@ -95,7 +97,7 @@ async function loadData() {
     // Load user profile
     const userResponse = await api.get(endpoints.me);
     if (userResponse) {
-      state.user = userResponse;
+      state.user = userResponse.data || userResponse;
     }
 
     // Check if student has student_number (admission approved)
@@ -197,6 +199,9 @@ async function loadData() {
       state.totalUnits = state.enrolledSubjects.reduce((sum, e) => sum + (e.units || e.subject?.units || 0), 0);
     }
 
+    // Set enrollment state - lock enrollment if student has any enrolled subjects
+    state.hasEnrolledSubjects = state.enrolledSubjects.length > 0;
+
   } catch (error) {
     // REMOVED: Mock data fallback prevents seeing real errors
     state.recommendedSubjects = [];
@@ -249,84 +254,155 @@ function render() {
     return;
   }
 
-  app.innerHTML = `
-    ${renderHeader()}
+  // Check if student has enrolled subjects - show locked view
+  if (state.hasEnrolledSubjects) {
+    app.innerHTML = `
+      ${renderHeader()}
 
-    <main class="max-w-7xl mx-auto px-4 py-8">
-      <!-- Page Title -->
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-800">Subject Enrollment</h1>
-        <p class="text-gray-600 mt-1">Select subjects for the current semester</p>
-      </div>
+      <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Page Title -->
+        <div class="mb-8">
+          <h1 class="text-3xl font-bold text-gray-800">Your Enrolled Subjects</h1>
+          <p class="text-gray-600 mt-1">Currently enrolled for this semester</p>
+        </div>
 
-      <!-- Unit Counter Bar -->
-      ${renderUnitCounter()}
-      
-      <!-- Main Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Left Column - Subject Selection (Takes 2 columns) -->
-        <div class="lg:col-span-2 space-y-6">
-          <!-- Recommended Subjects -->
-          <div class="card">
-            <div class="flex items-center justify-between mb-6">
-              <div>
-                <h2 class="text-xl font-bold text-gray-800">Recommended Subjects</h2>
-                <p class="text-sm text-gray-500">Based on your year level and curriculum</p>
-              </div>
-              <span class="badge badge-info">${state.recommendedSubjects.length} subjects</span>
-            </div>
-            
-            <div class="space-y-3">
-              ${state.recommendedSubjects.map(subject => renderSubjectCard(subject, true)).join('')}
-            </div>
-          </div>
-          
-          <!-- All Available Subjects -->
-          <div class="card">
-            <div class="flex items-center justify-between mb-6">
-              <div>
-                <h2 class="text-xl font-bold text-gray-800">All Available Subjects</h2>
-                <p class="text-sm text-gray-500">For irregular students or advanced enrollment</p>
-              </div>
-            </div>
-            
-            <div class="space-y-3">
-              ${state.availableSubjects.filter(s => !state.recommendedSubjects.find(r => r.id === s.id)).map(subject => renderSubjectCard(subject, false)).join('')}
+        <!-- Info Message -->
+        <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+              <p class="text-sm text-blue-800 font-medium">Your subject enrollments are pending approval</p>
+              <p class="text-sm text-blue-700 mt-1">Your enrollments will need to be processed before you can add more subjects. Please check back later for updates.</p>
             </div>
           </div>
         </div>
-        
-        <!-- Right Column - Enrollment Summary -->
-        <div class="space-y-6">
-          <!-- Currently Enrolled -->
-          <div class="card sticky top-24">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="font-bold text-gray-800">Currently Enrolled</h3>
-              <span class="text-sm text-gray-500">${state.totalUnits} / ${state.maxUnits} units</span>
+
+        <!-- Enrolled Subjects - Full Width -->
+        <div class="space-y-4">
+          ${state.enrolledSubjects.map(enrollment => renderEnrolledSubject(enrollment, true)).join('')}
+        </div>
+
+        <!-- Unit Summary -->
+        <div class="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-gray-800">Total Units Enrolled</h3>
+              <p class="text-sm text-gray-600 mt-1">Maximum allowed: ${state.maxUnits} units</p>
             </div>
-            ${state.enrolledSubjects.length === 0 ? `
-              <p class="text-gray-400 text-center py-4">No enrolled subjects yet</p>
-            ` : `
-              <div class="space-y-2">
-                ${state.enrolledSubjects.map(enrollment => renderEnrolledSubject(enrollment)).join('')}
-              </div>
-            `}
+            <div class="text-right">
+              <p class="text-3xl font-bold text-blue-600">${state.totalUnits}</p>
+              <p class="text-sm text-gray-500">units</p>
+            </div>
+          </div>
+          <div class="mt-4">
+            <div class="w-full bg-gray-200 rounded-full h-2">
+              <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: ${Math.min((state.totalUnits / state.maxUnits) * 100, 100)}%"></div>
+            </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
 
-    <!-- Schedule Preview Modal -->
-    ${state.showSchedulePreview ? renderSchedulePreviewModal() : ''}
-    
-    <!-- Enrollment Confirmation Modal -->
-    ${state.showConfirmModal ? renderConfirmEnrollModal() : ''}
-  `;
+      <!-- Schedule Preview Modal -->
+      ${state.showSchedulePreview ? renderSchedulePreviewModal() : ''}
+    `;
+  } else {
+    // Show normal enrollment interface
+    app.innerHTML = `
+      ${renderHeader()}
+
+      <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Page Title -->
+        <div class="mb-8">
+          <h1 class="text-3xl font-bold text-gray-800">Subject Enrollment</h1>
+          <p class="text-gray-600 mt-1">Select subjects for the current semester</p>
+        </div>
+
+        <!-- Unit Counter Bar -->
+        ${renderUnitCounter()}
+
+        <!-- Main Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <!-- Left Column - Subject Selection (Takes 2 columns) -->
+          <div class="lg:col-span-2 space-y-6">
+            <!-- Recommended Subjects -->
+            <div class="card">
+              <div class="flex items-center justify-between mb-6">
+                <div>
+                  <h2 class="text-xl font-bold text-gray-800">Recommended Subjects</h2>
+                  <p class="text-sm text-gray-500">Based on your year level and curriculum</p>
+                </div>
+                <span class="badge badge-info">${state.recommendedSubjects.length} subjects</span>
+              </div>
+
+              <div class="space-y-3">
+                ${state.recommendedSubjects.map(subject => renderSubjectCard(subject, true)).join('')}
+              </div>
+            </div>
+
+            <!-- All Available Subjects -->
+            <div class="card">
+              <div class="flex items-center justify-between mb-6">
+                <div>
+                  <h2 class="text-xl font-bold text-gray-800">All Available Subjects</h2>
+                  <p class="text-sm text-gray-500">For irregular students or advanced enrollment</p>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                ${state.availableSubjects.filter(s => !state.recommendedSubjects.find(r => r.id === s.id)).map(subject => renderSubjectCard(subject, false)).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column - Cart/Enrollment Summary -->
+          <div class="space-y-6">
+            <!-- Shopping Cart -->
+            <div class="card sticky top-24">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-gray-800">Selected Subjects</h3>
+                <span class="text-sm text-gray-500">${state.cart.reduce((sum, item) => sum + item.subject.units, 0)} / ${state.maxUnits} units</span>
+              </div>
+              ${state.cart.length === 0 ? `
+                <div class="text-center py-6">
+                  <svg class="w-16 h-16 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                  </svg>
+                  <p class="text-gray-400 text-sm">No subjects selected yet</p>
+                  <p class="text-gray-400 text-xs mt-1">Pick subjects to enroll</p>
+                </div>
+              ` : `
+                <div class="space-y-2 mb-4">
+                  ${state.cart.map(item => renderCartItem(item)).join('')}
+                </div>
+                <button onclick="showConfirmAllModal()" class="w-full btn-primary py-3 flex items-center justify-center gap-2">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  Confirm Enrollment (${state.cart.length})
+                </button>
+              `}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Schedule Preview Modal -->
+      ${state.showSchedulePreview ? renderSchedulePreviewModal() : ''}
+
+      <!-- Cart Confirmation Modal -->
+      ${state.showCartConfirmModal ? renderCartConfirmModal() : ''}
+    `;
+  }
 
   attachEventListeners();
 }
 
 function renderHeader() {
+  // Change navigation text based on enrollment state
+  const navText = state.hasEnrolledSubjects ? 'Subjects' : 'Enroll Subjects';
+
   return `
     <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -334,10 +410,10 @@ function renderHeader() {
           <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
           <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
         </div>
-        
+
         <nav class="hidden md:flex items-center gap-6">
           <a href="/student-dashboard.html" class="text-gray-600 hover:text-gray-900">Dashboard</a>
-          <a href="/subject-enrollment.html" class="text-blue-600 font-medium">Enroll Subjects</a>
+          <a href="/subject-enrollment.html" class="text-blue-600 font-medium">${navText}</a>
           <a href="/grades.html" class="text-gray-600 hover:text-gray-900">Grades</a>
           <a href="/soa.html" class="text-gray-600 hover:text-gray-900">SOA</a>
         </nav>
@@ -403,27 +479,35 @@ function renderUnitCounter() {
 }
 
 function renderSubjectCard(subject, isRecommended) {
-  const isSelected = false; // Instant enroll has no cart
+  const isInCart = state.cart.some(item => item.subject.id === subject.id);
   const isEnrolled = state.enrolledSubjects.find(e => e.subject?.code === subject.code);
-  const canAdd = subject.prerequisite_met !== false && !isSelected && !isEnrolled;
-  const wouldExceedLimit = (state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits;
+  const canAdd = subject.prerequisite_met !== false && !isInCart && !isEnrolled;
+
+  // Calculate units including cart
+  const cartUnits = state.cart.reduce((sum, item) => sum + item.subject.units, 0);
+  const wouldExceedLimit = (state.totalUnits + cartUnits + subject.units) > state.maxUnits;
 
   return `
-    <div class="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors ${!canAdd ? 'opacity-60' : ''}">
+    <div class="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors ${!canAdd || isInCart ? 'opacity-60' : ''}">
       <div class="flex items-start justify-between">
         <div class="flex-1">
           <div class="flex items-center gap-2 mb-1">
             <span class="font-mono text-sm font-bold text-blue-600">${subject.code}</span>
             ${isRecommended ? '<span class="badge badge-success text-xs">Recommended</span>' : ''}
+            ${isInCart ? '<span class="badge badge-warning text-xs">Added to Cart</span>' : ''}
             ${isEnrolled ? '<span class="badge badge-info text-xs">Enrolled</span>' : ''}
             ${!subject.prerequisite_met && subject.prerequisite ? `<span class="badge badge-error text-xs">Prereq: ${subject.prerequisite}</span>` : ''}
           </div>
           <p class="font-medium text-gray-800">${subject.name}</p>
           <p class="text-sm text-gray-500">${subject.units} units</p>
-          
+
           <!-- Sections -->
           <div class="mt-3 space-y-2">
-            ${subject.sections?.map(section => `
+            ${subject.sections?.map(section => {
+              const cartItem = state.cart.find(item => item.subject.id === subject.id);
+              const isThisSectionInCart = cartItem && cartItem.section.id === section.id;
+
+              return `
               <div class="flex items-center justify-between text-sm p-2 bg-white rounded-lg">
                 <div class="flex items-center gap-2">
                   <span class="font-medium">Section ${section.name}</span>
@@ -431,16 +515,20 @@ function renderSubjectCard(subject, isRecommended) {
                   <span class="text-gray-600">${section.schedule}</span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="text-gray-500">${section.enrolled}/${section.slots}</span>
-                  ${canAdd && !wouldExceedLimit ? `
+                  <span class="text-gray-500">${section.slots - (section.enrolled || 0)} slots</span>
+                  ${isThisSectionInCart ? `
+                    <span class="px-3 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-lg">
+                      ✓ Added
+                    </span>
+                  ` : canAdd && !wouldExceedLimit ? `
                     <button onclick="enrollSubject('${subject.id}', '${section.id}')"
                             class="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
-                      Enroll
+                      Add
                     </button>
                   ` : ''}
                 </div>
               </div>
-            `).join('') || ''}
+            `}).join('') || ''}
           </div>
         </div>
       </div>
@@ -450,7 +538,7 @@ function renderSubjectCard(subject, isRecommended) {
 
 
 
-function renderEnrolledSubject(enrollment) {
+function renderEnrolledSubject(enrollment, isFullWidth = false) {
   // Get dual approval status from API
   const paymentApproved = enrollment.payment_approved || false;
   const headApproved = enrollment.head_approved || false;
@@ -477,6 +565,45 @@ function renderEnrolledSubject(enrollment) {
     ? '<span class="badge badge-success text-xs font-bold">ENROLLED</span>'
     : '';
 
+  // Full width version for locked state
+  if (isFullWidth) {
+    return `
+      <div class="p-6 ${bgClass} rounded-xl border ${isFullyEnrolled ? 'border-green-200' : 'border-gray-200'}">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <h3 class="text-xl font-bold text-gray-800 mb-2">${enrollment.subject_code || enrollment.subject?.code}</h3>
+            <p class="text-gray-700 mb-3">${enrollment.subject_title || enrollment.subject?.name}</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div>
+                <p class="text-xs text-gray-500">Section</p>
+                <p class="font-medium text-gray-800">${enrollment.section_name || 'N/A'}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">Units</p>
+                <p class="font-medium text-gray-800">${enrollment.units}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">Schedule</p>
+                <p class="font-medium text-gray-800 text-sm">${enrollment.schedule || 'TBA'}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">Status</p>
+                <p class="font-medium text-gray-800">${enrollment.status || 'PENDING_HEAD'}</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              ${paymentBadge}
+              ${headBadge}
+              ${finalBadge}
+            </div>
+            ${enrollment.approval_status_display ? `<p class="text-sm text-gray-600 mt-3 italic">${enrollment.approval_status_display}</p>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Compact version for sidebar
   return `
     <div class="flex items-center justify-between p-3 ${bgClass} rounded-xl border ${isFullyEnrolled ? 'border-green-200' : 'border-gray-200'}">
       <div class="flex-1">
@@ -490,6 +617,94 @@ function renderEnrolledSubject(enrollment) {
           ${finalBadge}
         </div>
         ${enrollment.approval_status_display ? `<p class="text-xs text-gray-600 mt-1 italic">${enrollment.approval_status_display}</p>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderCartItem(item) {
+  const { subject, section } = item;
+  return `
+    <div class="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-200">
+      <div class="flex-1 pr-2">
+        <p class="font-medium text-gray-800 text-sm">${subject.code}</p>
+        <p class="text-xs text-gray-600 truncate">${subject.name || subject.title}</p>
+        <p class="text-xs text-gray-500 mt-1">Section ${section.name} • ${subject.units} units</p>
+      </div>
+      <button onclick="removeFromCart(${subject.id})" class="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Remove">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+  `;
+}
+
+function renderCartConfirmModal() {
+  const totalUnits = state.cart.reduce((sum, item) => sum + item.subject.units, 0);
+
+  return `
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn" onclick="closeCartConfirmModal()">
+      <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl transform animate-slideUp max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="text-center mb-6">
+          <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <h3 class="text-2xl font-bold text-gray-800">Confirm Subject Enrollment</h3>
+          <p class="text-gray-500 mt-1">Review your selected subjects before confirming</p>
+        </div>
+
+        <!-- Subject List -->
+        <div class="mb-6 space-y-3">
+          ${state.cart.map(item => `
+            <div class="p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <p class="font-bold text-gray-800">${item.subject.code}</p>
+                  <p class="text-gray-700 text-sm mt-1">${item.subject.name || item.subject.title}</p>
+                  <div class="flex items-center gap-4 mt-2 text-xs text-gray-600">
+                    <span>Section ${item.section.name}</span>
+                    <span>${item.subject.units} units</span>
+                    <span>${item.section.schedule || 'TBA'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Total Units -->
+        <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div class="flex items-center justify-between">
+            <span class="font-medium text-gray-800">Total Units:</span>
+            <span class="text-2xl font-bold text-blue-600">${totalUnits} / ${state.maxUnits}</span>
+          </div>
+        </div>
+
+        <!-- Warning Note -->
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
+          <div class="flex items-start gap-2">
+            <svg class="w-5 h-5 text-amber-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <p class="text-sm text-amber-700">Once confirmed, these subjects will be pending for approval. You won't be able to add more subjects until these enrollments are processed.</p>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-3">
+          <button onclick="closeCartConfirmModal()"
+                  class="flex-1 px-6 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors">
+            Cancel
+          </button>
+          <button onclick="confirmAllEnrollments()"
+                  class="flex-1 px-6 py-3 text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl font-medium transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40">
+            Confirm All Enrollments
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -623,9 +838,9 @@ function attachEventListeners() {
 
 // Global functions for onclick handlers
 window.enrollSubject = function (subjectId, sectionId) {
-  console.log('Enroll clicked - Subject ID:', subjectId, 'Section ID:', sectionId);
+  console.log('Add to cart - Subject ID:', subjectId, 'Section ID:', sectionId);
 
-  // Find subject to check units
+  // Find subject
   const subject = state.recommendedSubjects.find(s => s.id == subjectId) || state.availableSubjects.find(s => s.id == subjectId);
 
   if (!subject) {
@@ -641,66 +856,96 @@ window.enrollSubject = function (subjectId, sectionId) {
     return;
   }
 
-  console.log('Subject found:', subject, 'Section:', section);
-
-  if (state.totalUnits + subject.units > state.maxUnits) {
-    showToast('Enrolling would exceed max units', 'error');
+  // Check if already in cart
+  const alreadyInCart = state.cart.some(item => item.subject.id === subject.id);
+  if (alreadyInCart) {
+    showToast('Subject already in your enrollment list', 'warning');
     return;
   }
 
-  // Store pending enrollment and show confirmation modal
-  state.pendingEnrollment = { subject, section };
-  state.showConfirmModal = true;
+  // Calculate total units including cart items
+  const cartUnits = state.cart.reduce((sum, item) => sum + item.subject.units, 0);
+  if (state.totalUnits + cartUnits + subject.units > state.maxUnits) {
+    showToast(`Adding this subject would exceed the ${state.maxUnits}-unit limit`, 'error');
+    return;
+  }
+
+  // Add to cart
+  state.cart.push({ subject, section });
+  showToast(`${subject.code} added to enrollment list`, 'success');
   render();
 };
 
-window.closeConfirmModal = function () {
-  state.showConfirmModal = false;
-  state.pendingEnrollment = null;
+window.removeFromCart = function (subjectId) {
+  state.cart = state.cart.filter(item => item.subject.id !== subjectId);
+  showToast('Subject removed from enrollment list', 'info');
   render();
 };
 
-window.confirmEnrollment = async function () {
-  if (!state.pendingEnrollment) return;
+window.closeCartConfirmModal = function () {
+  state.showCartConfirmModal = false;
+  render();
+};
 
-  const { subject, section } = state.pendingEnrollment;
+window.showConfirmAllModal = function () {
+  if (state.cart.length === 0) {
+    showToast('Please add subjects to your enrollment list first', 'warning');
+    return;
+  }
+  state.showCartConfirmModal = true;
+  render();
+};
 
-  // Close modal immediately and show loading state
-  state.showConfirmModal = false;
+window.confirmAllEnrollments = async function () {
+  if (state.cart.length === 0) return;
+
+  // Close modal and show loading
+  state.showCartConfirmModal = false;
   render();
 
   try {
-    console.log('Sending enrollment request...');
-    const response = await api.post(endpoints.enrollSubject, {
-      subject_id: subject.id,
-      section_id: section.id
-    });
+    // Enroll each subject in the cart
+    const enrollmentPromises = state.cart.map(item =>
+      api.post(endpoints.enrollSubject, {
+        subject_id: item.subject.id,
+        section_id: item.section.id
+      })
+    );
 
-    console.log('Response received:', response);
+    const responses = await Promise.all(enrollmentPromises);
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log('Response data:', data);
+    // Check all responses
+    let successCount = 0;
+    let failCount = 0;
 
-      if (data.success) {
-        showToast('Enrollment successful!', 'success');
-        state.pendingEnrollment = null;
-        await loadData(); // Reload all data
-        render(); // Re-render the page
+    for (const response of responses) {
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
       } else {
-        showToast(data.error || 'Enrollment failed', 'error');
+        failCount++;
       }
-    } else {
-      const data = await response.json().catch(() => ({}));
-      console.error('Enrollment error response:', data);
-      showToast(data.error || 'Enrollment failed', 'error');
     }
-  } catch (error) {
-    console.error('Enrollment failed:', error);
-    showToast('Failed to enroll. Please try again.', 'error');
-  }
 
-  state.pendingEnrollment = null;
+    // Clear cart and reload data
+    state.cart = [];
+    await loadData();
+    render();
+
+    if (failCount === 0) {
+      showToast(`Successfully enrolled in ${successCount} subject(s)!`, 'success');
+    } else {
+      showToast(`Enrolled: ${successCount}, Failed: ${failCount}. Please try again for failed subjects.`, 'warning');
+    }
+
+  } catch (error) {
+    console.error('Bulk enrollment failed:', error);
+    showToast('Failed to process enrollments. Please try again.', 'error');
+  }
 };
 
 // DROP FUNCTIONALITY DISABLED - Students cannot drop subjects

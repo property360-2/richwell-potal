@@ -11,6 +11,7 @@ app_name = 'enrollment'
 urlpatterns = [
     # Public - Admissions
     path('system/enrollment-status/', views.EnrollmentStatusView.as_view(), name='enrollment-status'),
+    path('check-email/', views.CheckEmailAvailabilityView.as_view(), name='check-email'),
     path('programs/', views.PublicProgramListView.as_view(), name='public-programs'),
     path('enroll/', views.OnlineEnrollmentView.as_view(), name='online-enroll'),
     

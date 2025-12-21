@@ -50,6 +50,7 @@ class User(AbstractUser):
         REGISTRAR = 'REGISTRAR', 'Registrar'
         HEAD_REGISTRAR = 'HEAD_REGISTRAR', 'Head Registrar'
         ADMISSION_STAFF = 'ADMISSION_STAFF', 'Admission Staff'
+        DEPARTMENT_HEAD = 'DEPARTMENT_HEAD', 'Department Head'
         ADMIN = 'ADMIN', 'Admin'
     
     # Override id with UUID

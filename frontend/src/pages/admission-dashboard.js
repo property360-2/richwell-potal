@@ -619,10 +619,9 @@ window.submitIdAssignment = async function() {
 
   if (!applicant) return;
 
-  // Validate format
-  const idPattern = /^\d{4}-\d{5}$/;
-  if (!idPattern.test(idNumber)) {
-    state.idNumberError = 'Invalid format. Must be YYYY-XXXXX (e.g., 2025-00001)';
+  // Allow any non-empty format
+  if (!idNumber || idNumber.length === 0) {
+    state.idNumberError = 'Student ID is required';
     render();
     return;
   }
@@ -656,9 +655,9 @@ window.submitIdAssignment = async function() {
   } catch (error) {
     console.error('ID Assignment error:', error);
 
-    // Handle duplicate error
-    if (error.response?.data?.error?.includes('already exists')) {
-      state.idNumberError = `ID number ${idNumber} is already assigned to another student`;
+    // Show exact backend error message
+    if (error.response?.data?.error) {
+      state.idNumberError = error.response.data.error;
       render();
     } else {
       showToast('Failed to assign ID. Please try again.', 'error');
@@ -737,11 +736,11 @@ function renderIdAssignmentModal() {
               type="text"
               id="id-number-input"
               class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all text-lg font-mono"
-              placeholder="YYYY-XXXXX"
+              placeholder="Enter student ID"
               value="${state.suggestedIdNumber}"
               oninput="handleIdNumberInput(event)"
             >
-            <p class="text-xs text-gray-500 mt-2">Format: YYYY-XXXXX (e.g., 2025-00001)</p>
+            <p class="text-xs text-gray-500 mt-2">Enter any unique student ID number</p>
             ${state.idNumberError ? `
               <p class="text-sm text-red-600 mt-2 flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -11,7 +11,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.core.permissions import IsRegistrar, IsAdmissionStaff, IsAdmin
 from apps.core.exceptions import EnrollmentLinkDisabledError, NotFoundError
@@ -71,6 +71,43 @@ class PublicProgramListView(ListAPIView):
     )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
+
+
+class CheckEmailAvailabilityView(APIView):
+    """Check if email is available for registration."""
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Check Email Availability",
+        description="Check if an email address is available for registration",
+        tags=["Admissions"],
+        parameters=[
+            OpenApiParameter(
+                name='email',
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description='Email address to check',
+                required=True
+            )
+        ]
+    )
+    def get(self, request):
+        email = request.query_params.get('email', '').strip().lower()
+
+        if not email:
+            return Response({
+                "available": False,
+                "message": "Email is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if email exists
+        from apps.accounts.models import User
+        exists = User.objects.filter(email=email).exists()
+
+        return Response({
+            "available": not exists,
+            "message": "Email is available" if not exists else "This email is already registered"
+        })
 
 
 class OnlineEnrollmentView(APIView):
@@ -438,12 +475,11 @@ class ApplicantUpdateView(APIView):
                     "error": "Student number is required for approval"
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Validate format: YYYY-XXXXX
-            import re
-            if not re.match(r'^\d{4}-\d{5}$', student_number):
+            # Just check if student_number is not empty (duplicate check will still run)
+            if not student_number.strip():
                 return Response({
                     "success": False,
-                    "error": "Invalid student number format. Must be YYYY-XXXXX"
+                    "error": "Student number cannot be empty"
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # Check for duplicate student number
@@ -451,7 +487,7 @@ class ApplicantUpdateView(APIView):
             if User.objects.filter(student_number=student_number).exclude(id=enrollment.student.id).exists():
                 return Response({
                     "success": False,
-                    "error": f"Student number {student_number} already exists"
+                    "error": "The ID is already used by another student, please pick another"
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # Assign student number WITHOUT changing password
