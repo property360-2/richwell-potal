@@ -22,9 +22,10 @@ class MonthlyPaymentBucketSerializer(serializers.ModelSerializer):
     class Meta:
         model = MonthlyPaymentBucket
         fields = [
-            'id', 'month_number', 'required_amount', 
+            'id', 'month_number', 'required_amount',
             'paid_amount', 'is_fully_paid',
-            'remaining_amount', 'payment_percentage'
+            'remaining_amount', 'payment_percentage',
+            'event_label'
         ]
 
 

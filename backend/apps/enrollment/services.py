@@ -243,13 +243,23 @@ class EnrollmentService:
     def _generate_payment_buckets(self, enrollment: Enrollment) -> list[MonthlyPaymentBucket]:
         """
         Generate 6 monthly payment buckets for an enrollment.
-        
+
         Args:
             enrollment: The enrollment to create buckets for
-            
+
         Returns:
             list: Created MonthlyPaymentBucket instances
         """
+        # Event labels for each payment month
+        EVENT_LABELS = {
+            1: 'Subject Enrollment',
+            2: 'Chapter Test',
+            3: 'Prelims',
+            4: 'Midterms',
+            5: 'Pre Finals',
+            6: 'Finals'
+        }
+
         buckets = []
         for month in range(1, self.payment_months + 1):
             bucket = MonthlyPaymentBucket.objects.create(
@@ -257,10 +267,11 @@ class EnrollmentService:
                 month_number=month,
                 required_amount=enrollment.monthly_commitment,
                 paid_amount=Decimal('0.00'),
-                is_fully_paid=False
+                is_fully_paid=False,
+                event_label=EVENT_LABELS.get(month, '')
             )
             buckets.append(bucket)
-        
+
         return buckets
     
     def _get_current_semester(self) -> Semester:

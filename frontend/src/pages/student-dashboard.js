@@ -68,12 +68,13 @@ async function loadUserProfile() {
       console.log('Payment API response:', paymentsResponse);
 
       if (paymentsResponse?.data?.buckets) {
-        // Update payment buckets from API - API returns 'month', 'required', 'paid'
+        // Update payment buckets from API - API returns 'month', 'required', 'paid', 'event_label'
         state.paymentBuckets = paymentsResponse.data.buckets.map(b => ({
           month: b.month,
           required: b.required,
           paid: b.paid,
-          label: `Month ${b.month}`
+          event_label: b.event_label,
+          label: b.event_label || `Month ${b.month}`
         }));
 
         // Check if Month 1 is paid
@@ -145,7 +146,10 @@ function render() {
       ${renderAdmissionStatusBanner()}
 
       <!-- Payment Pending Banner (if Month 1 not paid) -->
-      ${!state.month1Paid ? `
+      ${!state.month1Paid ? (() => {
+        const month1Bucket = state.paymentBuckets.find(b => b.month === 1);
+        const month1Label = month1Bucket && month1Bucket.event_label ? `Month 1: ${month1Bucket.event_label}` : 'Month 1';
+        return `
         <div class="card bg-gradient-to-r from-blue-500 to-indigo-500 text-white mb-8">
           <div class="flex items-start gap-4">
             <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -155,12 +159,13 @@ function render() {
             </div>
             <div>
               <h2 class="text-xl font-bold">💳 Payment Pending</h2>
-              <p class="mt-1 text-blue-100">You can enroll in subjects now! Your enrollments will be marked as pending until Month 1 payment is received.</p>
-              <p class="mt-2 text-sm text-blue-200">Please pay Month 1 (${formatCurrency(state.monthlyCommitment)}) at the Cashier's Office to activate your subject enrollments.</p>
+              <p class="mt-1 text-blue-100">You can enroll in subjects now! Your enrollments will be marked as pending until ${month1Label} payment is received.</p>
+              <p class="mt-2 text-sm text-blue-200">Please pay ${month1Label} (${formatCurrency(state.monthlyCommitment)}) at the Cashier's Office to activate your subject enrollments.</p>
             </div>
           </div>
         </div>
-      ` : ''}
+        `;
+      })() : ''}
       
       <!-- Main Content Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -296,8 +301,8 @@ function renderAdmissionStatusBanner() {
         </div>
       </div>
     `;
-  } else {
-    // Account approved
+  } else if (state.enrolledUnits === 0) {
+    // Account approved but no enrolled subjects yet
     return `
       <div class="bg-green-50 border-l-4 border-green-400 p-6 mb-8 rounded-r-xl">
         <div class="flex items-start gap-4">
@@ -321,6 +326,9 @@ function renderAdmissionStatusBanner() {
         </div>
       </div>
     `;
+  } else {
+    // Account approved and has enrolled subjects - hide the banner
+    return '';
   }
 }
 
@@ -368,7 +376,7 @@ function renderPaymentBucket(bucket) {
 
   return `
     <div class="flex items-center gap-4">
-      <div class="w-20 text-sm font-medium text-gray-600">${bucket.label}</div>
+      <div class="w-40 text-sm font-medium text-gray-600">${bucket.event_label ? `Month ${bucket.month}: ${bucket.event_label}` : `Month ${bucket.month}`}</div>
       <div class="flex-1">
         <div class="progress-bar">
           <div class="progress-bar-fill ${isComplete ? 'bg-gradient-to-r from-green-500 to-emerald-500' : ''}" style="width: ${percentage}%"></div>

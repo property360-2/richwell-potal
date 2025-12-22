@@ -40,7 +40,8 @@ async function loadData() {
             month: b.month,
             required: b.required,
             paid: b.paid,
-            label: `Month ${b.month}`,
+            event_label: b.event_label,
+            label: b.event_label || `Month ${b.month}`,
             dueDate: calculateDueDate(b.month) // Generate due dates
           }));
         }
@@ -184,14 +185,26 @@ function render() {
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-200">
-                    ${state.paymentHistory.map(payment => `
+                    ${state.paymentHistory.map(payment => {
+                      // Look up event label for the month if it's a specific month
+                      let monthDisplay = payment.monthApplied;
+                      if (payment.monthApplied !== 'Multiple' && !isNaN(payment.monthApplied)) {
+                        const bucket = state.paymentBuckets.find(b => b.month === parseInt(payment.monthApplied));
+                        if (bucket && bucket.event_label) {
+                          monthDisplay = `Month ${payment.monthApplied}: ${bucket.event_label}`;
+                        } else {
+                          monthDisplay = `Month ${payment.monthApplied}`;
+                        }
+                      }
+                      return `
                       <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3 text-sm text-gray-800">${formatDate(payment.date)}</td>
                         <td class="px-4 py-3 text-sm font-mono text-blue-600">${payment.receipt}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600">Month ${payment.monthApplied}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600">${monthDisplay}</td>
                         <td class="px-4 py-3 text-sm font-medium text-green-600 text-right">${formatCurrency(payment.amount)}</td>
                       </tr>
-                    `).join('')}
+                      `;
+                    }).join('')}
                   </tbody>
                 </table>
               </div>
@@ -315,7 +328,7 @@ function renderPaymentBucket(bucket) {
             `}
           </div>
           <div>
-            <p class="font-medium text-gray-800">${bucket.label}</p>
+            <p class="font-medium text-gray-800">${bucket.event_label ? `Month ${bucket.month}: ${bucket.event_label}` : `Month ${bucket.month}`}</p>
             <p class="text-xs text-gray-500">Due: ${formatDate(bucket.dueDate)}</p>
           </div>
         </div>

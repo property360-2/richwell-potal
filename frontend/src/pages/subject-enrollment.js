@@ -182,7 +182,12 @@ async function loadData() {
           section: s.section_name,
           units: s.units,
           schedule: Array.isArray(s.schedule) ? s.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time}`).join(', ') : s.schedule,
-          status: s.status
+          status: s.status,
+          // Approval fields for badge display
+          payment_approved: s.payment_approved,
+          head_approved: s.head_approved,
+          approval_status_display: s.approval_status_display,
+          is_fully_enrolled: s.is_fully_enrolled
         }));
         state.totalUnits = enrolledResponse.data.enrolled_units || 0;
       } else if (enrolledResponse?.length) {
@@ -623,13 +628,13 @@ function renderEnrolledSubject(enrollment, isFullWidth = false) {
 }
 
 function renderCartItem(item) {
-  const { subject, section } = item;
+  const { subject } = item;
   return `
     <div class="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-200">
       <div class="flex-1 pr-2">
         <p class="font-medium text-gray-800 text-sm">${subject.code}</p>
         <p class="text-xs text-gray-600 truncate">${subject.name || subject.title}</p>
-        <p class="text-xs text-gray-500 mt-1">Section ${section.name} • ${subject.units} units</p>
+        <p class="text-xs text-gray-500 mt-1">${subject.units} units</p>
       </div>
       <button onclick="removeFromCart(${subject.id})" class="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Remove">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -666,9 +671,7 @@ function renderCartConfirmModal() {
                   <p class="font-bold text-gray-800">${item.subject.code}</p>
                   <p class="text-gray-700 text-sm mt-1">${item.subject.name || item.subject.title}</p>
                   <div class="flex items-center gap-4 mt-2 text-xs text-gray-600">
-                    <span>Section ${item.section.name}</span>
                     <span>${item.subject.units} units</span>
-                    <span>${item.section.schedule || 'TBA'}</span>
                   </div>
                 </div>
               </div>
