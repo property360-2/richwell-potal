@@ -108,7 +108,21 @@ async function loadData() {
     if (userResponse) {
       state.user = userResponse;
     }
-    state.todayTransactions = mockTodayTransactions;
+
+    // Load today's transactions
+    try {
+      const transactionsResponse = await api.get(endpoints.cashierTodayTransactions);
+      console.log('Today transactions API response:', transactionsResponse);
+
+      if (transactionsResponse?.success) {
+        state.todayTransactions = transactionsResponse.data.transactions || [];
+      } else {
+        state.todayTransactions = [];
+      }
+    } catch (err) {
+      console.error('Failed to load today transactions:', err);
+      state.todayTransactions = [];
+    }
 
     // Load pending payments (students with Month 1 not paid)
     console.log('Calling pending payments API:', endpoints.cashierPendingPayments);
@@ -631,11 +645,14 @@ window.submitPayment = async function (event) {
       if (response.ok) {
         showToast(data.message || 'Payment recorded successfully!', 'success');
 
-        // Refresh student data
+        // Refresh student data and today's transactions
         if (state.selectedStudent.enrollment_id) {
           await searchStudent();
           state.selectedStudent = state.searchResults.find(s => s.id === state.selectedStudent.id);
         }
+
+        // Reload today's transactions to show the new payment
+        await loadData();
       } else {
         if (data?.errors) {
           const errorMsg = Object.values(data.errors).flat().join(', ');

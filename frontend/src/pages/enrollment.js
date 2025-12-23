@@ -220,7 +220,7 @@ function renderStep1() {
         </div>
         <div>
           <label class="form-label">Contact Number <span class="text-red-500">*</span></label>
-          <input type="tel" id="contact_number" class="form-input" placeholder="09171234567" value="${state.formData.contact_number}" required>
+          <input type="tel" id="contact_number" class="form-input" placeholder="09171234567" value="${state.formData.contact_number}" maxlength="11" required>
         </div>
       </div>
       

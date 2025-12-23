@@ -15,7 +15,13 @@ const state = {
   showSchedulePreview: null,
   showConfirmModal: false,
   showCartConfirmModal: false, // For confirming all cart items
-  pendingEnrollment: null // { subject, section }
+  pendingEnrollment: null, // { subject, section }
+
+  // Edit modal state
+  editingEnrollment: null,
+  editModalSelectedSubject: null,
+  editModalSelectedSection: null,
+  showEditModal: false
 };
 
 // Mock data for development
@@ -271,6 +277,25 @@ function render() {
           <p class="text-gray-600 mt-1">Currently enrolled for this semester</p>
         </div>
 
+        <!-- Unit Summary -->
+        <div class="mb-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-gray-800">Total Units Enrolled</h3>
+              <p class="text-sm text-gray-600 mt-1">Maximum allowed: ${state.maxUnits} units</p>
+            </div>
+            <div class="text-right">
+              <p class="text-4xl font-bold text-blue-600">${state.totalUnits}</p>
+              <p class="text-sm text-gray-500">units</p>
+            </div>
+          </div>
+          <div class="mt-4">
+            <div class="w-full bg-gray-200 rounded-full h-3">
+              <div class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: ${Math.min((state.totalUnits / state.maxUnits) * 100, 100)}%"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Info Message -->
         <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div class="flex items-start gap-3">
@@ -279,38 +304,38 @@ function render() {
             </svg>
             <div>
               <p class="text-sm text-blue-800 font-medium">Your subject enrollments are pending approval</p>
+              <p class="text-sm text-blue-700 mt-1" >Once Approved by Head, you cannot longer change or update your subjects</p>
               <p class="text-sm text-blue-700 mt-1">Your enrollments will need to be processed before you can add more subjects. Please check back later for updates.</p>
             </div>
           </div>
         </div>
 
-        <!-- Enrolled Subjects - Full Width -->
-        <div class="space-y-4">
-          ${state.enrolledSubjects.map(enrollment => renderEnrolledSubject(enrollment, true)).join('')}
-        </div>
-
-        <!-- Unit Summary -->
-        <div class="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-bold text-gray-800">Total Units Enrolled</h3>
-              <p class="text-sm text-gray-600 mt-1">Maximum allowed: ${state.maxUnits} units</p>
-            </div>
-            <div class="text-right">
-              <p class="text-3xl font-bold text-blue-600">${state.totalUnits}</p>
-              <p class="text-sm text-gray-500">units</p>
-            </div>
-          </div>
-          <div class="mt-4">
-            <div class="w-full bg-gray-200 rounded-full h-2">
-              <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: ${Math.min((state.totalUnits / state.maxUnits) * 100, 100)}%"></div>
-            </div>
-          </div>
+        <!-- Enrolled Subjects - Table Format -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Code</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Title</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              ${state.enrolledSubjects.map(enrollment => renderEnrolledSubjectRow(enrollment)).join('')}
+            </tbody>
+          </table>
         </div>
       </main>
 
       <!-- Schedule Preview Modal -->
       ${state.showSchedulePreview ? renderSchedulePreviewModal() : ''}
+
+      <!-- Edit Modal -->
+      ${state.showEditModal ? renderEditModal() : ''}
     `;
   } else {
     // Show normal enrollment interface
@@ -398,6 +423,9 @@ function render() {
 
       <!-- Cart Confirmation Modal -->
       ${state.showCartConfirmModal ? renderCartConfirmModal() : ''}
+
+      <!-- Edit Modal -->
+      ${state.showEditModal ? renderEditModal() : ''}
     `;
   }
 
@@ -542,6 +570,75 @@ function renderSubjectCard(subject, isRecommended) {
 }
 
 
+function renderEnrolledSubjectRow(enrollment) {
+  // Get dual approval status from API
+  const paymentApproved = enrollment.payment_approved || false;
+  const headApproved = enrollment.head_approved || false;
+  const isFullyEnrolled = paymentApproved && headApproved && enrollment.status === 'ENROLLED';
+
+  // Determine row background class
+  let rowClass = '';
+  if (isFullyEnrolled) {
+    rowClass = 'bg-green-50';
+  } else if (paymentApproved || headApproved) {
+    rowClass = 'bg-yellow-50';
+  }
+
+  // Render dual status badges
+  const paymentBadge = paymentApproved
+    ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">✓ Payment Complete</span>'
+    : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full">⏳ Payment Pending</span>';
+
+  const headBadge = headApproved
+    ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">✓ Head Approved</span>'
+    : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full">⏳ Awaiting Head</span>';
+
+  const finalBadge = isFullyEnrolled
+    ? '<span class="inline-flex items-center px-2 py-1 text-xs font-bold text-green-800 bg-green-200 rounded-full">ENROLLED</span>'
+    : '';
+
+  return `
+    <tr class="${rowClass} hover:bg-gray-50">
+      <td class="px-6 py-4 whitespace-nowrap">
+        <div class="text-sm font-medium text-gray-900">${enrollment.subject_code || enrollment.subject?.code}</div>
+      </td>
+      <td class="px-6 py-4">
+        <div class="text-sm text-gray-900">${enrollment.subject_title || enrollment.subject?.name}</div>
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap">
+        <div class="text-sm text-gray-900">${enrollment.section_name || 'N/A'}</div>
+      </td>
+      <td class="px-6 py-4">
+        <div class="text-sm text-gray-900">${enrollment.schedule || 'TBA'}</div>
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap">
+        <div class="text-sm text-gray-900">${enrollment.units}</div>
+      </td>
+      <td class="px-6 py-4">
+        <div class="space-y-1">
+          ${isFullyEnrolled ? `
+            ${finalBadge}
+          ` : `
+            ${paymentBadge}
+            ${headBadge}
+          `}
+        </div>
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm">
+        ${!headApproved ? `
+          <button onclick="openEditModal('${enrollment.id}')"
+                  class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+            </svg>
+            Edit
+          </button>
+        ` : '<span class="text-gray-400 text-xs">No actions</span>'}
+      </td>
+    </tr>
+  `;
+}
 
 function renderEnrolledSubject(enrollment, isFullWidth = false) {
   // Get dual approval status from API
@@ -604,6 +701,18 @@ function renderEnrolledSubject(enrollment, isFullWidth = false) {
             ${enrollment.approval_status_display ? `<p class="text-sm text-gray-600 mt-3 italic">${enrollment.approval_status_display}</p>` : ''}
           </div>
         </div>
+        ${!headApproved ? `
+          <div class="mt-4 pt-4 border-t border-gray-200">
+            <button onclick="openEditModal('${enrollment.id}')"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm flex items-center gap-2 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+              </svg>
+              Edit Subject/Section
+            </button>
+          </div>
+        ` : ''}
       </div>
     `;
   }
@@ -831,6 +940,100 @@ function renderConfirmEnrollModal() {
   `;
 }
 
+function renderEditModal() {
+  const enrollment = state.editingEnrollment;
+  if (!enrollment) return '';
+
+  const allSubjects = [...state.recommendedSubjects, ...state.availableSubjects];
+  const selectedSubject = state.editModalSelectedSubject
+    ? allSubjects.find(s => s.id === state.editModalSelectedSubject)
+    : allSubjects.find(s => s.code === enrollment.subject.code);
+
+  return `
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="closeEditModal()">
+      <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="mb-6">
+          <h3 class="text-2xl font-bold text-gray-800">Edit Enrollment</h3>
+          <p class="text-gray-500 mt-1">Change subject or section before head approval</p>
+        </div>
+
+        <!-- Current Info -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <p class="text-sm font-medium text-blue-900 mb-2">Current:</p>
+          <p class="text-lg font-bold text-blue-700">${enrollment.subject.code} - ${enrollment.subject.name}</p>
+          <p class="text-sm text-blue-600">Section ${enrollment.section} • ${enrollment.units} units</p>
+        </div>
+
+        <!-- Subject Selection -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Select New Subject</label>
+          <select id="edit-subject-select" onchange="onEditSubjectChange()"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+            <option value="">-- Keep Current Subject --</option>
+            ${allSubjects.map(s => `
+              <option value="${s.id}" ${s.code === enrollment.subject.code ? 'selected' : ''}>
+                ${s.code} - ${s.name || s.title} (${s.units} units)
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <!-- Section Selection -->
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Select Section</label>
+          ${selectedSubject?.sections?.length > 0 ? `
+            <div class="space-y-2">
+              ${selectedSubject.sections.map(section => `
+                <label class="flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50
+                  ${state.editModalSelectedSection === section.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}">
+                  <div class="flex items-center gap-3">
+                    <input type="radio" name="edit-section" value="${section.id}"
+                           onchange="state.editModalSelectedSection = '${section.id}'; render();"
+                           ${state.editModalSelectedSection === section.id ? 'checked' : ''}
+                           class="w-4 h-4 text-blue-600" />
+                    <div>
+                      <p class="font-medium text-gray-800">Section ${section.name}</p>
+                      <p class="text-sm text-gray-600">${section.schedule || 'TBA'}</p>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-sm font-medium text-gray-600">${section.enrolled || 0}/${section.slots}</p>
+                  </div>
+                </label>
+              `).join('')}
+            </div>
+          ` : '<p class="text-gray-500 text-sm">No sections available</p>'}
+        </div>
+
+        <!-- Unit Impact -->
+        ${state.editModalSelectedSubject ? `
+          <div class="mb-6 p-4 ${calculateEditUnitImpact(enrollment, selectedSubject) > 30 ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'} border rounded-xl">
+            <p class="text-sm font-medium">Unit Impact: ${enrollment.units} → ${selectedSubject?.units || 0} units</p>
+            <p class="text-sm mt-1">Total: ${calculateEditUnitImpact(enrollment, selectedSubject)} / 30 units
+              ${calculateEditUnitImpact(enrollment, selectedSubject) > 30 ? ' ⚠️ EXCEEDS LIMIT!' : ''}
+            </p>
+          </div>
+        ` : ''}
+
+        <!-- Actions -->
+        <div class="flex gap-3">
+          <button onclick="closeEditModal()"
+                  class="flex-1 px-6 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium">
+            Cancel
+          </button>
+          <button onclick="confirmEditEnrollment()"
+                  class="flex-1 px-6 py-3 text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl font-medium
+                  ${!state.editModalSelectedSection || calculateEditUnitImpact(enrollment, selectedSubject) > 30 ? 'opacity-50 cursor-not-allowed' : ''}"
+                  ${!state.editModalSelectedSection || calculateEditUnitImpact(enrollment, selectedSubject) > 30 ? 'disabled' : ''}>
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function getSelectedUnits() {
   return 0; // State.selectedSubjects removed
 }
@@ -907,29 +1110,29 @@ window.confirmAllEnrollments = async function () {
   render();
 
   try {
-    // Enroll each subject in the cart
-    const enrollmentPromises = state.cart.map(item =>
-      api.post(endpoints.enrollSubject, {
-        subject_id: item.subject.id,
-        section_id: item.section.id
-      })
-    );
-
-    const responses = await Promise.all(enrollmentPromises);
-
-    // Check all responses
     let successCount = 0;
     let failCount = 0;
 
-    for (const response of responses) {
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          successCount++;
+    // Process enrollments sequentially to avoid SQLite database locks
+    for (const item of state.cart) {
+      try {
+        const response = await api.post(endpoints.enrollSubject, {
+          subject_id: item.subject.id,
+          section_id: item.section.id
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
         } else {
           failCount++;
         }
-      } else {
+      } catch (error) {
+        console.error('Enrollment error:', error);
         failCount++;
       }
     }
@@ -948,6 +1151,85 @@ window.confirmAllEnrollments = async function () {
   } catch (error) {
     console.error('Bulk enrollment failed:', error);
     showToast('Failed to process enrollments. Please try again.', 'error');
+  }
+};
+
+// ============================================================
+// EDIT ENROLLMENT FUNCTIONS
+// ============================================================
+
+// Calculate total units after edit
+function calculateEditUnitImpact(enrollment, newSubject) {
+  if (!newSubject) return state.totalUnits;
+  const oldUnits = enrollment.units;
+  const newUnits = newSubject.units;
+  return state.totalUnits - oldUnits + newUnits;
+}
+
+// Open edit modal
+window.openEditModal = function(enrollmentId) {
+  const enrollment = state.enrolledSubjects.find(e => e.id === enrollmentId);
+  if (!enrollment) return;
+
+  state.editingEnrollment = enrollment;
+  state.editModalSelectedSubject = null;
+  state.editModalSelectedSection = null;
+  state.showEditModal = true;
+  render();
+};
+
+// Close edit modal
+window.closeEditModal = function() {
+  state.editingEnrollment = null;
+  state.editModalSelectedSubject = null;
+  state.editModalSelectedSection = null;
+  state.showEditModal = false;
+  render();
+};
+
+// Handle subject change in edit modal
+window.onEditSubjectChange = function() {
+  const select = document.getElementById('edit-subject-select');
+  state.editModalSelectedSubject = select.value || null;
+  state.editModalSelectedSection = null;
+  render();
+};
+
+// Confirm edit enrollment
+window.confirmEditEnrollment = async function() {
+  const enrollment = state.editingEnrollment;
+  if (!enrollment || !state.editModalSelectedSection) return;
+
+  // Determine subject ID
+  let subjectId = state.editModalSelectedSubject;
+  if (!subjectId) {
+    const allSubjects = [...state.recommendedSubjects, ...state.availableSubjects];
+    const currentSubject = allSubjects.find(s => s.code === enrollment.subject.code);
+    if (!currentSubject) {
+      showToast('Error: Cannot find current subject', 'error');
+      return;
+    }
+    subjectId = currentSubject.id;
+  }
+
+  try {
+    const response = await api.put(`${endpoints.myEnrollments}${enrollment.id}/edit/`, {
+      subject_id: subjectId,
+      section_id: state.editModalSelectedSection
+    });
+
+    if (response.success) {
+      showToast(response.message || 'Enrollment updated successfully!', 'success');
+      closeEditModal();
+      await loadData();
+      render();
+    } else {
+      showToast(response.error || 'Failed to update enrollment', 'error');
+    }
+  } catch (error) {
+    console.error('Edit enrollment error:', error);
+    const errorMsg = error.error || error.message || 'Failed to update enrollment';
+    showToast(errorMsg, 'error');
   }
 };
 

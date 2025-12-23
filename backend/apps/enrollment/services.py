@@ -766,7 +766,136 @@ class SubjectEnrollmentService:
         )
         
         return subject_enrollment
-    
+
+    @transaction.atomic
+    def edit_subject_enrollment(
+        self,
+        subject_enrollment: 'SubjectEnrollment',
+        new_subject: 'Subject',
+        new_section: 'Section',
+        actor: User
+    ) -> 'SubjectEnrollment':
+        """
+        Edit a subject enrollment (change subject or section).
+        Only allowed before head approval.
+
+        Validates:
+        - Prerequisites for new subject
+        - Unit cap (adjusted for subject swap)
+        - Schedule conflicts (excluding current enrollment)
+        - No duplicate enrollments
+
+        Args:
+            subject_enrollment: SubjectEnrollment object to edit
+            new_subject: New Subject object
+            new_section: New Section object
+            actor: User performing the edit
+
+        Returns:
+            SubjectEnrollment: Updated record
+
+        Raises:
+            ConflictError: If head has already approved or duplicate enrollment
+            PrerequisiteNotSatisfiedError: If prerequisites not met
+            UnitCapExceededError: If edit would exceed unit cap
+            ScheduleConflictError: If schedule conflict with other enrollments
+        """
+        from .models import SubjectEnrollment
+        from apps.core.exceptions import (
+            ConflictError,
+            PrerequisiteNotSatisfiedError,
+            UnitCapExceededError,
+            ScheduleConflictError
+        )
+
+        # 1. Validation gate - cannot edit after head approval
+        if subject_enrollment.head_approved:
+            raise ConflictError("Cannot edit: Head has already approved this enrollment")
+
+        # 2. Store old values for audit
+        old_subject = subject_enrollment.subject
+        old_section = subject_enrollment.section
+        old_units = old_subject.units
+
+        # 3. Validate prerequisites for new subject
+        self.check_prerequisites(actor, new_subject)
+        self.check_inc_prerequisites(actor, new_subject)
+
+        # 4. Check for duplicate enrollment
+        duplicate = SubjectEnrollment.objects.filter(
+            enrollment__student=actor,
+            subject=new_subject,
+            status__in=[
+                SubjectEnrollment.Status.PENDING_HEAD,
+                SubjectEnrollment.Status.ENROLLED
+            ]
+        ).exclude(id=subject_enrollment.id).exists()
+
+        if duplicate:
+            raise ConflictError(f"Already enrolled in {new_subject.code}")
+
+        # 5. Validate unit cap (adjust for swap)
+        enrollment = subject_enrollment.enrollment
+        current_units = self.get_current_enrolled_units(actor, enrollment.semester)
+        adjusted_units = current_units - old_units + new_subject.units
+
+        if adjusted_units > 30:
+            raise UnitCapExceededError(
+                f"Would exceed unit cap: {adjusted_units}/30 units"
+            )
+
+        # 6. Check schedule conflict (excluding current enrollment's section)
+        has_conflict, conflict_info = self.check_schedule_conflict(
+            student=actor,
+            section=new_section,
+            semester=enrollment.semester
+        )
+
+        # If there's a conflict, check if it's with the current enrollment (which is OK)
+        if has_conflict:
+            # Get the conflicting enrollment to see if it's the current one being edited
+            from apps.enrollment.models import SubjectEnrollment as SE
+            conflicting_enrollments = SE.objects.filter(
+                enrollment__student=actor,
+                enrollment__semester=enrollment.semester,
+                status__in=[SE.Status.PENDING_HEAD, SE.Status.ENROLLED],
+                section=conflict_info.get('section')
+            ).exclude(id=subject_enrollment.id)
+
+            # If there are other conflicting enrollments (not just the current one), raise error
+            if conflicting_enrollments.exists():
+                conflicting = conflicting_enrollments.first()
+                raise ScheduleConflictError(
+                    f"Schedule conflict with {conflicting.subject.code}"
+                )
+
+        # 7. Update record
+        subject_enrollment.subject = new_subject
+        subject_enrollment.section = new_section
+        subject_enrollment.is_irregular = (
+            new_subject.year_level != actor.student_profile.year_level or
+            self._get_semester_number(enrollment.semester) != new_subject.semester_number
+        )
+        subject_enrollment.save(update_fields=['subject', 'section', 'is_irregular'])
+
+        # 8. Audit log
+        AuditLog.log(
+            action=AuditLog.Action.SUBJECT_EDITED,
+            target_model='SubjectEnrollment',
+            target_id=subject_enrollment.id,
+            actor=actor,
+            payload={
+                'old_subject': old_subject.code,
+                'new_subject': new_subject.code,
+                'old_section': old_section.name if old_section else None,
+                'new_section': new_section.name if new_section else None,
+                'old_units': old_units,
+                'new_units': new_subject.units
+            }
+        )
+
+        return subject_enrollment
+
     @transaction.atomic
     def registrar_override_enroll(
         self, registrar, student, enrollment, subject, section, override_reason: str

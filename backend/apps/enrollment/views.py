@@ -862,6 +862,89 @@ class DropSubjectView(APIView):
         })
 
 
+class EditSubjectEnrollmentView(APIView):
+    """
+    Edit a subject enrollment (change subject or section).
+    Only allowed if head has NOT approved yet.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Edit Subject Enrollment",
+        description="Edit subject/section before head approval",
+        tags=["Subject Enrollment"],
+        request=EnrollSubjectRequestSerializer
+    )
+    @transaction.atomic
+    def put(self, request, pk):
+        # 1. Role check
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # 2. Validate request
+        serializer = EnrollSubjectRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Get enrollment
+        try:
+            subject_enrollment = SubjectEnrollment.objects.select_related(
+                'enrollment', 'subject', 'section'
+            ).get(
+                id=pk,
+                enrollment__student=request.user
+            )
+        except SubjectEnrollment.DoesNotExist:
+            raise NotFoundError("Subject enrollment not found")
+
+        # 4. Check if editable (head not approved)
+        if subject_enrollment.head_approved:
+            return Response({
+                "success": False,
+                "error": "Cannot edit: Head has already approved this enrollment"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # 5. Get new subject and section
+        from apps.academics.models import Section
+        try:
+            new_subject = Subject.objects.get(id=serializer.validated_data['subject_id'])
+            new_section = Section.objects.get(id=serializer.validated_data['section_id'])
+        except (Subject.DoesNotExist, Section.DoesNotExist):
+            return Response({
+                "success": False,
+                "error": "Subject or section not found"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 6. Call service to edit
+        try:
+            service = SubjectEnrollmentService()
+            updated_enrollment = service.edit_subject_enrollment(
+                subject_enrollment=subject_enrollment,
+                new_subject=new_subject,
+                new_section=new_section,
+                actor=request.user
+            )
+        except Exception as e:
+            # Handle all custom exceptions from service
+            return Response({
+                "success": False,
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 7. Return success
+        return Response({
+            "success": True,
+            "message": f"Successfully updated enrollment to {new_subject.code}",
+            "data": SubjectEnrollmentSerializer(updated_enrollment).data
+        })
+
+
 class RegistrarOverrideEnrollmentView(APIView):
     """
     Registrar override enrollment.
@@ -1128,6 +1211,65 @@ class PaymentTransactionListView(ListAPIView):
             queryset = queryset.filter(is_adjustment=is_adjustment.lower() == 'true')
         
         return queryset[:100]
+
+
+class CashierTodayTransactionsView(APIView):
+    """
+    Get today's payment transactions for cashier dashboard.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Today's Transactions",
+        description="Get payment transactions processed today",
+        tags=["Cashier"]
+    )
+    def get(self, request):
+        from apps.core.permissions import IsCashier
+
+        # Check if user is cashier
+        if not IsCashier().has_permission(request, self):
+            return Response({
+                "success": False,
+                "error": "Only cashiers can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        from django.utils import timezone
+        today = timezone.now().date()
+
+        # Get today's transactions
+        transactions = PaymentTransaction.objects.filter(
+            processed_at__date=today
+        ).select_related(
+            'enrollment__student',
+            'processed_by'
+        ).order_by('-processed_at')
+
+        # Serialize data
+        data = []
+        for txn in transactions:
+            student = txn.enrollment.student
+            data.append({
+                'id': txn.id,
+                'time': txn.processed_at.strftime('%I:%M %p'),
+                'student': f"{student.first_name} {student.last_name}",
+                'studentNumber': student.student_number,
+                'amount': float(txn.amount),
+                'receipt': txn.receipt_number,
+                'monthApplied': txn.month_applied if txn.month_applied else 'Multiple'
+            })
+
+        # Calculate total
+        total = sum(txn.amount for txn in transactions)
+
+        return Response({
+            "success": True,
+            "data": {
+                "transactions": data,
+                "total": float(total),
+                "count": len(data)
+            }
+        })
 
 
 class ExamMonthMappingView(APIView):

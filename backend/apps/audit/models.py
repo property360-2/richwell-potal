@@ -27,6 +27,7 @@ class AuditLog(models.Model):
         # Subject enrollment actions
         SUBJECT_ENROLLED = 'SUBJECT_ENROLLED', 'Subject Enrolled'
         SUBJECT_DROPPED = 'SUBJECT_DROPPED', 'Subject Dropped'
+        SUBJECT_EDITED = 'SUBJECT_EDITED', 'Subject Enrollment Edited'
         
         # Grade actions
         GRADE_SUBMITTED = 'GRADE_SUBMITTED', 'Grade Submitted'

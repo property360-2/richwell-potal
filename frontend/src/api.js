@@ -120,6 +120,15 @@ export const api = {
         return response;
     },
 
+    async put(endpoint, data) {
+        const response = await this.request(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+        if (!response) return null;
+        return response.json();
+    },
+
     async patch(endpoint, data) {
         const response = await this.request(endpoint, {
             method: 'PATCH',
@@ -224,6 +233,7 @@ export const endpoints = {
     // Cashier endpoints (enrollment URLs are under /admissions/)
     cashierStudentSearch: '/admissions/cashier/students/search/',
     cashierPendingPayments: '/admissions/cashier/students/pending-payments/',
+    cashierTodayTransactions: '/admissions/cashier/today-transactions/',
     cashierRecordPayment: '/admissions/payments/record/',
     cashierStudentPayments: (enrollmentId) => `/admissions/payments/student/${enrollmentId}/`,
 
