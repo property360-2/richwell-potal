@@ -207,7 +207,8 @@ function renderHeader() {
         
         <nav class="hidden md:flex items-center gap-2">
           <a href="/registrar-dashboard.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Dashboard</a>
-          <a href="/registrar-cor.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">COR</a>
+          <a href="/registrar-documents.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Documents</a>
+          <a href="/registrar-subjects.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Subjects</a>
           <a href="/registrar-enrollment.html" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-lg font-medium">Override</a>
         </nav>
         

@@ -249,5 +249,10 @@ export const endpoints = {
 
     // COR Generation
     generateCOR: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/cor/`,
+
+    // Document Release
+    createDocumentRelease: '/admissions/documents/release/',
+    myReleases: '/admissions/documents/my-releases/',
+    allReleases: '/admissions/documents/all/',
 };
 
