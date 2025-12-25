@@ -365,3 +365,124 @@ class CurriculumVersion(BaseModel):
             is_active=True
         )
 
+
+class Curriculum(BaseModel):
+    """
+    A curriculum is a specific version/revision of a Program.
+    Example: BSIS-REV3, BSIT-2023, BSCS-K12
+
+    Each student is assigned to exactly ONE curriculum and never auto-switches.
+    This allows the school to maintain multiple curriculum versions over time
+    while keeping students on their assigned curriculum.
+    """
+
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.PROTECT,
+        related_name='curricula',
+        help_text='The program this curriculum belongs to'
+    )
+    code = models.CharField(
+        max_length=50,
+        help_text='Curriculum code (e.g., REV3, 2023, K12)'
+    )
+    name = models.CharField(
+        max_length=200,
+        help_text='Curriculum name (e.g., BSIS Revision 3, BSIT Curriculum 2023)'
+    )
+    description = models.TextField(
+        blank=True,
+        help_text='Description of this curriculum version'
+    )
+    effective_year = models.PositiveIntegerField(
+        help_text='Year this curriculum became effective'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Whether new students can be assigned to this curriculum'
+    )
+
+    class Meta:
+        verbose_name = 'Curriculum'
+        verbose_name_plural = 'Curricula'
+        unique_together = [['program', 'code']]
+        ordering = ['-effective_year', 'code']
+
+    def __str__(self):
+        return f"{self.program.code} - {self.name}"
+
+    @property
+    def total_subjects(self):
+        """Returns total number of subjects in this curriculum."""
+        return self.curriculum_subjects.filter(is_deleted=False).count()
+
+    @property
+    def total_units(self):
+        """Returns total units across all subjects in this curriculum."""
+        from django.db.models import Sum
+        return self.curriculum_subjects.filter(
+            is_deleted=False
+        ).aggregate(
+            total=Sum('subject__units')
+        )['total'] or 0
+
+    def get_subjects_for_year_semester(self, year_level, semester_number):
+        """Get all subjects for a specific year and semester."""
+        return self.curriculum_subjects.filter(
+            year_level=year_level,
+            semester_number=semester_number,
+            is_deleted=False
+        ).select_related('subject')
+
+
+class CurriculumSubject(BaseModel):
+    """
+    Assigns a Subject to a specific year/semester within a Curriculum.
+    This is the ONLY table that defines "what subjects are in which year/semester".
+
+    The same subject can appear in different year/semester slots across different curricula,
+    allowing flexibility in curriculum design over time.
+    """
+
+    curriculum = models.ForeignKey(
+        Curriculum,
+        on_delete=models.CASCADE,
+        related_name='curriculum_subjects',
+        help_text='The curriculum this assignment belongs to'
+    )
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.PROTECT,
+        related_name='curriculum_assignments',
+        help_text='The subject being assigned'
+    )
+    year_level = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text='Year level for this subject (1-5)'
+    )
+    semester_number = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(3)],
+        help_text='Semester number (1 = First, 2 = Second, 3 = Summer)'
+    )
+    semester = models.ForeignKey(
+        'enrollment.Semester',
+        on_delete=models.SET_NULL,
+        related_name='curriculum_assignments',
+        null=True,
+        blank=True,
+        help_text='Optional: Bind this subject to a specific semester instance for date-based enrollment'
+    )
+    is_required = models.BooleanField(
+        default=True,
+        help_text='Whether this is a required subject (vs elective)'
+    )
+
+    class Meta:
+        verbose_name = 'Curriculum Subject'
+        verbose_name_plural = 'Curriculum Subjects'
+        unique_together = [['curriculum', 'subject']]
+        ordering = ['year_level', 'semester_number', 'subject__code']
+
+    def __str__(self):
+        return f"{self.curriculum.code} - {self.subject.code} (Y{self.year_level}S{self.semester_number})"
+

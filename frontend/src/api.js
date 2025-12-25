@@ -211,9 +211,11 @@ export const endpoints = {
     checkRoomConflict: '/academics/check-room-conflict/',
     professorSchedule: (profId, semId) => `/academics/professor/${profId}/schedule/${semId}/`,
 
-    // Epic 2: Semesters
+    // Epic 2 & 8: Semesters
     semesters: '/academics/semesters/',
+    semesterDetail: (id) => `/academics/semesters/${id}/`,
     activeSemester: '/academics/semesters/active/',
+    setCurrentSemester: (id) => `/academics/semesters/${id}/set_current/`,
 
     // Epic 2: Professors
     professors: '/accounts/professors/',
@@ -254,5 +256,12 @@ export const endpoints = {
     createDocumentRelease: '/admissions/documents/release/',
     myReleases: '/admissions/documents/my-releases/',
     allReleases: '/admissions/documents/all/',
+
+    // Curriculum Management (EPIC 7)
+    curricula: '/academics/curricula/',
+    curriculumDetail: (id) => `/academics/curricula/${id}/`,
+    curriculumStructure: (id) => `/academics/curricula/${id}/structure/`,
+    curriculumAssignSubjects: (id) => `/academics/curricula/${id}/assign_subjects/`,
+    curriculumRemoveSubject: (id, subjectId) => `/academics/curricula/${id}/subjects/${subjectId}/`,
 };
 

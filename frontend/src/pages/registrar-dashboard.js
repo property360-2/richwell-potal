@@ -94,7 +94,7 @@ function render() {
       </div>
       
       <!-- Quick Actions -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         <!-- Document Release Card -->
         <a href="/registrar-documents.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-blue-200">
           <div class="flex items-start gap-4">
@@ -131,6 +131,24 @@ function render() {
           </div>
         </a>
         
+        <!-- Semester Management Card -->
+        <a href="/registrar-semesters.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-orange-200">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-orange-600 transition-colors">Semester Management</h3>
+              <p class="text-gray-600 text-sm mt-1">Manage academic semesters and enrollment periods.</p>
+              <span class="inline-flex items-center gap-1 text-orange-600 text-sm font-medium mt-2">
+                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+            </div>
+          </div>
+        </a>
+
         <!-- Override Enrollment Card -->
         <a href="/registrar-enrollment.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-green-200">
           <div class="flex items-start gap-4">
@@ -219,6 +237,8 @@ function renderHeader() {
             <a href="/registrar-dashboard.html" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-lg font-medium">Dashboard</a>
             <a href="/registrar-documents.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Documents</a>
             <a href="/registrar-subjects.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Subjects</a>
+            <a href="/registrar-curricula.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Curricula</a>
+            <a href="/registrar-semesters.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Semesters</a>
             <a href="/registrar-enrollment.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Override</a>
           </nav>
           <div class="text-right hidden sm:block">

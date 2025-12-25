@@ -948,9 +948,74 @@ class DocumentReleaseLogSerializer(serializers.Serializer):
 
 class DocumentReleaseStatsSerializer(serializers.Serializer):
     """Serializer for document release statistics."""
-    
+
     total_released = serializers.IntegerField()
     active = serializers.IntegerField()
     revoked = serializers.IntegerField()
     reissued = serializers.IntegerField()
     by_document_type = serializers.DictField()
+
+
+# ============================================================
+# EPIC 8 — Semester Management Serializers
+# ============================================================
+
+class SemesterSerializer(serializers.ModelSerializer):
+    """Serializer for semester CRUD operations."""
+
+    class Meta:
+        model = Semester
+        fields = [
+            'id', 'name', 'academic_year',
+            'start_date', 'end_date',
+            'enrollment_start_date', 'enrollment_end_date',
+            'is_current', 'is_deleted',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class SemesterCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating semesters with validation."""
+
+    class Meta:
+        model = Semester
+        fields = [
+            'name', 'academic_year',
+            'start_date', 'end_date',
+            'enrollment_start_date', 'enrollment_end_date',
+            'is_current'
+        ]
+
+    def validate(self, data):
+        """Validate semester dates."""
+        # Check that end_date is after start_date
+        if data['end_date'] <= data['start_date']:
+            raise serializers.ValidationError({
+                'end_date': 'End date must be after start date'
+            })
+
+        # Check enrollment dates if provided
+        if data.get('enrollment_start_date') and data.get('enrollment_end_date'):
+            if data['enrollment_end_date'] <= data['enrollment_start_date']:
+                raise serializers.ValidationError({
+                    'enrollment_end_date': 'Enrollment end date must be after enrollment start date'
+                })
+
+        # Check for duplicate semester (name + academic_year)
+        existing = Semester.objects.filter(
+            name=data['name'],
+            academic_year=data['academic_year'],
+            is_deleted=False
+        )
+
+        # If updating, exclude the current instance
+        if self.instance:
+            existing = existing.exclude(pk=self.instance.pk)
+
+        if existing.exists():
+            raise serializers.ValidationError(
+                f"Semester '{data['name']}' already exists for academic year '{data['academic_year']}'"
+            )
+
+        return data

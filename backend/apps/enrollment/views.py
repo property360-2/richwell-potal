@@ -2,12 +2,13 @@
 Enrollment views - Admissions and enrollment endpoints.
 """
 
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, CreateAPIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.decorators import action
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
@@ -20,7 +21,7 @@ from apps.academics.serializers import ProgramSerializer
 from apps.audit.models import AuditLog
 
 from .models import (
-    Enrollment, EnrollmentDocument, SubjectEnrollment, CreditSource
+    Enrollment, EnrollmentDocument, SubjectEnrollment, CreditSource, Semester
 )
 from .serializers import (
     OnlineEnrollmentSerializer,
@@ -28,7 +29,9 @@ from .serializers import (
     EnrollmentDocumentSerializer,
     TransfereeCreateSerializer,
     DocumentUploadSerializer,
-    BulkCreditSerializer
+    BulkCreditSerializer,
+    SemesterSerializer,
+    SemesterCreateSerializer
 )
 from .services import EnrollmentService
 
@@ -3020,4 +3023,179 @@ class GenerateCORView(APIView):
             return response
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ============================================================
+# EPIC 8 — Semester Management ViewSet
+# ============================================================
+
+class SemesterViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for semester management.
+
+    Endpoints:
+    - GET /semesters/ - List all semesters
+    - POST /semesters/ - Create new semester
+    - GET /semesters/{id}/ - Get semester details
+    - PUT /semesters/{id}/ - Update semester
+    - DELETE /semesters/{id}/ - Soft delete semester
+    - GET /semesters/active/ - Get current active semester
+    - POST /semesters/{id}/set_current/ - Set semester as current
+    """
+
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    queryset = Semester.objects.filter(is_deleted=False)
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return SemesterCreateSerializer
+        return SemesterSerializer
+
+    def list(self, request):
+        """List all semesters ordered by academic year (newest first)."""
+        semesters = self.get_queryset().order_by('-academic_year', '-start_date')
+        serializer = SemesterSerializer(semesters, many=True)
+
+        return Response({
+            'success': True,
+            'semesters': serializer.data
+        })
+
+    def create(self, request):
+        """Create a new semester."""
+        serializer = SemesterCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        semester = serializer.save()
+
+        # Log audit trail
+        AuditLog.log(
+            action='CREATE_SEMESTER',
+            target_model='Semester',
+            target_id=semester.id,
+            actor=request.user,
+            payload={
+                'name': semester.name,
+                'academic_year': semester.academic_year
+            }
+        )
+
+        return Response(
+            SemesterSerializer(semester).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def update(self, request, pk=None):
+        """Update a semester."""
+        semester = self.get_object()
+        serializer = SemesterCreateSerializer(semester, data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        old_data = {
+            'name': semester.name,
+            'academic_year': semester.academic_year,
+            'is_current': semester.is_current
+        }
+
+        semester = serializer.save()
+
+        # Log audit trail
+        AuditLog.log(
+            action='UPDATE_SEMESTER',
+            target_model='Semester',
+            target_id=semester.id,
+            actor=request.user,
+            payload={
+                'old': old_data,
+                'new': {
+                    'name': semester.name,
+                    'academic_year': semester.academic_year,
+                    'is_current': semester.is_current
+                }
+            }
+        )
+
+        return Response(SemesterSerializer(semester).data)
+
+    def destroy(self, request, pk=None):
+        """Soft delete a semester."""
+        semester = self.get_object()
+
+        # Prevent deletion of current semester
+        if semester.is_current:
+            return Response(
+                {'error': 'Cannot delete the current active semester'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if semester has enrollments
+        enrollment_count = semester.enrollments.count()
+        if enrollment_count > 0:
+            return Response(
+                {'error': f'Cannot delete semester with {enrollment_count} enrollments'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        semester.is_deleted = True
+        semester.save()
+
+        # Log audit trail
+        AuditLog.log(
+            action='DELETE_SEMESTER',
+            target_model='Semester',
+            target_id=semester.id,
+            actor=request.user,
+            payload={
+                'name': semester.name,
+                'academic_year': semester.academic_year
+            }
+        )
+
+        return Response(
+            {'success': True, 'message': 'Semester deleted'},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get the current active semester."""
+        semester = Semester.objects.filter(
+            is_current=True,
+            is_deleted=False
+        ).first()
+
+        if not semester:
+            return Response(
+                {'error': 'No active semester set'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(SemesterSerializer(semester).data)
+
+    @action(detail=True, methods=['post'])
+    def set_current(self, request, pk=None):
+        """Set this semester as the current active semester."""
+        semester = self.get_object()
+
+        # The model's save() method will auto-deactivate others
+        old_current = Semester.objects.filter(is_current=True).first()
+
+        semester.is_current = True
+        semester.save()
+
+        # Log audit trail
+        AuditLog.log(
+            action='SET_CURRENT_SEMESTER',
+            target_model='Semester',
+            target_id=semester.id,
+            actor=request.user,
+            payload={
+                'new_current': f"{semester.name} {semester.academic_year}",
+                'previous_current': f"{old_current.name} {old_current.academic_year}" if old_current else None
+            }
+        )
+
+        return Response({
+            'success': True,
+            'message': f"'{semester.name} {semester.academic_year}' is now the current semester"
+        })
 

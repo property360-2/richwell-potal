@@ -157,6 +157,14 @@ class StudentProfile(BaseModel):
         related_name='students',
         help_text='The program the student is enrolled in'
     )
+    curriculum = models.ForeignKey(
+        'academics.Curriculum',
+        on_delete=models.PROTECT,
+        related_name='students',
+        null=True,
+        blank=True,
+        help_text='The curriculum version the student is following'
+    )
     year_level = models.PositiveIntegerField(
         default=1,
         help_text='Current year level (1-5)'

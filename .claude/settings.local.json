@@ -12,7 +12,11 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(timeout 3 bash:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(ls \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\richwell-potal\\\\backend\\\\apps\\\\academics\\\\migrations\"\" | findstr /R \"^[0-9] \")",
+      "Bash(dir /B \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\richwell-potal\\\\backend\\\\apps\\\\academics\\\\migrations\")"
     ]
   }
 }

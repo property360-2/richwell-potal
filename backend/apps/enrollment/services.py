@@ -80,10 +80,19 @@ class EnrollmentService:
             username=school_email  # School email as login username
         )
         
+        # EPIC 7: Get active curriculum for program
+        from apps.academics.models import Curriculum
+        active_curriculum = Curriculum.objects.filter(
+            program=program,
+            is_active=True,
+            is_deleted=False
+        ).order_by('-effective_year').first()
+
         # Create StudentProfile
         student_profile = StudentProfile.objects.create(
             user=user,
             program=program,
+            curriculum=active_curriculum,  # EPIC 7: Assign curriculum
             year_level=1,
             middle_name=data.get('middle_name', ''),
             suffix=data.get('suffix', ''),
@@ -165,10 +174,19 @@ class EnrollmentService:
             username=data['email']
         )
         
+        # EPIC 7: Get active curriculum for program (transferees get latest curriculum)
+        from apps.academics.models import Curriculum
+        active_curriculum = Curriculum.objects.filter(
+            program=program,
+            is_active=True,
+            is_deleted=False
+        ).order_by('-effective_year').first()
+
         # Create StudentProfile
         StudentProfile.objects.create(
             user=user,
             program=program,
+            curriculum=active_curriculum,  # EPIC 7: Assign curriculum
             year_level=data['year_level'],
             middle_name=data.get('middle_name', ''),
             suffix=data.get('suffix', ''),
@@ -413,92 +431,120 @@ class SubjectEnrollmentService:
         
         return total or 0
     
-    def get_recommended_subjects(self, student, semester):
+    def get_allowed_subjects_by_curriculum(self, student, semester):
         """
-        Get subjects recommended for the student based on year level and curriculum.
-        
+        EPIC 7: Get subjects allowed based on student's assigned curriculum.
+
+        Returns subjects the student is allowed to enroll in based on:
+        1. Their assigned curriculum
+        2. Their current year level
+        3. Current semester number
+        4. Not already passed/enrolled
+
+        This method implements curriculum-based filtering while maintaining
+        backward compatibility for students without an assigned curriculum.
+
         Args:
             student: User object (student)
             semester: Semester object
-            
+
         Returns:
-            QuerySet: Recommended subjects
+            QuerySet: Allowed subjects based on curriculum
         """
-        from apps.academics.models import Subject
-        
-        # Get student's program and year level
+        from apps.academics.models import Subject, CurriculumSubject
+
         profile = student.student_profile
-        program = profile.program
+        curriculum = profile.curriculum
         year_level = profile.year_level
-        
-        # Get semester number from semester name (1st Semester = 1, 2nd Semester = 2, Summer = 3)
+
+        # Determine semester number from semester name
         semester_number = 1
         if '2nd' in semester.name.lower() or 'second' in semester.name.lower():
             semester_number = 2
         elif 'summer' in semester.name.lower():
             semester_number = 3
-        
-        # Get passed subjects
+
+        # Get subjects already passed or enrolled
         passed_subjects = self.get_student_passed_subjects(student)
-        
-        # Get currently enrolled subjects
         current_subjects = self.get_student_current_subjects(student, semester)
-        
-        # Exclude passed and currently enrolled subjects
-        excluded_subjects = passed_subjects | current_subjects
-        
-        # Get recommended subjects for current year/semester
-        recommended = Subject.objects.filter(
-            program=program,
-            year_level=year_level,
-            semester_number=semester_number,
-            is_deleted=False
-        ).exclude(id__in=excluded_subjects)
-        
-        return recommended
+        excluded_ids = list(passed_subjects.values_list('id', flat=True)) + \
+                       list(current_subjects.values_list('id', flat=True))
+
+        # NEW: Filter by curriculum assignment if student has one
+        if curriculum:
+            # Get subjects assigned to this curriculum at student's year/semester
+            curriculum_subjects = CurriculumSubject.objects.filter(
+                curriculum=curriculum,
+                year_level=year_level,
+                semester_number=semester_number,
+                is_deleted=False
+            ).select_related('subject')
+
+            subject_ids = [cs.subject_id for cs in curriculum_subjects]
+
+            allowed = Subject.objects.filter(
+                id__in=subject_ids,
+                is_deleted=False
+            ).exclude(id__in=excluded_ids)
+        else:
+            # FALLBACK: Use old logic for students without curriculum assigned
+            allowed = Subject.objects.filter(
+                program=profile.program,
+                year_level=year_level,
+                semester_number=semester_number,
+                is_deleted=False
+            ).exclude(id__in=excluded_ids)
+
+        return allowed
+
+    def get_recommended_subjects(self, student, semester):
+        """
+        Get subjects recommended for the student based on year level and curriculum.
+
+        EPIC 7: Now uses curriculum-based filtering if student has curriculum assigned.
+
+        Args:
+            student: User object (student)
+            semester: Semester object
+
+        Returns:
+            QuerySet: Recommended subjects
+        """
+        # Use new curriculum-based filtering
+        return self.get_allowed_subjects_by_curriculum(student, semester)
     
     def get_available_subjects(self, student, semester):
         """
         Get all subjects the student can enroll in (has sections, meets prerequisites).
-        
+
+        EPIC 7: Now uses curriculum-based filtering if student has curriculum assigned.
+
         Args:
             student: User object (student)
             semester: Semester object
-            
+
         Returns:
             QuerySet: Available subjects with sections
         """
-        from apps.academics.models import Subject, Section
-        
+        from apps.academics.models import Section
+
         profile = student.student_profile
         program = profile.program
-        
-        # Get passed subjects
-        passed_subjects = self.get_student_passed_subjects(student)
-        
-        # Get currently enrolled subjects
-        current_subjects = self.get_student_current_subjects(student, semester)
-        
-        # Exclude passed and current
-        excluded_subjects = passed_subjects | current_subjects
-        
-        # Get all subjects from student's program not already passed/enrolled
-        available = Subject.objects.filter(
-            program=program,
-            is_deleted=False
-        ).exclude(
-            id__in=excluded_subjects
-        ).prefetch_related('prerequisites')
-        
+
+        # Use curriculum-based filtering
+        allowed_subjects = self.get_allowed_subjects_by_curriculum(student, semester)
+
         # Filter to only those with sections in this semester
         sections_exist = Section.objects.filter(
             semester=semester,
             program=program,
             is_deleted=False
         ).values_list('section_subjects__subject_id', flat=True)
-        
-        available = available.filter(id__in=sections_exist)
-        
+
+        available = allowed_subjects.filter(
+            id__in=sections_exist
+        ).prefetch_related('prerequisites')
+
         return available
     
     def check_prerequisites(self, student, subject) -> tuple[bool, list]:
@@ -697,12 +743,35 @@ class SubjectEnrollmentService:
                 f"with {conflict_info['conflicting_subject']}"
             )
 
-        # Determine if irregular (not in recommended year/semester)
+        # EPIC 7: Curriculum validation and irregular determination
         profile = student.student_profile
-        is_irregular = (
-            subject.year_level != profile.year_level or
-            self._get_semester_number(enrollment.semester) != subject.semester_number
-        )
+        curriculum = profile.curriculum
+        semester_number = self._get_semester_number(enrollment.semester)
+
+        # Check if subject is in student's curriculum
+        is_irregular = False
+        if curriculum:
+            from apps.academics.models import CurriculumSubject
+
+            curriculum_subject = CurriculumSubject.objects.filter(
+                curriculum=curriculum,
+                subject=subject,
+                is_deleted=False
+            ).first()
+
+            if not curriculum_subject:
+                # Subject not in curriculum - this is an irregular enrollment
+                is_irregular = True
+            elif (curriculum_subject.year_level != profile.year_level or
+                  curriculum_subject.semester_number != semester_number):
+                # Subject in curriculum but different year/semester
+                is_irregular = True
+        else:
+            # FALLBACK: Use old logic for students without curriculum
+            is_irregular = (
+                subject.year_level != profile.year_level or
+                semester_number != subject.semester_number
+            )
 
         # Determine enrollment status:
         # NEW FLOW: Subject enrollments now require Head approval
