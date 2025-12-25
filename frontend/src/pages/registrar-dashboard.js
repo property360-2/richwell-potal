@@ -166,8 +166,44 @@ function render() {
             </div>
           </div>
         </a>
+
+        <!-- Section Management Card -->
+        <a href="/sections.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-teal-200">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-teal-600 transition-colors">Section Management</h3>
+              <p class="text-gray-600 text-sm mt-1">Create sections, assign subjects and professors.</p>
+              <span class="inline-flex items-center gap-1 text-teal-600 text-sm font-medium mt-2">
+                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+            </div>
+          </div>
+        </a>
+
+        <!-- Schedule Management Card -->
+        <a href="/schedule.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-violet-200">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-violet-600 transition-colors">Schedule Management</h3>
+              <p class="text-gray-600 text-sm mt-1">Set up class schedules for sections and manage timetables.</p>
+              <span class="inline-flex items-center gap-1 text-violet-600 text-sm font-medium mt-2">
+                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+            </div>
+          </div>
+        </a>
       </div>
-      
+
       <!-- Recent Students Table -->
       <div class="card">
         <div class="flex items-center justify-between mb-4">
@@ -239,6 +275,8 @@ function renderHeader() {
             <a href="/registrar-subjects.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Subjects</a>
             <a href="/registrar-curricula.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Curricula</a>
             <a href="/registrar-semesters.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Semesters</a>
+            <a href="/sections.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Sections</a>
+            <a href="/schedule.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Schedule</a>
             <a href="/registrar-enrollment.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Override</a>
           </nav>
           <div class="text-right hidden sm:block">

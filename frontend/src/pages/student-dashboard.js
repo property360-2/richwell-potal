@@ -241,6 +241,7 @@ function renderHeader() {
         <nav class="hidden md:flex items-center gap-6">
           <a href="/student-dashboard.html" class="text-blue-600 font-medium">Dashboard</a>
           <a href="/subject-enrollment.html" class="text-gray-600 hover:text-gray-900">Enroll Subjects</a>
+          <a href="/student-schedule.html" class="text-gray-600 hover:text-gray-900">My Schedule</a>
           <a href="/grades.html" class="text-gray-600 hover:text-gray-900">Grades</a>
           <a href="/soa.html" class="text-gray-600 hover:text-gray-900">SOA</a>
         </nav>
