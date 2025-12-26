@@ -1,6 +1,7 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
 import { showToast, requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
 
 // State management
 const state = {
@@ -346,26 +347,6 @@ function handleFilterChange(year) {
 }
 
 // Render Functions
-function renderHeader() {
-  return `
-    <header class="bg-white shadow-sm border-b sticky top-0 z-10">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div class="flex justify-between items-center">
-          <div>
-            <h1 class="text-2xl font-bold text-gray-900">Semester Management</h1>
-            <p class="text-sm text-gray-500 mt-1">Manage academic semesters and enrollment periods</p>
-          </div>
-          <div class="flex space-x-3">
-            <button onclick="window.location.href='/registrar-dashboard.html'"
-                    class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-              Back to Dashboard
-            </button>
-          </div>
-        </div>
-      </div>
-    </header>
-  `;
-}
 
 function renderToolbar() {
   const years = getUniqueAcademicYears();
@@ -761,7 +742,11 @@ function render() {
   if (!app) return;
 
   app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'REGISTRAR',
+      activePage: 'registrar-semesters',
+      user: state.user
+    })}
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       ${renderToolbar()}
       ${renderSemesterTable()}

@@ -1,6 +1,7 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
 import { showToast, formatCurrency, requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
 
 // State
 const state = {
@@ -60,7 +61,11 @@ function render() {
   }
 
   app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'STUDENT',
+      activePage: 'grades',
+      user: state.user
+    })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -108,34 +113,6 @@ function render() {
   `;
 }
 
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-        </div>
-
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/student-dashboard.html" class="text-gray-600 hover:text-gray-900">Dashboard</a>
-          <a href="/subject-enrollment.html" class="text-gray-600 hover:text-gray-900">Enroll Subjects</a>
-          <a href="/grades.html" class="text-blue-600 font-medium">Grades</a>
-          <a href="/soa.html" class="text-gray-600 hover:text-gray-900">SOA</a>
-        </nav>
-
-        <div class="flex items-center gap-4">
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span class="hidden sm:inline">Logout</span>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
 
 function renderLoading() {
   return `

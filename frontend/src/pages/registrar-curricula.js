@@ -1,6 +1,7 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
 import { showToast, requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
 
 // State
 const state = {
@@ -92,6 +93,54 @@ async function loadSubjects(programId) {
   }
 }
 
+// Helper function to group subjects by year and semester
+function groupSubjectsByYearAndSemester(subjects) {
+  const grouped = {};
+
+  subjects.forEach(subject => {
+    const year = subject.year_level || 'Unassigned';
+    const sem = subject.semester_number || 'Unassigned';
+
+    if (!grouped[year]) grouped[year] = {};
+    if (!grouped[year][sem]) grouped[year][sem] = [];
+
+    grouped[year][sem].push(subject);
+  });
+
+  return grouped;
+}
+
+// Select all subject checkboxes
+function selectAllSubjects() {
+  const checkboxes = document.querySelectorAll('input[name="subjects[]"]');
+  checkboxes.forEach(cb => cb.checked = true);
+  updateSelectionCount();
+}
+
+// Clear all subject checkboxes
+function clearAllSubjects() {
+  const checkboxes = document.querySelectorAll('input[name="subjects[]"]');
+  checkboxes.forEach(cb => cb.checked = false);
+  updateSelectionCount();
+}
+
+// Update selection counter
+function updateSelectionCount() {
+  const checkboxes = document.querySelectorAll('input[name="subjects[]"]:checked');
+  const counter = document.getElementById('selection-count');
+  if (counter) {
+    counter.textContent = `${checkboxes.length} subject${checkboxes.length !== 1 ? 's' : ''} selected`;
+  }
+}
+
+// Attach change listeners to all checkboxes
+function attachCheckboxListeners() {
+  const checkboxes = document.querySelectorAll('input[name="subjects[]"]');
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', updateSelectionCount);
+  });
+}
+
 async function loadSemesters() {
   try {
     const response = await api.get(endpoints.semesters);
@@ -121,7 +170,11 @@ function render() {
   }
 
   app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'REGISTRAR',
+      activePage: 'registrar-curricula',
+      user: state.user
+    })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -162,40 +215,6 @@ function render() {
   `;
 }
 
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <div>
-            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-            <span class="text-sm text-gray-500 ml-2">Registrar Portal</span>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-4">
-          <nav class="hidden md:flex items-center gap-2">
-            <a href="/registrar-dashboard.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Dashboard</a>
-            <a href="/registrar-documents.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Documents</a>
-            <a href="/registrar-subjects.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Subjects</a>
-            <a href="/registrar-curricula.html" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-lg font-medium">Curricula</a>
-            <a href="/registrar-enrollment.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Override</a>
-          </nav>
-          <div class="text-right hidden sm:block">
-            <p class="text-sm font-medium text-gray-800">${state.user?.first_name || 'Registrar'} ${state.user?.last_name || ''}</p>
-            <p class="text-xs text-gray-500">Registrar</p>
-          </div>
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
 
 function renderCurriculaList() {
   if (state.curricula.length === 0) {
@@ -491,72 +510,98 @@ function renderAssignModal() {
   const curriculum = state.curriculumStructure?.curriculum;
   if (!curriculum) return '';
 
+  // Group subjects by year and semester
+  const grouped = groupSubjectsByYearAndSemester(state.subjects);
+  const years = Object.keys(grouped).sort((a, b) => {
+    if (a === 'Unassigned') return 1;
+    if (b === 'Unassigned') return -1;
+    return parseInt(a) - parseInt(b);
+  });
+
+  const semesterLabels = {
+    1: '1st Semester',
+    2: '2nd Semester',
+    3: 'Summer',
+    'Unassigned': 'Not Categorized'
+  };
+
   return `
     <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="closeAssignModal()">
-      <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl" onclick="event.stopPropagation()">
-        <h3 class="text-2xl font-bold text-gray-800 mb-6">Assign Subject to Curriculum</h3>
+      <div class="bg-white rounded-2xl p-8 max-w-4xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-2xl font-bold text-gray-800">Assign Subjects to Curriculum</h3>
+          <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+        </div>
 
-        <form onsubmit="handleAssignSubject(event)" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
-            <select id="assign-subject" required class="form-select">
-              <option value="">Select Subject</option>
-              ${state.subjects.map(s => `
-                <option value="${s.id}">${s.code} - ${s.title} (${s.units} units)</option>
+        <form id="assign-form" onsubmit="handleAssignSubject(event)" class="space-y-6">
+          <!-- Year/Semester Categories -->
+          ${years.map(year => `
+            <div class="border-b border-gray-200 pb-6 last:border-b-0">
+              <h4 class="text-lg font-bold text-gray-800 mb-4">
+                Year ${year}
+              </h4>
+
+              ${Object.keys(grouped[year]).sort((a, b) => {
+                if (a === 'Unassigned') return 1;
+                if (b === 'Unassigned') return -1;
+                return parseInt(a) - parseInt(b);
+              }).map(sem => `
+                <div class="mb-4">
+                  <h5 class="text-md font-semibold text-gray-700 mb-3 px-3 py-2 bg-gray-50 rounded-lg">
+                    ${semesterLabels[sem] || `Semester ${sem}`}
+                  </h5>
+
+                  <div class="space-y-2 ml-4">
+                    ${grouped[year][sem]
+                      .sort((a, b) => a.code.localeCompare(b.code))
+                      .map(subject => `
+                        <label class="flex items-start gap-3 p-3 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors group">
+                          <input
+                            type="checkbox"
+                            name="subjects[]"
+                            value="${subject.id}"
+                            data-year="${subject.year_level}"
+                            data-semester="${subject.semester_number}"
+                            class="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          >
+                          <div class="flex-1">
+                            <div class="font-medium text-gray-800 group-hover:text-blue-600">
+                              ${subject.code} - ${subject.title}
+                            </div>
+                            <div class="text-sm text-gray-500">
+                              ${subject.units} units
+                              ${subject.is_major ? '<span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Major</span>' : ''}
+                            </div>
+                          </div>
+                        </label>
+                      `).join('')}
+                  </div>
+                </div>
               `).join('')}
-            </select>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
-              <select id="assign-year" required class="form-select">
-                <option value="1">Year 1</option>
-                <option value="2">Year 2</option>
-                <option value="3">Year 3</option>
-                <option value="4">Year 4</option>
-                <option value="5">Year 5</option>
-              </select>
             </div>
+          `).join('')}
 
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Semester *</label>
-              <select id="assign-semester" required class="form-select">
-                <option value="1">1st Semester</option>
-                <option value="2">2nd Semester</option>
-                <option value="3">Summer</option>
-              </select>
+          <!-- Bulk Actions -->
+          <div class="flex gap-2 pt-4 border-t border-gray-200">
+            <button type="button" onclick="selectAllSubjects()" class="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm font-medium">
+              Select All
+            </button>
+            <button type="button" onclick="clearAllSubjects()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">
+              Clear All
+            </button>
+            <div class="ml-auto text-sm text-gray-500" id="selection-count">
+              0 subjects selected
             </div>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-              Bind to Specific Semester Instance
-              <span class="text-xs text-gray-500">(Optional - for date-based enrollment)</span>
-            </label>
-            <select id="assign-semester-instance" class="form-select">
-              <option value="">No specific semester (flexible)</option>
-              ${state.semesters.map(s => `
-                <option value="${s.id}">
-                  ${s.name} ${s.academic_year}
-                  ${s.is_current ? '(Current)' : ''}
-                  - ${new Date(s.start_date).toLocaleDateString()} to ${new Date(s.end_date).toLocaleDateString()}
-                </option>
-              `).join('')}
-            </select>
-            <p class="text-xs text-gray-500 mt-1">
-              Binding to a semester allows date-based enrollment validation and automatic scheduling.
-            </p>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="assign-required" checked class="w-4 h-4 text-blue-600 rounded">
-            <label for="assign-required" class="text-sm font-medium text-gray-700">Required Subject</label>
-          </div>
-
-          <div class="flex gap-3 mt-6">
-            <button type="button" onclick="closeAssignModal()" class="btn btn-secondary flex-1">Cancel</button>
-            <button type="submit" class="btn btn-primary flex-1">Assign Subject</button>
+          <!-- Action Buttons -->
+          <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button type="button" onclick="closeAssignModal()" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              Assign Selected Subjects
+            </button>
           </div>
         </form>
       </div>
@@ -637,6 +682,12 @@ window.openAssignModal = async function() {
   await loadSemesters();
   state.showAssignModal = true;
   render();
+
+  // Attach checkbox listeners after modal is rendered
+  setTimeout(() => {
+    attachCheckboxListeners();
+    updateSelectionCount();
+  }, 100);
 };
 
 window.closeAssignModal = function() {
@@ -744,22 +795,25 @@ window.handleDeleteCurriculum = async function() {
 window.handleAssignSubject = async function(event) {
   event.preventDefault();
 
-  const semesterInstanceValue = document.getElementById('assign-semester-instance').value;
+  // Get all checked subject checkboxes
+  const checkboxes = document.querySelectorAll('input[name="subjects[]"]:checked');
 
-  const assignment = {
-    subject_id: document.getElementById('assign-subject').value,
-    year_level: parseInt(document.getElementById('assign-year').value),
-    semester_number: parseInt(document.getElementById('assign-semester').value),
-    is_required: document.getElementById('assign-required').checked
-  };
-
-  // Add semester_id if a specific semester instance was selected
-  if (semesterInstanceValue) {
-    assignment.semester_id = semesterInstanceValue;
+  if (checkboxes.length === 0) {
+    showToast('Please select at least one subject', 'error');
+    return;
   }
 
+  // Build assignments array from checked subjects
+  const assignments = Array.from(checkboxes).map(checkbox => ({
+    subject_id: checkbox.value,
+    year_level: parseInt(checkbox.dataset.year) || 1,
+    semester_number: parseInt(checkbox.dataset.semester) || 1,
+    is_required: true,  // Default to required
+    semester_id: null
+  }));
+
   const data = {
-    assignments: [assignment]
+    assignments: assignments
   };
 
   try {
@@ -778,17 +832,17 @@ window.handleAssignSubject = async function(event) {
     const result = await response.json();
 
     if (response.ok && result.success) {
-      showToast(`Subject assigned successfully (${result.created} created, ${result.updated} updated)`, 'success');
+      showToast(`Successfully assigned ${assignments.length} subject${assignments.length !== 1 ? 's' : ''} (${result.created} created, ${result.updated} updated)`, 'success');
       closeAssignModal();
       await loadCurriculumStructure(state.selectedCurriculum.id);
       render();
     } else {
-      const errorMsg = result?.errors?.[0]?.error || result?.error || 'Failed to assign subject';
+      const errorMsg = result?.errors?.[0]?.error || result?.error || 'Failed to assign subjects';
       showToast(errorMsg, 'error');
     }
   } catch (error) {
-    console.error('Failed to assign subject:', error);
-    showToast('Failed to assign subject', 'error');
+    console.error('Failed to assign subjects:', error);
+    showToast('Failed to assign subjects', 'error');
   }
 };
 

@@ -1,6 +1,7 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
 import { showToast, requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
 
 // State
 const state = {
@@ -80,7 +81,11 @@ function render() {
   }
 
   app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'REGISTRAR',
+      activePage: 'registrar-documents',
+      user: state.user
+    })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -137,39 +142,6 @@ function render() {
   `;
 }
 
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <div>
-            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-            <span class="text-sm text-gray-500 ml-2">Registrar Portal</span>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-4">
-          <nav class="hidden md:flex items-center gap-2">
-            <a href="/registrar-dashboard.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Dashboard</a>
-            <a href="/registrar-documents.html" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-lg font-medium">Documents</a>
-            <a href="/registrar-subjects.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Subjects</a>
-            <a href="/registrar-enrollment.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Override</a>
-          </nav>
-          <div class="text-right hidden sm:block">
-            <p class="text-sm font-medium text-gray-800">${state.user?.first_name || 'Registrar'} ${state.user?.last_name || ''}</p>
-            <p class="text-xs text-gray-500">Registrar</p>
-          </div>
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
 
 function renderStudentsList() {
   const displayStudents = state.searchQuery.trim()
