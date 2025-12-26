@@ -361,9 +361,16 @@ function renderSectionDetails() {
                 </div>
                 <div>
                   <p class="font-semibold text-gray-800">${ss.subject?.code} - ${ss.subject?.title}</p>
-                  <p class="text-sm ${ss.is_tba ? 'text-yellow-600' : 'text-gray-500'}">
-                    ${ss.is_tba ? 'TBA' : ss.professor ? `Prof. ${ss.professor.first_name} ${ss.professor.last_name}` : 'No professor assigned'}
-                  </p>
+                  <div class="text-sm text-gray-500 space-y-1">
+                    ${ss.professors && ss.professors.length > 0 ?
+                      ss.professors.map(prof => `
+                        <div class="flex items-center gap-2">
+                          <span>${prof.name}</span>
+                          ${prof.is_primary ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Primary</span>' : ''}
+                        </div>
+                      `).join('')
+                      : ss.is_tba ? '<span class="text-yellow-600">TBA</span>' : '<span class="text-orange-600">No professors assigned</span>'}
+                  </div>
                 </div>
               </div>
               <div class="flex items-center gap-2">

@@ -175,8 +175,8 @@ class SchedulingService:
     @staticmethod
     def check_professor_conflict(professor, day, start_time, end_time, semester, exclude_slot_id=None):
         """
-        Check if a professor has a schedule conflict.
-        
+        Check if a professor has a schedule conflict using junction table.
+
         Args:
             professor: User object (professor)
             day: Day of the week (e.g., 'MON')
@@ -184,30 +184,36 @@ class SchedulingService:
             end_time: End time
             semester: Semester to check
             exclude_slot_id: Optional slot ID to exclude (for updates)
-            
+
         Returns:
             tuple: (has_conflict: bool, conflicting_slot: ScheduleSlot or None)
         """
-        from apps.academics.models import ScheduleSlot
-        
-        # Get all slots for this professor on this day in this semester
-        slots = ScheduleSlot.objects.filter(
-            section_subject__professor=professor,
+        from apps.academics.models import ScheduleSlot, SectionSubjectProfessor
+
+        # Get all section_subjects assigned to this professor
+        assigned_section_subjects = SectionSubjectProfessor.objects.filter(
+            professor=professor,
             section_subject__section__semester=semester,
+            is_deleted=False
+        ).values_list('section_subject_id', flat=True)
+
+        # Get all slots for the assigned section_subjects on this day
+        slots = ScheduleSlot.objects.filter(
+            section_subject_id__in=assigned_section_subjects,
             day=day,
             is_deleted=False
         )
-        
+
         if exclude_slot_id:
             slots = slots.exclude(id=exclude_slot_id)
-        
+
         for slot in slots:
             if SchedulingService.times_overlap(
-                start_time, end_time, 
+                start_time, end_time,
                 slot.start_time, slot.end_time
             ):
                 return True, slot
-        
+
         return False, None
     
     @staticmethod
@@ -321,5 +327,92 @@ class SchedulingService:
                 'end_time': slot.end_time.strftime('%H:%M'),
                 'room': slot.room
             })
-        
+
         return schedule
+
+
+class ProfessorService:
+    """Service for professor-related operations."""
+
+    @staticmethod
+    def get_workload(professor, semester):
+        """
+        Calculate professor workload for a semester.
+        Returns: {total_sections, total_subjects, total_hours_per_week,
+                  is_overloaded, sections_detail}
+        """
+        from apps.academics.models import SectionSubjectProfessor, ScheduleSlot
+
+        assignments = SectionSubjectProfessor.objects.filter(
+            professor=professor,
+            section_subject__section__semester=semester,
+            is_deleted=False
+        ).select_related('section_subject__subject', 'section_subject__section')
+
+        sections = set()
+        subjects = set()
+        total_hours = 0
+        sections_detail = []
+
+        for assignment in assignments:
+            ss = assignment.section_subject
+            sections.add(ss.section.id)
+            subjects.add(ss.subject.id)
+
+            # Calculate hours from schedule slots
+            slots = ScheduleSlot.objects.filter(section_subject=ss, is_deleted=False)
+            section_hours = sum([
+                (slot.end_time.hour * 60 + slot.end_time.minute -
+                 slot.start_time.hour * 60 - slot.start_time.minute) / 60
+                for slot in slots
+            ])
+
+            total_hours += section_hours
+            sections_detail.append({
+                'section': ss.section.name,
+                'subject_code': ss.subject.code,
+                'subject_title': ss.subject.title,
+                'hours_per_week': section_hours,
+                'is_primary': assignment.is_primary
+            })
+
+        max_hours = getattr(professor.professor_profile, 'max_teaching_hours', 24) \
+                    if hasattr(professor, 'professor_profile') else 24
+
+        return {
+            'total_sections': len(sections),
+            'total_subjects': len(subjects),
+            'total_hours_per_week': round(total_hours, 2),
+            'is_overloaded': total_hours > max_hours,
+            'sections_detail': sections_detail
+        }
+
+    @staticmethod
+    def assign_to_section_subject(section_subject, professor, is_primary=False):
+        """Assign professor to section-subject."""
+        from apps.academics.models import SectionSubjectProfessor
+
+        existing = SectionSubjectProfessor.objects.filter(
+            section_subject=section_subject,
+            professor=professor,
+            is_deleted=False
+        ).first()
+
+        if existing:
+            return False, "Professor already assigned", None
+
+        # Ensure only one primary professor
+        if is_primary:
+            SectionSubjectProfessor.objects.filter(
+                section_subject=section_subject,
+                is_primary=True,
+                is_deleted=False
+            ).update(is_primary=False)
+
+        assignment = SectionSubjectProfessor.objects.create(
+            section_subject=section_subject,
+            professor=professor,
+            is_primary=is_primary
+        )
+
+        return True, None, assignment

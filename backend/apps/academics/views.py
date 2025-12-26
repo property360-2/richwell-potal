@@ -22,9 +22,10 @@ from .serializers import (
     ScheduleSlotSerializer, ScheduleSlotCreateSerializer,
     CurriculumVersionSerializer, CurriculumVersionCreateSerializer,
     CurriculumSerializer, CurriculumCreateSerializer, CurriculumSubjectSerializer,
-    AssignSubjectsSerializer, CurriculumStructureSerializer
+    AssignSubjectsSerializer, CurriculumStructureSerializer,
+    ProfessorSerializer, ProfessorDetailSerializer
 )
-from .services import CurriculumService, SchedulingService
+from .services import CurriculumService, SchedulingService, ProfessorService
 
 
 # ============================================================
@@ -923,4 +924,51 @@ class CurriculumViewSet(viewsets.ModelViewSet):
                 'success': False,
                 'error': 'Subject not found in curriculum'
             }, status=status.HTTP_404_NOT_FOUND)
+
+
+# ============================================================
+# Professor Management Views
+# ============================================================
+
+@extend_schema_view(
+    list=extend_schema(summary="List Professors", tags=["Professor Management"]),
+    retrieve=extend_schema(summary="Get Professor Details", tags=["Professor Management"]),
+)
+class ProfessorViewSet(viewsets.ModelViewSet):
+    """ViewSet for professor management."""
+    permission_classes = [IsRegistrarOrAdmin]
+
+    def get_queryset(self):
+        from apps.accounts.models import User
+        return User.objects.filter(
+            role='PROFESSOR', is_active=True
+        ).order_by('last_name', 'first_name')
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return ProfessorDetailSerializer
+        return ProfessorSerializer
+
+    @action(detail=True, methods=['get'], url_path='workload')
+    def workload(self, request, pk=None):
+        """Get professor workload analytics for a semester."""
+        professor = self.get_object()
+        from apps.enrollment.models import Semester
+
+        semester_id = request.query_params.get('semester')
+        semester = (Semester.objects.get(id=semester_id) if semester_id
+                   else Semester.objects.filter(is_current=True).first())
+
+        if not semester:
+            return Response({'error': 'No active semester'}, status=status.HTTP_400_BAD_REQUEST)
+
+        workload = ProfessorService.get_workload(professor, semester)
+
+        return Response({
+            'professor_id': str(professor.id),
+            'professor_name': professor.get_full_name(),
+            'semester_id': str(semester.id),
+            'semester_name': str(semester),
+            **workload
+        })
 

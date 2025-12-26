@@ -17,6 +17,7 @@ export const NAV_CONFIG = {
     { label: 'Curricula', href: '/registrar-curricula.html', page: 'registrar-curricula' },
     { label: 'Semesters', href: '/registrar-semesters.html', page: 'registrar-semesters' },
     { label: 'Sections', href: '/sections.html', page: 'sections' },
+    { label: 'Professors', href: '/professors.html', page: 'professors' },
     { label: 'Schedule', href: '/schedule.html', page: 'schedule' },
     { label: 'Override', href: '/registrar-enrollment.html', page: 'registrar-enrollment' }
   ],

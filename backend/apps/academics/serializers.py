@@ -237,25 +237,35 @@ class ScheduleSlotCreateSerializer(serializers.ModelSerializer):
 
 
 class SectionSubjectSerializer(serializers.ModelSerializer):
-    """Serializer for section subjects with schedule."""
-    
+    """Serializer for section subjects with schedule and multiple professors."""
+
     subject_code = serializers.CharField(source='subject.code', read_only=True)
     subject_title = serializers.CharField(source='subject.title', read_only=True)
-    professor_name = serializers.SerializerMethodField()
+    professors = serializers.SerializerMethodField()  # CHANGED: multiple professors
     schedule_slots = ScheduleSlotSerializer(many=True, read_only=True)
-    
+
     class Meta:
         model = SectionSubject
         fields = [
             'id', 'section', 'subject', 'subject_code', 'subject_title',
-            'professor', 'professor_name', 'is_tba', 'schedule_slots'
+            'professors', 'is_tba', 'schedule_slots'
         ]
         read_only_fields = ['id']
-    
-    def get_professor_name(self, obj):
-        if obj.professor:
-            return obj.professor.get_full_name()
-        return 'TBA'
+
+    def get_professors(self, obj):
+        """Get all professors assigned to this section-subject."""
+        from apps.academics.models import SectionSubjectProfessor
+
+        assignments = SectionSubjectProfessor.objects.filter(
+            section_subject=obj, is_deleted=False
+        ).select_related('professor').order_by('-is_primary')
+
+        return [{
+            'id': str(a.professor.id),
+            'name': a.professor.get_full_name(),
+            'email': a.professor.email,
+            'is_primary': a.is_primary
+        } for a in assignments]
 
 
 class SectionSubjectCreateSerializer(serializers.ModelSerializer):
@@ -467,4 +477,46 @@ class CurriculumStructureSerializer(serializers.Serializer):
 
     curriculum = CurriculumSerializer()
     structure = serializers.DictField()
+
+
+# Professor Management Serializers
+class ProfessorSerializer(serializers.ModelSerializer):
+    """Basic serializer for professor listing."""
+    full_name = serializers.CharField(source='get_full_name', read_only=True)
+
+    class Meta:
+        from apps.accounts.models import User
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name', 'full_name', 'is_active']
+
+
+class ProfessorDetailSerializer(serializers.ModelSerializer):
+    """Detailed serializer for professor with teaching load."""
+    full_name = serializers.CharField(source='get_full_name', read_only=True)
+    teaching_load = serializers.SerializerMethodField()
+
+    class Meta:
+        from apps.accounts.models import User
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name', 'full_name',
+                  'is_active', 'teaching_load']
+
+    def get_teaching_load(self, obj):
+        from apps.academics.services import ProfessorService
+        from apps.enrollment.models import Semester
+
+        semester = Semester.objects.filter(is_current=True).first()
+        return ProfessorService.get_workload(obj, semester) if semester else {}
+
+
+class SectionSubjectProfessorSerializer(serializers.ModelSerializer):
+    """Serializer for professor assignments to section-subjects."""
+    professor_name = serializers.CharField(source='professor.get_full_name', read_only=True)
+    professor_email = serializers.CharField(source='professor.email', read_only=True)
+
+    class Meta:
+        from apps.academics.models import SectionSubjectProfessor
+        model = SectionSubjectProfessor
+        fields = ['id', 'section_subject', 'professor', 'professor_name',
+                  'professor_email', 'is_primary']
 

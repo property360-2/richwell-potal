@@ -236,3 +236,30 @@ class StudentProfile(BaseModel):
     @property
     def is_on_loa(self):
         return self.status == self.Status.LOA
+
+
+class ProfessorProfile(BaseModel):
+    """Extended profile for professors with teaching-related metadata."""
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='professor_profile',
+        limit_choices_to={'role': User.Role.PROFESSOR}
+    )
+
+    department = models.CharField(max_length=100, blank=True)
+    office_location = models.CharField(max_length=100, blank=True)
+    specialization = models.CharField(max_length=200, blank=True)
+    max_teaching_hours = models.PositiveIntegerField(
+        default=24,
+        help_text='Maximum teaching hours per week before overload'
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Professor Profile'
+        verbose_name_plural = 'Professor Profiles'
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - Professor Profile"

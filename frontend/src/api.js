@@ -218,7 +218,9 @@ export const endpoints = {
     setCurrentSemester: (id) => `/academics/semesters/${id}/set_current/`,
 
     // Epic 2: Professors
-    professors: '/accounts/professors/',
+    professors: '/academics/professors/',
+    professorDetail: (id) => `/academics/professors/${id}/`,
+    professorWorkload: (id) => `/academics/professors/${id}/workload/`,
 
     // Epic 3: Subject Enrollment (under /admissions/)
     recommendedSubjects: '/admissions/subjects/recommended/',

@@ -228,6 +228,37 @@ class SectionSubject(BaseModel):
         return f"{self.section.name} - {self.subject.code}"
 
 
+class SectionSubjectProfessor(BaseModel):
+    """
+    Junction table for many-to-many relationship between SectionSubject and Professors.
+    Allows multiple professors to teach the same subject in a section.
+    """
+    section_subject = models.ForeignKey(
+        SectionSubject,
+        on_delete=models.CASCADE,
+        related_name='professor_assignments'
+    )
+    professor = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        related_name='section_subject_assignments',
+        limit_choices_to={'role': 'PROFESSOR'}
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text='Primary/lead professor for this section-subject'
+    )
+
+    class Meta:
+        verbose_name = 'Section Subject Professor'
+        verbose_name_plural = 'Section Subject Professors'
+        unique_together = ['section_subject', 'professor']
+        ordering = ['-is_primary', 'professor__last_name']
+
+    def __str__(self):
+        return f"{self.section_subject} - {self.professor.get_full_name()}"
+
+
 class ScheduleSlot(BaseModel):
     """
     Schedule slot for a section subject.
