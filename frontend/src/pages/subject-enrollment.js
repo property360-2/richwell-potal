@@ -224,6 +224,159 @@ async function loadData() {
   state.loading = false;
 }
 
+/**
+ * Group subjects by year level and semester
+ * @param {Array} subjects - Array of subject objects
+ * @returns {Object} Nested object: { yearLevel: { semester: [subjects] } }
+ */
+function groupSubjectsByYearAndSemester(subjects) {
+  const grouped = {};
+
+  subjects.forEach(subject => {
+    const year = subject.year_level || 'Other';
+    const semester = subject.semester_number || 0;
+
+    if (!grouped[year]) {
+      grouped[year] = {};
+    }
+    if (!grouped[year][semester]) {
+      grouped[year][semester] = [];
+    }
+
+    grouped[year][semester].push(subject);
+  });
+
+  return grouped;
+}
+
+/**
+ * Get display label for semester number
+ * @param {Number} semesterNum - Semester number (1, 2, 3)
+ * @returns {String} Display label
+ */
+function getSemesterLabel(semesterNum) {
+  const labels = {
+    1: '1st Semester',
+    2: '2nd Semester',
+    3: 'Summer',
+    0: 'Not Categorized'
+  };
+  return labels[semesterNum] || `Semester ${semesterNum}`;
+}
+
+/**
+ * Get display label for year level
+ * @param {Number|String} yearLevel - Year level (1-5 or 'Other')
+ * @returns {String} Display label
+ */
+function getYearLabel(yearLevel) {
+  if (yearLevel === 'Other') return 'Other Subjects';
+
+  const ordinals = {
+    1: '1st Year',
+    2: '2nd Year',
+    3: '3rd Year',
+    4: '4th Year',
+    5: '5th Year'
+  };
+  return ordinals[yearLevel] || `Year ${yearLevel}`;
+}
+
+/**
+ * Render collapsible accordion for year/semester groups
+ * @param {Object} grouped - Grouped subjects { year: { semester: [subjects] } }
+ * @param {Boolean} isRecommended - Whether these are recommended subjects
+ * @param {String} sectionId - Unique ID prefix for accordion state
+ * @returns {String} HTML for accordions
+ */
+function renderCategorizedSubjects(grouped, isRecommended, sectionId) {
+  // Sort years: 1, 2, 3, 4, 5, then 'Other'
+  const years = Object.keys(grouped).sort((a, b) => {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return parseInt(a) - parseInt(b);
+  });
+
+  if (years.length === 0) {
+    return '<p class="text-gray-500 text-center py-8">No subjects available</p>';
+  }
+
+  return years.map(year => {
+    const semesters = grouped[year];
+    const yearId = `${sectionId}-year-${year}`;
+
+    // Sort semesters: 1, 2, 3, then 0 (uncategorized)
+    const semesterKeys = Object.keys(semesters).sort((a, b) => {
+      const numA = parseInt(a);
+      const numB = parseInt(b);
+      if (numA === 0) return 1;
+      if (numB === 0) return -1;
+      return numA - numB;
+    });
+
+    return `
+      <!-- Year Level Accordion -->
+      <div class="border border-gray-200 rounded-lg mb-3 overflow-hidden">
+        <!-- Year Header (Clickable) -->
+        <button
+          onclick="toggleAccordion('${yearId}')"
+          class="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors"
+        >
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+              ${year === 'Other' ? '?' : year}
+            </div>
+            <span class="font-bold text-gray-800 text-lg">${getYearLabel(year)}</span>
+            <span class="text-sm text-gray-500">
+              (${Object.values(semesters).flat().length} subject${Object.values(semesters).flat().length !== 1 ? 's' : ''})
+            </span>
+          </div>
+          <svg class="w-5 h-5 text-gray-600 transition-transform accordion-chevron" id="${yearId}-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+
+        <!-- Year Content (Collapsible) -->
+        <div id="${yearId}" class="accordion-content" style="display: block;">
+          ${semesterKeys.map(semesterNum => {
+            const subjects = semesters[semesterNum];
+            const semId = `${yearId}-sem-${semesterNum}`;
+
+            return `
+              <!-- Semester Accordion (Nested) -->
+              <div class="border-t border-gray-200">
+                <!-- Semester Header -->
+                <button
+                  onclick="toggleAccordion('${semId}')"
+                  class="w-full flex items-center justify-between p-3 pl-12 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <span class="font-semibold text-gray-700">${getSemesterLabel(parseInt(semesterNum))}</span>
+                    <span class="text-xs text-gray-500">(${subjects.length} subject${subjects.length !== 1 ? 's' : ''})</span>
+                  </div>
+                  <svg class="w-4 h-4 text-gray-600 transition-transform accordion-chevron" id="${semId}-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </button>
+
+                <!-- Semester Content (Subject Cards) -->
+                <div id="${semId}" class="accordion-content" style="display: block;">
+                  <div class="p-4 pl-12 space-y-3 bg-white">
+                    ${subjects.map(subject => renderSubjectCard(subject, isRecommended)).join('')}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function render() {
   const app = document.getElementById('app');
 
@@ -374,14 +527,21 @@ function render() {
               <div class="flex items-center justify-between mb-6">
                 <div>
                   <h2 class="text-xl font-bold text-gray-800">Recommended Subjects</h2>
-                  <p class="text-sm text-gray-500">Based on your year level and curriculum</p>
+                  <p class="text-sm text-gray-600 mt-1">Based on your curriculum and year level</p>
                 </div>
-                <span class="badge badge-info">${state.recommendedSubjects.length} subjects</span>
+                <span class="badge badge-primary text-lg px-4 py-2">
+                  ${state.recommendedSubjects.length} Available
+                </span>
               </div>
 
-              <div class="space-y-3">
-                ${state.recommendedSubjects.map(subject => renderSubjectCard(subject, true)).join('')}
-              </div>
+              ${state.recommendedSubjects.length > 0 ?
+                renderCategorizedSubjects(
+                  groupSubjectsByYearAndSemester(state.recommendedSubjects),
+                  true,
+                  'recommended'
+                ) :
+                '<p class="text-gray-500 text-center py-8">No recommended subjects available</p>'
+              }
             </div>
 
             <!-- All Available Subjects -->
@@ -389,13 +549,26 @@ function render() {
               <div class="flex items-center justify-between mb-6">
                 <div>
                   <h2 class="text-xl font-bold text-gray-800">All Available Subjects</h2>
-                  <p class="text-sm text-gray-500">For irregular students or advanced enrollment</p>
+                  <p class="text-sm text-gray-600 mt-1">Other subjects you can enroll in</p>
                 </div>
+                <span class="badge badge-secondary text-lg px-4 py-2">
+                  ${state.availableSubjects.filter(s => !state.recommendedSubjects.find(r => r.id === s.id)).length} Available
+                </span>
               </div>
 
-              <div class="space-y-3">
-                ${state.availableSubjects.filter(s => !state.recommendedSubjects.find(r => r.id === s.id)).map(subject => renderSubjectCard(subject, false)).join('')}
-              </div>
+              ${(() => {
+                const filtered = state.availableSubjects.filter(s =>
+                  !state.recommendedSubjects.find(r => r.id === s.id)
+                );
+
+                return filtered.length > 0 ?
+                  renderCategorizedSubjects(
+                    groupSubjectsByYearAndSemester(filtered),
+                    false,
+                    'available'
+                  ) :
+                  '<p class="text-gray-500 text-center py-8">No additional subjects available</p>';
+              })()}
             </div>
           </div>
 
@@ -727,7 +900,7 @@ function renderCartItem(item) {
         <p class="text-xs text-gray-600 truncate">${subject.name || subject.title}</p>
         <p class="text-xs text-gray-500 mt-1">${subject.units} units</p>
       </div>
-      <button onclick="removeFromCart(${subject.id})" class="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Remove">
+      <button onclick="removeFromCart('${subject.id}')" class="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Remove">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
@@ -1023,6 +1196,25 @@ function getSelectedUnits() {
 function attachEventListeners() {
   // Event listeners are attached via onclick in the template
 }
+
+/**
+ * Toggle accordion open/closed state
+ * @param {String} accordionId - ID of accordion content div
+ */
+window.toggleAccordion = function(accordionId) {
+  const content = document.getElementById(accordionId);
+  const chevron = document.getElementById(`${accordionId}-chevron`);
+
+  if (!content) return;
+
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    if (chevron) chevron.style.transform = 'rotate(0deg)';
+  } else {
+    content.style.display = 'none';
+    if (chevron) chevron.style.transform = 'rotate(-90deg)';
+  }
+};
 
 // Global functions for onclick handlers
 window.enrollSubject = function (subjectId, sectionId) {

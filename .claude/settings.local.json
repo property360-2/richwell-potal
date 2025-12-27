@@ -18,7 +18,10 @@
       "Bash(ls \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\richwell-potal\\\\backend\\\\apps\\\\academics\\\\migrations\"\" | findstr /R \"^[0-9] \")",
       "Bash(dir /B \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\richwell-potal\\\\backend\\\\apps\\\\academics\\\\migrations\")",
       "Bash(dir:*)",
-      "Bash(python manage.py:*)"
+      "Bash(python manage.py:*)",
+      "Bash(timeout:*)",
+      "Bash(node -c:*)",
+      "Bash(python manage.py migrate:*)"
     ]
   }
 }

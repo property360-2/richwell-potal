@@ -467,8 +467,7 @@ class SubjectEnrollmentService:
         # Get subjects already passed or enrolled
         passed_subjects = self.get_student_passed_subjects(student)
         current_subjects = self.get_student_current_subjects(student, semester)
-        excluded_ids = list(passed_subjects.values_list('id', flat=True)) + \
-                       list(current_subjects.values_list('id', flat=True))
+        excluded_ids = list(passed_subjects) + list(current_subjects)
 
         # NEW: Filter by curriculum assignment if student has one
         if curriculum:
