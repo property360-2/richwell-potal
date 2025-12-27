@@ -669,7 +669,7 @@ function renderUnitCounter() {
 function renderSubjectCard(subject, isRecommended) {
   const isInCart = state.cart.some(item => item.subject.id === subject.id);
   const isEnrolled = state.enrolledSubjects.find(e => e.subject?.code === subject.code);
-  const canAdd = subject.prerequisite_met !== false && !isInCart && !isEnrolled;
+  const canAdd = subject.prerequisites_met !== false && !isInCart && !isEnrolled;
 
   // Calculate units including cart
   const cartUnits = state.cart.reduce((sum, item) => sum + item.subject.units, 0);
@@ -684,7 +684,12 @@ function renderSubjectCard(subject, isRecommended) {
             ${isRecommended ? '<span class="badge badge-success text-xs">Recommended</span>' : ''}
             ${isInCart ? '<span class="badge badge-warning text-xs">Added to Cart</span>' : ''}
             ${isEnrolled ? '<span class="badge badge-info text-xs">Enrolled</span>' : ''}
-            ${!subject.prerequisite_met && subject.prerequisite ? `<span class="badge badge-error text-xs">Prereq: ${subject.prerequisite}</span>` : ''}
+            ${subject.prerequisites && subject.prerequisites.length > 0 && subject.prerequisites_met === false ? `
+              <div class="flex flex-wrap items-center gap-1">
+                <span class="text-xs text-gray-600">Prerequisites:</span>
+                ${subject.prerequisites.map(prereq => `<span class="badge badge-error text-xs">${prereq}</span>`).join('')}
+              </div>
+            ` : ''}
           </div>
           <p class="font-medium text-gray-800">${subject.name}</p>
           <p class="text-sm text-gray-500">${subject.units} units</p>

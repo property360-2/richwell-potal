@@ -100,25 +100,28 @@ async function loadSchedule() {
       state.schedule = [];
       enrollments.forEach(enrollment => {
         if (enrollment.section && enrollment.section.section_subjects) {
-          enrollment.section.section_subjects.forEach(sectionSubject => {
-            if (sectionSubject.schedule_slots && Array.isArray(sectionSubject.schedule_slots)) {
-              sectionSubject.schedule_slots.forEach(slot => {
-                state.schedule.push({
-                  id: slot.id,
-                  day: slot.day,
-                  start_time: slot.start_time,
-                  end_time: slot.end_time,
-                  room: slot.room,
-                  subject: {
-                    code: enrollment.subject.code,
-                    title: enrollment.subject.title || enrollment.subject.name
-                  },
-                  section: enrollment.section,
-                  professor: sectionSubject.professor
-                });
+          // Find the section_subject that matches the enrolled subject
+          const matchingSectionSubject = enrollment.section.section_subjects.find(
+            ss => ss.subject === enrollment.subject.id || ss.subject_code === enrollment.subject_code
+          );
+
+          if (matchingSectionSubject && matchingSectionSubject.schedule_slots) {
+            matchingSectionSubject.schedule_slots.forEach(slot => {
+              state.schedule.push({
+                id: slot.id,
+                day: slot.day,
+                start_time: slot.start_time,
+                end_time: slot.end_time,
+                room: slot.room,
+                subject: {
+                  code: enrollment.subject.code,
+                  title: enrollment.subject.title || enrollment.subject.name
+                },
+                section: enrollment.section,
+                professor: matchingSectionSubject.professor
               });
-            }
-          });
+            });
+          }
         }
       });
 

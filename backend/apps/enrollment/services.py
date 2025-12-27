@@ -464,18 +464,17 @@ class SubjectEnrollmentService:
         elif 'summer' in semester.name.lower():
             semester_number = 3
 
-        # Get subjects already passed or enrolled
+        # Get subjects already passed or enrolled (for reference, but don't exclude them)
         passed_subjects = self.get_student_passed_subjects(student)
         current_subjects = self.get_student_current_subjects(student, semester)
-        excluded_ids = list(passed_subjects) + list(current_subjects)
+        # NOTE: We're NOT excluding passed/enrolled subjects anymore
+        # User wants to see ALL subjects including completed and currently enrolled
 
         # NEW: Filter by curriculum assignment if student has one
         if curriculum:
-            # Get subjects assigned to this curriculum at student's year/semester
+            # Get ALL subjects assigned to this curriculum (all years, all semesters)
             curriculum_subjects = CurriculumSubject.objects.filter(
                 curriculum=curriculum,
-                year_level=year_level,
-                semester_number=semester_number,
                 is_deleted=False
             ).select_related('subject')
 
@@ -484,15 +483,14 @@ class SubjectEnrollmentService:
             allowed = Subject.objects.filter(
                 id__in=subject_ids,
                 is_deleted=False
-            ).exclude(id__in=excluded_ids)
+            )
         else:
             # FALLBACK: Use old logic for students without curriculum assigned
+            # Show ALL subjects from program (all years, all semesters)
             allowed = Subject.objects.filter(
                 program=profile.program,
-                year_level=year_level,
-                semester_number=semester_number,
                 is_deleted=False
-            ).exclude(id__in=excluded_ids)
+            )
 
         return allowed
 

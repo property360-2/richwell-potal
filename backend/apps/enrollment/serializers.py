@@ -7,6 +7,7 @@ from rest_framework import serializers
 
 from apps.accounts.models import User, StudentProfile
 from apps.academics.models import Program, Subject
+from apps.academics.serializers import SectionSerializer, SubjectSerializer
 
 from .models import Enrollment, MonthlyPaymentBucket, EnrollmentDocument, Semester
 
@@ -263,9 +264,14 @@ class BulkCreditSerializer(serializers.Serializer):
 
 class SubjectEnrollmentSerializer(serializers.ModelSerializer):
     """Serializer for displaying subject enrollments."""
-    
+
     from apps.enrollment.models import SubjectEnrollment
-    
+
+    # Full nested objects for student schedule page
+    subject = SubjectSerializer(read_only=True)
+    section = SectionSerializer(read_only=True, allow_null=True)
+
+    # Backward compatibility - keep flat fields
     subject_code = serializers.CharField(source='subject.code', read_only=True)
     subject_title = serializers.CharField(source='subject.title', read_only=True)
     units = serializers.IntegerField(source='subject.units', read_only=True)
@@ -281,7 +287,7 @@ class SubjectEnrollmentSerializer(serializers.ModelSerializer):
     )
     is_fully_enrolled = serializers.BooleanField(read_only=True)
 
-    # Schedule info
+    # Schedule info (kept for backward compatibility, but section object now has this too)
     schedule = serializers.SerializerMethodField()
     professor_name = serializers.SerializerMethodField()
 
@@ -289,7 +295,8 @@ class SubjectEnrollmentSerializer(serializers.ModelSerializer):
         from apps.enrollment.models import SubjectEnrollment
         model = SubjectEnrollment
         fields = [
-            'id', 'subject_code', 'subject_title', 'units',
+            'id', 'subject', 'section',
+            'subject_code', 'subject_title', 'units',
             'section_name', 'status', 'status_display',
             'grade', 'is_irregular', 'count_in_gpa',
             'payment_approved', 'head_approved', 'approval_status_display', 'is_fully_enrolled',

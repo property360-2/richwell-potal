@@ -51,15 +51,37 @@ class Command(BaseCommand):
 
         # Step 6: Create Sections for Previous Semester
         self.stdout.write('\n[6/10] Creating Sections for Previous Semester...')
-        prev_sections = self.create_sections(semesters['previous'], subjects, users['professors'], year_sem=1)
+        prev_subject_codes = ['CIC1101', 'CCP1101', 'CIS1101', 'MLC1101', 'PPE1101', 'ZGE1102', 'ZGE1108']
+        prev_sections = self.create_sections(semesters['previous'], subjects, users['professors'], prev_subject_codes)
 
-        # Step 7: Create Sections for Current Semester
+        # Step 7: Create Sections for Current Semester (ALL 57 subjects)
         self.stdout.write('\n[7/10] Creating Sections for Current Semester...')
-        curr_sections = self.create_sections(semesters['current'], subjects, users['professors'], year_sem=2)
+        all_subject_codes = [
+            # Year 1, Semester 1
+            'CIC1101', 'CCP1101', 'CIS1101', 'MLC1101', 'PPE1101', 'ZGE1102', 'ZGE1108',
+            # Year 1, Semester 2
+            'CCP1102', 'CDS1101', 'CSP1101', 'MLC1102', 'PPE1102', 'ZGE1101', 'ZGE1104', 'ZGE1106',
+            # Year 2, Semester 1
+            'CBM1101', 'CCP1103', 'CDM1101', 'CFD1101', 'CIS2101', 'CIS2102', 'CQM1101', 'PPE1103',
+            # Year 2, Semester 2
+            'CIM1101', 'CIP1101', 'CIS2201', 'CSA1101', 'PPE1104', 'ZGE1103', 'ZGE1105', 'ZGE_EL01',
+            # Year 3, Semester 1
+            'CHC1101', 'CIP1102', 'CIS3101', 'CIS3102', 'CIS3103', 'CMR1101', 'ZGE1107', 'ZGE_EL02',
+            # Year 3, Semester 2
+            'CDE1101', 'CDT1101', 'CIS3201', 'CIS3202', 'CIS_EL01', 'CPP4980', 'ZGE1109',
+            # Year 3, Summer
+            'CIS3001', 'CIS3002', 'CIS3003',
+            # Year 4, Semester 1
+            'CIA1101', 'CIS_EL02', 'CIS_EL03', 'CIS_EL04', 'CPD4990', 'ZGE_EL03', 'ZPD1102',
+            # Year 4, Semester 2
+            'CPR4970'
+        ]
+        curr_sections = self.create_sections(semesters['current'], subjects, users['professors'], all_subject_codes)
 
         # Step 8: Create Student Profiles & Previous Enrollments
-        self.stdout.write('\n[8/10] Creating Student Previous Enrollments...')
-        self.create_previous_enrollment(users['students'][0], programs['BSIS'], semesters['previous'], subjects)
+        # Comment out previous semester enrollment - students should start fresh
+        # self.stdout.write('\n[8/10] Creating Student Previous Enrollments...')
+        # self.create_previous_enrollment(users['students'][0], programs['BSIS'], semesters['previous'], subjects)
 
         # Step 9: Create Current Enrollments
         self.stdout.write('\n[9/10] Creating Student Current Enrollments...')
@@ -284,9 +306,9 @@ class Command(BaseCommand):
         # Complete BSIS UE 2019 Curriculum (57 subjects)
         bsis_subjects = [
             # YEAR 1, SEMESTER 1 (7 subjects - 20 units)
-            {"code": "CCP1101", "name": "Computer Programming 1", "units": 3, "year": 1, "semester": 1, "prerequisites": ["CIC1101"]},
+            {"code": "CCP1101", "name": "Computer Programming 1", "units": 3, "year": 1, "semester": 1, "prerequisites": []},
             {"code": "CIC1101", "name": "Introduction to Computing", "units": 3, "year": 1, "semester": 1, "prerequisites": []},
-            {"code": "CIS1101", "name": "Fundamentals of Information Systems", "units": 3, "year": 1, "semester": 1, "prerequisites": ["CIC1101"]},
+            {"code": "CIS1101", "name": "Fundamentals of Information Systems", "units": 3, "year": 1, "semester": 1, "prerequisites": []},
             {"code": "MLC1101", "name": "Literacy/Civic Welfare/Military Science 1", "units": 3, "year": 1, "semester": 1, "prerequisites": []},
             {"code": "PPE1101", "name": "Physical Education 1", "units": 2, "year": 1, "semester": 1, "prerequisites": []},
             {"code": "ZGE1102", "name": "The Contemporary World", "units": 3, "year": 1, "semester": 1, "prerequisites": []},
@@ -294,7 +316,7 @@ class Command(BaseCommand):
 
             # YEAR 1, SEMESTER 2 (8 subjects - 23 units)
             {"code": "CCP1102", "name": "Computer Programming 2", "units": 3, "year": 1, "semester": 2, "prerequisites": ["CCP1101"]},
-            {"code": "CDS1101", "name": "Data Structures and Algorithms", "units": 3, "year": 1, "semester": 2, "prerequisites": ["CCP1102"]},
+            {"code": "CDS1101", "name": "Data Structures and Algorithms", "units": 3, "year": 1, "semester": 2, "prerequisites": []},
             {"code": "CSP1101", "name": "Social and Professional Issues in Computing", "units": 3, "year": 1, "semester": 2, "prerequisites": []},
             {"code": "MLC1102", "name": "Literacy/Civic Welfare/Military Science 2", "units": 3, "year": 1, "semester": 2, "prerequisites": ["MLC1101"]},
             {"code": "PPE1102", "name": "Physical Education 2", "units": 2, "year": 1, "semester": 2, "prerequisites": ["PPE1101"]},
@@ -310,13 +332,14 @@ class Command(BaseCommand):
             {"code": "CIS2101", "name": "Accounting for IS", "units": 3, "year": 2, "semester": 1, "prerequisites": []},
             {"code": "CIS2102", "name": "Enterprise Architecture", "units": 3, "year": 2, "semester": 1, "prerequisites": []},
             {"code": "CQM1101", "name": "Quantitative Methods (including Modeling and Simulation)", "units": 3, "year": 2, "semester": 1, "prerequisites": ["ZGE1104"]},
+            {"code": "PPE1103", "name": "Physical Education 3", "units": 2, "year": 2, "semester": 1, "prerequisites": ["PPE1102"]},
 
             # YEAR 2, SEMESTER 2 (8 subjects - 24 units)
             {"code": "CIM1101", "name": "Information Management", "units": 3, "year": 2, "semester": 2, "prerequisites": []},
             {"code": "CIP1101", "name": "Integrative Programming and Technologies 1", "units": 3, "year": 2, "semester": 2, "prerequisites": ["CCP1103"]},
             {"code": "CIS2201", "name": "Evaluation of Business Performance", "units": 3, "year": 2, "semester": 2, "prerequisites": []},
             {"code": "CSA1101", "name": "Systems Analysis, Design and Prototyping", "units": 3, "year": 2, "semester": 2, "prerequisites": ["CFD1101"]},
-            {"code": "PPE1104", "name": "Physical Education 4", "units": 2, "year": 2, "semester": 2, "prerequisites": ["PPE1102"]},
+            {"code": "PPE1104", "name": "Physical Education 4", "units": 2, "year": 2, "semester": 2, "prerequisites": ["PPE1103"]},
             {"code": "ZGE1103", "name": "Ethics", "units": 3, "year": 2, "semester": 2, "prerequisites": []},
             {"code": "ZGE1105", "name": "Purposive Communication", "units": 3, "year": 2, "semester": 2, "prerequisites": []},
             {"code": "ZGE_EL01", "name": "GE Elective 1", "units": 3, "year": 2, "semester": 2, "prerequisites": []},
@@ -401,16 +424,8 @@ class Command(BaseCommand):
 
         return subjects
 
-    def create_sections(self, semester, subjects, professors, year_sem=1):
-        """Create sections with schedules."""
-
-        # Get subjects for the semester
-        if year_sem == 1:
-            # Year 1, Semester 1
-            subject_codes = ['CIC1101', 'CCP1101', 'CIS1101', 'MLC1101', 'PPE1101', 'ZGE1102', 'ZGE1108']
-        else:
-            # Year 1, Semester 2
-            subject_codes = ['CCP1102', 'CDS1101', 'CSP1101', 'MLC1102', 'PPE1102', 'ZGE1101', 'ZGE1104', 'ZGE1106']
+    def create_sections(self, semester, subjects, professors, subject_codes):
+        """Create sections with schedules for given subject codes."""
 
         sections = []
         days = ['MON', 'TUE', 'WED', 'THU', 'FRI']
@@ -422,13 +437,16 @@ class Command(BaseCommand):
 
             subject = subjects[subject_code]
 
+            # Get year level from subject
+            year_level = subject.year_level
+
             # Create section
             section, created = Section.objects.get_or_create(
                 semester=semester,
-                name=f'BSIS-1A',
+                name=f'BSIS-{year_level}A',
                 defaults={
                     'capacity': 40,
-                    'year_level': 1,
+                    'year_level': year_level,
                     'program': subject.program
                 }
             )
@@ -544,6 +562,25 @@ class Command(BaseCommand):
     def create_current_enrollment(self, student, program, semester):
         """Create student enrollment for current semester (no payment yet)."""
 
+        # Create student profile if not exists
+        from apps.academics.models import Curriculum
+        curriculum = Curriculum.objects.filter(program=program, is_active=True).first()
+
+        profile, created = StudentProfile.objects.get_or_create(
+            user=student,
+            defaults={
+                'program': program,
+                'curriculum': curriculum,
+                'year_level': 1,
+                'birthdate': date(2005, 5, 15),
+                'address': '123 Main St, Manila, Philippines',
+                'contact_number': '09171234567'
+            }
+        )
+        if profile.program != program:
+            profile.program = program
+            profile.save()
+
         enrollment, created = Enrollment.objects.get_or_create(
             student=student,
             semester=semester,
@@ -585,6 +622,6 @@ class Command(BaseCommand):
         self.stdout.write('=' * 70)
         self.stdout.write('  [+] BSIS Curriculum (UE 2019) created')
         self.stdout.write('  [+] 57 BSIS subjects created (All 4 years + Summer)')
-        self.stdout.write('  [+] Student passed Year 1 Semester 1 (7 subjects)')
-        self.stdout.write('  [+] Student enrolled in Year 1 Semester 2 (not paid)')
-        self.stdout.write('  [+] Student can now enroll in Year 1 Sem 2 subjects')
+        self.stdout.write('  [+] Brand new freshman - no previous grades')
+        self.stdout.write('  [+] Student can enroll in Year 1 Sem 1 subjects')
+        self.stdout.write('  [+] Current semester: 2nd Semester 2024-2025')

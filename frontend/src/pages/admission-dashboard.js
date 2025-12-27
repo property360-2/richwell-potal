@@ -421,7 +421,7 @@ function renderApplicantModal(applicant) {
         <div class="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-between">
           <div class="flex gap-2">
             ${applicant.status === 'PENDING' ? `
-              <button onclick="acceptApplicant(${applicant.id})" class="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2">
+              <button onclick="acceptApplicant('${applicant.id}')" class="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                 </svg>

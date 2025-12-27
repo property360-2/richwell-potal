@@ -21,7 +21,10 @@
       "Bash(python manage.py:*)",
       "Bash(timeout:*)",
       "Bash(node -c:*)",
-      "Bash(python manage.py migrate:*)"
+      "Bash(python manage.py migrate:*)",
+      "Bash(echo:*)",
+      "Bash(del db.sqlite3)",
+      "Bash(timeout /t 5 /nobreak)"
     ]
   }
 }
