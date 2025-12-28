@@ -18,7 +18,7 @@ const state = {
     name: '',
     description: '',
     units: 3,
-    program: '',
+    program_ids: [],       // All programs (at least one required)
     year_level: 1,
     semester_number: 1,
     has_prerequisites: false,
@@ -152,8 +152,12 @@ function render() {
                     <div class="text-sm text-gray-900">${subject.title || subject.name}</div>
                     ${subject.description ? `<div class="text-xs text-gray-500 mt-1">${subject.description}</div>` : ''}
                   </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="text-sm text-gray-700">${subject.program_code || 'N/A'}</span>
+                  <td class="px-6 py-4">
+                    <span class="text-sm ${subject.program_codes?.length > 1 ? 'font-semibold' : ''} text-gray-700">
+                      ${subject.program_codes && subject.program_codes.length > 1
+                        ? subject.program_codes.join(', ')
+                        : (subject.program_code || 'N/A')}
+                    </span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-center">
                     <span class="text-sm text-gray-700">${subject.year_level}</span>
@@ -227,11 +231,19 @@ function renderAddModal() {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Program *</label>
-            <select id="add-program" required class="form-select">
-              <option value="">-- Select Program --</option>
-              ${state.programs.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('')}
-            </select>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Programs *</label>
+            <div id="add-programs" class="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+              ${state.programs.map((p, index) => `
+                <label class="flex items-center space-x-2 p-2 hover:bg-white rounded cursor-pointer transition-colors">
+                  <input type="checkbox" name="add-program-checkbox" value="${p.id}" ${index === 0 ? 'checked' : ''} class="rounded border-gray-300 text-blue-600">
+                  <span class="text-sm font-medium">${p.code}</span>
+                  <span class="text-sm text-gray-600">- ${p.name}</span>
+                </label>
+              `).join('')}
+            </div>
+            <p class="text-xs text-gray-500 mt-1">
+              Select all programs this subject belongs to. At least one program is required.
+            </p>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
@@ -317,15 +329,22 @@ function renderEditModal() {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Program *</label>
-            <select id="edit-program" required class="form-select">
-              <option value="">-- Select Program --</option>
-              ${state.programs.map(p => `
-                <option value="${p.id}" ${subject.program?.id === p.id ? 'selected' : ''}>
-                  ${p.code} - ${p.name}
-                </option>
-              `).join('')}
-            </select>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Programs *</label>
+            <div id="edit-programs" class="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+              ${state.programs.map(p => {
+                const isChecked = subject.program_codes?.includes(p.code) ? 'checked' : '';
+                return `
+                  <label class="flex items-center space-x-2 p-2 hover:bg-white rounded cursor-pointer transition-colors">
+                    <input type="checkbox" name="edit-program-checkbox" value="${p.id}" ${isChecked} class="rounded border-gray-300 text-blue-600">
+                    <span class="text-sm font-medium">${p.code}</span>
+                    <span class="text-sm text-gray-600">- ${p.name}</span>
+                  </label>
+                `;
+              }).join('')}
+            </div>
+            <p class="text-xs text-gray-500 mt-1">
+              Select all programs this subject belongs to. At least one program is required.
+            </p>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
@@ -439,12 +458,26 @@ window.handleAddSubject = async function(event) {
   const hasPrereq = document.getElementById('add-has-prereq').checked;
   const selectedPrereqs = hasPrereq ? getSelectedPrerequisites('add') : [];
 
+  // Collect all checked programs
+  const checkedPrograms = Array.from(document.querySelectorAll('input[name="add-program-checkbox"]:checked'))
+    .map(cb => cb.value);
+
+  if (checkedPrograms.length === 0) {
+    showToast('Please select at least one program', 'error');
+    return;
+  }
+
+  // First checked program is primary, rest are additional
+  const primaryProgram = checkedPrograms[0];
+  const additionalProgramIds = checkedPrograms.slice(1);
+
   const data = {
     code: document.getElementById('add-code').value,
     title: document.getElementById('add-name').value,
     description: document.getElementById('add-description').value,
     units: parseInt(document.getElementById('add-units').value),
-    program: document.getElementById('add-program').value,
+    program: primaryProgram,  // Primary program (first checked)
+    program_ids: additionalProgramIds,  // Additional programs
     year_level: parseInt(document.getElementById('add-year').value),
     semester_number: parseInt(document.getElementById('add-semester').value),
     prerequisite_ids: selectedPrereqs
@@ -469,12 +502,26 @@ window.handleEditSubject = async function(event) {
   const selectedPrereqs = hasPrereq ? getSelectedPrerequisites('edit') : [];
   const oldPrereqs = state.editingSubject.prerequisites?.map(p => p.id) || [];
 
+  // Collect all checked programs
+  const checkedPrograms = Array.from(document.querySelectorAll('input[name="edit-program-checkbox"]:checked'))
+    .map(cb => cb.value);
+
+  if (checkedPrograms.length === 0) {
+    showToast('Please select at least one program', 'error');
+    return;
+  }
+
+  // First checked program is primary, rest are additional
+  const primaryProgram = checkedPrograms[0];
+  const additionalProgramIds = checkedPrograms.slice(1);
+
   const data = {
     code: document.getElementById('edit-code').value,
     title: document.getElementById('edit-name').value,
     description: document.getElementById('edit-description').value,
     units: parseInt(document.getElementById('edit-units').value),
-    program: document.getElementById('edit-program').value,
+    program: primaryProgram,  // Primary program (first checked)
+    program_ids: additionalProgramIds,  // Additional programs
     year_level: parseInt(document.getElementById('edit-year').value),
     semester_number: parseInt(document.getElementById('edit-semester').value),
     prerequisite_ids: selectedPrereqs

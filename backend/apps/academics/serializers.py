@@ -17,17 +17,22 @@ class SubjectMinimalSerializer(serializers.ModelSerializer):
 
 class SubjectSerializer(serializers.ModelSerializer):
     """Full subject serializer with prerequisites."""
-    
+
     program_code = serializers.CharField(source='program.code', read_only=True)
+    program_codes = serializers.SerializerMethodField()
     prerequisites = SubjectMinimalSerializer(many=True, read_only=True)
     inc_expiry_months = serializers.IntegerField(source='get_inc_expiry_months', read_only=True)
-    
+
+    def get_program_codes(self, obj):
+        """Get all program codes this subject belongs to"""
+        return [p.code for p in obj.programs.all()]
+
     class Meta:
         model = Subject
         fields = [
             'id', 'code', 'title', 'description', 'units',
             'is_major', 'year_level', 'semester_number',
-            'allow_multiple_sections', 'program_code',
+            'allow_multiple_sections', 'program_code', 'program_codes',
             'prerequisites', 'inc_expiry_months'
         ]
 
@@ -78,55 +83,102 @@ class ProgramCreateSerializer(serializers.ModelSerializer):
 
 class SubjectCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating subjects."""
-    
+
     prerequisite_ids = serializers.ListField(
         child=serializers.UUIDField(),
         required=False,
         write_only=True,
         help_text='List of prerequisite subject UUIDs'
     )
-    
+
+    program_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        write_only=True,
+        help_text='Additional program UUIDs (primary program auto-included)'
+    )
+
     class Meta:
         model = Subject
         fields = [
             'program', 'code', 'title', 'description', 'units',
             'is_major', 'year_level', 'semester_number',
-            'allow_multiple_sections', 'prerequisite_ids'
+            'allow_multiple_sections', 'prerequisite_ids', 'program_ids'
         ]
-    
+
     def validate_code(self, value):
         """Ensure code is uppercase."""
         return value.upper()
-    
+
     def validate(self, attrs):
-        """Validate prerequisites belong to same program."""
+        """Validate prerequisites exist in ALL subject's programs"""
         prerequisite_ids = attrs.pop('prerequisite_ids', [])
         program = attrs.get('program')
-        
+        program_ids = attrs.pop('program_ids', [])
+
         if prerequisite_ids:
-            prereqs = Subject.objects.filter(id__in=prerequisite_ids, program=program)
-            if prereqs.count() != len(prerequisite_ids):
-                raise serializers.ValidationError({
-                    'prerequisite_ids': 'All prerequisites must belong to the same program'
-                })
+            # Collect all programs (primary + additional)
+            all_program_ids = {program.id if hasattr(program, 'id') else program}
+            all_program_ids.update(program_ids)
+
+            # Check each prerequisite exists in ALL programs
+            prereqs = Subject.objects.filter(id__in=prerequisite_ids)
+            for prereq in prereqs:
+                prereq_program_ids = set(prereq.programs.values_list('id', flat=True))
+
+                # Check if prerequisite exists in all subject's programs
+                missing_programs = all_program_ids - prereq_program_ids
+                if missing_programs:
+                    missing_codes = Program.objects.filter(id__in=missing_programs).values_list('code', flat=True)
+                    raise serializers.ValidationError({
+                        'prerequisite_ids':
+                            f'Prerequisite {prereq.code} must exist in all programs: {", ".join(missing_codes)}'
+                    })
+
             attrs['_prerequisites'] = prereqs
-        
+
+        attrs['_program_ids'] = program_ids
         return attrs
-    
+
     def create(self, validated_data):
+        program_ids = validated_data.pop('_program_ids', [])
         prerequisites = validated_data.pop('_prerequisites', [])
+
         subject = Subject.objects.create(**validated_data)
+
+        # Add primary program
+        subject.programs.add(subject.program)
+
+        # Add additional programs
+        if program_ids:
+            additional_programs = Program.objects.filter(id__in=program_ids)
+            subject.programs.add(*additional_programs)
+
+        # Add prerequisites
         if prerequisites:
             subject.prerequisites.set(prerequisites)
+
         return subject
-    
+
     def update(self, instance, validated_data):
+        program_ids = validated_data.pop('_program_ids', None)
         prerequisites = validated_data.pop('_prerequisites', None)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+
+        if program_ids is not None:
+            # Clear and reset programs
+            instance.programs.clear()
+            instance.programs.add(instance.program)  # Always include primary
+
+            additional_programs = Program.objects.filter(id__in=program_ids)
+            instance.programs.add(*additional_programs)
+
         if prerequisites is not None:
             instance.prerequisites.set(prerequisites)
+
         return instance
 
 
@@ -279,12 +331,13 @@ class SectionSubjectCreateSerializer(serializers.ModelSerializer):
         """Ensure subject belongs to section's program."""
         section = attrs.get('section')
         subject = attrs.get('subject')
-        
-        if subject.program != section.program:
+
+        # Check if subject belongs to ANY of section's programs (multi-program support)
+        if not subject.programs.filter(id=section.program.id).exists():
             raise serializers.ValidationError({
-                'subject': 'Subject must belong to the section\'s program'
+                'subject': f'Subject must belong to program {section.program.code}'
             })
-        
+
         return attrs
 
 

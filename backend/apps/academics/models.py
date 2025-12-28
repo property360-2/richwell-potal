@@ -109,25 +109,72 @@ class Subject(BaseModel):
         related_name='required_for',
         help_text='Subjects that must be completed before taking this subject'
     )
-    
+
+    # Multi-program support - allows subject to belong to multiple programs
+    programs = models.ManyToManyField(
+        Program,
+        related_name='multi_program_subjects',
+        blank=True,
+        help_text='All programs this subject belongs to (includes primary program)'
+    )
+
     class Meta:
         verbose_name = 'Subject'
         verbose_name_plural = 'Subjects'
-        unique_together = ['program', 'code']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['code'],
+                name='unique_subject_code',
+                violation_error_message='Subject code must be globally unique'
+            )
+        ]
         ordering = ['year_level', 'semester_number', 'code']
     
     def __str__(self):
         return f"{self.code} - {self.title}"
-    
+
+    def save(self, *args, **kwargs):
+        """Override save to ensure primary program is always in programs list"""
+        super().save(*args, **kwargs)
+        # Ensure primary program is always in programs list
+        if self.program and not self.programs.filter(id=self.program.id).exists():
+            self.programs.add(self.program)
+
+    def get_all_programs(self):
+        """Return queryset of all programs (primary + additional)"""
+        return self.programs.all()
+
+    def validate_prerequisites_for_programs(self):
+        """
+        Validate that all prerequisites exist in ALL of this subject's programs.
+        User decision: Prerequisites must exist in ALL subject's programs.
+
+        Returns: (is_valid, error_messages)
+        """
+        errors = []
+        subject_programs = set(self.programs.values_list('id', flat=True))
+
+        for prereq in self.prerequisites.all():
+            prereq_programs = set(prereq.programs.values_list('id', flat=True))
+            missing_programs = subject_programs - prereq_programs
+
+            if missing_programs:
+                missing_codes = Program.objects.filter(id__in=missing_programs).values_list('code', flat=True)
+                errors.append(
+                    f"Prerequisite {prereq.code} is not available in programs: {', '.join(missing_codes)}"
+                )
+
+        return len(errors) == 0, errors
+
     @property
     def prerequisite_list(self):
         """Returns list of prerequisite subject codes."""
         return list(self.prerequisites.values_list('code', flat=True))
-    
+
     def has_prerequisites(self):
         """Check if this subject has any prerequisites."""
         return self.prerequisites.exists()
-    
+
     def get_inc_expiry_months(self):
         """
         Returns the INC expiry period in months.

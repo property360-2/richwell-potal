@@ -212,8 +212,9 @@ class SubjectViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         program_id = self.request.query_params.get('program')
         if program_id:
-            queryset = queryset.filter(program_id=program_id)
-        return queryset.select_related('program').prefetch_related('prerequisites')
+            # Filter by subjects that include this program (multi-program support)
+            queryset = queryset.filter(programs__id=program_id).distinct()
+        return queryset.select_related('program').prefetch_related('programs', 'prerequisites')
     
     def perform_destroy(self, instance):
         """Soft delete."""
@@ -813,8 +814,8 @@ class CurriculumViewSet(viewsets.ModelViewSet):
                     is_deleted=False
                 )
 
-                # Check subject belongs to same program
-                if subject.program != curriculum.program:
+                # Check subject belongs to curriculum's program (multi-program support)
+                if not subject.programs.filter(id=curriculum.program.id).exists():
                     errors.append({
                         'subject_id': str(assignment['subject_id']),
                         'error': f"Subject {subject.code} does not belong to program {curriculum.program.code}"
