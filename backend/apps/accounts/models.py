@@ -129,6 +129,72 @@ class User(AbstractUser):
     def is_admin(self):
         return self.role == self.Role.ADMIN or self.is_superuser
 
+    def has_permission(self, permission_code):
+        """
+        Check if user has a specific permission.
+        Checks: role defaults + custom grants - custom revokes
+
+        Args:
+            permission_code: str - Permission code (e.g., 'schedule.edit')
+
+        Returns:
+            bool - True if user has permission, False otherwise
+        """
+        try:
+            permission = Permission.objects.get(code=permission_code)
+
+            # Check custom grant/revoke first
+            custom = UserPermission.objects.filter(
+                user=self,
+                permission=permission
+            ).first()
+
+            if custom:
+                return custom.granted
+
+            # Fall back to role defaults
+            return self.role in permission.default_for_roles
+        except Permission.DoesNotExist:
+            return False
+
+    def get_effective_permissions(self):
+        """Get all effective permissions for user (role defaults + custom grants - custom revokes)"""
+        # Get all permissions and filter in Python (SQLite doesn't support contains lookup on JSONField)
+        all_permissions = Permission.objects.all()
+
+        # Get custom permission overrides
+        custom_overrides = {
+            up.permission_id: up.granted
+            for up in UserPermission.objects.filter(user=self)
+        }
+
+        # Filter permissions
+        effective_perm_ids = []
+        for perm in all_permissions:
+            # Check if there's a custom override first
+            if perm.id in custom_overrides:
+                if custom_overrides[perm.id]:  # Custom grant
+                    effective_perm_ids.append(perm.id)
+                # Custom revoke - skip this permission
+            # Otherwise check role defaults
+            elif self.role in perm.default_for_roles:
+                effective_perm_ids.append(perm.id)
+
+        return Permission.objects.filter(id__in=effective_perm_ids)
+
+    def get_permissions_by_category(self):
+        """Get permissions grouped by category"""
+        perms = self.get_effective_permissions()
+        categories = PermissionCategory.objects.prefetch_related('permissions')
+
+        result = {}
+        for category in categories:
+            result[category.code] = {
+                'name': category.name,
+                'permissions': [p.code for p in perms if p.category == category]
+            }
+        return result
+
 
 class StudentProfile(BaseModel):
     """
@@ -263,3 +329,115 @@ class ProfessorProfile(BaseModel):
 
     def __str__(self):
         return f"{self.user.get_full_name()} - Professor Profile"
+
+
+class PermissionCategory(BaseModel):
+    """Groups related permissions together for organization"""
+
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text='Display name of the permission category (e.g., "Program Management")'
+    )
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text='Unique code for the category (e.g., "program_management")'
+    )
+    description = models.TextField(blank=True)
+    icon = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Icon identifier for UI (e.g., "graduation-cap")'
+    )
+    order = models.IntegerField(
+        default=0,
+        help_text='Display order in UI'
+    )
+
+    class Meta:
+        verbose_name = 'Permission Category'
+        verbose_name_plural = 'Permission Categories'
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class Permission(BaseModel):
+    """Individual permission definition"""
+
+    category = models.ForeignKey(
+        PermissionCategory,
+        on_delete=models.CASCADE,
+        related_name='permissions',
+        help_text='The category this permission belongs to'
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text='Display name of the permission (e.g., "Can View Programs")'
+    )
+    code = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text='Unique permission code (e.g., "program.view")'
+    )
+    description = models.TextField(blank=True)
+
+    # Role defaults - which roles get this permission by default
+    default_for_roles = models.JSONField(
+        default=list,
+        help_text='List of roles that have this permission by default (e.g., ["ADMIN", "REGISTRAR"])'
+    )
+
+    class Meta:
+        verbose_name = 'Permission'
+        verbose_name_plural = 'Permissions'
+        ordering = ['category', 'name']
+        unique_together = [['category', 'code']]
+
+    def __str__(self):
+        return f"{self.category.name}: {self.name}"
+
+
+class UserPermission(BaseModel):
+    """User-specific permission assignments (grants/revokes)"""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='custom_permissions',
+        help_text='The user this permission assignment applies to'
+    )
+    permission = models.ForeignKey(
+        Permission,
+        on_delete=models.CASCADE,
+        help_text='The permission being granted or revoked'
+    )
+    granted = models.BooleanField(
+        default=True,
+        help_text='True = permission granted, False = permission revoked'
+    )
+    granted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='permissions_granted',
+        help_text='Admin user who granted/revoked this permission'
+    )
+    granted_at = models.DateTimeField(auto_now_add=True)
+    reason = models.TextField(
+        blank=True,
+        help_text='Optional reason for granting/revoking this permission'
+    )
+
+    class Meta:
+        verbose_name = 'User Permission'
+        verbose_name_plural = 'User Permissions'
+        unique_together = [['user', 'permission']]
+        ordering = ['-granted_at']
+
+    def __str__(self):
+        action = 'granted' if self.granted else 'revoked'
+        return f"{self.user.email}: {self.permission.code} ({action})"

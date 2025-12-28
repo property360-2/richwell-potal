@@ -10,11 +10,17 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema
 
+from django.db.models import Q
+from .models import User, PermissionCategory, Permission, UserPermission
 from .serializers import (
     LoginSerializer,
     UserProfileSerializer,
-    UserProfileUpdateSerializer
+    UserProfileUpdateSerializer,
+    UserWithPermissionsSerializer,
+    PermissionCategoryDetailSerializer,
+    PermissionCategorySerializer
 )
+from apps.audit.models import AuditLog
 
 
 class LoginView(TokenObtainPairView):
@@ -152,4 +158,316 @@ class ChangePasswordView(APIView):
         return Response({
             "success": True,
             "message": "Password changed successfully"
+        })
+
+
+# ============================================================
+# Permission Management Views
+# ============================================================
+
+class UserListView(APIView):
+    """
+    List and search all users for permission management.
+    Admin only.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="List Users",
+        description="List all users with search and filter capabilities",
+        tags=["User Management"],
+        responses={200: UserWithPermissionsSerializer(many=True)}
+    )
+    def get(self, request):
+        # Check permission
+        if not request.user.has_permission('user.view'):
+            return Response({
+                "success": False,
+                "error": "You don't have permission to view users"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Get query parameters
+        search = request.query_params.get('search', '')
+        role = request.query_params.get('role', '')
+
+        # Base queryset
+        users = User.objects.filter(is_deleted=False) if hasattr(User, 'is_deleted') else User.objects.all()
+
+        # Apply search filter
+        if search:
+            users = users.filter(
+                Q(email__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(student_number__icontains=search)
+            )
+
+        # Apply role filter
+        if role:
+            users = users.filter(role=role)
+
+        # Order by creation date (newest first)
+        users = users.order_by('-created_at')
+
+        serializer = UserWithPermissionsSerializer(users, many=True)
+        return Response({
+            "success": True,
+            "users": serializer.data
+        })
+
+
+class UserPermissionsView(APIView):
+    """
+    Get detailed permissions for a specific user.
+    Shows all permission categories with the user's permission status.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Get User Permissions",
+        description="Get detailed permission information for a user",
+        tags=["User Management"],
+        responses={200: PermissionCategoryDetailSerializer(many=True)}
+    )
+    def get(self, request, user_id):
+        # Check permission
+        if not request.user.has_permission('user.view'):
+            return Response({
+                "success": False,
+                "error": "You don't have permission to view user permissions"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Get the user
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({
+                "success": False,
+                "error": "User not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Get all categories with permissions
+        categories = PermissionCategory.objects.prefetch_related('permissions').all()
+        effective_perms = user.get_effective_permissions()
+        custom_perms = UserPermission.objects.filter(user=user)
+
+        result = []
+        for category in categories:
+            category_data = {
+                'code': category.code,
+                'name': category.name,
+                'icon': category.icon,
+                'permissions': []
+            }
+
+            for perm in category.permissions.all():
+                custom = custom_perms.filter(permission=perm).first()
+
+                # Determine source of permission
+                if custom and custom.granted:
+                    source = 'custom_grant'
+                elif custom and not custom.granted:
+                    source = 'custom_revoke'
+                elif user.role in perm.default_for_roles:
+                    source = 'role_default'
+                else:
+                    source = 'none'
+
+                perm_data = {
+                    'code': perm.code,
+                    'name': perm.name,
+                    'description': perm.description,
+                    'has_permission': perm in effective_perms,
+                    'source': source,
+                    'can_toggle': True  # Admin can always toggle
+                }
+                category_data['permissions'].append(perm_data)
+
+            result.append(category_data)
+
+        return Response({
+            "success": True,
+            "categories": result
+        })
+
+
+class UpdateUserPermissionView(APIView):
+    """
+    Grant or revoke a specific permission for a user.
+    Creates a custom permission override.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Update User Permission",
+        description="Grant or revoke a permission for a user",
+        tags=["User Management"]
+    )
+    def post(self, request, user_id):
+        # Check permission
+        if not request.user.has_permission('user.manage_permissions'):
+            return Response({
+                "success": False,
+                "error": "You don't have permission to manage user permissions"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Get the user
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({
+                "success": False,
+                "error": "User not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Get request data
+        permission_code = request.data.get('permission_code')
+        granted = request.data.get('granted')
+        reason = request.data.get('reason', '')
+
+        if not permission_code or granted is None:
+            return Response({
+                "success": False,
+                "error": "permission_code and granted are required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get the permission
+        try:
+            permission = Permission.objects.get(code=permission_code)
+        except Permission.DoesNotExist:
+            return Response({
+                "success": False,
+                "error": f"Permission {permission_code} not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Create or update UserPermission
+        user_perm, created = UserPermission.objects.update_or_create(
+            user=user,
+            permission=permission,
+            defaults={
+                'granted': granted,
+                'granted_by': request.user,
+                'reason': reason
+            }
+        )
+
+        # Log the action
+        AuditLog.log(
+            user=request.user,
+            action=AuditLog.Action.USER_UPDATED,
+            target_model='UserPermission',
+            target_id=user_perm.id,
+            payload={
+                'user_id': str(user.id),
+                'user_email': user.email,
+                'permission': permission_code,
+                'granted': granted,
+                'reason': reason
+            }
+        )
+
+        return Response({
+            "success": True,
+            "message": f"Permission {'granted' if granted else 'revoked'} successfully"
+        })
+
+
+class BulkUpdateUserPermissionsView(APIView):
+    """
+    Update multiple permissions at once for a user.
+    Useful for batch operations.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Bulk Update Permissions",
+        description="Update multiple permissions for a user at once",
+        tags=["User Management"]
+    )
+    def post(self, request, user_id):
+        # Check permission
+        if not request.user.has_permission('user.manage_permissions'):
+            return Response({
+                "success": False,
+                "error": "You don't have permission to manage user permissions"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Get the user
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({
+                "success": False,
+                "error": "User not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Get updates list
+        updates = request.data.get('permissions', [])
+        if not isinstance(updates, list):
+            return Response({
+                "success": False,
+                "error": "permissions must be a list"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Apply updates
+        updated_count = 0
+        for update in updates:
+            permission_code = update.get('code')
+            granted = update.get('granted')
+
+            if not permission_code or granted is None:
+                continue
+
+            try:
+                permission = Permission.objects.get(code=permission_code)
+                UserPermission.objects.update_or_create(
+                    user=user,
+                    permission=permission,
+                    defaults={
+                        'granted': granted,
+                        'granted_by': request.user
+                    }
+                )
+                updated_count += 1
+            except Permission.DoesNotExist:
+                continue
+
+        # Log the bulk action
+        AuditLog.log(
+            user=request.user,
+            action=AuditLog.Action.USER_UPDATED,
+            target_model='User',
+            target_id=user.id,
+            payload={
+                'user_email': user.email,
+                'bulk_permission_update': True,
+                'permissions_updated': updated_count
+            }
+        )
+
+        return Response({
+            "success": True,
+            "message": f"Updated {updated_count} permissions"
+        })
+
+
+class PermissionCategoryListView(APIView):
+    """
+    List all permission categories with their permissions.
+    Useful for admin UI to show available permissions.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="List Permission Categories",
+        description="Get all permission categories with their permissions",
+        tags=["User Management"],
+        responses={200: PermissionCategorySerializer(many=True)}
+    )
+    def get(self, request):
+        categories = PermissionCategory.objects.prefetch_related('permissions').all()
+        serializer = PermissionCategorySerializer(categories, many=True)
+        return Response({
+            "success": True,
+            "categories": serializer.data
         })

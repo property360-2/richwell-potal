@@ -37,6 +37,17 @@ export const NAV_CONFIG = {
   admission: [
     { label: 'Dashboard', href: '/admission-dashboard.html', page: 'admission-dashboard' },
     { label: 'Applicants', href: '/applicant-approval.html', page: 'applicant-approval' }
+  ],
+
+  admin: [
+    { label: 'Dashboard', href: '/admin-dashboard.html', page: 'admin-dashboard' },
+    { label: 'User Management', href: '/admin-users.html', page: 'admin-users' },
+    { label: 'Programs', href: '/registrar-subjects.html', page: 'registrar-subjects' },
+    { label: 'Subjects', href: '/registrar-subjects.html', page: 'registrar-subjects' },
+    { label: 'Curricula', href: '/registrar-curricula.html', page: 'registrar-curricula' },
+    { label: 'Semesters', href: '/registrar-semesters.html', page: 'registrar-semesters' },
+    { label: 'Sections', href: '/sections.html', page: 'sections' },
+    { label: 'Schedule', href: '/schedule.html', page: 'schedule' }
   ]
 };
 
@@ -49,11 +60,13 @@ export function getRoleKey(userRole) {
   const roleMap = {
     'STUDENT': 'student',
     'REGISTRAR': 'registrar',
+    'HEAD_REGISTRAR': 'registrar',
     'PROFESSOR': 'professor',
     'DEPARTMENT_HEAD': 'head',
     'CASHIER': 'cashier',
     'ADMISSION': 'admission',
-    'ADMISSION_STAFF': 'admission'
+    'ADMISSION_STAFF': 'admission',
+    'ADMIN': 'admin'
   };
   return roleMap[userRole] || 'student';
 }

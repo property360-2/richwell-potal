@@ -5,7 +5,7 @@ Accounts serializers.
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import User, StudentProfile
+from .models import User, StudentProfile, PermissionCategory, Permission, UserPermission
 
 
 class LoginSerializer(TokenObtainPairSerializer):
@@ -83,7 +83,67 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating User profile."""
-    
+
     class Meta:
         model = User
         fields = ['first_name', 'last_name']
+
+
+class PermissionSerializer(serializers.ModelSerializer):
+    """Serializer for Permission."""
+
+    class Meta:
+        model = Permission
+        fields = ['id', 'code', 'name', 'description', 'default_for_roles']
+        read_only_fields = ['id']
+
+
+class PermissionCategorySerializer(serializers.ModelSerializer):
+    """Serializer for PermissionCategory with nested permissions."""
+
+    permissions = PermissionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = PermissionCategory
+        fields = ['id', 'code', 'name', 'description', 'icon', 'order', 'permissions']
+        read_only_fields = ['id']
+
+
+class UserWithPermissionsSerializer(serializers.ModelSerializer):
+    """Serializer for User with permission count."""
+
+    full_name = serializers.CharField(source='get_full_name', read_only=True)
+    permission_count = serializers.SerializerMethodField()
+
+    def get_permission_count(self, obj):
+        """Get count of effective permissions for this user."""
+        return obj.get_effective_permissions().count()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'full_name',
+            'role', 'student_number', 'is_active', 'permission_count',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class UserPermissionDetailSerializer(serializers.Serializer):
+    """Serializer for detailed permission info with user's current status."""
+
+    code = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    has_permission = serializers.BooleanField()
+    source = serializers.CharField()  # 'custom_grant', 'custom_revoke', 'role_default', or 'none'
+    can_toggle = serializers.BooleanField()
+
+
+class PermissionCategoryDetailSerializer(serializers.Serializer):
+    """Serializer for permission category with user's permission status."""
+
+    code = serializers.CharField()
+    name = serializers.CharField()
+    icon = serializers.CharField()
+    permissions = UserPermissionDetailSerializer(many=True)

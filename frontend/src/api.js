@@ -265,5 +265,12 @@ export const endpoints = {
     curriculumStructure: (id) => `/academics/curricula/${id}/structure/`,
     curriculumAssignSubjects: (id) => `/academics/curricula/${id}/assign_subjects/`,
     curriculumRemoveSubject: (id, subjectId) => `/academics/curricula/${id}/subjects/${subjectId}/`,
+
+    // Permission Management
+    users: '/accounts/users/',
+    userPermissions: (userId) => `/accounts/users/${userId}/permissions/`,
+    updateUserPermission: (userId) => `/accounts/users/${userId}/permissions/update/`,
+    bulkUpdatePermissions: (userId) => `/accounts/users/${userId}/permissions/bulk/`,
+    permissionCategories: '/accounts/permissions/categories/',
 };
 
