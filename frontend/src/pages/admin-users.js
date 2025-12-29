@@ -81,7 +81,7 @@ async function openPermissionModal(userId) {
     const response = await api.get(endpoints.userPermissions(userId));
     if (response && response.categories) {
       state.permissionCategories = response.categories;
-      renderPermissionModal();
+      render(); // Re-render to update modal with loaded permissions
     }
   } catch (error) {
     console.error('Failed to load permissions:', error);
