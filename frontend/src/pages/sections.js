@@ -359,23 +359,55 @@ function renderSectionDetails() {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                   </svg>
                 </div>
-                <div>
+                <div class="flex-1">
                   <p class="font-semibold text-gray-800">${ss.subject?.code} - ${ss.subject?.title}</p>
                   <div class="text-sm text-gray-500 space-y-1">
                     ${ss.professors && ss.professors.length > 0 ?
                       ss.professors.map(prof => `
                         <div class="flex items-center gap-2">
-                          <span>${prof.name}</span>
+                          <span>${prof.name || prof.full_name || 'Unknown Professor'}</span>
                           ${prof.is_primary ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Primary</span>' : ''}
                         </div>
                       `).join('')
                       : ss.is_tba ? '<span class="text-yellow-600">TBA</span>' : '<span class="text-orange-600">No professors assigned</span>'}
+                    ${ss.schedule_slots && ss.schedule_slots.length > 0 ? `
+                      <div class="mt-2 space-y-1">
+                        ${ss.schedule_slots.map(slot => `
+                          <div class="flex items-center gap-2 text-xs text-gray-600">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span>${slot.day_display || slot.day} ${slot.start_time}-${slot.end_time}</span>
+                            ${slot.room ? `<span class="text-gray-400">• ${slot.room}</span>` : ''}
+                          </div>
+                        `).join('')}
+                      </div>
+                    ` : ss.is_tba ? '' : '<div class="text-xs text-orange-500 mt-1">No schedule set</div>'}
                   </div>
                 </div>
               </div>
               <div class="flex items-center gap-2">
                 ${ss.is_tba ? '<span class="badge badge-warning">TBA</span>' : ''}
-                <button onclick="removeAssignment('${ss.id}')" class="p-2 text-gray-400 hover:text-red-600 rounded-lg">
+                <button
+                  onclick="toggleTBA('${ss.id}', ${!ss.is_tba})"
+                  class="p-2 text-gray-400 hover:text-yellow-600 rounded-lg"
+                  title="${ss.is_tba ? 'Mark as scheduled' : 'Mark as TBA'}">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </button>
+                <button
+                  onclick="openScheduleModal('${ss.id}')"
+                  class="p-2 text-gray-400 hover:text-blue-600 rounded-lg"
+                  title="Manage schedule">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                </button>
+                <button
+                  onclick="removeAssignment('${ss.id}')"
+                  class="p-2 text-gray-400 hover:text-red-600 rounded-lg"
+                  title="Remove subject">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                   </svg>
@@ -630,6 +662,34 @@ window.assignSubject = async function (e) {
     closeAssignModal();
     render();
   }
+};
+
+window.toggleTBA = async function (sectionSubjectId, isTba) {
+  try {
+    const response = await api.patch(endpoints.sectionSubject(sectionSubjectId), {
+      is_tba: isTba
+    });
+
+    if (response && response.ok) {
+      showToast(isTba ? 'Marked as TBA' : 'Removed TBA status', 'success');
+      await loadSectionDetails(state.selectedSection.id);
+    }
+  } catch (error) {
+    console.error('Failed to toggle TBA:', error);
+    showToast('Failed to update TBA status', 'error');
+  }
+};
+
+window.openScheduleModal = function (sectionSubjectId) {
+  // Navigate to schedule page with this section-subject pre-selected
+  const sectionSubject = state.selectedSection?.section_subjects?.find(ss => ss.id === sectionSubjectId);
+  if (!sectionSubject) return;
+
+  // Store in localStorage for the schedule page to pick up
+  localStorage.setItem('schedule_section_id', state.selectedSection.id);
+  localStorage.setItem('schedule_section_subject_id', sectionSubjectId);
+
+  window.location.href = '/schedule.html';
 };
 
 window.removeAssignment = async function (id) {
