@@ -148,13 +148,135 @@ class CurriculumService:
         """
         if collected is None:
             collected = set()
-        
+
         for prereq in subject.prerequisites.all():
             if prereq.id not in collected:
                 collected.add(prereq.id)
                 CurriculumService.get_all_prerequisites(prereq, collected)
-        
+
         return collected
+
+    @staticmethod
+    def validate_curriculum_completeness(curriculum):
+        """
+        Validate curriculum has all required subjects and proper structure.
+
+        Returns:
+            tuple: (is_valid, errors)
+            errors: list of error messages
+        """
+        from apps.academics.models import CurriculumSubject
+
+        errors = []
+
+        # Get all subjects in curriculum
+        assignments = CurriculumSubject.objects.filter(
+            curriculum=curriculum,
+            is_deleted=False
+        ).select_related('subject').prefetch_related('subject__prerequisites')
+
+        # Check 1: Prerequisite completeness
+        for assignment in assignments:
+            for prereq in assignment.subject.prerequisites.all():
+                # Check if prerequisite is in curriculum and in earlier year/semester
+                prereq_assignment = assignments.filter(subject=prereq).first()
+
+                if not prereq_assignment:
+                    errors.append(
+                        f"Subject {assignment.subject.code} requires {prereq.code} "
+                        f"but it's not in the curriculum"
+                    )
+                elif not CurriculumService._is_before_in_curriculum(
+                    prereq_assignment, assignment
+                ):
+                    errors.append(
+                        f"Prerequisite {prereq.code} must be scheduled before "
+                        f"{assignment.subject.code} in the curriculum"
+                    )
+
+        # Check 2: Total units per semester (warning, not error)
+        semester_units = {}
+        for assignment in assignments:
+            key = (assignment.year_level, assignment.semester_number)
+            semester_units[key] = semester_units.get(key, 0) + assignment.subject.units
+
+        for (year, sem), units in semester_units.items():
+            if units > 24:  # Typical max units per semester
+                errors.append(
+                    f"Year {year} Semester {sem} has {units} units "
+                    f"(recommended max: 24 units)"
+                )
+            elif units < 12:  # Typical min units
+                errors.append(
+                    f"Year {year} Semester {sem} has only {units} units "
+                    f"(recommended min: 12 units)"
+                )
+
+        return len(errors) == 0, errors
+
+    @staticmethod
+    def _is_before_in_curriculum(prereq_assignment, subject_assignment):
+        """Check if prerequisite is scheduled before subject in curriculum"""
+        if prereq_assignment.year_level < subject_assignment.year_level:
+            return True
+        elif prereq_assignment.year_level == subject_assignment.year_level:
+            return prereq_assignment.semester_number < subject_assignment.semester_number
+        return False
+
+    @staticmethod
+    def get_curriculum_statistics(curriculum):
+        """
+        Get comprehensive statistics for a curriculum.
+
+        Returns:
+            dict: {
+                'total_subjects': int,
+                'total_units': int,
+                'required_subjects': int,
+                'elective_subjects': int,
+                'major_subjects': int,
+                'by_year': {...},
+                'missing_prerequisites': [...]
+            }
+        """
+        from apps.academics.models import CurriculumSubject
+
+        assignments = CurriculumSubject.objects.filter(
+            curriculum=curriculum,
+            is_deleted=False
+        ).select_related('subject')
+
+        stats = {
+            'total_subjects': assignments.count(),
+            'total_units': sum(a.subject.units for a in assignments),
+            'required_subjects': assignments.filter(is_required=True).count(),
+            'elective_subjects': assignments.filter(is_required=False).count(),
+            'major_subjects': assignments.filter(subject__is_major=True).count(),
+            'by_year': {}
+        }
+
+        # Group by year
+        for year in range(1, curriculum.program.duration_years + 1):
+            year_assignments = assignments.filter(year_level=year)
+            stats['by_year'][year] = {
+                'subjects': year_assignments.count(),
+                'units': sum(a.subject.units for a in year_assignments),
+                'by_semester': {}
+            }
+
+            for sem in [1, 2, 3]:
+                sem_assignments = year_assignments.filter(semester_number=sem)
+                stats['by_year'][year]['by_semester'][sem] = {
+                    'subjects': sem_assignments.count(),
+                    'units': sum(a.subject.units for a in sem_assignments)
+                }
+
+        # Check for missing prerequisites
+        is_valid, errors = CurriculumService.validate_curriculum_completeness(curriculum)
+        stats['is_valid'] = is_valid
+        stats['validation_errors'] = errors
+
+        return stats
 
 
 class SchedulingService:

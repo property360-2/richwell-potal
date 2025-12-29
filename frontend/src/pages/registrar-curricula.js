@@ -413,12 +413,20 @@ function renderViewModal() {
             <h3 class="text-2xl font-bold text-gray-800">${curriculum.name}</h3>
             <p class="text-gray-600">${curriculum.program_code} - ${curriculum.program_name}</p>
           </div>
-          <button onclick="openAssignModal()" class="btn btn-primary flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-            </svg>
-            Assign Subject
-          </button>
+          <div class="flex gap-2">
+            <button onclick="validateCurriculum()" class="btn btn-secondary flex items-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Validate
+            </button>
+            <button onclick="openAssignModal()" class="btn btn-primary flex items-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+              </svg>
+              Assign Subject
+            </button>
+          </div>
         </div>
 
         ${years.length === 0 ? `
@@ -675,6 +683,36 @@ window.closeViewModal = function() {
   state.selectedCurriculum = null;
   state.curriculumStructure = null;
   render();
+};
+
+window.validateCurriculum = async function() {
+  if (!state.selectedCurriculum) return;
+
+  try {
+    const response = await api.get(`/academics/curricula/${state.selectedCurriculum.id}/validate/`);
+
+    if (response.is_valid) {
+      showToast('Curriculum is valid!', 'success');
+
+      // Show statistics in console for now (could create a modal later)
+      console.log('Curriculum Statistics:', response.statistics);
+
+      // Show brief stats in toast
+      const stats = response.statistics;
+      showToast(
+        `Total: ${stats.total_subjects} subjects, ${stats.total_units} units`,
+        'success'
+      );
+    } else {
+      // Show validation errors
+      const errorList = response.errors.join('\n• ');
+      alert(`Curriculum Validation Errors:\n\n• ${errorList}`);
+      showToast(`Found ${response.errors.length} validation errors`, 'error');
+    }
+  } catch (error) {
+    console.error('Failed to validate curriculum:', error);
+    showToast('Failed to validate curriculum', 'error');
+  }
 };
 
 window.openAssignModal = async function() {

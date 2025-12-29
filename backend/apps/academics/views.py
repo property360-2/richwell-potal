@@ -926,6 +926,25 @@ class CurriculumViewSet(viewsets.ModelViewSet):
                 'error': 'Subject not found in curriculum'
             }, status=status.HTTP_404_NOT_FOUND)
 
+    @extend_schema(
+        summary="Validate Curriculum",
+        description="Validate curriculum completeness and get statistics",
+        tags=["Curricula"]
+    )
+    @action(detail=True, methods=['get'])
+    def validate(self, request, pk=None):
+        """Validate curriculum completeness and structure."""
+        curriculum = self.get_object()
+
+        is_valid, errors = CurriculumService.validate_curriculum_completeness(curriculum)
+        stats = CurriculumService.get_curriculum_statistics(curriculum)
+
+        return Response({
+            'is_valid': is_valid,
+            'errors': errors,
+            'statistics': stats
+        })
+
 
 # ============================================================
 # Professor Management Views

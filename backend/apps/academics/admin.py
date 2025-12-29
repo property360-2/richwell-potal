@@ -3,7 +3,10 @@ Admin configuration for academics app.
 """
 
 from django.contrib import admin
-from .models import Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion
+from .models import (
+    Program, Subject, Section, SectionSubject, ScheduleSlot,
+    CurriculumVersion, Curriculum, CurriculumSubject
+)
 
 
 class SubjectInline(admin.TabularInline):
@@ -68,4 +71,24 @@ class CurriculumVersionAdmin(admin.ModelAdmin):
     list_filter = ['is_active', 'program', 'semester']
     search_fields = ['program__code', 'notes']
     readonly_fields = ['subjects_snapshot', 'version_number', 'created_at']
+
+
+@admin.register(Curriculum)
+class CurriculumAdmin(admin.ModelAdmin):
+    list_display = ['code', 'name', 'program', 'effective_year', 'is_active', 'total_subjects']
+    list_filter = ['is_active', 'program', 'effective_year']
+    search_fields = ['code', 'name', 'program__code']
+    readonly_fields = ['created_at', 'updated_at']
+
+    def total_subjects(self, obj):
+        return obj.curriculumsubject_set.filter(is_deleted=False).count()
+    total_subjects.short_description = 'Total Subjects'
+
+
+@admin.register(CurriculumSubject)
+class CurriculumSubjectAdmin(admin.ModelAdmin):
+    list_display = ['curriculum', 'subject', 'year_level', 'semester_number', 'is_required']
+    list_filter = ['curriculum__program', 'year_level', 'semester_number', 'is_required']
+    search_fields = ['curriculum__code', 'subject__code', 'subject__title']
+    raw_id_fields = ['curriculum', 'subject', 'semester']
 

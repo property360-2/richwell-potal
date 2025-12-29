@@ -13,6 +13,7 @@ export const NAV_CONFIG = {
   registrar: [
     { label: 'Dashboard', href: '/registrar-dashboard.html', page: 'registrar-dashboard' },
     { label: 'Documents', href: '/registrar-documents.html', page: 'registrar-documents' },
+    { label: 'Programs', href: '/registrar-programs.html', page: 'registrar-programs' },
     { label: 'Subjects', href: '/registrar-subjects.html', page: 'registrar-subjects' },
     { label: 'Curricula', href: '/registrar-curricula.html', page: 'registrar-curricula' },
     { label: 'Semesters', href: '/registrar-semesters.html', page: 'registrar-semesters' },
@@ -42,7 +43,7 @@ export const NAV_CONFIG = {
   admin: [
     { label: 'Dashboard', href: '/admin-dashboard.html', page: 'admin-dashboard' },
     { label: 'User Management', href: '/admin-users.html', page: 'admin-users' },
-    { label: 'Programs', href: '/registrar-subjects.html', page: 'registrar-subjects' },
+    { label: 'Programs', href: '/registrar-programs.html', page: 'registrar-programs' },
     { label: 'Subjects', href: '/registrar-subjects.html', page: 'registrar-subjects' },
     { label: 'Curricula', href: '/registrar-curricula.html', page: 'registrar-curricula' },
     { label: 'Semesters', href: '/registrar-semesters.html', page: 'registrar-semesters' },

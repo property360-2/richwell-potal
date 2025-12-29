@@ -117,7 +117,8 @@ export const api = {
             method: 'POST',
             body: JSON.stringify(data)
         });
-        return response;
+        if (!response) return null;
+        return response.json();
     },
 
     async put(endpoint, data) {
