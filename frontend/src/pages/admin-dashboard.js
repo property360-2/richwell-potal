@@ -1,5 +1,5 @@
 import { createHeader } from '../components/header.js';
-import api, { endpoints, TokenManager } from '../api.js';
+import { api, endpoints, TokenManager } from '../api.js';
 
 // Get user from localStorage
 const user = TokenManager.getUser();
