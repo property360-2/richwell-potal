@@ -130,7 +130,9 @@ async function selectSection(id) {
             allSlots = allSlots.concat(slots);
         }
         state.scheduleSlots = allSlots.length > 0 ? allSlots : MOCK_SCHEDULE;
+        console.log('Loaded schedule slots:', state.scheduleSlots);
     } catch (error) {
+        console.error('Error loading schedule slots:', error);
         state.scheduleSlots = MOCK_SCHEDULE;
     }
 
@@ -143,7 +145,10 @@ function formatRole(role) {
 }
 
 function formatTime(time) {
-    const [hour, minute] = time.split(':');
+    if (!time) return 'N/A';
+    const parts = time.split(':');
+    if (parts.length < 2) return time;
+    const [hour, minute] = parts;
     const h = parseInt(hour);
     const ampm = h >= 12 ? 'PM' : 'AM';
     const hour12 = h % 12 || 12;
@@ -156,11 +161,13 @@ function getSlotPosition(startTime) {
 }
 
 function getSlotDuration(startTime, endTime) {
+    if (!startTime || !endTime) return 1; // Default to 1 hour
     const [startHour, startMin] = startTime.split(':').map(Number);
     const [endHour, endMin] = endTime.split(':').map(Number);
     const start = startHour * 60 + startMin;
     const end = endHour * 60 + endMin;
-    return (end - start) / 60; // Duration in hours
+    const duration = (end - start) / 60; // Duration in hours
+    return duration > 0 ? duration : 1; // Ensure positive duration
 }
 
 function render() {
@@ -276,12 +283,18 @@ function renderScheduleGrid() {
             const ss = state.sectionSubjects.find(ss => ss.id === slot.section_subject);
             const colorIndex = state.sectionSubjects.findIndex(ss => ss.id === slot.section_subject);
             const duration = getSlotDuration(slot.start_time, slot.end_time);
+
+            // Debug logging
+            if (!slot.end_time) {
+                console.warn('Slot missing end_time:', slot);
+            }
+
             return `
                     <div class="p-1 relative" style="grid-row: span ${Math.ceil(duration)}">
                       <div onclick="editSlot('${slot.id}')" class="p-2 rounded-lg border cursor-pointer hover:shadow-md transition-shadow h-full ${getSubjectColor(colorIndex)}" style="min-height: ${duration * 48}px">
                         <p class="font-semibold text-xs">${ss?.subject_code || ss?.subject?.code || 'N/A'}</p>
-                        <p class="text-xs opacity-75">${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}</p>
-                        <p class="text-xs opacity-75">${slot.room}</p>
+                        <p class="text-xs opacity-75">${formatTime(slot.start_time)}${slot.end_time ? ' - ' + formatTime(slot.end_time) : ''}</p>
+                        <p class="text-xs opacity-75">${slot.room || 'No room'}</p>
                       </div>
                     </div>
                   `;
@@ -485,22 +498,49 @@ window.saveSlot = async function (e) {
         return;
     }
 
+    // Debug logging
+    console.log('Saving slot with data:', data);
+
     state.pendingSlotData = data;
 
-    // Always use mock mode since backend APIs may not be fully integrated
+    try {
+        if (state.editingSlot) {
+            // Update existing slot
+            const response = await api.patch(endpoints.scheduleSlot(state.editingSlot), data);
+            if (response && (response.ok || response.id)) {
+                showToast('Schedule slot updated!', 'success');
+                closeSlotModal();
+                await selectSection(state.selectedSection.id);
+                return;
+            }
+        } else {
+            // Create new slot
+            const response = await api.post(endpoints.scheduleSlots, data);
+            if (response && (response.ok || response.id)) {
+                showToast('Schedule slot added!', 'success');
+                closeSlotModal();
+                await selectSection(state.selectedSection.id);
+                return;
+            }
+        }
+    } catch (error) {
+        console.error('API error, falling back to mock mode:', error);
+    }
+
+    // Fallback to mock mode if API fails
     const ss = state.sectionSubjects.find(s => s.id === data.section_subject);
     if (state.editingSlot) {
         const idx = state.scheduleSlots.findIndex(s => s.id === state.editingSlot);
         if (idx >= 0) {
             state.scheduleSlots[idx] = { ...state.scheduleSlots[idx], ...data };
         }
-        showToast('Schedule slot updated!', 'success');
+        showToast('Schedule slot updated (mock)!', 'success');
     } else {
         state.scheduleSlots.push({
             id: Date.now().toString(),
             ...data
         });
-        showToast('Schedule slot added!', 'success');
+        showToast('Schedule slot added (mock)!', 'success');
     }
     closeSlotModal();
     render();
