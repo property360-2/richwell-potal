@@ -102,38 +102,62 @@ async function loadSections() {
     try {
         const response = await api.get(endpoints.sections);
         const sections = response?.results || response;
-        state.sections = (sections && Array.isArray(sections) && sections.length > 0) ? sections : MOCK_SECTIONS;
+        if (sections && Array.isArray(sections)) {
+            state.sections = sections;
+            console.log(`Loaded ${sections.length} sections from API`);
+        } else {
+            state.sections = [];
+            console.warn('No sections returned from API');
+        }
     } catch (error) {
-        state.sections = MOCK_SECTIONS;
+        console.error('Error loading sections:', error);
+        state.sections = [];
     }
 }
 
 async function selectSection(id) {
     state.selectedSection = state.sections.find(s => s.id === id);
 
+    if (!state.selectedSection) {
+        console.error('Section not found:', id);
+        return;
+    }
+
     // Load section subjects
     try {
         const response = await api.get(`${endpoints.sectionSubjects}?section=${id}`);
         const subjects = response?.results || response;
-        state.sectionSubjects = (subjects && Array.isArray(subjects) && subjects.length > 0) ? subjects : MOCK_SECTION_SUBJECTS;
+        if (subjects && Array.isArray(subjects)) {
+            state.sectionSubjects = subjects;
+            console.log(`Loaded ${subjects.length} section subjects`);
+        } else {
+            state.sectionSubjects = [];
+            console.warn('No section subjects returned');
+        }
     } catch (error) {
-        state.sectionSubjects = MOCK_SECTION_SUBJECTS;
+        console.error('Error loading section subjects:', error);
+        state.sectionSubjects = [];
     }
 
     // Load schedule slots
     try {
-        const subjectIds = state.sectionSubjects.map(ss => ss.id);
-        let allSlots = [];
-        for (const ssId of subjectIds) {
-            const response = await api.get(`${endpoints.scheduleSlots}?section_subject=${ssId}`);
-            const slots = response?.results || response || [];
-            allSlots = allSlots.concat(slots);
+        if (state.sectionSubjects.length === 0) {
+            state.scheduleSlots = [];
+            console.log('No section subjects, skipping schedule slots');
+        } else {
+            const subjectIds = state.sectionSubjects.map(ss => ss.id);
+            let allSlots = [];
+            for (const ssId of subjectIds) {
+                const response = await api.get(`${endpoints.scheduleSlots}?section_subject=${ssId}`);
+                const slots = response?.results || response || [];
+                allSlots = allSlots.concat(slots);
+            }
+            state.scheduleSlots = allSlots;
+            console.log(`Loaded ${allSlots.length} schedule slots`);
         }
-        state.scheduleSlots = allSlots.length > 0 ? allSlots : MOCK_SCHEDULE;
-        console.log('Loaded schedule slots:', state.scheduleSlots);
     } catch (error) {
         console.error('Error loading schedule slots:', error);
-        state.scheduleSlots = MOCK_SCHEDULE;
+        state.scheduleSlots = [];
     }
 
     render();
