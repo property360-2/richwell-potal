@@ -246,7 +246,7 @@ function renderScheduleGrid() {
           <h3 class="font-semibold text-gray-700 mb-3">Subjects Legend</h3>
           <div class="flex flex-wrap gap-2">
             ${state.sectionSubjects.map((ss, i) => `
-              <span class="px-3 py-1 rounded-full text-xs font-medium border ${getSubjectColor(i)}">${ss.subject?.code}</span>
+              <span class="px-3 py-1 rounded-full text-xs font-medium border ${getSubjectColor(i)}">${ss.subject_code || ss.subject?.code || 'Unknown'}</span>
             `).join('')}
           </div>
         </div>
@@ -279,7 +279,7 @@ function renderScheduleGrid() {
             return `
                     <div class="p-1 relative" style="grid-row: span ${Math.ceil(duration)}">
                       <div onclick="editSlot('${slot.id}')" class="p-2 rounded-lg border cursor-pointer hover:shadow-md transition-shadow h-full ${getSubjectColor(colorIndex)}" style="min-height: ${duration * 48}px">
-                        <p class="font-semibold text-xs">${ss?.subject?.code || 'N/A'}</p>
+                        <p class="font-semibold text-xs">${ss?.subject_code || ss?.subject?.code || 'N/A'}</p>
                         <p class="text-xs opacity-75">${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}</p>
                         <p class="text-xs opacity-75">${slot.room}</p>
                       </div>
@@ -344,7 +344,7 @@ function renderSlotModal() {
             <select id="slot-subject" class="form-input" required>
               <option value="">Select a subject...</option>
               ${state.sectionSubjects.map(ss => `
-                <option value="${ss.id}" ${slot.section_subject === ss.id ? 'selected' : ''}>${ss.subject?.code} - ${ss.subject?.title}</option>
+                <option value="${ss.id}" ${slot.section_subject === ss.id ? 'selected' : ''}>${ss.subject_code || ss.subject?.code || 'Unknown'} - ${ss.subject_title || ss.subject?.title || 'Unknown'}</option>
               `).join('')}
             </select>
           </div>
