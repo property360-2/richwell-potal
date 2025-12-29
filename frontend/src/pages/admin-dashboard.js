@@ -1,16 +1,18 @@
-import { createNav } from '../components/nav.js';
-import { checkAuth } from '../utils/auth.js';
-import api, { endpoints } from '../api.js';
+import { createHeader } from '../components/header.js';
+import api, { endpoints, TokenManager } from '../api.js';
 
-// Check authentication
-const user = checkAuth(['ADMIN']);
+// Get user from localStorage
+const user = TokenManager.getUser();
+if (!user || user.role !== 'ADMIN') {
+    window.location.href = '/login.html';
+}
 
 // Initialize the page
 document.addEventListener('DOMContentLoaded', async () => {
     const app = document.getElementById('app');
 
     app.innerHTML = `
-        ${createNav(user, 'admin-dashboard')}
+        ${createHeader(user, 'admin-dashboard')}
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div class="mb-8">

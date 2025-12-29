@@ -73,6 +73,7 @@ function formatRole(role) {
     'student': 'Student Portal',
     'REGISTRAR': 'Registrar Portal',
     'registrar': 'Registrar Portal',
+    'HEAD_REGISTRAR': 'Registrar Portal',
     'PROFESSOR': 'Professor Portal',
     'professor': 'Professor Portal',
     'DEPARTMENT_HEAD': 'Department Head',
@@ -81,7 +82,9 @@ function formatRole(role) {
     'cashier': 'Cashier Portal',
     'ADMISSION': 'Admission Office',
     'ADMISSION_STAFF': 'Admission Office',
-    'admission': 'Admission Office'
+    'admission': 'Admission Office',
+    'ADMIN': 'Admin Portal',
+    'admin': 'Admin Portal'
   };
   return roleDisplayMap[role] || 'Portal';
 }
