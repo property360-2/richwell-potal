@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatCurrency, requireAuth } from '../utils.js';
+import { formatCurrency, requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { ConfirmModal, AlertModal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -80,7 +84,7 @@ async function loadData() {
       }
     } catch (err) {
       console.error('Failed to load recommended subjects:', err);
-      showToast('Error loading subjects: ' + (err.message || 'Unknown error'), 'error');
+      Toast.error('Error loading subjects: ' + (err.message || 'Unknown error'));
       state.recommendedSubjects = [];
     }
 
@@ -160,7 +164,7 @@ async function loadData() {
     state.recommendedSubjects = [];
     state.availableSubjects = [];
     state.enrolledSubjects = [];
-    showToast('Failed to load data. Please refresh.', 'error');
+    Toast.error('Failed to load data. Please refresh.');
   }
   state.loading = false;
 }
@@ -322,7 +326,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading enrollment data...');
     return;
   }
 
@@ -557,21 +561,6 @@ function render() {
   }
 
   attachEventListeners();
-}
-
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading subjects...</p>
-      </div>
-    </div>
-  `;
 }
 
 function renderUnitCounter() {
@@ -1171,40 +1160,40 @@ window.enrollSubject = function (subjectId, sectionId) {
 
   if (!subject) {
     console.error('Subject not found. Available subjects:', state.recommendedSubjects, state.availableSubjects);
-    showToast('Subject not found', 'error');
+    Toast.error('Subject not found');
     return;
   }
 
   // Find the section
   const section = subject.sections?.find(sec => sec.id == sectionId);
   if (!section) {
-    showToast('Section not found', 'error');
+    Toast.error('Section not found');
     return;
   }
 
   // Check if already in cart
   const alreadyInCart = state.cart.some(item => item.subject.id === subject.id);
   if (alreadyInCart) {
-    showToast('Subject already in your enrollment list', 'warning');
+    Toast.warning('Subject already in your enrollment list');
     return;
   }
 
   // Calculate total units including cart items
   const cartUnits = state.cart.reduce((sum, item) => sum + item.subject.units, 0);
   if (state.totalUnits + cartUnits + subject.units > state.maxUnits) {
-    showToast(`Adding this subject would exceed the ${state.maxUnits}-unit limit`, 'error');
+    Toast.error(`Adding this subject would exceed the ${state.maxUnits}-unit limit`);
     return;
   }
 
   // Add to cart
   state.cart.push({ subject, section });
-  showToast(`${subject.code} added to enrollment list`, 'success');
+  Toast.success(`${subject.code} added to enrollment list`);
   render();
 };
 
 window.removeFromCart = function (subjectId) {
   state.cart = state.cart.filter(item => item.subject.id !== subjectId);
-  showToast('Subject removed from enrollment list', 'info');
+  Toast.info('Subject removed from enrollment list');
   render();
 };
 
@@ -1215,7 +1204,7 @@ window.closeCartConfirmModal = function () {
 
 window.showConfirmAllModal = function () {
   if (state.cart.length === 0) {
-    showToast('Please add subjects to your enrollment list first', 'warning');
+    Toast.warning('Please add subjects to your enrollment list first');
     return;
   }
   state.showCartConfirmModal = true;
@@ -1263,14 +1252,14 @@ window.confirmAllEnrollments = async function () {
     render();
 
     if (failCount === 0) {
-      showToast(`Successfully enrolled in ${successCount} subject(s)!`, 'success');
+      Toast.success(`Successfully enrolled in ${successCount} subject(s)!`);
     } else {
-      showToast(`Enrolled: ${successCount}, Failed: ${failCount}. Please try again for failed subjects.`, 'warning');
+      Toast.warning(`Enrolled: ${successCount}, Failed: ${failCount}. Please try again for failed subjects.`);
     }
 
   } catch (error) {
     console.error('Bulk enrollment failed:', error);
-    showToast('Failed to process enrollments. Please try again.', 'error');
+    Toast.error('Failed to process enrollments. Please try again.');
   }
 };
 
@@ -1326,7 +1315,7 @@ window.confirmEditEnrollment = async function() {
     const allSubjects = [...state.recommendedSubjects, ...state.availableSubjects];
     const currentSubject = allSubjects.find(s => s.code === enrollment.subject.code);
     if (!currentSubject) {
-      showToast('Error: Cannot find current subject', 'error');
+      Toast.error('Error: Cannot find current subject');
       return;
     }
     subjectId = currentSubject.id;
@@ -1339,17 +1328,17 @@ window.confirmEditEnrollment = async function() {
     });
 
     if (response.success) {
-      showToast(response.message || 'Enrollment updated successfully!', 'success');
+      Toast.success(response.message || 'Enrollment updated successfully!');
       closeEditModal();
       await loadData();
       render();
     } else {
-      showToast(response.error || 'Failed to update enrollment', 'error');
+      Toast.error(response.error || 'Failed to update enrollment');
     }
   } catch (error) {
     console.error('Edit enrollment error:', error);
     const errorMsg = error.error || error.message || 'Failed to update enrollment';
-    showToast(errorMsg, 'error');
+    Toast.error(errorMsg);
   }
 };
 
@@ -1390,7 +1379,7 @@ window.closeSchedulePreview = function () {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
