@@ -49,15 +49,7 @@ async function checkEnrollmentStatus() {
   }
 }
 
-// Mock programs for development (fallback)
-const MOCK_PROGRAMS = [
-  { id: '1', code: 'BSIT', name: 'Bachelor of Science in Information Technology', tuition_per_semester: 30000 },
-  { id: '2', code: 'BSCS', name: 'Bachelor of Science in Computer Science', tuition_per_semester: 32000 },
-  { id: '3', code: 'BSBA', name: 'Bachelor of Science in Business Administration', tuition_per_semester: 28000 },
-  { id: '4', code: 'BSA', name: 'Bachelor of Science in Accountancy', tuition_per_semester: 35000 },
-  { id: '5', code: 'BSED', name: 'Bachelor of Secondary Education', tuition_per_semester: 25000 },
-  { id: '6', code: 'BSHM', name: 'Bachelor of Science in Hospitality Management', tuition_per_semester: 28000 }
-];
+// No more mock data - all data comes from real API
 
 // Load available programs
 async function loadPrograms() {
@@ -66,15 +58,17 @@ async function loadPrograms() {
     if (response.ok) {
       const data = await response.json();
       const programs = data.results || data || [];
-      // Use mock data if API returns empty
-      state.programs = programs.length > 0 ? programs : MOCK_PROGRAMS;
+      state.programs = programs;
+      if (programs.length === 0) {
+        console.warn('No programs found in the system');
+      }
     } else {
-      // API returned error, use mock data
-      state.programs = MOCK_PROGRAMS;
+      console.error('Failed to load programs:', response.status);
+      state.programs = [];
     }
   } catch (error) {
-    console.log('Could not load programs, using defaults');
-    state.programs = MOCK_PROGRAMS;
+    console.error('Failed to load programs:', error);
+    state.programs = [];
   }
 }
 

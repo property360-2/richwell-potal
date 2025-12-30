@@ -27,19 +27,7 @@ for (let hour = 7; hour <= 21; hour++) {
   TIME_SLOTS.push(`${hour.toString().padStart(2, '0')}:00`);
 }
 
-// Mock data
-const MOCK_SCHEDULE = [
-  { id: '1', section: { name: 'BSIT-1A' }, subject: { code: 'IT101', title: 'Introduction to Computing' }, day: 'MON', start_time: '08:00', end_time: '09:30', room: 'Room 301' },
-  { id: '2', section: { name: 'BSIT-1B' }, subject: { code: 'IT101', title: 'Introduction to Computing' }, day: 'MON', start_time: '10:00', end_time: '11:30', room: 'Room 301' },
-  { id: '3', section: { name: 'BSIT-1A' }, subject: { code: 'IT101', title: 'Introduction to Computing' }, day: 'WED', start_time: '08:00', end_time: '09:30', room: 'Room 301' },
-  { id: '4', section: { name: 'BSIT-1B' }, subject: { code: 'IT101', title: 'Introduction to Computing' }, day: 'WED', start_time: '10:00', end_time: '11:30', room: 'Room 301' },
-  { id: '5', section: { name: 'BSCS-1A' }, subject: { code: 'CS101', title: 'Intro to Computer Science' }, day: 'TUE', start_time: '13:00', end_time: '14:30', room: 'CL1' },
-  { id: '6', section: { name: 'BSCS-1A' }, subject: { code: 'CS101', title: 'Intro to Computer Science' }, day: 'THU', start_time: '13:00', end_time: '14:30', room: 'CL1' }
-];
-
-const MOCK_SEMESTERS = [
-  { id: '1', name: '1st Semester 2024-2025', is_active: true }
-];
+// No more mock data - all data comes from real API
 
 // Color palette
 const COLORS = [
@@ -84,25 +72,36 @@ async function loadUserProfile() {
 async function loadSemesters() {
   try {
     const response = await api.get(endpoints.semesters);
-    state.semesters = response?.results || response || MOCK_SEMESTERS;
-    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0];
+    state.semesters = response?.results || response || [];
+    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0] || null;
+    if (!state.semesters.length) {
+      console.warn('No semesters found in the system');
+    }
   } catch (error) {
-    state.semesters = MOCK_SEMESTERS;
-    state.activeSemester = MOCK_SEMESTERS[0];
+    console.error('Failed to load semesters:', error);
+    showToast('Failed to load semesters. Please refresh the page.', 'error');
+    state.semesters = [];
+    state.activeSemester = null;
   }
 }
 
 async function loadSchedule() {
   if (!state.user?.id || !state.activeSemester?.id) {
-    state.schedule = MOCK_SCHEDULE;
+    state.schedule = [];
+    console.warn('Missing user ID or active semester');
     return;
   }
 
   try {
     const response = await api.get(endpoints.professorSchedule(state.user.id, state.activeSemester.id));
-    state.schedule = response?.results || response || MOCK_SCHEDULE;
+    state.schedule = response?.results || response || [];
+    if (!state.schedule.length) {
+      console.warn('No schedule found for professor');
+    }
   } catch (error) {
-    state.schedule = MOCK_SCHEDULE;
+    console.error('Failed to load professor schedule:', error);
+    showToast('Failed to load schedule. Please refresh the page.', 'error');
+    state.schedule = [];
   }
 }
 

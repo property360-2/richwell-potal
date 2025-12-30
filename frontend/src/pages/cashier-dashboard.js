@@ -23,77 +23,7 @@ const state = {
   }
 };
 
-// Mock students data
-const mockStudents = [
-  {
-    id: 1,
-    student_number: '2024-00001',
-    first_name: 'Juan',
-    last_name: 'Dela Cruz',
-    email: 'jdelacruz@richwell.edu.ph',
-    program: { code: 'BSIT', name: 'BS Information Technology' },
-    enrollment_status: 'ACTIVE',
-    paymentBuckets: [
-      { month: 1, required: 5000, paid: 5000 },
-      { month: 2, required: 5000, paid: 3500 },
-      { month: 3, required: 5000, paid: 0 },
-      { month: 4, required: 5000, paid: 0 },
-      { month: 5, required: 5000, paid: 0 },
-      { month: 6, required: 5000, paid: 0 }
-    ],
-    paymentHistory: [
-      { id: 1, date: '2024-09-10', amount: 5000, receipt: 'OR-2024-0001', monthApplied: 1 },
-      { id: 2, date: '2024-10-08', amount: 2000, receipt: 'OR-2024-0045', monthApplied: 2 },
-      { id: 3, date: '2024-10-20', amount: 1500, receipt: 'OR-2024-0067', monthApplied: 2 }
-    ]
-  },
-  {
-    id: 2,
-    student_number: '2024-00002',
-    first_name: 'Maria',
-    last_name: 'Santos',
-    email: 'msantos@richwell.edu.ph',
-    program: { code: 'BSCS', name: 'BS Computer Science' },
-    enrollment_status: 'PENDING',
-    paymentBuckets: [
-      { month: 1, required: 5000, paid: 0 },
-      { month: 2, required: 5000, paid: 0 },
-      { month: 3, required: 5000, paid: 0 },
-      { month: 4, required: 5000, paid: 0 },
-      { month: 5, required: 5000, paid: 0 },
-      { month: 6, required: 5000, paid: 0 }
-    ],
-    paymentHistory: []
-  },
-  {
-    id: 3,
-    student_number: '2024-00003',
-    first_name: 'Pedro',
-    last_name: 'Garcia',
-    email: 'pgarcia@richwell.edu.ph',
-    program: { code: 'BSIT', name: 'BS Information Technology' },
-    enrollment_status: 'ACTIVE',
-    paymentBuckets: [
-      { month: 1, required: 5000, paid: 5000 },
-      { month: 2, required: 5000, paid: 5000 },
-      { month: 3, required: 5000, paid: 5000 },
-      { month: 4, required: 5000, paid: 2000 },
-      { month: 5, required: 5000, paid: 0 },
-      { month: 6, required: 5000, paid: 0 }
-    ],
-    paymentHistory: [
-      { id: 4, date: '2024-09-05', amount: 5000, receipt: 'OR-2024-0005', monthApplied: 1 },
-      { id: 5, date: '2024-10-03', amount: 5000, receipt: 'OR-2024-0032', monthApplied: 2 },
-      { id: 6, date: '2024-11-02', amount: 5000, receipt: 'OR-2024-0089', monthApplied: 3 },
-      { id: 7, date: '2024-12-01', amount: 2000, receipt: 'OR-2024-0120', monthApplied: 4 }
-    ]
-  }
-];
-
-const mockTodayTransactions = [
-  { id: 1, time: '09:15 AM', student: 'Juan Dela Cruz', studentNumber: '2024-00001', amount: 1500, receipt: 'OR-2024-0067', monthApplied: 2 },
-  { id: 2, time: '10:30 AM', student: 'Pedro Garcia', studentNumber: '2024-00003', amount: 2000, receipt: 'OR-2024-0120', monthApplied: 4 }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -523,30 +453,17 @@ window.searchStudent = async function () {
   render();
 
   try {
-    // Try to call the real API
     const response = await api.get(`${endpoints.cashierStudentSearch}?q=${encodeURIComponent(state.searchQuery)}`);
     if (response?.results) {
       state.searchResults = response.results;
     } else {
-      // Fallback to mock data
-      const query = state.searchQuery.toLowerCase();
-      state.searchResults = mockStudents.filter(s =>
-        s.student_number.toLowerCase().includes(query) ||
-        s.first_name.toLowerCase().includes(query) ||
-        s.last_name.toLowerCase().includes(query) ||
-        `${s.first_name} ${s.last_name}`.toLowerCase().includes(query)
-      );
+      state.searchResults = [];
+      console.warn('No students found for query:', state.searchQuery);
     }
   } catch (error) {
-    console.log('API search failed, using mock:', error);
-    // Fallback to mock data
-    const query = state.searchQuery.toLowerCase();
-    state.searchResults = mockStudents.filter(s =>
-      s.student_number.toLowerCase().includes(query) ||
-      s.first_name.toLowerCase().includes(query) ||
-      s.last_name.toLowerCase().includes(query) ||
-      `${s.first_name} ${s.last_name}`.toLowerCase().includes(query)
-    );
+    console.error('Failed to search students:', error);
+    showToast('Failed to search students. Please try again.', 'error');
+    state.searchResults = [];
   }
 
   state.searchLoading = false;
@@ -560,9 +477,10 @@ window.selectStudent = function (studentId) {
   if (!state.selectedStudent) {
     state.selectedStudent = state.pendingPayments.find(s => s.id === studentId || s.id === String(studentId));
   }
-  // Fallback to mock data
+  // If still not found, show error
   if (!state.selectedStudent) {
-    state.selectedStudent = mockStudents.find(s => s.id === studentId);
+    showToast('Student not found', 'error');
+    return;
   }
 
   // Normalize the payment buckets format

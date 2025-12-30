@@ -17,35 +17,7 @@ const state = {
   showConfirmModal: false
 };
 
-const mockSubjects = [
-  {
-    id: 1, code: 'IT101', name: 'Introduction to Computing', units: 3, sections: [
-      { id: 1, name: 'A', slots: 40, enrolled: 38, schedule: 'MWF 8:00-9:00 AM' },
-      { id: 2, name: 'B', slots: 40, enrolled: 35, schedule: 'TTH 9:00-10:30 AM' }
-    ]
-  },
-  {
-    id: 2, code: 'IT102', name: 'Computer Programming 1', units: 3, sections: [
-      { id: 3, name: 'A', slots: 35, enrolled: 35, schedule: 'MWF 10:00-11:00 AM' },
-      { id: 4, name: 'B', slots: 35, enrolled: 30, schedule: 'TTH 1:00-2:30 PM' }
-    ]
-  },
-  {
-    id: 3, code: 'GE101', name: 'Understanding the Self', units: 3, sections: [
-      { id: 5, name: 'A', slots: 50, enrolled: 40, schedule: 'MWF 1:00-2:00 PM' }
-    ]
-  },
-  {
-    id: 4, code: 'GE102', name: 'Readings in Philippine History', units: 3, sections: [
-      { id: 6, name: 'A', slots: 50, enrolled: 45, schedule: 'TTH 3:00-4:30 PM' }
-    ]
-  },
-  {
-    id: 5, code: 'MATH101', name: 'Mathematics in the Modern World', units: 3, sections: [
-      { id: 7, name: 'A', slots: 40, enrolled: 35, schedule: 'MWF 2:00-3:00 PM' }
-    ]
-  }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -61,9 +33,22 @@ async function loadData() {
       state.user = userResponse;
     }
   } catch (error) {
-    console.error('Failed to load data:', error);
+    console.error('Failed to load user data:', error);
   }
-  state.availableSubjects = mockSubjects; // Always load mock subjects for now
+
+  // Load available subjects from API
+  try {
+    const response = await api.get(endpoints.manageSubjects);
+    const subjects = response?.results || response || [];
+    state.availableSubjects = subjects;
+    if (subjects.length === 0) {
+      console.warn('No subjects found in the system');
+    }
+  } catch (error) {
+    console.error('Failed to load subjects:', error);
+    state.availableSubjects = [];
+  }
+
   state.loading = false;
 }
 

@@ -17,54 +17,7 @@ const state = {
   showApprovalModal: false
 };
 
-// Mock data for development
-const mockPendingEnrollments = [
-  {
-    id: '1',
-    student_name: 'Juan Dela Cruz',
-    student_number: '2025-00001',
-    program: 'BSIT',
-    year_level: 1,
-    subjects: [
-      { id: '101', code: 'IT101', name: 'Introduction to Computing', units: 3, section: 'A', schedule: 'MWF 8:00-9:00 AM', status: 'PENDING_PAYMENT' },
-      { id: '102', code: 'IT102', name: 'Computer Programming 1', units: 3, section: 'A', schedule: 'MWF 10:00-11:00 AM', status: 'PENDING_PAYMENT' },
-      { id: '103', code: 'GE101', name: 'Understanding the Self', units: 3, section: 'B', schedule: 'TTH 1:00-2:30 PM', status: 'PENDING_PAYMENT' }
-    ],
-    total_units: 9,
-    payment_status: 'Month 1 Paid',
-    enrolled_at: '2024-12-14T10:30:00Z'
-  },
-  {
-    id: '2',
-    student_name: 'Maria Santos',
-    student_number: '2025-00002',
-    program: 'BSIT',
-    year_level: 1,
-    subjects: [
-      { id: '201', code: 'IT101', name: 'Introduction to Computing', units: 3, section: 'B', schedule: 'TTH 9:00-10:30 AM', status: 'PENDING_PAYMENT' },
-      { id: '202', code: 'MATH101', name: 'Mathematics in Modern World', units: 3, section: 'A', schedule: 'MWF 9:00-10:00 AM', status: 'PENDING_PAYMENT' }
-    ],
-    total_units: 6,
-    payment_status: 'Month 1 Paid',
-    enrolled_at: '2024-12-14T11:15:00Z'
-  },
-  {
-    id: '3',
-    student_name: 'Pedro Garcia',
-    student_number: '2025-00003',
-    program: 'BSCS',
-    year_level: 2,
-    subjects: [
-      { id: '301', code: 'IT201', name: 'Data Structures', units: 3, section: 'A', schedule: 'MWF 1:00-2:00 PM', status: 'PENDING_PAYMENT' },
-      { id: '302', code: 'IT202', name: 'Database Management', units: 3, section: 'A', schedule: 'TTH 10:30-12:00 PM', status: 'PENDING_PAYMENT' },
-      { id: '303', code: 'IT203', name: 'Web Development', units: 3, section: 'B', schedule: 'MWF 3:00-4:00 PM', status: 'PENDING_PAYMENT' },
-      { id: '304', code: 'GE201', name: 'Ethics', units: 3, section: 'A', schedule: 'TTH 3:00-4:30 PM', status: 'PENDING_PAYMENT' }
-    ],
-    total_units: 12,
-    payment_status: 'Month 1 Paid',
-    enrolled_at: '2024-12-14T14:20:00Z'
-  }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -133,9 +86,11 @@ async function loadPendingEnrollments() {
       console.log('Grouped enrollments:', state.pendingEnrollments);
     } else {
       state.pendingEnrollments = [];
+      console.warn('No pending enrollments found');
     }
   } catch (error) {
     console.error('Failed to load pending enrollments:', error);
+    showToast('Failed to load pending enrollments. Please refresh the page.', 'error');
     state.pendingEnrollments = [];
   }
   state.loading = false;

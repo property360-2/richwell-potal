@@ -25,71 +25,7 @@ const state = {
   showEditModal: false
 };
 
-// Mock data for development
-const mockRecommendedSubjects = [
-  {
-    id: 1, code: 'IT101', name: 'Introduction to Computing', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-      { id: 1, name: 'A', slots: 40, enrolled: 35, schedule: 'MWF 8:00-9:00 AM' },
-      { id: 2, name: 'B', slots: 40, enrolled: 28, schedule: 'TTH 9:00-10:30 AM' }
-    ]
-  },
-  {
-    id: 2, code: 'IT102', name: 'Computer Programming 1', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-      { id: 3, name: 'A', slots: 35, enrolled: 30, schedule: 'MWF 10:00-11:00 AM' },
-      { id: 4, name: 'B', slots: 35, enrolled: 20, schedule: 'TTH 1:00-2:30 PM' }
-    ]
-  },
-  {
-    id: 3, code: 'GE101', name: 'Understanding the Self', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-      { id: 5, name: 'A', slots: 50, enrolled: 45, schedule: 'MWF 1:00-2:00 PM' }
-    ]
-  },
-  {
-    id: 4, code: 'GE102', name: 'Readings in Philippine History', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-      { id: 6, name: 'A', slots: 50, enrolled: 38, schedule: 'TTH 3:00-4:30 PM' }
-    ]
-  },
-  {
-    id: 5, code: 'MATH101', name: 'Mathematics in the Modern World', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-      { id: 7, name: 'A', slots: 40, enrolled: 35, schedule: 'MWF 9:00-10:00 AM' },
-      { id: 8, name: 'B', slots: 40, enrolled: 32, schedule: 'TTH 10:30-12:00 PM' }
-    ]
-  },
-  {
-    id: 6, code: 'PE101', name: 'Physical Fitness', units: 2, prerequisite: null, prerequisite_met: true, sections: [
-      { id: 9, name: 'A', slots: 60, enrolled: 50, schedule: 'SAT 8:00-10:00 AM' }
-    ]
-  },
-  {
-    id: 7, code: 'NSTP1', name: 'National Service Training Program 1', units: 3, prerequisite: null, prerequisite_met: true, sections: [
-      { id: 10, name: 'A', slots: 100, enrolled: 85, schedule: 'SAT 10:00-1:00 PM' }
-    ]
-  }
-];
-
-const mockAvailableSubjects = [
-  ...mockRecommendedSubjects,
-  {
-    id: 8, code: 'IT201', name: 'Computer Programming 2', units: 3, prerequisite: 'IT102', prerequisite_met: false, sections: [
-      { id: 11, name: 'A', slots: 35, enrolled: 25, schedule: 'MWF 2:00-3:00 PM' }
-    ]
-  },
-  {
-    id: 9, code: 'IT202', name: 'Data Structures', units: 3, prerequisite: 'IT201', prerequisite_met: false, sections: [
-      { id: 12, name: 'A', slots: 35, enrolled: 20, schedule: 'TTH 8:00-9:30 AM' }
-    ]
-  },
-  {
-    id: 10, code: 'IT301', name: 'Database Management', units: 3, prerequisite: 'IT202', prerequisite_met: false, sections: [
-      { id: 13, name: 'A', slots: 30, enrolled: 18, schedule: 'MWF 3:00-4:00 PM' }
-    ]
-  }
-];
-
-const mockEnrolledSubjects = [
-  { id: 101, subject: { code: 'IT101', name: 'Introduction to Computing' }, section: 'A', units: 3, schedule: 'MWF 8:00-9:00 AM', status: 'ENROLLED' },
-  { id: 102, subject: { code: 'IT102', name: 'Computer Programming 1' }, section: 'A', units: 3, schedule: 'MWF 10:00-11:00 AM', status: 'ENROLLED' }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -139,12 +75,13 @@ async function loadData() {
       } else if (recommendedResponse?.length) {
         state.recommendedSubjects = recommendedResponse;
       } else {
-        state.recommendedSubjects = mockRecommendedSubjects;
+        state.recommendedSubjects = [];
+        console.warn('No recommended subjects found');
       }
     } catch (err) {
-      console.log('Failed to load recommended subjects:', err);
+      console.error('Failed to load recommended subjects:', err);
       showToast('Error loading subjects: ' + (err.message || 'Unknown error'), 'error');
-      state.recommendedSubjects = mockRecommendedSubjects;
+      state.recommendedSubjects = [];
     }
 
     // Try to load all available subjects
@@ -168,10 +105,12 @@ async function loadData() {
       } else if (availableResponse?.length) {
         state.availableSubjects = availableResponse;
       } else {
-        state.availableSubjects = mockAvailableSubjects;
+        state.availableSubjects = [];
+        console.warn('No available subjects found');
       }
-    } catch {
-      state.availableSubjects = mockAvailableSubjects;
+    } catch (error) {
+      console.error('Failed to load available subjects:', error);
+      state.availableSubjects = [];
     }
 
     // Try to load enrolled subjects
@@ -200,10 +139,12 @@ async function loadData() {
       } else if (enrolledResponse?.length) {
         state.enrolledSubjects = enrolledResponse;
       } else {
-        state.enrolledSubjects = mockEnrolledSubjects;
+        state.enrolledSubjects = [];
+        console.warn('No enrolled subjects found');
       }
-    } catch {
-      state.enrolledSubjects = mockEnrolledSubjects;
+    } catch (error) {
+      console.error('Failed to load enrolled subjects:', error);
+      state.enrolledSubjects = [];
     }
 
     // Calculate total enrolled units if not set

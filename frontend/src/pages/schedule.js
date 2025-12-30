@@ -33,25 +33,7 @@ for (let hour = 7; hour <= 21; hour++) {
     TIME_SLOTS.push(`${hour.toString().padStart(2, '0')}:00`);
 }
 
-// Mock data
-const MOCK_SECTIONS = [
-    { id: '1', name: 'BSIT-1A', program: { code: 'BSIT' }, year_level: 1 },
-    { id: '2', name: 'BSIT-1B', program: { code: 'BSIT' }, year_level: 1 },
-    { id: '3', name: 'BSCS-1A', program: { code: 'BSCS' }, year_level: 1 }
-];
-
-const MOCK_SECTION_SUBJECTS = [
-    { id: '1', subject: { id: '1', code: 'IT101', title: 'Introduction to Computing' }, professor: { id: '1', first_name: 'Juan', last_name: 'Dela Cruz' } },
-    { id: '2', subject: { id: '2', code: 'IT102', title: 'Computer Programming 1' }, professor: { id: '2', first_name: 'Maria', last_name: 'Santos' } },
-    { id: '3', subject: { id: '3', code: 'GE101', title: 'English Communication' }, professor: { id: '3', first_name: 'Pedro', last_name: 'Reyes' } }
-];
-
-const MOCK_SCHEDULE = [
-    { id: '1', section_subject: '1', day: 'MON', start_time: '08:00', end_time: '09:30', room: 'Room 301' },
-    { id: '2', section_subject: '2', day: 'MON', start_time: '10:00', end_time: '11:30', room: 'CL1' },
-    { id: '3', section_subject: '1', day: 'WED', start_time: '08:00', end_time: '09:30', room: 'Room 301' },
-    { id: '4', section_subject: '3', day: 'TUE', start_time: '13:00', end_time: '14:30', room: 'Room 201' }
-];
+// No more mock data - all data comes from real API
 
 // Color palette for subjects
 const COLORS = [
@@ -548,26 +530,10 @@ window.saveSlot = async function (e) {
             }
         }
     } catch (error) {
-        console.error('API error, falling back to mock mode:', error);
+        console.error('Failed to save schedule slot:', error);
+        const errorMessage = error?.error || error?.message || 'Failed to save schedule slot. Please try again.';
+        showToast(errorMessage, 'error');
     }
-
-    // Fallback to mock mode if API fails
-    const ss = state.sectionSubjects.find(s => s.id === data.section_subject);
-    if (state.editingSlot) {
-        const idx = state.scheduleSlots.findIndex(s => s.id === state.editingSlot);
-        if (idx >= 0) {
-            state.scheduleSlots[idx] = { ...state.scheduleSlots[idx], ...data };
-        }
-        showToast('Schedule slot updated (mock)!', 'success');
-    } else {
-        state.scheduleSlots.push({
-            id: Date.now().toString(),
-            ...data
-        });
-        showToast('Schedule slot added (mock)!', 'success');
-    }
-    closeSlotModal();
-    render();
 };
 
 window.deleteSlot = async function (id) {
@@ -579,12 +545,13 @@ window.deleteSlot = async function (id) {
             showToast('Schedule slot deleted!', 'success');
             closeSlotModal();
             await selectSection(state.selectedSection.id);
+        } else {
+            const error = await response?.json();
+            showToast(error?.detail || 'Failed to delete schedule slot', 'error');
         }
     } catch (error) {
-        state.scheduleSlots = state.scheduleSlots.filter(s => s.id !== id);
-        showToast('Schedule slot deleted (mock)', 'success');
-        closeSlotModal();
-        render();
+        console.error('Failed to delete schedule slot:', error);
+        showToast('Failed to delete schedule slot. Please try again.', 'error');
     }
 };
 
@@ -611,14 +578,13 @@ window.overrideConflict = async function () {
             closeConflictModal();
             closeSlotModal();
             await selectSection(state.selectedSection.id);
+        } else {
+            const error = await response?.json();
+            showToast(error?.detail || 'Failed to override conflict', 'error');
         }
     } catch (error) {
-        // Mock success
-        state.scheduleSlots.push({ id: Date.now().toString(), ...data });
-        showToast('Schedule slot added with override (mock)', 'success');
-        closeConflictModal();
-        closeSlotModal();
-        render();
+        console.error('Failed to override conflict:', error);
+        showToast('Failed to override conflict. Please try again.', 'error');
     }
 };
 
