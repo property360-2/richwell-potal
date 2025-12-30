@@ -21,6 +21,8 @@ from .serializers import (
     PermissionCategorySerializer
 )
 from apps.audit.models import AuditLog
+from apps.core.decorators import ratelimit_method
+from .validators import PasswordValidator
 
 
 class LoginView(TokenObtainPairView):
@@ -36,6 +38,7 @@ class LoginView(TokenObtainPairView):
         description="Authenticate user and return JWT tokens",
         tags=["Authentication"]
     )
+    @ratelimit_method(key='ip', rate='5/m', method='POST')
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
 
@@ -144,11 +147,12 @@ class ChangePasswordView(APIView):
                 "error": "Current password is incorrect"
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validate new password
-        if len(new_password) < 6:
+        # Validate new password with enhanced security requirements
+        is_valid, error_message = PasswordValidator.validate(new_password)
+        if not is_valid:
             return Response({
                 "success": False,
-                "error": "New password must be at least 6 characters"
+                "error": error_message
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Set new password

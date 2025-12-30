@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { ConfirmModal, AlertModal } from '../components/Modal.js';
 
 // State management
 const state = {
@@ -43,7 +47,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading user profile', { showToast: false });
     const savedUser = TokenManager.getUser();
     if (savedUser) state.user = savedUser;
   }

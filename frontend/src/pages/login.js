@@ -123,18 +123,12 @@ function render() {
             </div>
           </div>
           
-          <!-- Test Accounts Info -->
+          <!-- Help Text -->
           <div class="mt-6 p-4 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
-            <p class="text-xs text-blue-300 text-center mb-2">Test Accounts</p>
-            <div class="text-xs text-blue-200 space-y-1">
-              <p><span class="text-white">Admin:</span> admin@richwell.edu.ph / admin123</p>
-              <p><span class="text-white">Registrar:</span> registrar@richwell.edu.ph / registrar123</p>
-              <p><span class="text-white">Dept Head:</span> jcentita@richwell.edu.ph / head123</p>
-              <p><span class="text-white">Cashier:</span> cashier@richwell.edu.ph / cashier123</p>
-              <p><span class="text-white">Professor:</span> professor@richwell.edu.ph / prof123</p>
-              <p><span class="text-white">Student:</span> student@richwell.edu.ph / student123</p>
-              <p><span class="text-white">Admission:</span> admission@richwell.edu.ph / admission123</p>
-            </div>
+            <p class="text-xs text-blue-300 text-center mb-2">Need Help?</p>
+            <p class="text-xs text-blue-200 text-center">
+              Contact the IT department if you've forgotten your password or need assistance accessing your account.
+            </p>
           </div>
         </div>
       </div>

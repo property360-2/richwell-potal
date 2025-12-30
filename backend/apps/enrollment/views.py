@@ -16,6 +16,7 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.core.permissions import IsRegistrar, IsAdmissionStaff, IsAdmin
 from apps.core.exceptions import EnrollmentLinkDisabledError, NotFoundError
+from apps.core.validators import validate_uploaded_file
 from apps.academics.models import Program, Subject
 from apps.academics.serializers import ProgramSerializer
 from apps.audit.models import AuditLog
@@ -185,7 +186,16 @@ class DocumentUploadView(APIView):
         serializer = DocumentUploadSerializer(data=request.data)
         if serializer.is_valid():
             uploaded_file = serializer.validated_data['file']
-            
+
+            # Validate file security (extension, size, MIME type)
+            try:
+                validate_uploaded_file(uploaded_file)
+            except Exception as e:
+                return Response({
+                    "success": False,
+                    "error": str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             document = EnrollmentDocument.objects.create(
                 enrollment=enrollment,
                 document_type=serializer.validated_data['document_type'],

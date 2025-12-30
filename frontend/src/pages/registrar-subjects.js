@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal, ConfirmModal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -10,22 +14,9 @@ const state = {
   subjects: [],
   programs: [],
   selectedProgram: null,
-  showAddModal: false,
-  showEditModal: false,
-  editingSubject: null,
-  formData: {
-    code: '',
-    name: '',
-    description: '',
-    units: 3,
-    program_ids: [],       // All programs (at least one required)
-    year_level: 1,
-    semester_number: 1,
-    has_prerequisites: false,
-    prerequisites: []
-  },
-  prerequisiteSearch: '',
-  filteredPrerequisites: []
+  addModal: null,
+  editModal: null,
+  editingSubject: null
 };
 
 async function init() {
@@ -45,7 +36,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading user profile', { showToast: false });
     const savedUser = TokenManager.getUser();
     if (savedUser) state.user = savedUser;
   }
@@ -56,7 +47,7 @@ async function loadPrograms() {
     const response = await api.get(endpoints.managePrograms);
     state.programs = response?.results || response || [];
   } catch (error) {
-    console.error('Failed to load programs:', error);
+    ErrorHandler.handle(error, 'Loading programs');
     state.programs = [];
   }
 }
@@ -70,7 +61,7 @@ async function loadSubjects() {
     const response = await api.get(url);
     state.subjects = response?.results || response || [];
   } catch (error) {
-    console.error('Failed to load subjects:', error);
+    ErrorHandler.handle(error, 'Loading subjects');
     state.subjects = [];
   }
 }
@@ -79,7 +70,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading subjects...');
     return;
   }
 
@@ -195,9 +186,6 @@ function render() {
         </div>
       </div>
     </main>
-
-    ${state.showAddModal ? renderAddModal() : ''}
-    ${state.showEditModal ? renderEditModal() : ''}
   `;
 }
 
@@ -409,20 +397,6 @@ function renderEditModal() {
   `;
 }
 
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading...</p>
-      </div>
-    </div>
-  `;
-}
-
 // Event handlers
 window.openAddModal = function() {
   state.showAddModal = true;
@@ -441,8 +415,7 @@ window.openEditModal = async function(subjectId) {
     state.showEditModal = true;
     render();
   } catch (error) {
-    console.error('Failed to load subject:', error);
-    showToast('Failed to load subject details', 'error');
+    ErrorHandler.handle(error, 'Loading subject details');
   }
 };
 
@@ -463,7 +436,7 @@ window.handleAddSubject = async function(event) {
     .map(cb => cb.value);
 
   if (checkedPrograms.length === 0) {
-    showToast('Please select at least one program', 'error');
+    Toast.error('Please select at least one program');
     return;
   }
 
@@ -485,13 +458,12 @@ window.handleAddSubject = async function(event) {
 
   try {
     const response = await api.post(endpoints.manageSubjects, data);
-    showToast('Subject added successfully', 'success');
+    Toast.success('Subject added successfully');
     state.showAddModal = false;
     await loadSubjects();
     render();
   } catch (error) {
-    console.error('Failed to add subject:', error);
-    showToast('Failed to add subject', 'error');
+    ErrorHandler.handle(error, 'Adding subject');
   }
 };
 
@@ -507,7 +479,7 @@ window.handleEditSubject = async function(event) {
     .map(cb => cb.value);
 
   if (checkedPrograms.length === 0) {
-    showToast('Please select at least one program', 'error');
+    Toast.error('Please select at least one program');
     return;
   }
 
@@ -529,30 +501,33 @@ window.handleEditSubject = async function(event) {
 
   try {
     await api.put(endpoints.manageSubject(state.editingSubject.id), data);
-    showToast('Subject updated successfully', 'success');
+    Toast.success('Subject updated successfully');
     state.showEditModal = false;
     state.editingSubject = null;
     await loadSubjects();
     render();
   } catch (error) {
-    console.error('Failed to update subject:', error);
-    showToast('Failed to update subject', 'error');
+    ErrorHandler.handle(error, 'Updating subject');
   }
 };
 
 window.deleteSubject = async function(subjectId) {
-  if (!confirm('Are you sure you want to delete this subject? This action cannot be undone.')) {
-    return;
-  }
+  const confirmed = await ConfirmModal({
+    title: 'Delete Subject',
+    message: 'Are you sure you want to delete this subject? This action cannot be undone.',
+    confirmLabel: 'Delete',
+    danger: true
+  });
+
+  if (!confirmed) return;
 
   try {
     await api.delete(endpoints.manageSubject(subjectId));
-    showToast('Subject deleted successfully', 'success');
+    Toast.success('Subject deleted successfully');
     await loadSubjects();
     render();
   } catch (error) {
-    console.error('Failed to delete subject:', error);
-    showToast('Failed to delete subject', 'error');
+    ErrorHandler.handle(error, 'Deleting subject');
   }
 };
 
@@ -564,7 +539,7 @@ window.filterByProgram = async function(programId) {
 
 window.logout = function() {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
