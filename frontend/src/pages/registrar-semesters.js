@@ -74,9 +74,8 @@ async function loadSemesters() {
       throw new Error('Failed to load semesters');
     }
   } catch (error) {
-    console.error('Error loading semesters:', error);
+    ErrorHandler.handle(error, 'Loading semesters');
     state.error = 'Failed to load semesters. Please try again.';
-    showToast('Failed to load semesters', 'error');
   } finally {
     state.loading = false;
     render();
@@ -91,7 +90,7 @@ async function createSemester(data) {
     const response = await api.post(endpoints.semesters, data);
 
     if (response && response.id) {
-      showToast('Semester created successfully!', 'success');
+      Toast.success('Semester created successfully!');
       state.showAddModal = false;
       resetForm();
       await loadSemesters();
@@ -99,8 +98,7 @@ async function createSemester(data) {
       throw new Error(response?.error || 'Failed to create semester');
     }
   } catch (error) {
-    console.error('Error creating semester:', error);
-    showToast(error.message || 'Failed to create semester. Please check your data and try again.', 'error');
+    ErrorHandler.handle(error, 'Creating semester');
   } finally {
     state.loading = false;
     render();
@@ -115,7 +113,7 @@ async function updateSemester(id, data) {
     const response = await api.put(endpoints.semesterDetail(id), data);
 
     if (response && response.id) {
-      showToast('Semester updated successfully!', 'success');
+      Toast.success('Semester updated successfully!');
       state.showEditModal = false;
       state.selectedSemester = null;
       resetForm();
@@ -124,8 +122,7 @@ async function updateSemester(id, data) {
       throw new Error(response?.error || 'Failed to update semester');
     }
   } catch (error) {
-    console.error('Error updating semester:', error);
-    showToast(error.message || 'Failed to update semester. Please check your data and try again.', 'error');
+    ErrorHandler.handle(error, 'Updating semester');
   } finally {
     state.loading = false;
     render();
@@ -140,7 +137,7 @@ async function deleteSemester(id) {
     const response = await api.delete(endpoints.semesterDetail(id));
 
     if (response && (response.success || response.message)) {
-      showToast('Semester deleted successfully!', 'success');
+      Toast.success('Semester deleted successfully!');
       state.showDeleteConfirm = false;
       state.selectedSemester = null;
       await loadSemesters();
@@ -148,8 +145,7 @@ async function deleteSemester(id) {
       throw new Error(response?.error || 'Failed to delete semester');
     }
   } catch (error) {
-    console.error('Error deleting semester:', error);
-    showToast(error.message || 'Failed to delete semester.', 'error');
+    ErrorHandler.handle(error, 'Deleting semester');
   } finally {
     state.loading = false;
     render();
@@ -164,14 +160,13 @@ async function setCurrentSemester(id) {
     const response = await api.post(endpoints.setCurrentSemester(id), {});
 
     if (response && (response.success || response.message)) {
-      showToast(response.message || 'Semester set as current successfully!', 'success');
+      Toast.success(response.message || 'Semester set as current successfully!');
       await loadSemesters();
     } else {
       throw new Error(response?.error || 'Failed to set current semester');
     }
   } catch (error) {
-    console.error('Error setting current semester:', error);
-    showToast(error.message || 'Failed to set current semester.', 'error');
+    ErrorHandler.handle(error, 'Setting current semester');
   } finally {
     state.loading = false;
     render();
@@ -295,12 +290,12 @@ function handleFormChange(field, value) {
   state.formData[field] = value;
 }
 
-function handleCreateSubmit(e) {
+async function handleCreateSubmit(e) {
   e.preventDefault();
 
   const errors = validateDates(state.formData);
   if (errors.length > 0) {
-    alert('Please fix the following errors:\n\n' + errors.join('\n'));
+    await AlertModal('Please fix the following errors:\n\n' + errors.join('\n'), 'Validation Error');
     return;
   }
 
@@ -312,12 +307,12 @@ function handleCreateSubmit(e) {
   createSemester(data);
 }
 
-function handleUpdateSubmit(e) {
+async function handleUpdateSubmit(e) {
   e.preventDefault();
 
   const errors = validateDates(state.formData);
   if (errors.length > 0) {
-    alert('Please fix the following errors:\n\n' + errors.join('\n'));
+    await AlertModal('Please fix the following errors:\n\n' + errors.join('\n'), 'Validation Error');
     return;
   }
 
@@ -333,13 +328,20 @@ function handleDeleteConfirm() {
   deleteSemester(state.selectedSemester.id);
 }
 
-function handleSetCurrent(semester) {
+async function handleSetCurrent(semester) {
   if (semester.is_current) {
-    alert('This semester is already set as current');
+    await AlertModal('This semester is already set as current', 'Notice');
     return;
   }
 
-  if (confirm(`Set "${semester.name} ${semester.academic_year}" as the current semester?`)) {
+  const confirmed = await ConfirmModal({
+    title: 'Set as Current Semester',
+    message: `Set "${semester.name} ${semester.academic_year}" as the current semester?`,
+    confirmLabel: 'Set as Current',
+    danger: false
+  });
+
+  if (confirmed) {
     setCurrentSemester(semester.id);
   }
 }
@@ -764,7 +766,7 @@ function render() {
 // Logout function
 window.logout = function() {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
