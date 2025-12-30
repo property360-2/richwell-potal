@@ -1,7 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatCurrency, requireAuth } from '../utils.js';
+import { formatCurrency, requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -109,7 +112,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading your dashboard...');
     return;
   }
 
@@ -234,20 +237,6 @@ function render() {
   `;
 }
 
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading your dashboard...</p>
-      </div>
-    </div>
-  `;
-}
 
 function renderAdmissionStatusBanner() {
   // Check if student has student_number (admission approved)
@@ -420,7 +409,7 @@ function renderExamPermit(exam, unlocked) {
 // Logout function
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
@@ -446,22 +435,22 @@ window.submitPasswordChange = async function (event) {
   const confirmPassword = document.getElementById('confirmPassword').value;
 
   if (!currentPassword || !newPassword || !confirmPassword) {
-    showToast('Please fill in all fields', 'error');
+    Toast.error('Please fill in all fields');
     return;
   }
 
   if (newPassword.length < 6) {
-    showToast('New password must be at least 6 characters', 'error');
+    Toast.error('New password must be at least 6 characters');
     return;
   }
 
   if (newPassword !== confirmPassword) {
-    showToast('New passwords do not match', 'error');
+    Toast.error('New passwords do not match');
     return;
   }
 
   // Call real API to change password
-  showToast('Updating password...', 'info');
+  Toast.info('Updating password...');
 
   try {
     const response = await api.post(endpoints.changePassword, {
@@ -470,7 +459,7 @@ window.submitPasswordChange = async function (event) {
     });
 
     if (response?.success) {
-      showToast('Password changed successfully! Please login again.', 'success');
+      Toast.success('Password changed successfully! Please login again.');
       closeChangePasswordModal();
       // Logout and redirect to login
       setTimeout(() => {
@@ -478,11 +467,10 @@ window.submitPasswordChange = async function (event) {
         window.location.href = '/login.html';
       }, 2000);
     } else {
-      showToast(response?.error || 'Failed to change password', 'error');
+      Toast.error(response?.error || 'Failed to change password');
     }
   } catch (error) {
-    console.error('Password change error:', error);
-    showToast(error?.error || 'Failed to change password. Please try again.', 'error');
+    ErrorHandler.handle(error, 'Changing password');
   }
 };
 
