@@ -20,14 +20,7 @@ const state = {
   idNumberError: ''
 };
 
-// Mock data for development
-const mockApplicants = [
-  { id: 1, student_number: '2025-00001', first_name: 'Juan', last_name: 'Dela Cruz', email: 'jdelacruz@richwell.edu.ph', status: 'PENDING', created_via: 'ONLINE', created_at: '2024-12-10T10:30:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
-  { id: 2, student_number: '2025-00002', first_name: 'Maria', last_name: 'Santos', email: 'msantos@richwell.edu.ph', status: 'PENDING', created_via: 'ONLINE', created_at: '2024-12-11T14:20:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
-  { id: 3, student_number: '2025-00003', first_name: 'Pedro', last_name: 'Reyes', email: 'preyes@richwell.edu.ph', status: 'PENDING', created_via: 'TRANSFEREE', created_at: '2024-12-12T09:15:00Z', program: { code: 'BSBA', name: 'BS Business Administration' }, documents: [{ name: 'Valid ID', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'TOR', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=TOR' }] },
-  { id: 4, student_number: '2025-00004', first_name: 'Ana', last_name: 'Garcia', email: 'agarcia@richwell.edu.ph', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-04T16:45:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
-  { id: 5, student_number: '2025-00005', first_name: 'Jose', last_name: 'Cruz', email: 'jcruz@richwell.edu.ph', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-05T11:00:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }, { name: 'Good Moral', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Good+Moral' }] }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -75,9 +68,9 @@ async function loadApplicants() {
     console.log('LoadApplicants: Raw API response:', response);
 
     // Handle paginated response {count, results, ...}
-    const enrollments = response?.results || response;
+    const enrollments = response?.results || response || [];
 
-    if (enrollments && Array.isArray(enrollments) && enrollments.length > 0) {
+    if (enrollments && Array.isArray(enrollments)) {
       // Map API response to expected format
       state.applicants = enrollments.map(enrollment => ({
         id: enrollment.id,
@@ -88,19 +81,19 @@ async function loadApplicants() {
         status: enrollment.status,
         created_via: enrollment.created_via,
         created_at: enrollment.created_at,
-        program: { code: enrollment.program_code || 'N/A', name: 'Enrolled Program' },
+        program: { code: enrollment.program_code || 'N/A', name: enrollment.program_name || 'Enrolled Program' },
         documents: enrollment.documents || [],
         student: { first_name: enrollment.student_name?.split(' ')[0], last_name: enrollment.student_name?.split(' ').slice(1).join(' ') }
       }));
-      console.log('LoadApplicants: Mapped', state.applicants.length, 'applicants');
+      console.log('LoadApplicants: Loaded', state.applicants.length, 'applicants');
     } else {
-      console.log('LoadApplicants: No applicants from API, response was:', response);
-      console.log('LoadApplicants: Using mock data');
-      state.applicants = mockApplicants;
+      console.log('LoadApplicants: No applicants from API');
+      state.applicants = [];
     }
   } catch (error) {
     console.error('LoadApplicants: API error:', error);
-    state.applicants = mockApplicants;
+    showToast('Failed to load applicants. Please refresh the page.', 'error');
+    state.applicants = [];
   }
   state.loading = false;
 }

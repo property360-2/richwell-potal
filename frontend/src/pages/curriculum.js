@@ -19,20 +19,7 @@ const state = {
   versions: []
 };
 
-// Mock data for development
-const MOCK_PROGRAMS = [
-  { id: '1', code: 'BSIT', name: 'Bachelor of Science in Information Technology', description: '4-year IT degree', duration_years: 4, is_active: true },
-  { id: '2', code: 'BSCS', name: 'Bachelor of Science in Computer Science', description: '4-year CS degree', duration_years: 4, is_active: true },
-  { id: '3', code: 'BSBA', name: 'Bachelor of Science in Business Administration', description: '4-year business degree', duration_years: 4, is_active: true }
-];
-
-const MOCK_SUBJECTS = [
-  { id: '1', code: 'IT101', title: 'Introduction to Computing', units: 3, year_level: 1, semester_number: 1, is_major: true, prerequisites: [] },
-  { id: '2', code: 'IT102', title: 'Computer Programming 1', units: 3, year_level: 1, semester_number: 1, is_major: true, prerequisites: [] },
-  { id: '3', code: 'IT103', title: 'Computer Programming 2', units: 3, year_level: 1, semester_number: 2, is_major: true, prerequisites: [{ id: '2', code: 'IT102' }] },
-  { id: '4', code: 'IT201', title: 'Data Structures', units: 3, year_level: 2, semester_number: 1, is_major: true, prerequisites: [{ id: '3', code: 'IT103' }] },
-  { id: '5', code: 'GE101', title: 'English Communication', units: 3, year_level: 1, semester_number: 1, is_major: false, prerequisites: [] }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -60,10 +47,14 @@ async function loadPrograms() {
   try {
     const response = await api.get(endpoints.managePrograms);
     const programs = response?.results || response;
-    state.programs = (programs && Array.isArray(programs) && programs.length > 0) ? programs : MOCK_PROGRAMS;
+    state.programs = (programs && Array.isArray(programs)) ? programs : [];
+    if (state.programs.length === 0) {
+      console.warn('No programs found in the system');
+    }
   } catch (error) {
-    console.log('Using mock programs');
-    state.programs = MOCK_PROGRAMS;
+    console.error('Failed to load programs:', error);
+    showToast('Failed to load programs. Please refresh the page.', 'error');
+    state.programs = [];
   }
   state.loading = false;
 }
@@ -72,10 +63,14 @@ async function loadSubjects(programId) {
   try {
     const response = await api.get(`${endpoints.manageSubjects}?program=${programId}`);
     const subjects = response?.results || response;
-    state.subjects = (subjects && Array.isArray(subjects) && subjects.length > 0) ? subjects : MOCK_SUBJECTS;
+    state.subjects = (subjects && Array.isArray(subjects)) ? subjects : [];
+    if (state.subjects.length === 0) {
+      console.warn(`No subjects found for program ${programId}`);
+    }
   } catch (error) {
-    console.log('Using mock subjects');
-    state.subjects = MOCK_SUBJECTS;
+    console.error('Failed to load subjects:', error);
+    showToast('Failed to load subjects. Please refresh the page.', 'error');
+    state.subjects = [];
   }
   render();
 }
@@ -625,9 +620,8 @@ window.saveProgram = async function (e) {
       showToast(error?.detail || 'Failed to save program', 'error');
     }
   } catch (error) {
-    // Mock success for development
-    showToast(`Program ${state.editingProgram ? 'updated' : 'created'} (mock)`, 'success');
-    closeProgramModal();
+    console.error('Failed to save program:', error);
+    showToast(`Failed to ${state.editingProgram ? 'update' : 'create'} program`, 'error');
   }
 };
 
@@ -677,8 +671,8 @@ window.saveSubject = async function (e) {
       showToast(error?.detail || 'Failed to save subject', 'error');
     }
   } catch (error) {
-    showToast(`Subject ${state.editingSubject ? 'updated' : 'created'} (mock)`, 'success');
-    closeSubjectModal();
+    console.error('Failed to save subject:', error);
+    showToast(`Failed to ${state.editingSubject ? 'update' : 'create'} subject`, 'error');
   }
 };
 
@@ -690,11 +684,13 @@ window.deleteSubject = async function (id) {
     if (response && response.ok) {
       showToast('Subject deleted successfully!', 'success');
       await loadSubjects(state.selectedProgram.id);
+    } else {
+      const error = await response?.json();
+      showToast(error?.detail || 'Failed to delete subject', 'error');
     }
   } catch (error) {
-    showToast('Subject deleted (mock)', 'success');
-    state.subjects = state.subjects.filter(s => s.id !== id);
-    render();
+    console.error('Failed to delete subject:', error);
+    showToast('Failed to delete subject', 'error');
   }
 };
 
@@ -728,13 +724,8 @@ window.addPrereq = async function (subjectId) {
       showToast(error?.error || error?.detail || 'Failed to add prerequisite', 'error');
     }
   } catch (error) {
-    // Mock success
-    const prereq = state.subjects.find(s => s.id === prereqId);
-    const subject = state.subjects.find(s => s.id === subjectId);
-    if (!subject.prerequisites) subject.prerequisites = [];
-    subject.prerequisites.push({ id: prereqId, code: prereq.code });
-    showToast('Prerequisite added (mock)', 'success');
-    render();
+    console.error('Failed to add prerequisite:', error);
+    showToast('Failed to add prerequisite', 'error');
   }
 };
 
@@ -745,13 +736,13 @@ window.removePrereq = async function (subjectId, prereqId) {
       showToast('Prerequisite removed!', 'success');
       await loadSubjects(state.selectedProgram.id);
       openPrereqModal(subjectId);
+    } else {
+      const error = await response?.json();
+      showToast(error?.detail || 'Failed to remove prerequisite', 'error');
     }
   } catch (error) {
-    // Mock success
-    const subject = state.subjects.find(s => s.id === subjectId);
-    subject.prerequisites = subject.prerequisites.filter(p => p.id !== prereqId);
-    showToast('Prerequisite removed (mock)', 'success');
-    render();
+    console.error('Failed to remove prerequisite:', error);
+    showToast('Failed to remove prerequisite', 'error');
   }
 };
 
@@ -790,7 +781,8 @@ window.createSnapshot = async function () {
       showToast(error?.detail || 'Failed to save snapshot', 'error');
     }
   } catch (error) {
-    showToast('Curriculum snapshot saved (mock)', 'success');
+    console.error('Failed to save snapshot:', error);
+    showToast('Failed to save curriculum snapshot', 'error');
   }
 };
 

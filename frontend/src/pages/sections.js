@@ -23,40 +23,7 @@ const state = {
   editingSection: null
 };
 
-// Mock data
-const MOCK_PROGRAMS = [
-  { id: '1', code: 'BSIT', name: 'BS Information Technology' },
-  { id: '2', code: 'BSCS', name: 'BS Computer Science' }
-];
-
-const MOCK_SEMESTERS = [
-  { id: '1', name: '1st Semester 2024-2025', is_active: true },
-  { id: '2', name: '2nd Semester 2024-2025', is_active: false }
-];
-
-const MOCK_SECTIONS = [
-  { id: '1', name: 'BSIT-1A', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 40, enrolled_count: 35 },
-  { id: '2', name: 'BSIT-1B', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 40, enrolled_count: 38 },
-  { id: '3', name: 'BSIT-2A', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 2, capacity: 40, enrolled_count: 32 },
-  { id: '4', name: 'BSCS-1A', program: { id: '2', code: 'BSCS' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 35, enrolled_count: 30 }
-];
-
-const MOCK_SUBJECTS = [
-  { id: '1', code: 'IT101', title: 'Introduction to Computing', units: 3 },
-  { id: '2', code: 'IT102', title: 'Computer Programming 1', units: 3 },
-  { id: '3', code: 'GE101', title: 'English Communication', units: 3 }
-];
-
-const MOCK_PROFESSORS = [
-  { id: '1', first_name: 'Juan', last_name: 'Dela Cruz', email: 'juan.prof@richwell.edu.ph' },
-  { id: '2', first_name: 'Maria', last_name: 'Santos', email: 'maria.prof@richwell.edu.ph' },
-  { id: '3', first_name: 'Pedro', last_name: 'Reyes', email: 'pedro.prof@richwell.edu.ph' }
-];
-
-const MOCK_SECTION_SUBJECTS = [
-  { id: '1', subject: { id: '1', code: 'IT101', title: 'Introduction to Computing' }, professor: { id: '1', first_name: 'Juan', last_name: 'Dela Cruz' }, is_tba: false },
-  { id: '2', subject: { id: '2', code: 'IT102', title: 'Computer Programming 1' }, professor: null, is_tba: true }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -83,30 +50,45 @@ async function loadInitialData() {
   // Load programs
   try {
     const response = await api.get(endpoints.academicPrograms);
-    const programs = response?.results || response;
-    state.programs = (programs && programs.length > 0) ? programs : MOCK_PROGRAMS;
+    state.programs = response?.results || response || [];
+
+    if (state.programs.length === 0) {
+      console.warn('No programs found in the system');
+    }
   } catch (error) {
-    state.programs = MOCK_PROGRAMS;
+    console.error('Failed to load programs:', error);
+    showToast('Failed to load programs. Please refresh the page.', 'error');
+    state.programs = [];
   }
 
   // Load semesters
   try {
     const response = await api.get(endpoints.semesters);
-    const semesters = response?.results || response;
-    state.semesters = (semesters && semesters.length > 0) ? semesters : MOCK_SEMESTERS;
-    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0];
+    state.semesters = response?.results || response || [];
+    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0] || null;
+
+    if (state.semesters.length === 0) {
+      console.warn('No semesters found. Please create a semester first.');
+      showToast('No semesters found. Please create a semester first.', 'warning');
+    }
   } catch (error) {
-    state.semesters = MOCK_SEMESTERS;
-    state.activeSemester = MOCK_SEMESTERS[0];
+    console.error('Failed to load semesters:', error);
+    showToast('Failed to load semesters. Please refresh the page.', 'error');
+    state.semesters = [];
+    state.activeSemester = null;
   }
 
   // Load professors
   try {
     const response = await api.get(endpoints.professors);
-    const professors = response?.results || response;
-    state.professors = (professors && professors.length > 0) ? professors : MOCK_PROFESSORS;
+    state.professors = response?.results || response || [];
+
+    if (state.professors.length === 0) {
+      console.warn('No professors found in the system');
+    }
   } catch (error) {
-    state.professors = MOCK_PROFESSORS;
+    console.error('Failed to load professors:', error);
+    state.professors = [];
   }
 
   await loadSections();
@@ -127,9 +109,13 @@ async function loadSections() {
     if (params.length) url += '?' + params.join('&');
 
     const response = await api.get(url);
-    state.sections = response?.results || response || MOCK_SECTIONS;
+    state.sections = response?.results || response || [];
+
+    console.log(`Loaded ${state.sections.length} sections`);
   } catch (error) {
-    state.sections = MOCK_SECTIONS;
+    console.error('Failed to load sections:', error);
+    showToast('Failed to load sections', 'error');
+    state.sections = [];
   }
 }
 
@@ -137,12 +123,24 @@ async function loadSectionDetails(sectionId) {
   try {
     const response = await api.get(endpoints.section(sectionId));
     state.selectedSection = response;
+
     // Load section subjects
-    const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
-    state.selectedSection.section_subjects = subjectsResponse?.results || subjectsResponse || MOCK_SECTION_SUBJECTS;
+    try {
+      const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
+      state.selectedSection.section_subjects = subjectsResponse?.results || subjectsResponse || [];
+      console.log(`Loaded ${state.selectedSection.section_subjects.length} section subjects`);
+    } catch (error) {
+      console.error('Failed to load section subjects:', error);
+      state.selectedSection.section_subjects = [];
+    }
   } catch (error) {
-    state.selectedSection = state.sections.find(s => s.id === sectionId);
-    state.selectedSection.section_subjects = MOCK_SECTION_SUBJECTS;
+    console.error('Failed to load section details:', error);
+    showToast('Failed to load section details', 'error');
+    // Fallback to cached section data
+    state.selectedSection = state.sections.find(s => s.id === sectionId) || null;
+    if (state.selectedSection) {
+      state.selectedSection.section_subjects = [];
+    }
   }
 
   // Load available subjects for the program
@@ -150,10 +148,14 @@ async function loadSectionDetails(sectionId) {
     const programId = state.selectedSection?.program?.id;
     if (programId) {
       const response = await api.get(`${endpoints.manageSubjects}?program=${programId}`);
-      state.subjects = response?.results || response || MOCK_SUBJECTS;
+      state.subjects = response?.results || response || [];
+      console.log(`Loaded ${state.subjects.length} available subjects for program`);
+    } else {
+      state.subjects = [];
     }
   } catch (error) {
-    state.subjects = MOCK_SUBJECTS;
+    console.error('Failed to load available subjects:', error);
+    state.subjects = [];
   }
 
   render();
@@ -639,28 +641,13 @@ window.assignSubject = async function (e) {
 
   try {
     const response = await api.post(endpoints.sectionSubjects, data);
-    if (response && response.ok) {
-      showToast('Subject assigned successfully!', 'success');
-      closeAssignModal();
-      await loadSectionDetails(state.selectedSection.id);
-    } else {
-      const error = await response?.json();
-      showToast(error?.detail || 'Failed to assign subject', 'error');
-    }
-  } catch (error) {
-    // Mock success
-    const subject = state.subjects.find(s => s.id === subjectId);
-    const professor = state.professors.find(p => p.id === professorId);
-    if (!state.selectedSection.section_subjects) state.selectedSection.section_subjects = [];
-    state.selectedSection.section_subjects.push({
-      id: Date.now().toString(),
-      subject: { id: subjectId, code: subject.code, title: subject.title },
-      professor: professor ? { id: professorId, first_name: professor.first_name, last_name: professor.last_name } : null,
-      is_tba: isTba || !professorId
-    });
-    showToast('Subject assigned (mock)', 'success');
+    showToast('Subject assigned successfully!', 'success');
     closeAssignModal();
-    render();
+    await loadSectionDetails(state.selectedSection.id);
+  } catch (error) {
+    console.error('Failed to assign subject:', error);
+    const errorMessage = error?.error || error?.message || 'Failed to assign subject. Please try again.';
+    showToast(errorMessage, 'error');
   }
 };
 
@@ -696,15 +683,12 @@ window.removeAssignment = async function (id) {
   if (!confirm('Remove this subject from the section?')) return;
 
   try {
-    const response = await api.delete(endpoints.sectionSubject(id));
-    if (response && response.ok) {
-      showToast('Subject removed!', 'success');
-      await loadSectionDetails(state.selectedSection.id);
-    }
+    await api.delete(endpoints.sectionSubject(id));
+    showToast('Subject removed!', 'success');
+    await loadSectionDetails(state.selectedSection.id);
   } catch (error) {
-    state.selectedSection.section_subjects = state.selectedSection.section_subjects.filter(ss => ss.id !== id);
-    showToast('Subject removed (mock)', 'success');
-    render();
+    console.error('Failed to remove subject:', error);
+    showToast('Failed to remove subject. Please try again.', 'error');
   }
 };
 

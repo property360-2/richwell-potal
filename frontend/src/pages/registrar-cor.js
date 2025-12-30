@@ -15,16 +15,29 @@ const state = {
   showCORPreview: false
 };
 
-// Mock subjects for students (since we don't have subject enrollments in the API response)
-function generateMockSubjects(yearLevel) {
-  const baseSubjects = [
-    { code: 'GE101', name: 'Understanding the Self', units: 3, section: 'A', schedule: 'MWF 8:00-9:00 AM', grade: null, status: 'ENROLLED' },
-    { code: 'GE102', name: 'Readings in Philippine History', units: 3, section: 'A', schedule: 'TTH 9:00-10:30 AM', grade: null, status: 'ENROLLED' },
-    { code: 'GE103', name: 'The Contemporary World', units: 3, section: 'B', schedule: 'MWF 10:00-11:00 AM', grade: null, status: 'ENROLLED' },
-    { code: 'IT101', name: 'Introduction to Computing', units: 3, section: 'A', schedule: 'TTH 1:00-2:30 PM', grade: null, status: 'ENROLLED' },
-    { code: 'MATH101', name: 'Mathematics in the Modern World', units: 3, section: 'B', schedule: 'MWF 2:00-3:00 PM', grade: null, status: 'ENROLLED' }
-  ];
-  return baseSubjects;
+// Fetch real subject enrollments for a student
+async function loadStudentSubjectEnrollments(enrollmentId) {
+  try {
+    const response = await api.get(`/admissions/enrollments/${enrollmentId}/subjects/`);
+
+    if (response?.data?.subjects) {
+      return response.data.subjects.map(s => ({
+        code: s.subject_code || 'N/A',
+        name: s.subject_name || s.subject_title || 'N/A',
+        units: s.units || 3,
+        section: s.section_name || 'N/A',
+        schedule: s.schedule || 'TBA',
+        grade: s.grade,
+        status: s.status || 'ENROLLED'
+      }));
+    }
+
+    // Fallback to empty array if no subjects
+    return [];
+  } catch (error) {
+    console.error(`Failed to load subjects for enrollment ${enrollmentId}:`, error);
+    return [];
+  }
 }
 
 async function init() {
@@ -58,7 +71,7 @@ async function loadAllStudents() {
 
     console.log('API Response:', students);
 
-    // Transform to student format
+    // Transform to student format (subjects will be loaded on-demand when viewing COR)
     state.allStudents = students.map(s => ({
       id: s.id || s.enrollment_id,
       student_number: s.student_number || 'N/A',
@@ -70,8 +83,9 @@ async function loadAllStudents() {
       },
       year_level: s.year_level || 1,
       semester: s.semester || '1st Semester 2025-2026',
-      subjects: generateMockSubjects(s.year_level || 1),
-      totalUnits: 15
+      subjects: [], // Will be loaded on-demand
+      totalUnits: 0, // Will be calculated from actual subjects
+      subjectsLoaded: false // Flag to track if subjects have been loaded
     }));
 
     console.log(`Loaded ${state.allStudents.length} students`);
@@ -282,6 +296,38 @@ function renderSearchResults() {
 
 function renderStudentDetails() {
   const student = state.selectedStudent;
+
+  // Show loading state if subjects haven't been loaded yet
+  if (!student.subjectsLoaded) {
+    return `
+      <div class="card">
+        <div class="flex items-start justify-between mb-6">
+          <div class="flex items-center gap-4">
+            <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+              ${student.first_name[0]}${student.last_name[0]}
+            </div>
+            <div>
+              <h2 class="text-2xl font-bold text-gray-800">${student.first_name} ${student.last_name}</h2>
+              <p class="text-gray-600">${student.student_number}</p>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="badge badge-info">${student.program.code}</span>
+                <span class="badge badge-primary">Year ${student.year_level}</span>
+                <span class="text-sm text-gray-500">${student.semester}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="text-center py-12">
+          <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p class="text-gray-600">Loading subject enrollments...</p>
+        </div>
+      </div>
+    `;
+  }
+
   const incSubjects = student.subjects.filter(s => s.status === 'INC');
   const passedSubjects = student.subjects.filter(s => s.status === 'PASSED');
 
@@ -302,7 +348,7 @@ function renderStudentDetails() {
             </div>
           </div>
         </div>
-        <button onclick="previewCOR()" class="btn-primary flex items-center gap-2">
+        <button onclick="previewCOR()" class="btn-primary flex items-center gap-2" ${student.subjects.length === 0 ? 'disabled' : ''}>
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
           </svg>
@@ -341,49 +387,60 @@ function renderStudentDetails() {
       
       <!-- Subjects Table -->
       <h3 class="text-lg font-bold text-gray-800 mb-3">Enrolled Subjects</h3>
-      <div class="border border-gray-200 rounded-xl overflow-hidden">
-        <table class="w-full">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Subject</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Section</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Schedule</th>
-              <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Units</th>
-              <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Grade</th>
-              <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Status</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            ${student.subjects.map(subject => `
-              <tr class="hover:bg-gray-50 ${subject.status === 'INC' ? 'bg-orange-50' : ''}">
-                <td class="px-4 py-3">
-                  <p class="font-mono font-medium text-blue-600">${subject.code}</p>
-                  <p class="text-sm text-gray-600">${subject.name}</p>
-                </td>
-                <td class="px-4 py-3 text-gray-700">${subject.section}</td>
-                <td class="px-4 py-3 text-gray-700 text-sm">${subject.schedule}</td>
-                <td class="px-4 py-3 text-center font-medium">${subject.units}</td>
-                <td class="px-4 py-3 text-center font-bold ${subject.status === 'INC' ? 'text-orange-600' : 'text-gray-800'}">
-                  ${subject.grade !== null ? subject.grade.toFixed(2) : 'INC'}
-                </td>
-                <td class="px-4 py-3 text-center">
-                  ${subject.status === 'PASSED' ?
-      '<span class="badge badge-success">Passed</span>' :
-      '<span class="badge badge-warning">INC</span>'
-    }
-                </td>
+      ${student.subjects.length === 0 ? `
+        <div class="border border-gray-200 rounded-xl p-8 text-center">
+          <svg class="w-16 h-16 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+          </svg>
+          <p class="text-gray-500 font-medium">No subjects enrolled yet</p>
+          <p class="text-sm text-gray-400 mt-1">This student has not enrolled in any subjects for this semester.</p>
+        </div>
+      ` : `
+        <div class="border border-gray-200 rounded-xl overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Subject</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Section</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Schedule</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Units</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Grade</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Status</th>
               </tr>
-            `).join('')}
-          </tbody>
-          <tfoot class="bg-gray-50">
-            <tr>
-              <td colspan="3" class="px-4 py-3 text-right font-semibold text-gray-700">Total Units:</td>
-              <td class="px-4 py-3 text-center font-bold text-blue-600">${student.totalUnits}</td>
-              <td colspan="2"></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${student.subjects.map(subject => `
+                <tr class="hover:bg-gray-50 ${subject.status === 'INC' ? 'bg-orange-50' : ''}">
+                  <td class="px-4 py-3">
+                    <p class="font-mono font-medium text-blue-600">${subject.code}</p>
+                    <p class="text-sm text-gray-600">${subject.name}</p>
+                  </td>
+                  <td class="px-4 py-3 text-gray-700">${subject.section}</td>
+                  <td class="px-4 py-3 text-gray-700 text-sm">${subject.schedule}</td>
+                  <td class="px-4 py-3 text-center font-medium">${subject.units}</td>
+                  <td class="px-4 py-3 text-center font-bold ${subject.status === 'INC' ? 'text-orange-600' : 'text-gray-800'}">
+                    ${subject.grade !== null && subject.grade !== undefined ? subject.grade.toFixed(2) : (subject.status === 'INC' ? 'INC' : '-')}
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    ${subject.status === 'PASSED' ? '<span class="badge badge-success">Passed</span>' :
+                      subject.status === 'INC' ? '<span class="badge badge-warning">INC</span>' :
+                      subject.status === 'ENROLLED' ? '<span class="badge badge-info">Enrolled</span>' :
+                      `<span class="badge badge-secondary">${subject.status}</span>`
+                    }
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot class="bg-gray-50">
+              <tr>
+                <td colspan="3" class="px-4 py-3 text-right font-semibold text-gray-700">Total Units:</td>
+                <td class="px-4 py-3 text-center font-bold text-blue-600">${student.totalUnits}</td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      `}
     </div>
   `;
 }
@@ -514,8 +571,26 @@ window.searchStudent = function () {
   render();
 };
 
-window.selectStudent = function (studentId) {
-  state.selectedStudent = state.allStudents.find(s => s.id === studentId);
+window.selectStudent = async function (studentId) {
+  const student = state.allStudents.find(s => s.id === studentId);
+
+  if (!student) {
+    showToast('Student not found', 'error');
+    return;
+  }
+
+  state.selectedStudent = student;
+
+  // Load subjects if not already loaded
+  if (!student.subjectsLoaded) {
+    render(); // Show student with loading state
+
+    const subjects = await loadStudentSubjectEnrollments(student.id);
+    student.subjects = subjects;
+    student.totalUnits = subjects.reduce((sum, s) => sum + s.units, 0);
+    student.subjectsLoaded = true;
+  }
+
   render();
 };
 

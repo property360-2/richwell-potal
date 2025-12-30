@@ -10,57 +10,7 @@ const state = {
     applicants: []
 };
 
-// Mock pending applicants
-const mockApplicants = [
-    {
-        id: 1,
-        student_number: '2025-00001',
-        first_name: 'Juan',
-        last_name: 'Dela Cruz',
-        email: 'jdelacruz@richwell.edu.ph',
-        program: { code: 'BSIT', name: 'BS Information Technology' },
-        status: 'PENDING',
-        created_at: '2024-12-10T10:30:00Z',
-        documents_verified: 2,
-        documents_total: 3
-    },
-    {
-        id: 2,
-        student_number: '2025-00002',
-        first_name: 'Maria',
-        last_name: 'Santos',
-        email: 'msantos@richwell.edu.ph',
-        program: { code: 'BSCS', name: 'BS Computer Science' },
-        status: 'PENDING',
-        created_at: '2024-12-11T14:20:00Z',
-        documents_verified: 3,
-        documents_total: 3
-    },
-    {
-        id: 3,
-        student_number: '2025-00003',
-        first_name: 'Pedro',
-        last_name: 'Reyes',
-        email: 'preyes@richwell.edu.ph',
-        program: { code: 'BSBA', name: 'BS Business Administration' },
-        status: 'PENDING',
-        created_at: '2024-12-12T09:15:00Z',
-        documents_verified: 1,
-        documents_total: 2
-    },
-    {
-        id: 4,
-        student_number: '2025-00004',
-        first_name: 'Ana',
-        last_name: 'Garcia',
-        email: 'agarcia@richwell.edu.ph',
-        program: { code: 'BSIT', name: 'BS Information Technology' },
-        status: 'PENDING',
-        created_at: '2024-12-13T08:00:00Z',
-        documents_verified: 2,
-        documents_total: 2
-    }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
     if (!requireAuth()) return;
@@ -79,8 +29,31 @@ async function loadData() {
         console.error('Failed to load user:', error);
     }
 
-    // Load pending applicants (mock for now)
-    state.applicants = mockApplicants;
+    // Load pending applicants from real API
+    try {
+        const response = await api.get(`${endpoints.applicants}?status=PENDING`);
+        const enrollments = response?.results || response || [];
+
+        state.applicants = enrollments.map(enrollment => ({
+            id: enrollment.id,
+            student_number: enrollment.student_number,
+            first_name: enrollment.student_name?.split(' ')[0] || 'Unknown',
+            last_name: enrollment.student_name?.split(' ').slice(1).join(' ') || 'Student',
+            email: enrollment.student_email,
+            program: { code: enrollment.program_code || 'N/A', name: enrollment.program_name || 'Program' },
+            status: enrollment.status,
+            created_at: enrollment.created_at,
+            documents_verified: enrollment.documents?.filter(d => d.status === 'VERIFIED').length || 0,
+            documents_total: enrollment.documents?.length || 0
+        }));
+
+        console.log(`Loaded ${state.applicants.length} pending applicants`);
+    } catch (error) {
+        console.error('Failed to load pending applicants:', error);
+        showToast('Failed to load pending applicants. Please refresh the page.', 'error');
+        state.applicants = [];
+    }
+
     state.loading = false;
 }
 
