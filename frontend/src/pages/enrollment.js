@@ -1,6 +1,8 @@
 import '../style.css';
 import { api, endpoints } from '../api.js';
-import { showToast, validateEmail, validatePhone, validateRequired } from '../utils.js';
+import { validateEmail, validatePhone, validateRequired } from '../utils.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 
 // State management
 const state = {
@@ -63,11 +65,11 @@ async function loadPrograms() {
         console.warn('No programs found in the system');
       }
     } else {
-      console.error('Failed to load programs:', response.status);
+      ErrorHandler.handle(new Error(`Failed to load programs: ${response.status}`), 'Loading programs');
       state.programs = [];
     }
   } catch (error) {
-    console.error('Failed to load programs:', error);
+    ErrorHandler.handle(error, 'Loading programs');
     state.programs = [];
   }
 }
@@ -529,7 +531,7 @@ function updatePaymentPreview(amount) {
 function handleFiles(files) {
   for (const file of files) {
     if (file.size > 10 * 1024 * 1024) {
-      showToast(`${file.name} is too large (max 10MB)`, 'error');
+      Toast.error(`${file.name} is too large (max 10MB)`);
       continue;
     }
     state.documents.push(file);
@@ -553,7 +555,7 @@ async function checkEmailAvailability(email) {
       message: data.available ? 'Email is available' : 'This email is already registered'
     };
   } catch (error) {
-    console.error('Email check error:', error);
+    ErrorHandler.handle(error, 'Checking email availability');
     return { available: true, message: '' }; // Fail open - let backend validate
   }
 }
@@ -616,34 +618,34 @@ function validateCurrentStep() {
   switch (state.currentStep) {
     case 1:
       if (!validateRequired(state.formData.first_name)) {
-        showToast('First name is required', 'error');
+        Toast.error('First name is required');
         return false;
       }
       if (!validateRequired(state.formData.last_name)) {
-        showToast('Last name is required', 'error');
+        Toast.error('Last name is required');
         return false;
       }
       if (!validateEmail(state.formData.email)) {
-        showToast('Please enter a valid email address', 'error');
+        Toast.error('Please enter a valid email address');
         return false;
       }
       if (!validateRequired(state.formData.birthdate)) {
-        showToast('Birthdate is required', 'error');
+        Toast.error('Birthdate is required');
         return false;
       }
       if (!validatePhone(state.formData.contact_number)) {
-        showToast('Please enter a valid contact number', 'error');
+        Toast.error('Please enter a valid contact number');
         return false;
       }
       if (!validateRequired(state.formData.address)) {
-        showToast('Address is required', 'error');
+        Toast.error('Address is required');
         return false;
       }
       return true;
 
     case 2:
       if (!state.formData.program_id) {
-        showToast('Please select a program', 'error');
+        Toast.error('Please select a program');
         return false;
       }
       return true;
@@ -654,12 +656,12 @@ function validateCurrentStep() {
 
     case 4:
       if (!state.formData.monthly_commitment || state.formData.monthly_commitment <= 0) {
-        showToast('Please enter a valid monthly commitment amount', 'error');
+        Toast.error('Please enter a valid monthly commitment amount');
         return false;
       }
       if (state.formData.is_transferee) {
         if (!validateRequired(state.formData.previous_school)) {
-          showToast('Previous school is required for transferees', 'error');
+          Toast.error('Previous school is required for transferees');
           return false;
         }
       }
@@ -674,7 +676,7 @@ function validateCurrentStep() {
 window.submitEnrollment = async function () {
   const agreeTerms = document.getElementById('agree-terms');
   if (!agreeTerms?.checked) {
-    showToast('Please agree to the terms and conditions', 'error');
+    Toast.error('Please agree to the terms and conditions');
     return;
   }
 
@@ -697,7 +699,7 @@ window.submitEnrollment = async function () {
 
     if (response.ok) {
       const data = await response.json();
-      showToast('Enrollment submitted successfully!', 'success');
+      Toast.success('Enrollment submitted successfully!');
 
 
       // Redirect to success page with credentials from server
@@ -716,7 +718,7 @@ window.submitEnrollment = async function () {
       }, 1500);
     } else {
       const error = await response.json();
-      console.error('Enrollment error:', error);
+      ErrorHandler.handle(error, 'Submitting enrollment');
       // Extract specific error messages
       let errorMessage = 'Enrollment failed. Please try again.';
       if (error.errors) {
@@ -729,7 +731,7 @@ window.submitEnrollment = async function () {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      showToast(errorMessage, 'error');
+      Toast.error(errorMessage);
       submitBtn.disabled = false;
       submitBtn.innerHTML = `
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -739,7 +741,7 @@ window.submitEnrollment = async function () {
       `;
     }
   } catch (error) {
-    showToast('Network error. Please check your connection.', 'error');
+    Toast.error('Network error. Please check your connection.');
     submitBtn.disabled = false;
     submitBtn.innerHTML = `
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
