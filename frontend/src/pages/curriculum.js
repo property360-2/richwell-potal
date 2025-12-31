@@ -1,6 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth, formatDate } from '../utils.js';
+import { requireAuth, formatDate } from '../utils.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal } from '../components/Modal.js';
+import { ConfirmModal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -9,10 +14,10 @@ const state = {
   subjects: [],
   selectedProgram: null,
   loading: true,
-  showProgramModal: false,
-  showSubjectModal: false,
-  showPrereqModal: false,
-  showVersionsModal: false,
+  programModal: null,
+  subjectModal: null,
+  prereqModal: null,
+  versionsModal: null,
   editingProgram: null,
   editingSubject: null,
   editingSubjectForPrereq: null,
@@ -37,7 +42,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading user profile');
     const savedUser = TokenManager.getUser();
     if (savedUser) state.user = savedUser;
   }
@@ -52,8 +57,7 @@ async function loadPrograms() {
       console.warn('No programs found in the system');
     }
   } catch (error) {
-    console.error('Failed to load programs:', error);
-    showToast('Failed to load programs. Please refresh the page.', 'error');
+    ErrorHandler.handle(error, 'Loading programs');
     state.programs = [];
   }
   state.loading = false;
@@ -68,8 +72,7 @@ async function loadSubjects(programId) {
       console.warn(`No subjects found for program ${programId}`);
     }
   } catch (error) {
-    console.error('Failed to load subjects:', error);
-    showToast('Failed to load subjects. Please refresh the page.', 'error');
+    ErrorHandler.handle(error, 'Loading subjects');
     state.subjects = [];
   }
   render();
@@ -103,7 +106,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading curriculum...');
     return;
   }
 
@@ -145,12 +148,6 @@ function render() {
         </div>
       </div>
     </main>
-    
-    <!-- Modals -->
-    ${state.showProgramModal ? renderProgramModal() : ''}
-    ${state.showSubjectModal ? renderSubjectModal() : ''}
-    ${state.showPrereqModal ? renderPrereqModal() : ''}
-    ${state.showVersionsModal ? renderVersionsModal() : ''}
   `;
 }
 
@@ -194,20 +191,6 @@ function renderHeader() {
         </div>
       </div>
     </header>
-  `;
-}
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading curriculum...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -611,17 +594,16 @@ window.saveProgram = async function (e) {
     }
 
     if (response && response.ok) {
-      showToast(`Program ${state.editingProgram ? 'updated' : 'created'} successfully!`, 'success');
+      Toast.success(`Program ${state.editingProgram ? 'updated' : 'created'} successfully!`);
       closeProgramModal();
       await loadPrograms();
       render();
     } else {
       const error = await response?.json();
-      showToast(error?.detail || 'Failed to save program', 'error');
+      Toast.error(error?.detail || 'Failed to save program');
     }
   } catch (error) {
-    console.error('Failed to save program:', error);
-    showToast(`Failed to ${state.editingProgram ? 'update' : 'create'} program`, 'error');
+    ErrorHandler.handle(error, `${state.editingProgram ? 'Updating' : 'Creating'} program`);
   }
 };
 
@@ -663,35 +645,38 @@ window.saveSubject = async function (e) {
     }
 
     if (response && response.ok) {
-      showToast(`Subject ${state.editingSubject ? 'updated' : 'created'} successfully!`, 'success');
+      Toast.success(`Subject ${state.editingSubject ? 'updated' : 'created'} successfully!`);
       closeSubjectModal();
       await loadSubjects(state.selectedProgram.id);
     } else {
       const error = await response?.json();
-      showToast(error?.detail || 'Failed to save subject', 'error');
+      Toast.error(error?.detail || 'Failed to save subject');
     }
   } catch (error) {
-    console.error('Failed to save subject:', error);
-    showToast(`Failed to ${state.editingSubject ? 'update' : 'create'} subject`, 'error');
+    ErrorHandler.handle(error, `${state.editingSubject ? 'Updating' : 'Creating'} subject`);
   }
 };
 
 window.deleteSubject = async function (id) {
-  if (!confirm('Are you sure you want to delete this subject?')) return;
-
-  try {
-    const response = await api.delete(endpoints.manageSubject(id));
-    if (response && response.ok) {
-      showToast('Subject deleted successfully!', 'success');
-      await loadSubjects(state.selectedProgram.id);
-    } else {
-      const error = await response?.json();
-      showToast(error?.detail || 'Failed to delete subject', 'error');
+  ConfirmModal({
+    title: 'Delete Subject',
+    message: 'Are you sure you want to delete this subject?',
+    confirmText: 'Delete',
+    onConfirm: async () => {
+      try {
+        const response = await api.delete(endpoints.manageSubject(id));
+        if (response && response.ok) {
+          Toast.success('Subject deleted successfully!');
+          await loadSubjects(state.selectedProgram.id);
+        } else {
+          const error = await response?.json();
+          Toast.error(error?.detail || 'Failed to delete subject');
+        }
+      } catch (error) {
+        ErrorHandler.handle(error, 'Deleting subject');
+      }
     }
-  } catch (error) {
-    console.error('Failed to delete subject:', error);
-    showToast('Failed to delete subject', 'error');
-  }
+  });
 };
 
 window.openPrereqModal = function (subjectId) {
@@ -709,23 +694,22 @@ window.closePrereqModal = function () {
 window.addPrereq = async function (subjectId) {
   const prereqId = document.getElementById('prereq-select').value;
   if (!prereqId) {
-    showToast('Please select a prerequisite', 'error');
+    Toast.error('Please select a prerequisite');
     return;
   }
 
   try {
     const response = await api.post(endpoints.subjectPrereqs(subjectId), { prerequisite_id: prereqId });
     if (response && response.ok) {
-      showToast('Prerequisite added successfully!', 'success');
+      Toast.success('Prerequisite added successfully!');
       await loadSubjects(state.selectedProgram.id);
       openPrereqModal(subjectId); // Refresh modal
     } else {
       const error = await response?.json();
-      showToast(error?.error || error?.detail || 'Failed to add prerequisite', 'error');
+      Toast.error(error?.error || error?.detail || 'Failed to add prerequisite');
     }
   } catch (error) {
-    console.error('Failed to add prerequisite:', error);
-    showToast('Failed to add prerequisite', 'error');
+    ErrorHandler.handle(error, 'Adding prerequisite');
   }
 };
 
@@ -733,16 +717,15 @@ window.removePrereq = async function (subjectId, prereqId) {
   try {
     const response = await api.delete(endpoints.removeSubjectPrereq(subjectId, prereqId));
     if (response && response.ok) {
-      showToast('Prerequisite removed!', 'success');
+      Toast.success('Prerequisite removed!');
       await loadSubjects(state.selectedProgram.id);
       openPrereqModal(subjectId);
     } else {
       const error = await response?.json();
-      showToast(error?.detail || 'Failed to remove prerequisite', 'error');
+      Toast.error(error?.detail || 'Failed to remove prerequisite');
     }
   } catch (error) {
-    console.error('Failed to remove prerequisite:', error);
-    showToast('Failed to remove prerequisite', 'error');
+    ErrorHandler.handle(error, 'Removing prerequisite');
   }
 };
 
@@ -775,20 +758,19 @@ window.createSnapshot = async function () {
     });
 
     if (response && response.ok) {
-      showToast('Curriculum snapshot saved!', 'success');
+      Toast.success('Curriculum snapshot saved!');
     } else {
       const error = await response?.json();
-      showToast(error?.detail || 'Failed to save snapshot', 'error');
+      Toast.error(error?.detail || 'Failed to save snapshot');
     }
   } catch (error) {
-    console.error('Failed to save snapshot:', error);
-    showToast('Failed to save curriculum snapshot', 'error');
+    ErrorHandler.handle(error, 'Saving curriculum snapshot');
   }
 };
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
