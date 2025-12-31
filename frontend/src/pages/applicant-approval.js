@@ -1,7 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -26,7 +29,7 @@ async function loadData() {
             state.user = userResponse;
         }
     } catch (error) {
-        console.error('Failed to load user:', error);
+        ErrorHandler.handle(error, 'Loading user');
     }
 
     // Load pending applicants from real API
@@ -49,8 +52,7 @@ async function loadData() {
 
         console.log(`Loaded ${state.applicants.length} pending applicants`);
     } catch (error) {
-        console.error('Failed to load pending applicants:', error);
-        showToast('Failed to load pending applicants. Please refresh the page.', 'error');
+        ErrorHandler.handle(error, 'Loading pending applicants');
         state.applicants = [];
     }
 
@@ -61,7 +63,7 @@ function render() {
     const app = document.getElementById('app');
 
     if (state.loading) {
-        app.innerHTML = renderLoading();
+        app.innerHTML = LoadingOverlay('Loading applicants...');
         return;
     }
 
@@ -111,21 +113,6 @@ function render() {
         ` : state.applicants.map(applicant => renderApplicantCard(applicant)).join('')}
       </div>
     </main>
-  `;
-}
-
-
-function renderLoading() {
-    return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -204,12 +191,12 @@ window.acceptApplicant = async function (applicantId) {
     const applicant = state.applicants.find(a => a.id === applicantId);
     if (!applicant) return;
 
-    showToast(`Approving ${applicant.first_name} ${applicant.last_name}...`, 'info');
+    Toast.info(`Approving ${applicant.first_name} ${applicant.last_name}...`);
 
     // Simulate API call
     setTimeout(() => {
         applicant.status = 'ACTIVE';
-        showToast(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`, 'success');
+        Toast.success(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`);
         render();
     }, 500);
 };
@@ -220,19 +207,19 @@ window.rejectApplicant = async function (applicantId) {
 
     if (!confirm(`Are you sure you want to reject ${applicant.first_name} ${applicant.last_name}?`)) return;
 
-    showToast(`Rejecting ${applicant.first_name}...`, 'info');
+    Toast.info(`Rejecting ${applicant.first_name}...`);
 
     // Simulate API call
     setTimeout(() => {
         applicant.status = 'REJECTED';
-        showToast(`${applicant.first_name} ${applicant.last_name} has been rejected.`, 'warning');
+        Toast.warning(`${applicant.first_name} ${applicant.last_name} has been rejected.`);
         render();
     }, 500);
 };
 
 window.logout = function () {
     TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
+    Toast.success('Logged out successfully');
     setTimeout(() => {
         window.location.href = '/login.html';
     }, 1000);
