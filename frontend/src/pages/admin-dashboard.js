@@ -1,5 +1,6 @@
 import { createHeader } from '../components/header.js';
 import { api, endpoints, TokenManager } from '../api.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 
 // Get user from localStorage
 const user = TokenManager.getUser();
@@ -185,6 +186,6 @@ async function loadStats() {
             document.getElementById('active-semester').textContent = activeSemester ? activeSemester.name : 'None';
         }
     } catch (error) {
-        console.error('Error loading stats:', error);
+        ErrorHandler.handle(error, 'Loading dashboard stats');
     }
 }
