@@ -478,36 +478,17 @@ class ApplicantUpdateView(APIView):
         
         if action == 'accept':
             enrollment.status = Enrollment.Status.ACTIVE
-
-            # Get student_number from request (required for acceptance)
-            student_number = request.data.get('student_number')
-
-            if not student_number:
-                return Response({
-                    "success": False,
-                    "error": "Student number is required for approval"
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Just check if student_number is not empty (duplicate check will still run)
-            if not student_number.strip():
-                return Response({
-                    "success": False,
-                    "error": "Student number cannot be empty"
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Check for duplicate student number
-            from apps.accounts.models import User
-            if User.objects.filter(student_number=student_number).exclude(id=enrollment.student.id).exists():
-                return Response({
-                    "success": False,
-                    "error": "The ID is already used by another student, please pick another"
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Assign student number WITHOUT changing password
-            enrollment.student.student_number = student_number
-            enrollment.student.save()
-            # CRITICAL: Removed set_password() call - password stays as school email
-
+            
+            # Generate Student ID if missing (Delayed Generation)
+            if not enrollment.student.student_number:
+                from .services import EnrollmentService
+                service = EnrollmentService()
+                student_number = service.generate_student_number()
+                
+                enrollment.student.student_number = student_number
+                # NOTE: Password is NOT reset here - student keeps their original password
+                enrollment.student.save()
+                
             message = f"{enrollment.student.get_full_name()} has been approved"
         else:
             enrollment.status = Enrollment.Status.REJECTED

@@ -239,8 +239,11 @@ function render() {
 
 
 function renderAdmissionStatusBanner() {
-  // Check if student has student_number (admission approved)
-  if (!state.user?.student_number) {
+  // Check if student has student_number AND enrollment is approved (ACTIVE status)
+  const isApproved = state.user?.student_number &&
+    (state.enrollmentStatus === 'ACTIVE' || state.enrollmentStatus === 'ENROLLED');
+
+  if (!isApproved) {
     // Account pending admission approval
     return `
       <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-8 rounded-r-xl">
@@ -458,8 +461,11 @@ window.submitPasswordChange = async function (event) {
       new_password: newPassword
     });
 
-    if (response?.success) {
-      Toast.success('Password changed successfully! Please login again.');
+    // api.post returns raw Response object, need to parse JSON
+    const data = await response.json();
+
+    if (response.ok && data?.success) {
+      showToast('Password changed successfully! Please login again.', 'success');
       closeChangePasswordModal();
       // Logout and redirect to login
       setTimeout(() => {
@@ -467,10 +473,11 @@ window.submitPasswordChange = async function (event) {
         window.location.href = '/login.html';
       }, 2000);
     } else {
-      Toast.error(response?.error || 'Failed to change password');
+      showToast(data?.error || 'Failed to change password', 'error');
     }
   } catch (error) {
-    ErrorHandler.handle(error, 'Changing password');
+    console.error('Password change error:', error);
+    showToast(error?.message || 'Failed to change password. Please try again.', 'error');
   }
 };
 
