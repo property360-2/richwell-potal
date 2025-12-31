@@ -1,5 +1,5 @@
 import '../style.css';
-import { getQueryParam, showToast } from '../utils.js';
+import { getQueryParam } from '../utils.js';
 
 function init() {
   const studentNumber = getQueryParam('student_number') || 'PENDING';
