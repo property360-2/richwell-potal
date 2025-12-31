@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatDate, requireAuth } from '../utils.js';
+import { formatDate, requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -13,8 +17,8 @@ const state = {
     created_via: 'all'
   },
   selectedApplicant: null,
-  showPendingModal: false,
-  showIdAssignmentModal: false,
+  pendingModal: null,
+  idAssignmentModal: null,
   selectedApplicantForId: null,
   suggestedIdNumber: '',
   idNumberError: ''
@@ -38,7 +42,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading user profile');
     // Fallback to localStorage
     const savedUser = TokenManager.getUser();
     if (savedUser) {
@@ -87,12 +91,11 @@ async function loadApplicants() {
       }));
       console.log('LoadApplicants: Loaded', state.applicants.length, 'applicants');
     } else {
-      console.log('LoadApplicants: No applicants from API');
+        console.log('LoadApplicants: No applicants from API');
       state.applicants = [];
     }
   } catch (error) {
-    console.error('LoadApplicants: API error:', error);
-    showToast('Failed to load applicants. Please refresh the page.', 'error');
+    ErrorHandler.handle(error, 'Loading applicants');
     state.applicants = [];
   }
   state.loading = false;
@@ -110,7 +113,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading admission dashboard...');
     return;
   }
 
@@ -205,30 +208,9 @@ function render() {
         </table>
       </div>
     </main>
-    
+
     <!-- Applicant Detail Modal -->
     ${state.selectedApplicant ? renderApplicantModal(state.selectedApplicant) : ''}
-
-    <!-- Pending Applicants Modal -->
-    ${state.showPendingModal ? renderPendingModal() : ''}
-
-    <!-- ID Assignment Modal -->
-    ${state.showIdAssignmentModal ? renderIdAssignmentModal() : ''}
-  `;
-}
-
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading admission dashboard...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -473,7 +455,7 @@ window.closeModal = function (event) {
 };
 
 window.verifyDocument = async function (applicantId, docName) {
-  showToast(`Verifying ${docName}...`, 'info');
+  Toast.info(`Verifying ${docName}...`);
 
   // Simulate API call
   setTimeout(() => {
@@ -482,7 +464,7 @@ window.verifyDocument = async function (applicantId, docName) {
       const doc = applicant.documents.find(d => d.name === docName);
       if (doc) {
         doc.status = 'VERIFIED';
-        showToast(`${docName} verified successfully!`, 'success');
+        Toast.success(`${docName} verified successfully!`);
         render();
       }
     }
@@ -490,7 +472,7 @@ window.verifyDocument = async function (applicantId, docName) {
 };
 
 window.acceptApplicant = async function (applicantId) {
-  showToast('Approving applicant...', 'info');
+  Toast.info('Approving applicant...');
 
   // Simulate API call
   setTimeout(() => {
@@ -498,7 +480,7 @@ window.acceptApplicant = async function (applicantId) {
     if (applicant) {
       applicant.status = 'ACTIVE';
       state.selectedApplicant = applicant;
-      showToast(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`, 'success');
+      Toast.success(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`);
       render();
     }
   }, 500);
@@ -507,7 +489,7 @@ window.acceptApplicant = async function (applicantId) {
 window.rejectApplicant = async function (applicantId) {
   if (!confirm('Are you sure you want to reject this applicant?')) return;
 
-  showToast('Rejecting applicant...', 'info');
+  Toast.info('Rejecting applicant...');
 
   // Simulate API call
   setTimeout(() => {
@@ -515,7 +497,7 @@ window.rejectApplicant = async function (applicantId) {
     if (applicant) {
       applicant.status = 'REJECTED';
       state.selectedApplicant = applicant;
-      showToast(`${applicant.first_name} ${applicant.last_name} has been rejected.`, 'warning');
+      Toast.warning(`${applicant.first_name} ${applicant.last_name} has been rejected.`);
       render();
     }
   }, 500);
@@ -547,7 +529,7 @@ window.openIdAssignmentModal = async function(applicant) {
       state.suggestedIdNumber = `${year}-00001`;
     }
   } catch (error) {
-    console.error('Failed to fetch next student number:', error);
+    ErrorHandler.handle(error, 'Fetching next student number');
     const year = new Date().getFullYear();
     state.suggestedIdNumber = `${year}-00001`;
   }
@@ -589,7 +571,7 @@ window.submitIdAssignment = async function() {
     return;
   }
 
-  showToast('Assigning ID and approving applicant...', 'info');
+  Toast.info('Assigning ID and approving applicant...');
 
   try {
     const response = await api.patch(
@@ -601,14 +583,14 @@ window.submitIdAssignment = async function() {
     );
 
     if (response && (response.success || response.data)) {
-      showToast(`${applicant.first_name} ${applicant.last_name} approved with ID: ${idNumber}`, 'success');
+      Toast.success(`${applicant.first_name} ${applicant.last_name} approved with ID: ${idNumber}`);
 
       // Update local state
       applicant.status = 'ACTIVE';
       applicant.student_number = idNumber;
 
       // Close modal and refresh
-      state.showIdAssignmentModal = false;
+      if (state.idAssignmentModal) state.idAssignmentModal.close();
       state.selectedApplicantForId = null;
       await loadApplicants();
       render();
@@ -616,15 +598,14 @@ window.submitIdAssignment = async function() {
     }
     throw new Error('Invalid API response');
   } catch (error) {
-    console.error('ID Assignment error:', error);
+    ErrorHandler.handle(error, 'Assigning ID');
 
     // Show exact backend error message
     if (error.response?.data?.error) {
       state.idNumberError = error.response.data.error;
       render();
     } else {
-      showToast('Failed to assign ID. Please try again.', 'error');
-      closeIdAssignmentModal();
+      if (state.idAssignmentModal) state.idAssignmentModal.close();
     }
   }
 };
