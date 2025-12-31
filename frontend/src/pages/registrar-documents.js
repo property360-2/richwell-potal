@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -12,13 +16,7 @@ const state = {
   searchResults: [],
   allStudents: [],
   selectedStudent: null,
-  showReleaseModal: false,
-  releaseForm: {
-    document_type: 'COR',
-    purpose: '',
-    copies_released: 1,
-    notes: ''
-  }
+  releaseModal: null
 };
 
 async function init() {
@@ -37,7 +35,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading user profile');
     const savedUser = TokenManager.getUser();
     if (savedUser) state.user = savedUser;
   }
@@ -66,7 +64,7 @@ async function loadAllStudents() {
 
     console.log(`Loaded ${state.allStudents.length} students`);
   } catch (error) {
-    console.error('Failed to load students:', error);
+    ErrorHandler.handle(error, 'Loading students');
     state.allStudents = [];
   }
   state.loadingStudents = false;
@@ -76,7 +74,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading document release system...');
     return;
   }
 
@@ -137,8 +135,6 @@ function render() {
         ` : renderStudentsList()}
       </div>
     </main>
-
-    ${state.showReleaseModal ? renderReleaseModal() : ''}
   `;
 }
 
@@ -206,65 +202,38 @@ function renderStudentsList() {
   `;
 }
 
-function renderReleaseModal() {
-  const student = state.allStudents.find(s => s.student_id === state.selectedStudent);
-  if (!student) return '';
-
+function getReleaseForm(student) {
   return `
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="closeReleaseModal()">
-      <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl" onclick="event.stopPropagation()">
-        <h3 class="text-2xl font-bold text-gray-800 mb-2">Release Document</h3>
-        <p class="text-gray-600 mb-6">Student: <span class="font-bold">${student.full_name}</span> (${student.student_number})</p>
+    <p class="text-gray-600 mb-6">Student: <span class="font-bold">${student.full_name}</span> (${student.student_number})</p>
 
-        <form onsubmit="handleReleaseDocument(event)" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Document Type *</label>
-            <select id="document-type" required class="form-select">
-              <option value="COR">Certificate of Registration (COR)</option>
-              <option value="TOR">Transcript of Records (TOR)</option>
-              <option value="GOOD_MORAL">Certificate of Good Moral</option>
-              <option value="DIPLOMA">Diploma</option>
-              <option value="HONORABLE_DISMISSAL">Honorable Dismissal</option>
-            </select>
-            <p class="text-xs text-gray-500 mt-1">Note: As of now, only COR is fully implemented</p>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
-            <input type="text" id="document-purpose" class="form-input" placeholder="e.g., For employment, For scholarship">
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Number of Copies *</label>
-            <input type="number" id="document-copies" min="1" max="10" value="1" required class="form-input">
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Notes (Internal)</label>
-            <textarea id="document-notes" rows="3" class="form-input" placeholder="Optional internal notes"></textarea>
-          </div>
-
-          <div class="flex gap-3 mt-6">
-            <button type="button" onclick="closeReleaseModal()" class="btn btn-secondary flex-1">Cancel</button>
-            <button type="submit" class="btn btn-primary flex-1">Release Document</button>
-          </div>
-        </form>
+    <form id="release-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Document Type *</label>
+        <select id="document-type" required class="form-select">
+          <option value="COR">Certificate of Registration (COR)</option>
+          <option value="TOR">Transcript of Records (TOR)</option>
+          <option value="GOOD_MORAL">Certificate of Good Moral</option>
+          <option value="DIPLOMA">Diploma</option>
+          <option value="HONORABLE_DISMISSAL">Honorable Dismissal</option>
+        </select>
+        <p class="text-xs text-gray-500 mt-1">Note: As of now, only COR is fully implemented</p>
       </div>
-    </div>
-  `;
-}
 
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading...</p>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
+        <input type="text" id="document-purpose" class="form-input" placeholder="e.g., For employment, For scholarship">
       </div>
-    </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Number of Copies *</label>
+        <input type="number" id="document-copies" min="1" max="10" value="1" required class="form-input">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Notes (Internal)</label>
+        <textarea id="document-notes" rows="3" class="form-input" placeholder="Optional internal notes"></textarea>
+      </div>
+    </form>
   `;
 }
 
@@ -292,66 +261,67 @@ window.handleSearch = function(event) {
 window.refreshStudents = async function() {
   await loadAllStudents();
   render();
-  showToast('Student list refreshed', 'success');
+  Toast.success('Student list refreshed');
 };
 
 window.openReleaseModal = function(studentId) {
+  const student = state.allStudents.find(s => s.student_id === studentId);
+  if (!student) return;
+
   state.selectedStudent = studentId;
-  state.showReleaseModal = true;
-  state.releaseForm = {
-    document_type: 'COR',
-    purpose: '',
-    copies_released: 1,
-    notes: ''
-  };
-  render();
+
+  const modal = new Modal({
+    title: 'Release Document',
+    content: getReleaseForm(student),
+    size: 'lg',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Release Document',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('release-form');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+
+          const data = {
+            student_id: studentId,
+            document_type: document.getElementById('document-type').value,
+            purpose: document.getElementById('document-purpose').value,
+            copies_released: parseInt(document.getElementById('document-copies').value),
+            notes: document.getElementById('document-notes').value
+          };
+
+          try {
+            const response = await api.post(endpoints.createDocumentRelease, data);
+            const result = await response.json();
+
+            if (response.ok && result?.success) {
+              Toast.success(`Document released successfully! Code: ${result.data.document_code}`);
+              m.close();
+              state.selectedStudent = null;
+            } else {
+              const errorMsg = result?.error || result?.errors || result?.message || 'Failed to release document';
+              Toast.error(typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg);
+            }
+          } catch (error) {
+            ErrorHandler.handle(error, 'Releasing document');
+          }
+        }
+      }
+    ]
+  });
+
+  state.releaseModal = modal;
+  modal.show();
 };
 
-window.closeReleaseModal = function() {
-  state.selectedStudent = null;
-  state.showReleaseModal = false;
-  render();
-};
-
-window.handleReleaseDocument = async function(event) {
-  event.preventDefault();
-
-  const data = {
-    student_id: state.selectedStudent,
-    document_type: document.getElementById('document-type').value,
-    purpose: document.getElementById('document-purpose').value,
-    copies_released: parseInt(document.getElementById('document-copies').value),
-    notes: document.getElementById('document-notes').value
-  };
-
-  console.log('Submitting document release:', data);
-
-  try {
-    const response = await api.post(endpoints.createDocumentRelease, data);
-
-    console.log('Release response (raw):', response);
-
-    // Parse the response
-    const result = await response.json();
-    console.log('Release response (parsed):', result);
-
-    if (response.ok && result?.success) {
-      showToast(`Document released successfully! Code: ${result.data.document_code}`, 'success');
-      closeReleaseModal();
-    } else {
-      const errorMsg = result?.error || result?.errors || result?.message || 'Failed to release document';
-      console.error('Release error response:', result);
-      showToast(typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg, 'error');
-    }
-  } catch (error) {
-    console.error('Failed to release document:', error);
-    showToast('Failed to release document', 'error');
-  }
-};
 
 window.logout = function() {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
