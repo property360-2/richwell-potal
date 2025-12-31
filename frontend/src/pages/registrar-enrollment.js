@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatCurrency, requireAuth } from '../utils.js';
+import { formatCurrency, requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -14,7 +18,7 @@ const state = {
   selectedSubject: null,
   selectedSection: null,
   overrideReason: '',
-  showConfirmModal: false
+  confirmModal: null
 };
 
 // No more mock data - all data comes from real API
@@ -33,7 +37,7 @@ async function loadData() {
       state.user = userResponse;
     }
   } catch (error) {
-    console.error('Failed to load user data:', error);
+    ErrorHandler.handle(error, 'Loading user data');
   }
 
   // Load available subjects from API
@@ -45,7 +49,7 @@ async function loadData() {
       console.warn('No subjects found in the system');
     }
   } catch (error) {
-    console.error('Failed to load subjects:', error);
+    ErrorHandler.handle(error, 'Loading subjects');
     state.availableSubjects = [];
   }
 
@@ -73,7 +77,7 @@ async function searchStudentsFromAPI(query) {
 
     console.log(`Found ${state.searchResults.length} students`);
   } catch (error) {
-    console.error('Failed to search students:', error);
+    ErrorHandler.handle(error, 'Searching students');
     state.searchResults = [];
   }
 }
@@ -82,7 +86,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading enrollment system...');
     return;
   }
 
@@ -175,27 +179,9 @@ function render() {
         </div>
       </div>
     </main>
-    
-    <!-- Confirm Modal -->
-    ${state.showConfirmModal ? renderConfirmModal() : ''}
   `;
 
   attachEventListeners();
-}
-
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading...</p>
-      </div>
-    </div>
-  `;
 }
 
 function renderSearchResults() {
@@ -375,39 +361,26 @@ function renderOverrideForm() {
   `;
 }
 
-function renderConfirmModal() {
-  const subject = state.selectedSubject;
-  const section = subject.sections.find(s => s.id === parseInt(state.selectedSection));
-
+function getConfirmContent(subject, section) {
   return `
-    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeConfirmModal()">
-      <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
-        <div class="text-center mb-6">
-          <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-            </svg>
-          </div>
-          <h3 class="text-xl font-bold text-gray-800 mb-2">Confirm Override Enrollment</h3>
-          <p class="text-gray-600">You are about to manually enroll:</p>
-        </div>
-        
-        <div class="p-4 bg-gray-50 rounded-xl mb-4">
-          <p class="text-sm text-gray-500">Student</p>
-          <p class="font-medium">${state.selectedStudent.first_name} ${state.selectedStudent.last_name}</p>
-          <p class="text-sm text-gray-500 mt-2">Subject</p>
-          <p class="font-medium">${subject.code} - ${subject.name}</p>
-          <p class="text-sm text-gray-500 mt-2">Section</p>
-          <p class="font-medium">Section ${section?.name} - ${section?.schedule}</p>
-          <p class="text-sm text-gray-500 mt-2">Reason</p>
-          <p class="font-medium text-sm">${state.overrideReason}</p>
-        </div>
-        
-        <div class="flex gap-3">
-          <button onclick="closeConfirmModal()" class="flex-1 btn-secondary">Cancel</button>
-          <button onclick="executeOverride()" class="flex-1 btn-primary bg-yellow-600 hover:bg-yellow-700">Confirm</button>
-        </div>
+    <div class="text-center mb-6">
+      <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
       </div>
+      <p class="text-gray-600">You are about to manually enroll:</p>
+    </div>
+
+    <div class="p-4 bg-gray-50 rounded-xl">
+      <p class="text-sm text-gray-500">Student</p>
+      <p class="font-medium">${state.selectedStudent.first_name} ${state.selectedStudent.last_name}</p>
+      <p class="text-sm text-gray-500 mt-2">Subject</p>
+      <p class="font-medium">${subject.code} - ${subject.name}</p>
+      <p class="text-sm text-gray-500 mt-2">Section</p>
+      <p class="font-medium">Section ${section?.name} - ${section?.schedule}</p>
+      <p class="text-sm text-gray-500 mt-2">Reason</p>
+      <p class="font-medium text-sm">${state.overrideReason}</p>
     </div>
   `;
 }
@@ -457,24 +430,40 @@ window.confirmOverride = function () {
   const reasonInput = document.getElementById('overrideReason');
 
   if (!sectionSelect?.value) {
-    showToast('Please select a section', 'error');
+    Toast.error('Please select a section');
     return;
   }
 
   if (!reasonInput?.value?.trim()) {
-    showToast('Override reason is required', 'error');
+    Toast.error('Override reason is required');
     return;
   }
 
   state.selectedSection = sectionSelect.value;
   state.overrideReason = reasonInput.value.trim();
-  state.showConfirmModal = true;
-  render();
-};
 
-window.closeConfirmModal = function () {
-  state.showConfirmModal = false;
-  render();
+  const subject = state.selectedSubject;
+  const section = subject.sections.find(s => s.id === parseInt(state.selectedSection));
+
+  const modal = new Modal({
+    title: 'Confirm Override Enrollment',
+    content: getConfirmContent(subject, section),
+    size: 'md',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Confirm',
+        primary: true,
+        onClick: async (m) => {
+          await executeOverride();
+          m.close();
+        }
+      }
+    ]
+  });
+
+  state.confirmModal = modal;
+  modal.show();
 };
 
 window.executeOverride = async function () {
@@ -501,24 +490,22 @@ window.executeOverride = async function () {
     });
     state.selectedStudent.totalUnits += state.selectedSubject.units;
 
-    showToast(`Successfully enrolled ${state.selectedStudent.first_name} in ${state.selectedSubject.code}!`, 'success');
+    Toast.success(`Successfully enrolled ${state.selectedStudent.first_name} in ${state.selectedSubject.code}!`);
 
     // Reset form
     state.selectedSubject = null;
     state.selectedSection = null;
     state.overrideReason = '';
-    state.showConfirmModal = false;
 
     render();
   } catch (error) {
-    console.error('Override enrollment failed:', error);
-    showToast('Failed to enroll student', 'error');
+    ErrorHandler.handle(error, 'Override enrollment');
   }
 };
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
