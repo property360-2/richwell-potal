@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal, ConfirmModal, AlertModal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -13,27 +17,12 @@ const state = {
   semesters: [],
   selectedProgram: null,
   selectedCurriculum: null,
-  showAddModal: false,
-  showEditModal: false,
-  showViewModal: false,
-  showAssignModal: false,
+  addModal: null,
+  editModal: null,
+  viewModal: null,
+  assignModal: null,
   curriculumStructure: null,
-  editingCurriculum: null,
-  formData: {
-    program: '',
-    code: '',
-    name: '',
-    description: '',
-    effective_year: new Date().getFullYear(),
-    is_active: true
-  },
-  assignmentData: {
-    year_level: 1,
-    semester_number: 1,
-    subject_id: '',
-    semester_id: null,
-    is_required: true
-  }
+  editingCurriculum: null
 };
 
 async function init() {
@@ -53,7 +42,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading profile');
     const savedUser = TokenManager.getUser();
     if (savedUser) state.user = savedUser;
   }
@@ -64,7 +53,7 @@ async function loadPrograms() {
     const response = await api.get(endpoints.programs);
     state.programs = response?.results || response || [];
   } catch (error) {
-    console.error('Failed to load programs:', error);
+    ErrorHandler.handle(error, 'Loading programs');
     state.programs = [];
   }
 }
@@ -78,7 +67,7 @@ async function loadCurricula() {
     const response = await api.get(url);
     state.curricula = response?.results || response || [];
   } catch (error) {
-    console.error('Failed to load curricula:', error);
+    ErrorHandler.handle(error, 'Loading curricula');
     state.curricula = [];
   }
 }
@@ -88,7 +77,7 @@ async function loadSubjects(programId) {
     const response = await api.get(`/academics/manage/subjects/?program=${programId}`);
     state.subjects = response?.results || response || [];
   } catch (error) {
-    console.error('Failed to load subjects:', error);
+    ErrorHandler.handle(error, 'Loading subjects');
     state.subjects = [];
   }
 }
@@ -111,18 +100,18 @@ function groupSubjectsByYearAndSemester(subjects) {
 }
 
 // Select all subject checkboxes
-function selectAllSubjects() {
+window.selectAllSubjects = function() {
   const checkboxes = document.querySelectorAll('input[name="subjects[]"]');
   checkboxes.forEach(cb => cb.checked = true);
   updateSelectionCount();
-}
+};
 
 // Clear all subject checkboxes
-function clearAllSubjects() {
+window.clearAllSubjects = function() {
   const checkboxes = document.querySelectorAll('input[name="subjects[]"]');
   checkboxes.forEach(cb => cb.checked = false);
   updateSelectionCount();
-}
+};
 
 // Update selection counter
 function updateSelectionCount() {
@@ -146,7 +135,7 @@ async function loadSemesters() {
     const response = await api.get(endpoints.semesters);
     state.semesters = response?.semesters || response?.results || response || [];
   } catch (error) {
-    console.error('Failed to load semesters:', error);
+    ErrorHandler.handle(error, 'Loading semesters');
     state.semesters = [];
   }
 }
@@ -156,7 +145,7 @@ async function loadCurriculumStructure(curriculumId) {
     const response = await api.get(`/academics/curricula/${curriculumId}/structure/`);
     state.curriculumStructure = response;
   } catch (error) {
-    console.error('Failed to load curriculum structure:', error);
+    ErrorHandler.handle(error, 'Loading curriculum structure');
     state.curriculumStructure = null;
   }
 }
@@ -165,7 +154,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading curriculum data...');
     return;
   }
 
@@ -207,11 +196,6 @@ function render() {
       <!-- Curricula List -->
       ${renderCurriculaList()}
     </main>
-
-    ${state.showAddModal ? renderAddModal() : ''}
-    ${state.showEditModal ? renderEditModal() : ''}
-    ${state.showViewModal ? renderViewModal() : ''}
-    ${state.showAssignModal ? renderAssignModal() : ''}
   `;
 }
 
@@ -287,173 +271,139 @@ function renderCurriculaList() {
   `).join('');
 }
 
-function renderAddModal() {
+// Form content generators
+function getAddCurriculumForm() {
   return `
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="closeAddModal()">
-      <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-        <h3 class="text-2xl font-bold text-gray-800 mb-6">Create New Curriculum</h3>
-
-        <form onsubmit="handleAddCurriculum(event)" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Program *</label>
-            <select id="add-program" required class="form-select">
-              <option value="">Select Program</option>
-              ${state.programs.map(p => `
-                <option value="${p.id}">${p.code} - ${p.name}</option>
-              `).join('')}
-            </select>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Code *</label>
-              <input type="text" id="add-code" required placeholder="e.g., REV3, 2025" class="form-input">
-              <p class="text-xs text-gray-500 mt-1">Unique identifier for this version</p>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Effective Year *</label>
-              <input type="number" id="add-year" required min="2020" max="2099" value="${new Date().getFullYear()}" class="form-input">
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Name *</label>
-            <input type="text" id="add-name" required placeholder="e.g., BSIT Curriculum 2025" class="form-input">
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea id="add-description" rows="3" placeholder="Describe this curriculum version..." class="form-input"></textarea>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="add-active" checked class="w-4 h-4 text-blue-600 rounded">
-            <label for="add-active" class="text-sm font-medium text-gray-700">Active (new students can be assigned)</label>
-          </div>
-
-          <div class="flex gap-3 mt-6">
-            <button type="button" onclick="closeAddModal()" class="btn btn-secondary flex-1">Cancel</button>
-            <button type="submit" class="btn btn-primary flex-1">Create Curriculum</button>
-          </div>
-        </form>
+    <form id="add-curriculum-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Program *</label>
+        <select id="add-program" required class="form-select">
+          <option value="">Select Program</option>
+          ${state.programs.map(p => `
+            <option value="${p.id}">${p.code} - ${p.name}</option>
+          `).join('')}
+        </select>
       </div>
-    </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Code *</label>
+          <input type="text" id="add-code" required placeholder="e.g., REV3, 2025" class="form-input">
+          <p class="text-xs text-gray-500 mt-1">Unique identifier for this version</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Effective Year *</label>
+          <input type="number" id="add-year" required min="2020" max="2099" value="${new Date().getFullYear()}" class="form-input">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Name *</label>
+        <input type="text" id="add-name" required placeholder="e.g., BSIT Curriculum 2025" class="form-input">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <textarea id="add-description" rows="3" placeholder="Describe this curriculum version..." class="form-input"></textarea>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="add-active" checked class="w-4 h-4 text-blue-600 rounded">
+        <label for="add-active" class="text-sm font-medium text-gray-700">Active (new students can be assigned)</label>
+      </div>
+    </form>
   `;
 }
 
-function renderEditModal() {
+function getEditCurriculumForm() {
   const curr = state.editingCurriculum;
   if (!curr) return '';
 
   return `
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="closeEditModal()">
-      <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-        <h3 class="text-2xl font-bold text-gray-800 mb-6">Edit Curriculum</h3>
-
-        <form onsubmit="handleEditCurriculum(event)" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Program</label>
-            <input type="text" value="${curr.program_code} - ${curr.program_name}" disabled class="form-input bg-gray-100">
-            <p class="text-xs text-gray-500 mt-1">Program cannot be changed</p>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Code *</label>
-              <input type="text" id="edit-code" required value="${curr.code}" class="form-input">
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Effective Year *</label>
-              <input type="number" id="edit-year" required min="2020" max="2099" value="${curr.effective_year}" class="form-input">
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Name *</label>
-            <input type="text" id="edit-name" required value="${curr.name}" class="form-input">
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea id="edit-description" rows="3" class="form-input">${curr.description || ''}</textarea>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="edit-active" ${curr.is_active ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded">
-            <label for="edit-active" class="text-sm font-medium text-gray-700">Active (new students can be assigned)</label>
-          </div>
-
-          <div class="flex gap-3 mt-6">
-            <button type="button" onclick="handleDeleteCurriculum()" class="btn bg-red-600 hover:bg-red-700 text-white">
-              Delete
-            </button>
-            <div class="flex-1"></div>
-            <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-          </div>
-        </form>
+    <form id="edit-curriculum-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Program</label>
+        <input type="text" value="${curr.program_code} - ${curr.program_name}" disabled class="form-input bg-gray-100">
+        <p class="text-xs text-gray-500 mt-1">Program cannot be changed</p>
       </div>
-    </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Code *</label>
+          <input type="text" id="edit-code" required value="${curr.code}" class="form-input">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Effective Year *</label>
+          <input type="number" id="edit-year" required min="2020" max="2099" value="${curr.effective_year}" class="form-input">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Name *</label>
+        <input type="text" id="edit-name" required value="${curr.name}" class="form-input">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <textarea id="edit-description" rows="3" class="form-input">${curr.description || ''}</textarea>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="edit-active" ${curr.is_active ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded">
+        <label for="edit-active" class="text-sm font-medium text-gray-700">Active (new students can be assigned)</label>
+      </div>
+    </form>
   `;
 }
 
-function renderViewModal() {
+function getViewCurriculumContent() {
   if (!state.curriculumStructure) return '';
 
   const { curriculum, structure } = state.curriculumStructure;
   const years = Object.keys(structure).sort();
 
   return `
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="closeViewModal()">
-      <div class="bg-white rounded-2xl p-8 max-w-6xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-        <div class="flex items-start justify-between mb-6">
-          <div>
-            <h3 class="text-2xl font-bold text-gray-800">${curriculum.name}</h3>
-            <p class="text-gray-600">${curriculum.program_code} - ${curriculum.program_name}</p>
-          </div>
-          <div class="flex gap-2">
-            <button onclick="validateCurriculum()" class="btn btn-secondary flex items-center gap-2">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-              Validate
-            </button>
-            <button onclick="openAssignModal()" class="btn btn-primary flex items-center gap-2">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-              </svg>
-              Assign Subject
-            </button>
-          </div>
-        </div>
-
-        ${years.length === 0 ? `
-          <div class="text-center py-12 text-gray-500">
-            <p class="mb-4">No subjects assigned to this curriculum yet</p>
-            <button onclick="openAssignModal()" class="btn btn-primary">Assign First Subject</button>
-          </div>
-        ` : years.map(year => `
-          <div class="mb-8">
-            <h4 class="text-lg font-bold text-gray-800 mb-4">Year ${year}</h4>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              ${renderSemester(structure[year], year, '1', '1st Semester')}
-              ${renderSemester(structure[year], year, '2', '2nd Semester')}
-              ${renderSemester(structure[year], year, '3', 'Summer')}
-            </div>
-          </div>
-        `).join('')}
-
-        <div class="flex justify-end mt-6">
-          <button onclick="closeViewModal()" class="btn btn-secondary">Close</button>
-        </div>
+    <div>
+      <div class="mb-6">
+        <p class="text-gray-600">${curriculum.program_code} - ${curriculum.program_name}</p>
       </div>
+      <div class="flex gap-2 mb-6">
+        <button onclick="validateCurriculum()" class="btn btn-secondary flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          Validate
+        </button>
+        <button onclick="openAssignModal()" class="btn btn-primary flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          Assign Subject
+        </button>
+      </div>
+
+      ${years.length === 0 ? `
+        <div class="text-center py-12 text-gray-500">
+          <p class="mb-4">No subjects assigned to this curriculum yet</p>
+          <button onclick="openAssignModal()" class="btn btn-primary">Assign First Subject</button>
+        </div>
+      ` : years.map(year => `
+        <div class="mb-8">
+          <h4 class="text-lg font-bold text-gray-800 mb-4">Year ${year}</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            ${renderSemester(structure[year], '1', '1st Semester')}
+            ${renderSemester(structure[year], '2', '2nd Semester')}
+            ${renderSemester(structure[year], '3', 'Summer')}
+          </div>
+        </div>
+      `).join('')}
     </div>
   `;
 }
 
-function renderSemester(yearData, year, semNum, semName) {
+function renderSemester(yearData, semNum, semName) {
   const subjects = yearData[semNum] || [];
 
   return `
@@ -514,10 +464,7 @@ function renderSemester(yearData, year, semNum, semName) {
   `;
 }
 
-function renderAssignModal() {
-  const curriculum = state.curriculumStructure?.curriculum;
-  if (!curriculum) return '';
-
+function getAssignSubjectsForm() {
   // Group subjects by year and semester
   const grouped = groupSubjectsByYearAndSemester(state.subjects);
   const years = Object.keys(grouped).sort((a, b) => {
@@ -534,100 +481,67 @@ function renderAssignModal() {
   };
 
   return `
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="closeAssignModal()">
-      <div class="bg-white rounded-2xl p-8 max-w-4xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-        <div class="flex items-center justify-between mb-6">
-          <h3 class="text-2xl font-bold text-gray-800">Assign Subjects to Curriculum</h3>
-          <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
-        </div>
+    <form id="assign-form" class="space-y-6">
+      <!-- Year/Semester Categories -->
+      ${years.map(year => `
+        <div class="border-b border-gray-200 pb-6 last:border-b-0">
+          <h4 class="text-lg font-bold text-gray-800 mb-4">
+            Year ${year}
+          </h4>
 
-        <form id="assign-form" onsubmit="handleAssignSubject(event)" class="space-y-6">
-          <!-- Year/Semester Categories -->
-          ${years.map(year => `
-            <div class="border-b border-gray-200 pb-6 last:border-b-0">
-              <h4 class="text-lg font-bold text-gray-800 mb-4">
-                Year ${year}
-              </h4>
+          ${Object.keys(grouped[year]).sort((a, b) => {
+            if (a === 'Unassigned') return 1;
+            if (b === 'Unassigned') return -1;
+            return parseInt(a) - parseInt(b);
+          }).map(sem => `
+            <div class="mb-4">
+              <h5 class="text-md font-semibold text-gray-700 mb-3 px-3 py-2 bg-gray-50 rounded-lg">
+                ${semesterLabels[sem] || `Semester ${sem}`}
+              </h5>
 
-              ${Object.keys(grouped[year]).sort((a, b) => {
-                if (a === 'Unassigned') return 1;
-                if (b === 'Unassigned') return -1;
-                return parseInt(a) - parseInt(b);
-              }).map(sem => `
-                <div class="mb-4">
-                  <h5 class="text-md font-semibold text-gray-700 mb-3 px-3 py-2 bg-gray-50 rounded-lg">
-                    ${semesterLabels[sem] || `Semester ${sem}`}
-                  </h5>
-
-                  <div class="space-y-2 ml-4">
-                    ${grouped[year][sem]
-                      .sort((a, b) => a.code.localeCompare(b.code))
-                      .map(subject => `
-                        <label class="flex items-start gap-3 p-3 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors group">
-                          <input
-                            type="checkbox"
-                            name="subjects[]"
-                            value="${subject.id}"
-                            data-year="${subject.year_level}"
-                            data-semester="${subject.semester_number}"
-                            class="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          >
-                          <div class="flex-1">
-                            <div class="font-medium text-gray-800 group-hover:text-blue-600">
-                              ${subject.code} - ${subject.title}
-                            </div>
-                            <div class="text-sm text-gray-500">
-                              ${subject.units} units
-                              ${subject.is_major ? '<span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Major</span>' : ''}
-                            </div>
-                          </div>
-                        </label>
-                      `).join('')}
-                  </div>
-                </div>
-              `).join('')}
+              <div class="space-y-2 ml-4">
+                ${grouped[year][sem]
+                  .sort((a, b) => a.code.localeCompare(b.code))
+                  .map(subject => `
+                    <label class="flex items-start gap-3 p-3 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors group">
+                      <input
+                        type="checkbox"
+                        name="subjects[]"
+                        value="${subject.id}"
+                        data-year="${subject.year_level}"
+                        data-semester="${subject.semester_number}"
+                        class="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      >
+                      <div class="flex-1">
+                        <div class="font-medium text-gray-800 group-hover:text-blue-600">
+                          ${subject.code} - ${subject.title}
+                        </div>
+                        <div class="text-sm text-gray-500">
+                          ${subject.units} units
+                          ${subject.is_major ? '<span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Major</span>' : ''}
+                        </div>
+                      </div>
+                    </label>
+                  `).join('')}
+              </div>
             </div>
           `).join('')}
+        </div>
+      `).join('')}
 
-          <!-- Bulk Actions -->
-          <div class="flex gap-2 pt-4 border-t border-gray-200">
-            <button type="button" onclick="selectAllSubjects()" class="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm font-medium">
-              Select All
-            </button>
-            <button type="button" onclick="clearAllSubjects()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">
-              Clear All
-            </button>
-            <div class="ml-auto text-sm text-gray-500" id="selection-count">
-              0 subjects selected
-            </div>
-          </div>
-
-          <!-- Action Buttons -->
-          <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
-            <button type="button" onclick="closeAssignModal()" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-              Cancel
-            </button>
-            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              Assign Selected Subjects
-            </button>
-          </div>
-        </form>
+      <!-- Bulk Actions -->
+      <div class="flex gap-2 pt-4 border-t border-gray-200">
+        <button type="button" onclick="window.selectAllSubjects()" class="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm font-medium">
+          Select All
+        </button>
+        <button type="button" onclick="window.clearAllSubjects()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">
+          Clear All
+        </button>
+        <div class="ml-auto text-sm text-gray-500" id="selection-count">
+          0 subjects selected
+        </div>
       </div>
-    </div>
-  `;
-}
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading...</p>
-      </div>
-    </div>
+    </form>
   `;
 }
 
@@ -638,28 +552,147 @@ window.filterByProgram = function(event) {
 };
 
 window.openAddModal = function() {
-  state.showAddModal = true;
-  render();
-};
+  const modal = new Modal({
+    title: 'Create New Curriculum',
+    content: getAddCurriculumForm(),
+    size: 'lg',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Create Curriculum',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('add-curriculum-form');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
 
-window.closeAddModal = function() {
-  state.showAddModal = false;
-  render();
+          const data = {
+            program: document.getElementById('add-program').value,
+            code: document.getElementById('add-code').value,
+            name: document.getElementById('add-name').value,
+            description: document.getElementById('add-description').value,
+            effective_year: parseInt(document.getElementById('add-year').value),
+            is_active: document.getElementById('add-active').checked
+          };
+
+          try {
+            await api.post('/academics/curricula/', data);
+            Toast.success('Curriculum created successfully');
+            m.close();
+            await loadCurricula();
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, 'Creating curriculum');
+          }
+        }
+      }
+    ]
+  });
+
+  state.addModal = modal;
+  modal.show();
 };
 
 window.openEditModal = async function(curriculumId) {
   const curriculum = state.curricula.find(c => c.id === curriculumId);
-  if (curriculum) {
-    state.editingCurriculum = curriculum;
-    state.showEditModal = true;
-    render();
-  }
-};
+  if (!curriculum) return;
 
-window.closeEditModal = function() {
-  state.showEditModal = false;
-  state.editingCurriculum = null;
-  render();
+  state.editingCurriculum = curriculum;
+
+  const modal = new Modal({
+    title: 'Edit Curriculum',
+    content: getEditCurriculumForm(),
+    size: 'lg',
+    actions: [
+      {
+        label: 'Delete',
+        danger: true,
+        onClick: async (m) => {
+          const confirmed = await ConfirmModal({
+            title: 'Delete Curriculum',
+            message: 'Are you sure you want to delete this curriculum? Students assigned to it will remain on it.',
+            confirmLabel: 'Delete',
+            danger: true
+          });
+
+          if (!confirmed) return;
+
+          try {
+            const response = await fetch(`/api/v1/academics/curricula/${state.editingCurriculum.id}/`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${TokenManager.getAccessToken()}`
+              }
+            });
+
+            if (response.ok || response.status === 204) {
+              Toast.success('Curriculum deleted successfully');
+              m.close();
+              state.editingCurriculum = null;
+              await loadCurricula();
+              render();
+            } else {
+              Toast.error('Failed to delete curriculum');
+            }
+          } catch (error) {
+            ErrorHandler.handle(error, 'Deleting curriculum');
+          }
+        }
+      },
+      { label: 'Cancel', onClick: (m) => { m.close(); state.editingCurriculum = null; } },
+      {
+        label: 'Save Changes',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('edit-curriculum-form');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+
+          const data = {
+            program: state.editingCurriculum.program,
+            code: document.getElementById('edit-code').value,
+            name: document.getElementById('edit-name').value,
+            description: document.getElementById('edit-description').value,
+            effective_year: parseInt(document.getElementById('edit-year').value),
+            is_active: document.getElementById('edit-active').checked
+          };
+
+          try {
+            const response = await fetch(`/api/v1/academics/curricula/${state.editingCurriculum.id}/`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${TokenManager.getAccessToken()}`
+              },
+              body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+              const result = await response.json();
+              const errorMsg = result?.code || result?.error || 'Failed to update curriculum';
+              Toast.error(typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg);
+              return;
+            }
+
+            Toast.success('Curriculum updated successfully');
+            m.close();
+            state.editingCurriculum = null;
+            await loadCurricula();
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, 'Updating curriculum');
+          }
+        }
+      }
+    ]
+  });
+
+  state.editModal = modal;
+  modal.show();
 };
 
 window.viewCurriculum = async function(curriculumId) {
@@ -674,15 +707,17 @@ window.viewCurriculum = async function(curriculumId) {
   // Load curriculum structure
   await loadCurriculumStructure(curriculumId);
 
-  state.showViewModal = true;
-  render();
-};
+  const modal = new Modal({
+    title: state.curriculumStructure?.curriculum?.name || 'Curriculum Structure',
+    content: getViewCurriculumContent(),
+    size: 'xl',
+    actions: [
+      { label: 'Close', onClick: (m) => { m.close(); state.selectedCurriculum = null; state.curriculumStructure = null; } }
+    ]
+  });
 
-window.closeViewModal = function() {
-  state.showViewModal = false;
-  state.selectedCurriculum = null;
-  state.curriculumStructure = null;
-  render();
+  state.viewModal = modal;
+  modal.show();
 };
 
 window.validateCurriculum = async function() {
@@ -692,34 +727,88 @@ window.validateCurriculum = async function() {
     const response = await api.get(`/academics/curricula/${state.selectedCurriculum.id}/validate/`);
 
     if (response.is_valid) {
-      showToast('Curriculum is valid!', 'success');
+      Toast.success('Curriculum is valid!');
 
-      // Show statistics in console for now (could create a modal later)
-      console.log('Curriculum Statistics:', response.statistics);
-
-      // Show brief stats in toast
       const stats = response.statistics;
-      showToast(
-        `Total: ${stats.total_subjects} subjects, ${stats.total_units} units`,
-        'success'
-      );
+      Toast.success(`Total: ${stats.total_subjects} subjects, ${stats.total_units} units`);
     } else {
-      // Show validation errors
       const errorList = response.errors.join('\n• ');
-      alert(`Curriculum Validation Errors:\n\n• ${errorList}`);
-      showToast(`Found ${response.errors.length} validation errors`, 'error');
+      await AlertModal(`Curriculum Validation Errors:\n\n• ${errorList}`, 'Validation Errors');
+      Toast.error(`Found ${response.errors.length} validation errors`);
     }
   } catch (error) {
-    console.error('Failed to validate curriculum:', error);
-    showToast('Failed to validate curriculum', 'error');
+    ErrorHandler.handle(error, 'Validating curriculum');
   }
 };
 
 window.openAssignModal = async function() {
   // Load semesters for binding
   await loadSemesters();
-  state.showAssignModal = true;
-  render();
+
+  const modal = new Modal({
+    title: 'Assign Subjects to Curriculum',
+    content: getAssignSubjectsForm(),
+    size: 'xl',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Assign Selected Subjects',
+        primary: true,
+        onClick: async (m) => {
+          const checkboxes = document.querySelectorAll('input[name="subjects[]"]:checked');
+
+          if (checkboxes.length === 0) {
+            Toast.error('Please select at least one subject');
+            return;
+          }
+
+          const assignments = Array.from(checkboxes).map(checkbox => ({
+            subject_id: checkbox.value,
+            year_level: parseInt(checkbox.dataset.year) || 1,
+            semester_number: parseInt(checkbox.dataset.semester) || 1,
+            is_required: true,
+            semester_id: null
+          }));
+
+          try {
+            const response = await fetch(
+              `/api/v1/academics/curricula/${state.selectedCurriculum.id}/assign_subjects/`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${TokenManager.getAccessToken()}`
+                },
+                body: JSON.stringify({ assignments })
+              }
+            );
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+              Toast.success(`Successfully assigned ${assignments.length} subject${assignments.length !== 1 ? 's' : ''} (${result.created} created, ${result.updated} updated)`);
+              m.close();
+              await loadCurriculumStructure(state.selectedCurriculum.id);
+
+              // Refresh view modal if it's open
+              if (state.viewModal) {
+                state.viewModal.close();
+                await viewCurriculum(state.selectedCurriculum.id);
+              }
+            } else {
+              const errorMsg = result?.errors?.[0]?.error || result?.error || 'Failed to assign subjects';
+              Toast.error(errorMsg);
+            }
+          } catch (error) {
+            ErrorHandler.handle(error, 'Assigning subjects');
+          }
+        }
+      }
+    ]
+  });
+
+  state.assignModal = modal;
+  modal.show();
 
   // Attach checkbox listeners after modal is rendered
   setTimeout(() => {
@@ -728,164 +817,15 @@ window.openAssignModal = async function() {
   }, 100);
 };
 
-window.closeAssignModal = function() {
-  state.showAssignModal = false;
-  render();
-};
-
-window.handleAddCurriculum = async function(event) {
-  event.preventDefault();
-
-  const data = {
-    program: document.getElementById('add-program').value,
-    code: document.getElementById('add-code').value,
-    name: document.getElementById('add-name').value,
-    description: document.getElementById('add-description').value,
-    effective_year: parseInt(document.getElementById('add-year').value),
-    is_active: document.getElementById('add-active').checked
-  };
-
-  try {
-    const response = await api.post('/academics/curricula/', data);
-    const result = await response.json();
-
-    if (response.ok) {
-      showToast('Curriculum created successfully', 'success');
-      closeAddModal();
-      await loadCurricula();
-      render();
-    } else {
-      const errorMsg = result?.code || result?.error || 'Failed to create curriculum';
-      showToast(typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg, 'error');
-    }
-  } catch (error) {
-    console.error('Failed to create curriculum:', error);
-    showToast('Failed to create curriculum', 'error');
-  }
-};
-
-window.handleEditCurriculum = async function(event) {
-  event.preventDefault();
-
-  const data = {
-    program: state.editingCurriculum.program,
-    code: document.getElementById('edit-code').value,
-    name: document.getElementById('edit-name').value,
-    description: document.getElementById('edit-description').value,
-    effective_year: parseInt(document.getElementById('edit-year').value),
-    is_active: document.getElementById('edit-active').checked
-  };
-
-  try {
-    const response = await fetch(`/api/v1/academics/curricula/${state.editingCurriculum.id}/`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${TokenManager.getAccessToken()}`
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-
-    if (response.ok) {
-      showToast('Curriculum updated successfully', 'success');
-      closeEditModal();
-      await loadCurricula();
-      render();
-    } else {
-      const errorMsg = result?.code || result?.error || 'Failed to update curriculum';
-      showToast(typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg, 'error');
-    }
-  } catch (error) {
-    console.error('Failed to update curriculum:', error);
-    showToast('Failed to update curriculum', 'error');
-  }
-};
-
-window.handleDeleteCurriculum = async function() {
-  if (!confirm('Are you sure you want to delete this curriculum? Students assigned to it will remain on it.')) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/v1/academics/curricula/${state.editingCurriculum.id}/`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${TokenManager.getAccessToken()}`
-      }
-    });
-
-    if (response.ok || response.status === 204) {
-      showToast('Curriculum deleted successfully', 'success');
-      closeEditModal();
-      await loadCurricula();
-      render();
-    } else {
-      showToast('Failed to delete curriculum', 'error');
-    }
-  } catch (error) {
-    console.error('Failed to delete curriculum:', error);
-    showToast('Failed to delete curriculum', 'error');
-  }
-};
-
-window.handleAssignSubject = async function(event) {
-  event.preventDefault();
-
-  // Get all checked subject checkboxes
-  const checkboxes = document.querySelectorAll('input[name="subjects[]"]:checked');
-
-  if (checkboxes.length === 0) {
-    showToast('Please select at least one subject', 'error');
-    return;
-  }
-
-  // Build assignments array from checked subjects
-  const assignments = Array.from(checkboxes).map(checkbox => ({
-    subject_id: checkbox.value,
-    year_level: parseInt(checkbox.dataset.year) || 1,
-    semester_number: parseInt(checkbox.dataset.semester) || 1,
-    is_required: true,  // Default to required
-    semester_id: null
-  }));
-
-  const data = {
-    assignments: assignments
-  };
-
-  try {
-    const response = await fetch(
-      `/api/v1/academics/curricula/${state.selectedCurriculum.id}/assign_subjects/`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${TokenManager.getAccessToken()}`
-        },
-        body: JSON.stringify(data)
-      }
-    );
-
-    const result = await response.json();
-
-    if (response.ok && result.success) {
-      showToast(`Successfully assigned ${assignments.length} subject${assignments.length !== 1 ? 's' : ''} (${result.created} created, ${result.updated} updated)`, 'success');
-      closeAssignModal();
-      await loadCurriculumStructure(state.selectedCurriculum.id);
-      render();
-    } else {
-      const errorMsg = result?.errors?.[0]?.error || result?.error || 'Failed to assign subjects';
-      showToast(errorMsg, 'error');
-    }
-  } catch (error) {
-    console.error('Failed to assign subjects:', error);
-    showToast('Failed to assign subjects', 'error');
-  }
-};
-
 window.removeSubjectFromCurriculum = async function(subjectId) {
-  if (!confirm('Remove this subject from the curriculum?')) return;
+  const confirmed = await ConfirmModal({
+    title: 'Remove Subject',
+    message: 'Remove this subject from the curriculum?',
+    confirmLabel: 'Remove',
+    danger: true
+  });
+
+  if (!confirmed) return;
 
   try {
     const response = await fetch(
@@ -901,21 +841,25 @@ window.removeSubjectFromCurriculum = async function(subjectId) {
     const result = await response.json();
 
     if (response.ok && result.success) {
-      showToast('Subject removed successfully', 'success');
+      Toast.success('Subject removed successfully');
       await loadCurriculumStructure(state.selectedCurriculum.id);
-      render();
+
+      // Refresh view modal if it's open
+      if (state.viewModal) {
+        state.viewModal.close();
+        await viewCurriculum(state.selectedCurriculum.id);
+      }
     } else {
-      showToast(result?.error || 'Failed to remove subject', 'error');
+      Toast.error(result?.error || 'Failed to remove subject');
     }
   } catch (error) {
-    console.error('Failed to remove subject:', error);
-    showToast('Failed to remove subject', 'error');
+    ErrorHandler.handle(error, 'Removing subject');
   }
 };
 
 window.logout = function() {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
