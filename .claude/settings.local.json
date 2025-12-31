@@ -37,7 +37,8 @@
       "Bash(wc:*)",
       "Bash(python test_password_change.py:*)",
       "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY3MDk1Nzk4LCJpYXQiOjE3NjcwOTIxOTgsImp0aSI6ImNjMTk5ODYzMmQyMzQwZTZhODNmZTY2NWQ0ZDM4MmM4IiwidXNlcl9pZCI6ImNjZjk4ZTRiLTBlZDktNDc5Yi05M2VhLTI0OTY4MDczYzIwZSIsImVtYWlsIjoic3R1ZGVudEByaWNod2VsbC5lZHUucGgiLCJyb2xlIjoiU1RVREVOVCIsImZ1bGxfbmFtZSI6Ik1hcmlhIERlbGEgQ3J1eiJ9.dRjewAvcGAUIJw-7fn1a-mXcMkEGiOHRrnm0p2AKw-0\")",
-      "Bash(python manage.py show_urls:*)"
+      "Bash(python manage.py show_urls:*)",
+      "Bash(grep:*)"
     ]
   }
 }

@@ -494,21 +494,159 @@ class SubjectEnrollmentService:
 
         return allowed
 
-    def get_recommended_subjects(self, student, semester):
+    def get_recommended_subjects(self, student, semester, year_level=None, semester_number=None):
         """
-        Get subjects recommended for the student based on year level and curriculum.
+        Get subjects recommended for the student based on curriculum assignment.
 
-        EPIC 7: Now uses curriculum-based filtering if student has curriculum assigned.
+        STRICT CURRICULUM ENFORCEMENT: Students can ONLY enroll in subjects
+        assigned to their curriculum via CurriculumSubject table.
 
         Args:
             student: User object (student)
             semester: Semester object
+            year_level: Optional filter by year (1-5)
+            semester_number: Optional filter by semester (1-3)
 
         Returns:
-            QuerySet: Recommended subjects
+            dict: Contains recommended subjects with sections, enrollment info, and metadata
         """
-        # Use new curriculum-based filtering
-        return self.get_allowed_subjects_by_curriculum(student, semester)
+        from apps.academics.models import Subject, Section, CurriculumSubject
+
+        profile = student.student_profile
+        curriculum = profile.curriculum
+
+        # STRICT ENFORCEMENT: No curriculum = no enrollment
+        if not curriculum:
+            return {
+                'recommended_subjects': [],
+                'error': 'Student has no curriculum assigned. Please contact the registrar.',
+                'current_units': 0,
+                'max_units': self.max_units,
+                'remaining_units': self.max_units
+            }
+
+        # Get curriculum subjects with optional year/semester filtering
+        filters = {
+            'curriculum': curriculum,
+            'is_deleted': False
+        }
+
+        if year_level is not None:
+            filters['year_level'] = year_level
+
+        if semester_number is not None:
+            filters['semester_number'] = semester_number
+
+        curriculum_subjects = CurriculumSubject.objects.filter(
+            **filters
+        ).select_related('subject').prefetch_related('subject__prerequisites')
+
+        # Extract subject IDs from curriculum assignments
+        subject_ids = [cs.subject_id for cs in curriculum_subjects]
+
+        if not subject_ids:
+            return {
+                'recommended_subjects': [],
+                'message': 'No subjects found for the selected filters.',
+                'current_units': self.get_current_enrolled_units(student, semester),
+                'max_units': self.max_units,
+                'remaining_units': self.max_units - self.get_current_enrolled_units(student, semester)
+            }
+
+        # Get subjects that exist and have sections in current semester
+        subjects = Subject.objects.filter(
+            id__in=subject_ids,
+            is_deleted=False
+        ).distinct()
+
+        # Get passed and currently enrolled subjects
+        passed_subjects = self.get_student_passed_subjects(student)
+        current_subjects = self.get_student_current_subjects(student, semester)
+
+        # Build subject data with sections
+        subjects_with_sections = []
+        for subject in subjects:
+            # Get available sections for this subject
+            sections = Section.objects.filter(
+                semester=semester,
+                subject=subject,
+                is_deleted=False
+            ).annotate(
+                enrolled_count=models.Count('subject_enrollments')
+            )
+
+            if not sections.exists():
+                continue
+
+            # Get curriculum placement info
+            curriculum_subject = next((cs for cs in curriculum_subjects if cs.subject_id == subject.id), None)
+
+            # Check prerequisites
+            prereqs_met, missing_prereqs = self.check_prerequisites(student, subject)
+
+            # Check for INC prerequisites
+            has_no_inc, inc_prereqs = self.check_inc_prerequisites(student, subject)
+
+            # Determine enrollment status
+            enrollment_status = 'available'
+            enrollment_message = None
+
+            if subject.id in passed_subjects:
+                enrollment_status = 'passed'
+                enrollment_message = 'Already passed'
+            elif subject.id in current_subjects:
+                enrollment_status = 'enrolled'
+                enrollment_message = 'Currently enrolled'
+            elif not prereqs_met:
+                enrollment_status = 'blocked'
+                enrollment_message = f'Missing prerequisites: {", ".join(missing_prereqs)}'
+            elif not has_no_inc:
+                enrollment_status = 'blocked'
+                inc_list = ', '.join([f"{p['code']}" for p in inc_prereqs])
+                enrollment_message = f'Prerequisites with INC: {inc_list}'
+
+            # Build section data
+            section_data = []
+            for section in sections:
+                section_data.append({
+                    'id': str(section.id),
+                    'name': section.name,
+                    'enrolled_count': section.enrolled_count,
+                    'capacity': section.capacity if hasattr(section, 'capacity') else None
+                })
+
+            subject_data = {
+                'id': str(subject.id),
+                'code': subject.code,
+                'title': subject.title,
+                'units': subject.units,
+                'year_level': curriculum_subject.year_level if curriculum_subject else None,
+                'semester_number': curriculum_subject.semester_number if curriculum_subject else None,
+                'is_required': curriculum_subject.is_required if curriculum_subject else False,
+                'is_major': subject.is_major,
+                'prerequisites': [
+                    {'code': p.code, 'title': p.title}
+                    for p in subject.prerequisites.all()
+                ],
+                'sections': section_data,
+                'enrollment_status': enrollment_status,
+                'enrollment_message': enrollment_message,
+                'can_enroll': enrollment_status == 'available'
+            }
+            subjects_with_sections.append(subject_data)
+
+        # Calculate unit information
+        current_units = self.get_current_enrolled_units(student, semester)
+        remaining_units = self.max_units - current_units
+
+        return {
+            'recommended_subjects': subjects_with_sections,
+            'current_units': current_units,
+            'max_units': self.max_units,
+            'remaining_units': remaining_units,
+            'curriculum_code': curriculum.code,
+            'curriculum_name': f"{curriculum.program.code} - {curriculum.effective_year}"
+        }
     
     def get_available_subjects(self, student, semester):
         """
@@ -2341,7 +2479,25 @@ class DocumentReleaseService:
         valid_types = [dt[0] for dt in DocumentRelease.DocumentType.choices]
         if document_type not in valid_types:
             raise ValueError(f"Invalid document type: {document_type}")
-        
+
+        # COR-specific validation: Check if student has enrolled subjects
+        if document_type == 'COR':
+            from .models import Enrollment
+            from .cor_service import CORService
+
+            # Get current enrollment
+            current_enrollment = Enrollment.objects.filter(
+                student=student,
+                semester__is_current=True
+            ).first()
+
+            if not current_enrollment:
+                raise ValueError("Student has no enrollment for the current semester")
+
+            # Check if student has enrolled subjects
+            if not CORService.can_generate_cor(current_enrollment):
+                raise ValueError("Cannot release COR: Student has no enrolled subjects for the current semester")
+
         # Generate unique code
         document_code = cls.generate_document_code()
         

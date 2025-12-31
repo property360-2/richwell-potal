@@ -107,13 +107,13 @@ class ToastManager {
   }
 
   getToastClasses(type) {
-    const baseClasses = 'flex items-start gap-3 p-4 rounded-lg shadow-lg border transition-all duration-300 transform translate-x-full opacity-0';
+    const baseClasses = 'flex items-start gap-3 p-4 rounded-xl shadow-xl border-2 transition-all duration-300 transform translate-x-full opacity-0 backdrop-blur-sm min-w-[320px] max-w-md';
 
     const typeClasses = {
-      success: 'bg-green-50 border-green-200 text-green-800',
-      error: 'bg-red-50 border-red-200 text-red-800',
-      warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-      info: 'bg-blue-50 border-blue-200 text-blue-800'
+      success: 'bg-green-50/95 border-green-300 text-green-900',
+      error: 'bg-red-50/95 border-red-300 text-red-900',
+      warning: 'bg-amber-50/95 border-amber-300 text-amber-900',
+      info: 'bg-blue-50/95 border-blue-300 text-blue-900'
     };
 
     return `${baseClasses} ${typeClasses[type] || typeClasses.info}`;
@@ -144,14 +144,14 @@ class ToastManager {
     };
 
     return `
-      <div class="flex-shrink-0">
+      <div class="flex-shrink-0 mt-0.5">
         ${icons[toast.type] || icons.info}
       </div>
-      <div class="flex-1 text-sm font-medium">
+      <div class="flex-1 text-sm font-semibold leading-relaxed">
         ${this.escapeHtml(toast.message)}
       </div>
       <button
-        class="toast-close flex-shrink-0 ml-2 -mr-1 p-1 rounded hover:bg-black/5 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
+        class="toast-close flex-shrink-0 ml-2 -mr-1 p-1.5 rounded-lg hover:bg-black/10 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-500"
         aria-label="Close notification"
       >
         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">

@@ -34,9 +34,8 @@ async function loadGrades() {
 
     // Load grades from API
     try {
-      const gradesEndpoint = `${endpoints.myEnrollment}/grades/`;
+      const gradesEndpoint = `${endpoints.myEnrollment}grades/`;
       const gradesResponse = await api.get(gradesEndpoint);
-      console.log('Grades API response:', gradesResponse);
 
       if (gradesResponse?.data) {
         state.semester = gradesResponse.data.semester;
@@ -49,12 +48,12 @@ async function loadGrades() {
         state.grades = [];
       }
     } catch (error) {
-      console.log('Grades API failed:', error);
-      // Only show error for actual API failures (not 404)
-      if (error.response?.status !== 404) {
-        ErrorHandler.handle(error, 'Loading grades');
+      // Silently handle 404 (no grades yet) - just show empty state
+      // Only show user-friendly error for actual failures (network, server errors)
+      if (error?.message && !error.message.includes('404') && !error.message.includes('not valid JSON')) {
+        Toast.warning('Unable to load grades at the moment. Please try again later.');
       }
-      // If 404 or other error, leave grades empty and show the "No grades at the moment" message
+      // Leave grades empty to show the "No grades at the moment" message
       state.grades = [];
     }
   } catch (error) {

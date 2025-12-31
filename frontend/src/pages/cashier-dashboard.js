@@ -162,25 +162,37 @@ function render() {
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             ${state.pendingPayments.slice(0, 6).map(student => {
     const month1 = student.payment_buckets?.find(b => b.month === 1);
-    const month1Amount = month1?.required || 5000;
+    const month1Required = month1?.required || 5000;
+    const month1Paid = month1?.paid || 0;
+    const month1Balance = month1Required - month1Paid;
+    const program = student.program ? `${student.program.code}` : 'N/A';
     return `
               <div class="bg-white p-4 rounded-xl border border-yellow-200 hover:shadow-md transition-all cursor-pointer" onclick="openQuickPayment('${student.id}')">
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 mb-3">
                   <div class="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold">
                     ${student.first_name[0]}${student.last_name[0]}
                   </div>
-                  <div>
+                  <div class="flex-1">
                     <p class="font-semibold text-gray-800">${student.first_name} ${student.last_name}</p>
-                    <p class="text-sm text-gray-500">${student.student_number}</p>
+                    <p class="text-xs text-gray-500">${student.student_number}</p>
+                    <p class="text-xs text-blue-600 font-medium">${program}</p>
                   </div>
                 </div>
-                <div class="mt-3 pt-3 border-t border-gray-100">
-                  <div class="flex justify-between items-center mb-1">
-                    <span class="text-sm text-gray-500">Month 1 Payment:</span>
-                    <span class="font-bold text-yellow-600">${formatCurrency(month1Amount)}</span>
+                <div class="space-y-2 pt-3 border-t border-gray-100">
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs text-gray-500">Monthly Payment:</span>
+                    <span class="font-bold text-gray-800">${formatCurrency(month1Required)}</span>
                   </div>
-                  <button class="w-full mt-2 py-2 px-4 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors">
-                    Confirm Payment
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs text-gray-500">Paid:</span>
+                    <span class="font-semibold text-green-600">${formatCurrency(month1Paid)}</span>
+                  </div>
+                  <div class="flex justify-between items-center pb-2">
+                    <span class="text-xs text-gray-500">Balance:</span>
+                    <span class="font-bold text-red-600">${formatCurrency(month1Balance)}</span>
+                  </div>
+                  <button class="w-full py-2 px-4 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors">
+                    Record Payment
                   </button>
                 </div>
               </div>
@@ -509,7 +521,7 @@ window.submitPayment = async function (event) {
 
   try {
     // Try to call the real API
-    const response = await api.post(endpoints.cashierRecordPayment, {
+    const data = await api.post(endpoints.cashierRecordPayment, {
       enrollment_id: state.selectedStudent.enrollment_id,
       amount: amount,
       payment_mode: 'CASH',
@@ -518,29 +530,24 @@ window.submitPayment = async function (event) {
       notes: `Month ${monthApplied} payment`
     });
 
-    if (response) {
-      const data = await response.json();
+    if (data && (data.success || data.id || data.message)) {
+      Toast.success(data.message || 'Payment recorded successfully!');
 
-      if (response.ok) {
-        Toast.success(data.message || 'Payment recorded successfully!');
-
-        // Refresh student data and today's transactions
-        if (state.selectedStudent.enrollment_id) {
-          await searchStudent();
-          state.selectedStudent = state.searchResults.find(s => s.id === state.selectedStudent.id);
-        }
-
-        // Reload today's transactions to show the new payment
-        await loadData();
-      } else {
-        if (data?.errors) {
-          const errorMsg = Object.values(data.errors).flat().join(', ');
-          throw new Error(errorMsg);
-        }
-        throw new Error(data?.error || data?.message || 'API call failed');
+      // Refresh student data and today's transactions
+      if (state.selectedStudent.enrollment_id) {
+        await searchStudent();
+        state.selectedStudent = state.searchResults.find(s => s.id === state.selectedStudent.id);
       }
+
+      // Reload today's transactions to show the new payment with real-time data
+      await loadData();
+      render(); // Re-render to show updated payment data
     } else {
-      throw new Error('Network response failed');
+      if (data?.errors) {
+        const errorMsg = Object.values(data.errors).flat().join(', ');
+        throw new Error(errorMsg);
+      }
+      throw new Error(data?.error || data?.message || 'API call failed');
     }
   } catch (error) {
     console.log('API payment failed, using mock:', error);
@@ -641,7 +648,7 @@ window.confirmQuickPayment = async function (event) {
   const { student } = state.quickPaymentData;
 
   try {
-    const response = await api.post(endpoints.cashierRecordPayment, {
+    const data = await api.post(endpoints.cashierRecordPayment, {
       enrollment_id: student.enrollment_id,
       amount: amount,
       payment_mode: 'CASH',
@@ -650,22 +657,17 @@ window.confirmQuickPayment = async function (event) {
       notes: `Month 1 Quick Payment`
     });
 
-    if (response) {
-      const data = await response.json();
-
-      if (response.ok) {
-        Toast.success('Payment recorded! Student can now enroll.');
-        closeQuickPaymentModal();
-        loadData(); // Refresh pending list
-      } else {
-        if (data?.errors) {
-          const errorMsg = Object.values(data.errors).flat().join(', ');
-          throw new Error(errorMsg);
-        }
-        throw new Error(data?.error || data?.message || 'Payment failed');
-      }
+    if (data && (data.success || data.id || data.message)) {
+      Toast.success('Payment recorded! Student can now enroll.');
+      closeQuickPaymentModal();
+      await loadData(); // Refresh pending list with real-time data
+      render(); // Re-render to show updated data
     } else {
-      throw new Error('Network response failed');
+      if (data?.errors) {
+        const errorMsg = Object.values(data.errors).flat().join(', ');
+        throw new Error(errorMsg);
+      }
+      throw new Error(data?.error || data?.message || 'Payment failed');
     }
   } catch (error) {
     ErrorHandler.handle(error, 'Processing quick payment');

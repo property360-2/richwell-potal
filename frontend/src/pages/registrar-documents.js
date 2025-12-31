@@ -202,21 +202,78 @@ function renderStudentsList() {
   `;
 }
 
-function getReleaseForm(student) {
+function getReleaseForm(student, enrollmentStatus) {
+  const canReleaseCOR = enrollmentStatus?.can_release_cor !== false;
+  const hasEnrollment = enrollmentStatus?.has_enrollment !== false;
+
   return `
     <p class="text-gray-600 mb-6">Student: <span class="font-bold">${student.full_name}</span> (${student.student_number})</p>
+
+    ${enrollmentStatus ? `
+      <!-- Enrollment Status Info -->
+      <div class="p-4 rounded-lg mb-4 ${canReleaseCOR ? 'bg-blue-50 border border-blue-200' : 'bg-yellow-50 border border-yellow-200'}">
+        <div class="flex items-start gap-3">
+          ${canReleaseCOR ? `
+            <svg class="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          ` : `
+            <svg class="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+          `}
+          <div class="flex-1">
+            <p class="font-medium ${canReleaseCOR ? 'text-blue-800' : 'text-yellow-800'}">${enrollmentStatus.message}</p>
+            ${hasEnrollment ? `
+              <p class="text-sm ${canReleaseCOR ? 'text-blue-600' : 'text-yellow-600'} mt-1">
+                Semester: ${enrollmentStatus.semester} | Total Units: ${enrollmentStatus.total_units || 0}
+              </p>
+            ` : ''}
+            ${!canReleaseCOR ? `
+              <p class="text-sm text-yellow-700 mt-2 font-medium">
+                ⚠️ COR cannot be released until the student enrolls in at least one subject
+              </p>
+            ` : ''}
+          </div>
+        </div>
+
+        ${canReleaseCOR && enrollmentStatus.enrolled_subjects && enrollmentStatus.enrolled_subjects.length > 0 ? `
+          <details class="mt-3">
+            <summary class="text-sm text-blue-700 cursor-pointer hover:text-blue-800 font-medium">
+              View enrolled subjects (${enrollmentStatus.enrolled_subjects_count})
+            </summary>
+            <div class="mt-2 pl-4 space-y-1">
+              ${enrollmentStatus.enrolled_subjects.map(subj => `
+                <div class="text-sm text-gray-700">
+                  <span class="font-mono font-medium">${subj.code}</span> - ${subj.title} (${subj.units} units)
+                </div>
+              `).join('')}
+            </div>
+          </details>
+        ` : ''}
+      </div>
+    ` : ''}
 
     <form id="release-form" class="space-y-4">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Document Type *</label>
-        <select id="document-type" required class="form-select">
-          <option value="COR">Certificate of Registration (COR)</option>
+        <select id="document-type" required class="form-select" ${!canReleaseCOR ? 'onchange="handleDocTypeChange(this.value, ' + canReleaseCOR + ')"' : ''}>
+          <option value="">Select document type...</option>
+          <option value="COR" ${!canReleaseCOR ? 'disabled' : ''}>
+            Certificate of Registration (COR) ${!canReleaseCOR ? '- Requires enrolled subjects' : ''}
+          </option>
           <option value="TOR">Transcript of Records (TOR)</option>
           <option value="GOOD_MORAL">Certificate of Good Moral</option>
           <option value="DIPLOMA">Diploma</option>
           <option value="HONORABLE_DISMISSAL">Honorable Dismissal</option>
         </select>
-        <p class="text-xs text-gray-500 mt-1">Note: As of now, only COR is fully implemented</p>
+        ${!canReleaseCOR ? `
+          <p class="text-xs text-yellow-600 mt-1">
+            <strong>Note:</strong> COR is disabled because student has no enrolled subjects
+          </p>
+        ` : `
+          <p class="text-xs text-gray-500 mt-1">Note: As of now, only COR is fully implemented</p>
+        `}
       </div>
 
       <div>
@@ -236,6 +293,15 @@ function getReleaseForm(student) {
     </form>
   `;
 }
+
+// Handle document type change to show warning for COR
+window.handleDocTypeChange = function(docType, canReleaseCOR) {
+  if (docType === 'COR' && !canReleaseCOR) {
+    Toast.warning('COR cannot be released: Student has no enrolled subjects');
+    // Reset selection
+    document.getElementById('document-type').value = '';
+  }
+};
 
 // Event handlers
 window.handleSearch = function(event) {
@@ -264,15 +330,23 @@ window.refreshStudents = async function() {
   Toast.success('Student list refreshed');
 };
 
-window.openReleaseModal = function(studentId) {
+window.openReleaseModal = async function(studentId) {
   const student = state.allStudents.find(s => s.student_id === studentId);
   if (!student) return;
 
   state.selectedStudent = studentId;
 
+  // Fetch enrollment status for COR validation
+  let enrollmentStatus = null;
+  try {
+    enrollmentStatus = await api.get(endpoints.studentEnrollmentStatus(studentId));
+  } catch (error) {
+    console.error('Failed to load enrollment status:', error);
+  }
+
   const modal = new Modal({
     title: 'Release Document',
-    content: getReleaseForm(student),
+    content: getReleaseForm(student, enrollmentStatus),
     size: 'lg',
     actions: [
       { label: 'Cancel', onClick: (m) => m.close() },
@@ -286,20 +360,27 @@ window.openReleaseModal = function(studentId) {
             return;
           }
 
+          const docType = document.getElementById('document-type').value;
+
+          // Validate COR release
+          if (docType === 'COR' && enrollmentStatus && !enrollmentStatus.can_release_cor) {
+            Toast.error('Cannot release COR: Student has no enrolled subjects for the current semester');
+            return;
+          }
+
           const data = {
             student_id: studentId,
-            document_type: document.getElementById('document-type').value,
+            document_type: docType,
             purpose: document.getElementById('document-purpose').value,
             copies_released: parseInt(document.getElementById('document-copies').value),
             notes: document.getElementById('document-notes').value
           };
 
           try {
-            const response = await api.post(endpoints.createDocumentRelease, data);
-            const result = await response.json();
+            const result = await api.post(endpoints.createDocumentRelease, data);
 
-            if (response.ok && result?.success) {
-              Toast.success(`Document released successfully! Code: ${result.data.document_code}`);
+            if (result && (result.success || result.document_code)) {
+              Toast.success(`Document released successfully! Code: ${result.document_code || result.data?.document_code}`);
               m.close();
               state.selectedStudent = null;
             } else {

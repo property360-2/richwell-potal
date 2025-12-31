@@ -22,7 +22,7 @@ from apps.academics.serializers import ProgramSerializer
 from apps.audit.models import AuditLog
 
 from .models import (
-    Enrollment, EnrollmentDocument, SubjectEnrollment, CreditSource, Semester
+    Enrollment, EnrollmentDocument, SubjectEnrollment, CreditSource, Semester, PaymentTransaction
 )
 from .serializers import (
     OnlineEnrollmentSerializer,
@@ -568,13 +568,13 @@ from .services import SubjectEnrollmentService
 class RecommendedSubjectsView(APIView):
     """
     Get recommended subjects for the current student.
-    Based on year level and curriculum.
+    Based on year level and curriculum with optional year/semester filtering.
     """
     permission_classes = [IsAuthenticated]
-    
+
     @extend_schema(
         summary="Get Recommended Subjects",
-        description="Get subjects recommended for the student's current year and semester",
+        description="Get subjects recommended based on student's curriculum with optional year/semester filters",
         tags=["Subject Enrollment"]
     )
     def get(self, request):
@@ -583,40 +583,63 @@ class RecommendedSubjectsView(APIView):
                 "success": False,
                 "error": "Only students can access this endpoint"
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
         # Get current semester - prioritize semester where student is enrolled
         from .models import Semester, Enrollment
-        
+
         enrollment = Enrollment.objects.filter(
             student=request.user,
             semester__is_current=True
         ).first()
-        
+
         if enrollment:
             semester = enrollment.semester
         else:
             semester = Semester.objects.filter(is_current=True).first()
-            
+
         if not semester:
             raise NotFoundError("No active semester found")
-        
+
+        # Get filter parameters
+        year_level = request.query_params.get('year_level', None)
+        semester_number = request.query_params.get('semester_number', None)
+
+        if year_level:
+            try:
+                year_level = int(year_level)
+            except ValueError:
+                return Response({
+                    "success": False,
+                    "error": "Invalid year_level parameter"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        if semester_number:
+            try:
+                semester_number = int(semester_number)
+            except ValueError:
+                return Response({
+                    "success": False,
+                    "error": "Invalid semester_number parameter"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         service = SubjectEnrollmentService()
-        recommended = service.get_recommended_subjects(request.user, semester)
-        
-        serializer = RecommendedSubjectSerializer(
-            recommended, 
-            many=True,
-            context={
-                'service': service,
-                'student': request.user,
-                'semester': semester
-            }
+        data = service.get_recommended_subjects(
+            request.user,
+            semester,
+            year_level=year_level,
+            semester_number=semester_number
         )
-        
-        # Get current enrollment stats
-        current_units = service.get_current_enrolled_units(request.user, semester)
-        max_units = service.max_units
-        
+
+        # Check if there's an error (no curriculum)
+        if 'error' in data:
+            return Response({
+                "success": False,
+                "error": data['error'],
+                "current_units": data.get('current_units', 0),
+                "max_units": data.get('max_units', 30),
+                "remaining_units": data.get('remaining_units', 30)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Check if Month 1 is paid
         month1_paid = False
         if enrollment:
@@ -627,13 +650,16 @@ class RecommendedSubjectsView(APIView):
         return Response({
             "success": True,
             "data": {
-                "recommended_subjects": serializer.data,
-                "current_units": current_units,
-                "max_units": max_units,
-                "remaining_units": max_units - current_units,
+                "recommended_subjects": data.get('recommended_subjects', []),
+                "current_units": data.get('current_units', 0),
+                "max_units": data.get('max_units', 30),
+                "remaining_units": data.get('remaining_units', 30),
+                "curriculum_code": data.get('curriculum_code', ''),
+                "curriculum_name": data.get('curriculum_name', ''),
                 "month1_paid": month1_paid,
-                "can_enroll": True,  # CHANGED: Always allow enrollment
-                "enrollment_will_be_pending": not month1_paid  # NEW: Flag if enrollments will be pending
+                "can_enroll": True,
+                "enrollment_will_be_pending": not month1_paid,
+                "message": data.get('message', None)
             }
         })
 
@@ -733,6 +759,130 @@ class MySubjectEnrollmentsView(APIView):
                 "subject_enrollments": serializer.data,
                 "enrolled_units": enrolled_units,
                 "semester": str(semester)
+            }
+        })
+
+
+class StudentCurriculumView(APIView):
+    """
+    Get student's complete curriculum structure with completion status.
+    Shows all years and semesters with enrolled/completed/pending subjects.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Get Student Curriculum",
+        description="Get student's full curriculum structure with progress tracking",
+        tags=["Subject Enrollment"]
+    )
+    def get(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        from apps.academics.models import CurriculumSubject
+
+        student = request.user
+        profile = student.student_profile
+
+        if not profile.curriculum:
+            return Response({
+                "success": False,
+                "error": "No curriculum assigned",
+                "message": "Please contact the registrar to be assigned to a curriculum"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        curriculum = profile.curriculum
+
+        # Get all curriculum subjects grouped by year/semester
+        curriculum_subjects = CurriculumSubject.objects.filter(
+            curriculum=curriculum,
+            is_deleted=False
+        ).select_related('subject').prefetch_related('subject__prerequisites')
+
+        # Get student's completed subjects
+        passed_subjects = SubjectEnrollment.objects.filter(
+            enrollment__student=student,
+            status__in=[SubjectEnrollment.Status.PASSED, SubjectEnrollment.Status.CREDITED]
+        ).values_list('subject_id', flat=True)
+
+        # Get currently enrolled subjects
+        current_semester = Semester.objects.filter(is_current=True).first()
+        enrolled_subjects = []
+        if current_semester:
+            enrolled_subjects = SubjectEnrollment.objects.filter(
+                enrollment__student=student,
+                enrollment__semester=current_semester,
+                status__in=[SubjectEnrollment.Status.ENROLLED, SubjectEnrollment.Status.PENDING_HEAD]
+            ).values_list('subject_id', flat=True)
+
+        # Group subjects by year and semester
+        structure = {}
+        for cs in curriculum_subjects:
+            year_key = str(cs.year_level)
+            sem_key = str(cs.semester_number)
+
+            if year_key not in structure:
+                structure[year_key] = {}
+            if sem_key not in structure[year_key]:
+                structure[year_key][sem_key] = []
+
+            # Determine subject status
+            subject_status = 'pending'
+            if cs.subject_id in passed_subjects:
+                subject_status = 'completed'
+            elif cs.subject_id in enrolled_subjects:
+                subject_status = 'enrolled'
+
+            structure[year_key][sem_key].append({
+                'id': str(cs.subject.id),
+                'code': cs.subject.code,
+                'title': cs.subject.title,
+                'units': cs.subject.units,
+                'is_required': cs.is_required,
+                'is_major': cs.subject.is_major,
+                'status': subject_status,
+                'prerequisites': [
+                    {'code': p.code, 'title': p.title}
+                    for p in cs.subject.prerequisites.all()
+                ]
+            })
+
+        # Calculate completion statistics
+        total_subjects = curriculum_subjects.count()
+        completed_subjects = len([s for s in passed_subjects if s in curriculum_subjects.values_list('subject_id', flat=True)])
+        total_units = sum(cs.subject.units for cs in curriculum_subjects)
+        completed_units = sum(
+            cs.subject.units for cs in curriculum_subjects
+            if cs.subject_id in passed_subjects
+        )
+
+        completion_percentage = round((completed_subjects / total_subjects * 100) if total_subjects > 0 else 0, 1)
+
+        return Response({
+            "success": True,
+            "data": {
+                "curriculum": {
+                    "code": curriculum.code,
+                    "program_name": curriculum.program.name,
+                    "program_code": curriculum.program.code,
+                    "effective_year": curriculum.effective_year,
+                    "description": curriculum.description
+                },
+                "student": {
+                    "current_year_level": profile.year_level,
+                    "student_number": student.student_number
+                },
+                "structure": structure,
+                "statistics": {
+                    "total_subjects": total_subjects,
+                    "completed_subjects": completed_subjects,
+                    "total_units": total_units,
+                    "completed_units": completed_units,
+                    "completion_percentage": completion_percentage
+                }
             }
         })
 
@@ -1243,6 +1393,16 @@ class CashierTodayTransactionsView(APIView):
         data = []
         for txn in transactions:
             student = txn.enrollment.student
+
+            # Extract month(s) from allocated_buckets
+            months = []
+            if txn.allocated_buckets:
+                for allocation in txn.allocated_buckets:
+                    if 'month' in allocation:
+                        months.append(f"Month {allocation['month']}")
+
+            month_applied = ', '.join(months) if months else 'Multiple'
+
             data.append({
                 'id': txn.id,
                 'time': txn.processed_at.strftime('%I:%M %p'),
@@ -1250,7 +1410,7 @@ class CashierTodayTransactionsView(APIView):
                 'studentNumber': student.student_number,
                 'amount': float(txn.amount),
                 'receipt': txn.receipt_number,
-                'monthApplied': txn.month_applied if txn.month_applied else 'Multiple'
+                'monthApplied': month_applied
             })
 
         # Calculate total
@@ -2200,6 +2360,71 @@ class CreateDocumentReleaseView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+class StudentEnrollmentStatusView(APIView):
+    """
+    Get student's current enrollment status for document validation.
+    Returns enrollment info including enrolled subjects count.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Get Student Enrollment Status",
+        description="Get student's current enrollment status and enrolled subjects",
+        tags=["Enrollment"]
+    )
+    def get(self, request, student_id):
+        from .models import Enrollment, SubjectEnrollment
+
+        try:
+            student = User.objects.get(id=student_id, role=User.Role.STUDENT)
+        except User.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Get current enrollment
+        current_enrollment = Enrollment.objects.filter(
+            student=student,
+            semester__is_current=True
+        ).first()
+
+        if not current_enrollment:
+            return Response({
+                'has_enrollment': False,
+                'enrolled_subjects_count': 0,
+                'can_release_cor': False,
+                'message': 'Student has no enrollment for current semester'
+            })
+
+        # Count enrolled subjects
+        enrolled_count = SubjectEnrollment.objects.filter(
+            enrollment=current_enrollment,
+            status=SubjectEnrollment.Status.ENROLLED
+        ).count()
+
+        # Get enrolled subjects details
+        enrolled_subjects = SubjectEnrollment.objects.filter(
+            enrollment=current_enrollment,
+            status=SubjectEnrollment.Status.ENROLLED
+        ).select_related('subject')
+
+        subjects_data = [{
+            'code': se.subject.code,
+            'title': se.subject.title,
+            'units': se.subject.units
+        } for se in enrolled_subjects]
+
+        total_units = sum(s['units'] for s in subjects_data)
+
+        return Response({
+            'has_enrollment': True,
+            'enrolled_subjects_count': enrolled_count,
+            'total_units': total_units,
+            'can_release_cor': enrolled_count > 0,
+            'semester': current_enrollment.semester.name,
+            'enrolled_subjects': subjects_data,
+            'message': f'Student has {enrolled_count} enrolled subject(s)' if enrolled_count > 0 else 'Student has no enrolled subjects'
+        })
+
+
 class MyReleasesView(APIView):
     """
     Get documents released by the current registrar.
@@ -2696,7 +2921,18 @@ class CashierPendingPaymentsView(APIView):
             # Only include if Month 1 is NOT fully paid
             if month1 and not month1.is_fully_paid:
                 student = enrollment.student
-                
+
+                # Get program from student profile
+                program_data = None
+                if hasattr(enrollment.student, 'student_profile') and enrollment.student.student_profile:
+                    student_profile = enrollment.student.student_profile
+                    if student_profile.program:
+                        program_data = {
+                            'id': str(student_profile.program.id),
+                            'code': student_profile.program.code,
+                            'name': student_profile.program.name
+                        }
+
                 # Get payment buckets
                 buckets = []
                 for bucket in enrollment.payment_buckets.all():
@@ -2706,7 +2942,7 @@ class CashierPendingPaymentsView(APIView):
                         'paid': float(bucket.paid_amount),
                         'is_fully_paid': bucket.is_fully_paid
                     })
-                
+
                 results.append({
                     'id': str(student.id),
                     'student_number': student.student_number,
@@ -2715,6 +2951,7 @@ class CashierPendingPaymentsView(APIView):
                     'email': student.email,
                     'enrollment_id': str(enrollment.id),
                     'enrollment_status': enrollment.status,
+                    'program': program_data,
                     'payment_buckets': buckets,
                     'total_paid': float(enrollment.total_paid),
                     'total_required': float(enrollment.total_required),

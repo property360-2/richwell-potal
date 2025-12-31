@@ -72,17 +72,26 @@ export class ErrorHandler {
       return {
         type: 'network',
         status: 0,
-        message: 'Network error. Please check your internet connection.',
+        message: 'Unable to connect to the server. Please check your internet connection.',
         details: null
       };
     }
 
     // Application Error
     if (error instanceof Error) {
+      // Don't show technical JS errors to users
+      const isTechnicalError =
+        error.message.includes('JSON') ||
+        error.message.includes('Unexpected token') ||
+        error.message.includes('SyntaxError') ||
+        error.message.includes('<!DOCTYPE');
+
       return {
         type: 'application',
         status: null,
-        message: error.message || 'An unexpected error occurred',
+        message: isTechnicalError
+          ? 'Unable to load data at the moment. Please try again later.'
+          : error.message || 'An unexpected error occurred',
         details: null
       };
     }
@@ -91,7 +100,7 @@ export class ErrorHandler {
     return {
       type: 'unknown',
       status: null,
-      message: 'An unexpected error occurred. Please try again.',
+      message: 'Something went wrong. Please try again.',
       details: error
     };
   }
@@ -180,29 +189,29 @@ export class ErrorHandler {
    */
   static getDefaultErrorMessage(status) {
     const messages = {
-      400: 'Invalid request. Please check your input.',
-      401: 'Session expired. Please login again.',
-      403: 'You do not have permission to perform this action.',
-      404: 'The requested resource was not found.',
-      409: 'This operation conflicts with existing data.',
-      422: 'The data provided could not be processed.',
-      429: 'Too many requests. Please try again later.',
-      500: 'Server error. Please try again later.',
-      502: 'Server is temporarily unavailable.',
-      503: 'Service unavailable. Please try again later.'
+      400: 'Invalid input. Please check the information you entered.',
+      401: 'Your session has expired. Please log in again.',
+      403: 'You don\'t have permission to do this.',
+      404: 'The information you\'re looking for isn\'t available yet.',
+      409: 'This action conflicts with existing data. Please refresh and try again.',
+      422: 'Unable to process the information provided. Please check your input.',
+      429: 'Too many requests. Please wait a moment before trying again.',
+      500: 'Something went wrong on our end. Please try again in a few moments.',
+      502: 'The server is temporarily unavailable. Please try again shortly.',
+      503: 'The service is currently unavailable. Please try again later.'
     };
 
     if (messages[status]) return messages[status];
 
     if (status >= 400 && status < 500) {
-      return 'Client error occurred. Please check your request.';
+      return 'Unable to complete your request. Please try again.';
     }
 
     if (status >= 500) {
-      return 'Server error occurred. Please try again later.';
+      return 'We\'re experiencing technical difficulties. Please try again later.';
     }
 
-    return 'An error occurred. Please try again.';
+    return 'Something went wrong. Please try again.';
   }
 
   /**

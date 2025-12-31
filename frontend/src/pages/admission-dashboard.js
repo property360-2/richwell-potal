@@ -211,6 +211,12 @@ function render() {
 
     <!-- Applicant Detail Modal -->
     ${state.selectedApplicant ? renderApplicantModal(state.selectedApplicant) : ''}
+
+    <!-- Pending Applicants Modal -->
+    ${state.showPendingModal ? renderPendingModal() : ''}
+
+    <!-- ID Assignment Modal -->
+    ${state.showIdAssignmentModal ? renderIdAssignmentModal() : ''}
   `;
 }
 

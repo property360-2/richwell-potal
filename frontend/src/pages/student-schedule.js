@@ -78,10 +78,20 @@ async function loadUserProfile() {
 async function loadSemesters() {
   try {
     const response = await api.get(endpoints.semesters);
-    state.semesters = response?.semesters || response?.results || response || [];
-    state.activeSemester = state.semesters.find(s => s.is_active || s.is_current) || state.semesters[0];
+    const semestersData = response?.semesters || response?.results || response;
+
+    // Ensure we have an array
+    state.semesters = Array.isArray(semestersData) ? semestersData : [];
+
+    // Find active semester
+    if (state.semesters.length > 0) {
+      state.activeSemester = state.semesters.find(s => s.is_active || s.is_current) || state.semesters[0];
+    }
   } catch (error) {
-    console.error('Failed to load semesters:', error);
+    // Silently handle permission errors (403) - student doesn't have access to semester management
+    // Just use empty array and show "no schedule" message
+    state.semesters = [];
+    state.activeSemester = null;
   }
 }
 

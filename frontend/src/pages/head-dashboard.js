@@ -362,7 +362,10 @@ window.handleSearch = function (event) {
 
 window.viewDetails = function (enrollmentId) {
   const enrollment = state.pendingEnrollments.find(e => e.id === enrollmentId);
-  if (!enrollment) return;
+  if (!enrollment) {
+    Toast.error('Enrollment not found');
+    return;
+  }
 
   state.selectedEnrollment = enrollment;
 
@@ -405,15 +408,25 @@ window.approveEnrollment = function (enrollmentId) {
 };
 
 window.confirmApproval = async function (enrollmentId) {
+  console.log('confirmApproval called with enrollmentId:', enrollmentId);
   const enrollment = state.pendingEnrollments.find(e => e.id === enrollmentId);
-  if (!enrollment) return;
+  console.log('Found enrollment for approval:', enrollment);
+
+  if (!enrollment) {
+    console.error('Enrollment not found for approval');
+    Toast.error('Enrollment not found');
+    return;
+  }
 
   Toast.info(`Approving ${enrollment.student_name}'s enrollment...`);
 
   try {
     // Approve all subjects for this student
+    console.log('Approving subjects:', enrollment.subjects);
     for (const subject of enrollment.subjects) {
-      await api.post(endpoints.headApprove(subject.id));
+      console.log('Approving subject:', subject.id, subject.code);
+      const result = await api.post(endpoints.headApprove(subject.id));
+      console.log('Approval result for', subject.code, ':', result);
     }
 
     // Remove from pending list
@@ -423,6 +436,7 @@ window.confirmApproval = async function (enrollmentId) {
     Toast.success(`${enrollment.student_name}'s subject enrollment has been approved!`);
     render();
   } catch (error) {
+    console.error('Error approving enrollment:', error);
     ErrorHandler.handle(error, 'Approving enrollment');
   }
 };

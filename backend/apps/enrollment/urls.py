@@ -39,6 +39,7 @@ urlpatterns = [
     path('subjects/recommended/', views.RecommendedSubjectsView.as_view(), name='recommended-subjects'),
     path('subjects/available/', views.AvailableSubjectsView.as_view(), name='available-subjects'),
     path('subjects/my-enrollments/', views.MySubjectEnrollmentsView.as_view(), name='my-subject-enrollments'),
+    path('my-curriculum/', views.StudentCurriculumView.as_view(), name='student-curriculum'),
     
     # Enrollment actions
     path('subjects/enroll/', views.EnrollSubjectView.as_view(), name='enroll-subject'),
@@ -111,6 +112,7 @@ urlpatterns = [
     # Registrar document release
     path('documents/release/', views.CreateDocumentReleaseView.as_view(), name='create-document-release'),
     path('documents/my-releases/', views.MyReleasesView.as_view(), name='my-releases'),
+    path('students/<uuid:student_id>/enrollment-status/', views.StudentEnrollmentStatusView.as_view(), name='student-enrollment-status'),
     path('documents/student/<uuid:student_id>/', views.StudentDocumentsView.as_view(), name='student-documents'),
     path('documents/<str:document_code>/', views.DocumentDetailView.as_view(), name='document-detail'),
     path('documents/<str:document_code>/pdf/', views.DownloadDocumentPDFView.as_view(), name='document-pdf'),

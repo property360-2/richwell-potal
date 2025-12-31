@@ -6,6 +6,46 @@ Usage:
     python manage.py seed_complete_data            # Seed with existing data
     python manage.py seed_complete_data --flush    # Clear all data first
     python manage.py seed_complete_data --quiet    # Minimal output
+
+BSIS TEST STUDENTS (for testing curriculum-based enrollment):
+===============================================================
+All BSIS students are assigned to BSIS_UE_2019 curriculum
+
+1. 2025BSIS0001 - Juan Dela Cruz (Year 1)
+   - Test Case: Clean freshman with no grades yet
+   - Purpose: Test first-year enrollment with no prerequisites
+
+2. 2024BSIS0002 - Maria Santos (Year 2)
+   - Test Case: Has INC grade in PROG101
+   - Purpose: Test prerequisite blocking (cannot enroll in PROG102, DATASTRUCT, OOP101)
+   - Email: maria.santos@student.richwell.edu.ph
+   - Password: password123
+
+3. 2024BSIS0003 - Jose Reyes (Year 2)
+   - Test Case: Completed all Year 1 subjects successfully
+   - Purpose: Test normal progression to Year 2
+   - Email: jose.reyes@student.richwell.edu.ph
+   - Password: password123
+
+4. 2023BSIS0004 - Ana Garcia (Year 3)
+   - Test Case: Failed DATASTRUCT (5.0), then passed on retake (2.0)
+   - Purpose: Test retake functionality and grade history
+   - Email: ana.garcia@student.richwell.edu.ph
+   - Password: password123
+
+5. 2023BSIS0005 - Pedro Gonzales (Year 3)
+   - Test Case: Mixed grades (ENG101=1.5, MATH101=3.0, PROG101=INC, CS101=5.0)
+   - Purpose: Test complex grade scenarios (passed, barely passed, INC, failed)
+   - Email: pedro.gonzales@student.richwell.edu.ph
+   - Password: password123
+
+6. 2022BSIS0006 - Carmen Rodriguez (Year 4)
+   - Test Case: Senior with most subjects completed
+   - Purpose: Test curriculum completion tracking and progress visualization
+   - Email: carmen.rodriguez@student.richwell.edu.ph
+   - Password: password123
+
+All passwords: password123
 """
 
 from django.core.management.base import BaseCommand
@@ -267,7 +307,7 @@ class Command(BaseCommand):
                 self.log(f'  [+] Created user: {user.email} ({user.role})')
             users[user_data['role']] = users.get(user_data['role'], []) + [user]
 
-        # Seed students (22 students)
+        # Seed students (23 students - 6 BSIS + 17 others)
         student_data = self.generate_student_data()
         for data in student_data:
             user, created = User.objects.get_or_create(
@@ -284,43 +324,127 @@ class Command(BaseCommand):
                 user.student_number = data['student_number']
                 user.save()
                 self.log(f'  [+] Created student: {user.student_number} - {user.get_full_name()}')
+
+            # Preserve test_case attribute for later use
+            user.test_case = data.get('test_case', 'regular')
             users['STUDENT'] = users.get('STUDENT', []) + [user]
 
         self.log(f'  Total users: {User.objects.count()}')
         return users
 
     def generate_student_data(self):
-        """Generate 22 students distributed across programs and year levels"""
-        first_names = ['Juan', 'Maria', 'Jose', 'Ana', 'Pedro', 'Carmen', 'Luis', 'Rosa',
-                      'Carlos', 'Elena', 'Miguel', 'Sofia', 'Ricardo', 'Isabel', 'Fernando',
-                      'Teresa', 'Antonio', 'Gloria', 'Ramon', 'Linda', 'Mario', 'Beatriz']
-        last_names = ['Dela Cruz', 'Santos', 'Reyes', 'Garcia', 'Gonzales', 'Rodriguez',
-                     'Fernandez', 'Lopez', 'Martinez', 'Torres', 'Flores', 'Ramos']
-
+        """Generate students with specific BSIS test cases for curriculum testing"""
         students = []
-        student_distributions = [
-            # (program_code, year_level, count)
-            ('BSIT', 1, 2), ('BSIT', 2, 2), ('BSIT', 3, 1), ('BSIT', 4, 2),
-            ('BSCS', 1, 2), ('BSCS', 2, 1), ('BSCS', 3, 2), ('BSCS', 4, 1),
-            ('BSIS', 1, 1), ('BSIS', 2, 2), ('BSIS', 3, 1), ('BSIS', 4, 1),
-            ('BSBA', 1, 1), ('BSBA', 2, 1), ('BSBA', 3, 1), ('BSBA', 4, 1),
+
+        # ============================================
+        # BSIS TEST STUDENTS (Comprehensive Test Cases)
+        # ============================================
+
+        # BSIS Year 1 - Freshman with clean record
+        students.append({
+            'student_number': '2025BSIS0001',
+            'email': 'juan.delacruz@student.richwell.edu.ph',
+            'first_name': 'Juan',
+            'last_name': 'Dela Cruz',
+            'program_code': 'BSIS',
+            'year_level': 1,
+            'test_case': 'clean_freshman'
+        })
+
+        # BSIS Year 2 - Has INC grade in PROG101 prerequisite
+        students.append({
+            'student_number': '2024BSIS0002',
+            'email': 'maria.santos@student.richwell.edu.ph',
+            'first_name': 'Maria',
+            'last_name': 'Santos',
+            'program_code': 'BSIS',
+            'year_level': 2,
+            'test_case': 'has_inc_prereq'
+        })
+
+        # BSIS Year 2 - Has completed Y1 subjects, ready for Y2
+        students.append({
+            'student_number': '2024BSIS0003',
+            'email': 'jose.reyes@student.richwell.edu.ph',
+            'first_name': 'Jose',
+            'last_name': 'Reyes',
+            'program_code': 'BSIS',
+            'year_level': 2,
+            'test_case': 'completed_year1'
+        })
+
+        # BSIS Year 3 - Has retake subject (failed DATASTRUCT, now passed)
+        students.append({
+            'student_number': '2023BSIS0004',
+            'email': 'ana.garcia@student.richwell.edu.ph',
+            'first_name': 'Ana',
+            'last_name': 'Garcia',
+            'program_code': 'BSIS',
+            'year_level': 3,
+            'test_case': 'has_retake'
+        })
+
+        # BSIS Year 3 - Mixed grades (some passed, some INC, some failed)
+        students.append({
+            'student_number': '2023BSIS0005',
+            'email': 'pedro.gonzales@student.richwell.edu.ph',
+            'first_name': 'Pedro',
+            'last_name': 'Gonzales',
+            'program_code': 'BSIS',
+            'year_level': 3,
+            'test_case': 'mixed_grades'
+        })
+
+        # BSIS Year 4 - Senior with almost completed curriculum
+        students.append({
+            'student_number': '2022BSIS0006',
+            'email': 'carmen.rodriguez@student.richwell.edu.ph',
+            'first_name': 'Carmen',
+            'last_name': 'Rodriguez',
+            'program_code': 'BSIS',
+            'year_level': 4,
+            'test_case': 'senior_almost_done'
+        })
+
+        # ============================================
+        # OTHER PROGRAMS (Keep original distribution)
+        # ============================================
+
+        other_students_data = [
+            # BSIT Students
+            ('2025BSIT0007', 'Luis', 'Fernandez', 'BSIT', 1),
+            ('2025BSIT0008', 'Rosa', 'Lopez', 'BSIT', 1),
+            ('2024BSIT0009', 'Carlos', 'Martinez', 'BSIT', 2),
+            ('2024BSIT0010', 'Elena', 'Torres', 'BSIT', 2),
+            ('2023BSIT0011', 'Miguel', 'Flores', 'BSIT', 3),
+            ('2022BSIT0012', 'Sofia', 'Ramos', 'BSIT', 4),
+            ('2022BSIT0013', 'Ricardo', 'Morales', 'BSIT', 4),
+
+            # BSCS Students
+            ('2025BSCS0014', 'Isabel', 'Santiago', 'BSCS', 1),
+            ('2025BSCS0015', 'Fernando', 'Navarro', 'BSCS', 1),
+            ('2024BSCS0016', 'Teresa', 'Castro', 'BSCS', 2),
+            ('2023BSCS0017', 'Antonio', 'Ramirez', 'BSCS', 3),
+            ('2023BSCS0018', 'Gloria', 'Mendoza', 'BSCS', 3),
+            ('2022BSCS0019', 'Ramon', 'Alvarez', 'BSCS', 4),
+
+            # BSBA Students
+            ('2025BSBA0020', 'Linda', 'Romero', 'BSBA', 1),
+            ('2024BSBA0021', 'Mario', 'Diaz', 'BSBA', 2),
+            ('2023BSBA0022', 'Beatriz', 'Herrera', 'BSBA', 3),
+            ('2022BSBA0023', 'Victor', 'Jimenez', 'BSBA', 4),
         ]
 
-        idx = 0
-        for program_code, year_level, count in student_distributions:
-            for _ in range(count):
-                year = 2025 - (year_level - 1)  # Entry year
-                student_num = f"{year}{program_code}{str(idx+1).zfill(4)}"
-
-                students.append({
-                    'student_number': student_num,
-                    'email': f'{first_names[idx].lower()}.{last_names[idx % len(last_names)].lower().replace(" ", "")}@student.richwell.edu.ph',
-                    'first_name': first_names[idx],
-                    'last_name': last_names[idx % len(last_names)],
-                    'program_code': program_code,
-                    'year_level': year_level
-                })
-                idx += 1
+        for student_num, first, last, prog, year in other_students_data:
+            students.append({
+                'student_number': student_num,
+                'email': f'{first.lower()}.{last.lower().replace(" ", "")}@student.richwell.edu.ph',
+                'first_name': first,
+                'last_name': last,
+                'program_code': prog,
+                'year_level': year,
+                'test_case': 'regular'
+            })
 
         return students
 
@@ -331,6 +455,10 @@ class Command(BaseCommand):
 
         # Create StudentProfile records
         program_map = {p.code: p for p in programs}
+
+        # Get BSIS curriculum (will be created in seed_curricula)
+        # For now, we'll assign it after curricula are created
+
         for user in users.get('STUDENT', []):
             # Extract program code from student number (format: YYYYPROGXXXX)
             student_num = user.student_number
@@ -346,6 +474,12 @@ class Command(BaseCommand):
                     'status': 'ENROLLED'
                 }
             )
+
+            # Assign curriculum after it's created (will be done in Layer 4)
+            # Store test_case info for later use in grade seeding
+            if hasattr(user, 'test_case'):
+                student.test_case = user.test_case
+
             students.append(student)
             if created:
                 self.log(f'  [+] Created student profile: {user.student_number}')
@@ -542,17 +676,20 @@ class Command(BaseCommand):
         curricula = []
 
         for program in programs:
+            # Create curriculum with proper field names (code, effective_year)
+            curriculum_code = f'{program.code}_UE_2019'  # Use 2019 as base year
             curriculum, created = Curriculum.objects.get_or_create(
-                program=program,
-                year=2024,
+                code=curriculum_code,
                 defaults={
-                    'name': f'{program.code} Curriculum 2024',
-                    'description': f'Standard curriculum for {program.name}'
+                    'program': program,
+                    'effective_year': 2019,
+                    'description': f'Unified Entrance Curriculum for {program.name} (2019)',
+                    'is_active': True
                 }
             )
             curricula.append(curriculum)
             if created:
-                self.log(f'  [+] Created curriculum: {curriculum.name}')
+                self.log(f'  [+] Created curriculum: {curriculum.code}')
 
             # Assign subjects to curriculum
             program_subjects = Subject.objects.filter(programs=program)
@@ -562,11 +699,24 @@ class Command(BaseCommand):
                     subject=subject,
                     defaults={
                         'year_level': subject.year_level,
-                        'semester_number': subject.semester_number
+                        'semester_number': subject.semester_number,
+                        'is_required': True  # Mark all as required by default
                     }
                 )
 
             self.log(f'  [+] Assigned {program_subjects.count()} subjects to {program.code} curriculum')
+
+        # ASSIGN CURRICULA TO STUDENTS
+        self.log('[Curricula] Assigning curricula to students...')
+        for student in StudentProfile.objects.all():
+            program_code = student.program.code
+            curriculum_code = f'{program_code}_UE_2019'
+            curriculum = Curriculum.objects.filter(code=curriculum_code).first()
+
+            if curriculum:
+                student.curriculum = curriculum
+                student.save()
+                self.log(f'  [+] Assigned curriculum {curriculum.code} to {student.user.student_number}')
 
         self.log(f'  Total curricula: {Curriculum.objects.count()}')
         return curricula
@@ -763,13 +913,23 @@ class Command(BaseCommand):
         self.log(f'  Total enrollment subjects: {EnrollmentSubject.objects.count()}')
 
     def seed_grades(self, enrollments, subjects, semesters):
-        """Seed grades for CLOSED semesters only"""
+        """Seed grades for CLOSED semesters and test cases"""
+        # First, seed BSIS test case grades
+        self.seed_bsis_test_grades(semesters)
+
+        # Then seed regular random grades for other students
         closed_semesters = semesters.filter(status='CLOSED')
         grades_list = ['1.0', '1.25', '1.5', '1.75', '2.0', '2.25', '2.5', '2.75', '3.0', 'INC', '5.0']
         grade_weights = [5, 10, 15, 15, 20, 15, 10, 5, 3, 1, 1]  # Distribution
 
-        # Only create grades for past enrollments
+        # Only create grades for past enrollments (skip BSIS test students)
+        bsis_test_numbers = ['2025BSIS0001', '2024BSIS0002', '2024BSIS0003', '2023BSIS0004', '2023BSIS0005', '2022BSIS0006']
+
         for student in StudentProfile.objects.all():
+            # Skip BSIS test students (already handled)
+            if student.user.student_number in bsis_test_numbers:
+                continue
+
             for semester in closed_semesters:
                 enrollment = Enrollment.objects.filter(
                     student=student,
@@ -797,6 +957,181 @@ class Command(BaseCommand):
                         )
 
         self.log(f'  Total grades: {Grade.objects.count()}')
+
+    def seed_bsis_test_grades(self, semesters):
+        """Seed specific test case grades for BSIS students"""
+        from apps.enrollment.models import SubjectEnrollment
+
+        self.log('  [BSIS Test Cases] Seeding specific grade scenarios...')
+
+        # Get BSIS subjects
+        bsis_subjects = {
+            # Year 1, Sem 1
+            'ENG101': Subject.objects.filter(code='ENG101').first(),
+            'MATH101': Subject.objects.filter(code='MATH101').first(),
+            'NSTP101': Subject.objects.filter(code='NSTP101').first(),
+            'PE101': Subject.objects.filter(code='PE101').first(),
+            'CS101': Subject.objects.filter(code='CS101').first(),
+            'PROG101': Subject.objects.filter(code='PROG101').first(),
+            # Year 1, Sem 2
+            'ENG102': Subject.objects.filter(code='ENG102').first(),
+            'MATH102': Subject.objects.filter(code='MATH102').first(),
+            'NSTP102': Subject.objects.filter(code='NSTP102').first(),
+            'PE102': Subject.objects.filter(code='PE102').first(),
+            'PROG102': Subject.objects.filter(code='PROG102').first(),
+            'WEBDEV101': Subject.objects.filter(code='WEBDEV101').first(),
+            # Year 2, Sem 1
+            'DATASTRUCT': Subject.objects.filter(code='DATASTRUCT').first(),
+            'DATABASE101': Subject.objects.filter(code='DATABASE101').first(),
+            'OOP101': Subject.objects.filter(code='OOP101').first(),
+            'STATS101': Subject.objects.filter(code='STATS101').first(),
+        }
+
+        # Get past semesters for historical data
+        past_semesters = list(semesters.filter(status='CLOSED').order_by('start_date'))
+
+        # TEST CASE 1: 2024BSIS0002 - Has INC in PROG101 (prerequisite for many Y2 subjects)
+        student_inc = User.objects.filter(student_number='2024BSIS0002').first()
+        if student_inc:
+            profile_inc = student_inc.student_profile
+            self.log(f'    [Test Case] {student_inc.student_number} - INC in prerequisite PROG101')
+
+            # Create Y1S1 grades (all passed except normal grades)
+            if len(past_semesters) >= 2:
+                self._create_test_grade(profile_inc, past_semesters[0], 'ENG101', '2.0', bsis_subjects)
+                self._create_test_grade(profile_inc, past_semesters[0], 'MATH101', '2.25', bsis_subjects)
+                self._create_test_grade(profile_inc, past_semesters[0], 'NSTP101', '1.75', bsis_subjects)
+                self._create_test_grade(profile_inc, past_semesters[0], 'PE101', '1.5', bsis_subjects)
+                self._create_test_grade(profile_inc, past_semesters[0], 'CS101', '2.0', bsis_subjects)
+                self._create_test_grade(profile_inc, past_semesters[0], 'PROG101', 'INC', bsis_subjects, has_expiry=True)  # INC!
+
+        # TEST CASE 2: 2024BSIS0003 - Completed all Y1 subjects (clean record)
+        student_clean = User.objects.filter(student_number='2024BSIS0003').first()
+        if student_clean:
+            profile_clean = student_clean.student_profile
+            self.log(f'    [Test Case] {student_clean.student_number} - All Y1 subjects passed')
+
+            if len(past_semesters) >= 2:
+                # Y1S1 - All passed with good grades
+                self._create_test_grade(profile_clean, past_semesters[0], 'ENG101', '1.75', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[0], 'MATH101', '2.0', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[0], 'NSTP101', '1.5', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[0], 'PE101', '1.25', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[0], 'CS101', '1.75', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[0], 'PROG101', '2.0', bsis_subjects)
+
+                # Y1S2 - All passed
+                self._create_test_grade(profile_clean, past_semesters[1], 'ENG102', '1.75', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[1], 'MATH102', '2.0', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[1], 'NSTP102', '1.5', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[1], 'PE102', '1.5', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[1], 'PROG102', '1.75', bsis_subjects)
+                self._create_test_grade(profile_clean, past_semesters[1], 'WEBDEV101', '2.0', bsis_subjects)
+
+        # TEST CASE 3: 2023BSIS0004 - Has retake (failed DATASTRUCT, then passed)
+        student_retake = User.objects.filter(student_number='2023BSIS0004').first()
+        if student_retake:
+            profile_retake = student_retake.student_profile
+            self.log(f'    [Test Case] {student_retake.student_number} - Failed DATASTRUCT (5.0), then passed (2.0)')
+
+            if len(past_semesters) >= 3:
+                # Y1 subjects all passed
+                self._create_test_grade(profile_retake, past_semesters[0], 'PROG101', '2.0', bsis_subjects)
+                self._create_test_grade(profile_retake, past_semesters[0], 'PROG102', '2.25', bsis_subjects)
+
+                # Y2S1 - Failed DATASTRUCT first time
+                self._create_test_grade(profile_retake, past_semesters[1], 'DATASTRUCT', '5.0', bsis_subjects)  # FAILED
+                self._create_test_grade(profile_retake, past_semesters[1], 'DATABASE101', '2.0', bsis_subjects)
+                self._create_test_grade(profile_retake, past_semesters[1], 'OOP101', '1.75', bsis_subjects)
+
+                # Y2S1 (retake) - Passed DATASTRUCT on second attempt
+                self._create_test_grade(profile_retake, past_semesters[2], 'DATASTRUCT', '2.0', bsis_subjects)  # PASSED on retake
+
+        # TEST CASE 4: 2023BSIS0005 - Mixed grades (some passed, one INC, one failed)
+        student_mixed = User.objects.filter(student_number='2023BSIS0005').first()
+        if student_mixed:
+            profile_mixed = student_mixed.student_profile
+            self.log(f'    [Test Case] {student_mixed.student_number} - Mixed grades (passed, INC, failed)')
+
+            if len(past_semesters) >= 2:
+                # Y1 - Mix of grades
+                self._create_test_grade(profile_mixed, past_semesters[0], 'ENG101', '1.5', bsis_subjects)  # Good
+                self._create_test_grade(profile_mixed, past_semesters[0], 'MATH101', '3.0', bsis_subjects)  # Barely passed
+                self._create_test_grade(profile_mixed, past_semesters[0], 'PROG101', 'INC', bsis_subjects, has_expiry=True)  # INC
+                self._create_test_grade(profile_mixed, past_semesters[0], 'CS101', '5.0', bsis_subjects)  # FAILED
+
+                # Y1S2 - Some passed
+                self._create_test_grade(profile_mixed, past_semesters[1], 'PROG102', '2.5', bsis_subjects)
+                self._create_test_grade(profile_mixed, past_semesters[1], 'WEBDEV101', '2.0', bsis_subjects)
+
+        # TEST CASE 5: 2022BSIS0006 - Senior with most subjects completed
+        student_senior = User.objects.filter(student_number='2022BSIS0006').first()
+        if student_senior:
+            profile_senior = student_senior.student_profile
+            self.log(f'    [Test Case] {student_senior.student_number} - Senior with most subjects completed')
+
+            # Give comprehensive passing grades for Y1, Y2, Y3 subjects
+            if len(past_semesters) >= 3:
+                # Y1 subjects
+                for subj_code in ['ENG101', 'MATH101', 'NSTP101', 'PE101', 'CS101', 'PROG101']:
+                    self._create_test_grade(profile_senior, past_semesters[0], subj_code, '1.75', bsis_subjects)
+
+                # Y1S2 and Y2 subjects
+                for subj_code in ['ENG102', 'PROG102', 'WEBDEV101', 'DATASTRUCT', 'DATABASE101', 'OOP101']:
+                    self._create_test_grade(profile_senior, past_semesters[1], subj_code, '2.0', bsis_subjects)
+
+        self.log(f'  [BSIS Test Cases] Completed seeding test grades')
+
+    def _create_test_grade(self, student_profile, semester, subject_code, grade_value, subjects_dict, has_expiry=False):
+        """Helper to create a test grade for a specific student"""
+        from apps.enrollment.models import SubjectEnrollment
+
+        subject = subjects_dict.get(subject_code)
+        if not subject:
+            return
+
+        # Create or get enrollment for this student in this semester
+        section = Section.objects.filter(
+            semester=semester,
+            program=student_profile.program,
+            year_level=student_profile.year_level
+        ).first()
+
+        if not section:
+            return
+
+        enrollment, _ = Enrollment.objects.get_or_create(
+            student=student_profile,
+            semester=semester,
+            section=section,
+            defaults={'status': 'APPROVED', 'payment_approved': True, 'head_approved': True}
+        )
+
+        # Create subject enrollment
+        section_subject, _ = SectionSubject.objects.get_or_create(
+            section=section,
+            subject=subject
+        )
+
+        enrollment_subject, _ = EnrollmentSubject.objects.get_or_create(
+            enrollment=enrollment,
+            section_subject=section_subject
+        )
+
+        # Create the grade
+        expiry_date = None
+        if has_expiry and grade_value == 'INC':
+            expiry_date = semester.end_date + timedelta(days=365)
+
+        SubjectEnrollment.objects.get_or_create(
+            enrollment=enrollment,
+            subject=subject,
+            defaults={
+                'grade': grade_value,
+                'status': 'PASSED' if grade_value not in ['INC', '5.0'] else ('INC' if grade_value == 'INC' else 'FAILED'),
+                'expiry_date': expiry_date
+            }
+        )
 
     def seed_payments(self, enrollments, semesters):
         """Create payment records for enrollments"""

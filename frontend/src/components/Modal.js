@@ -39,43 +39,40 @@ export class Modal {
   }
 
   init() {
-    // Create modal element
+    // Create modal element directly (not a wrapper)
     const modalEl = document.createElement('div');
     modalEl.id = this.modalId;
-    modalEl.innerHTML = this.getHTML();
+    modalEl.className = 'fixed inset-0 z-50 overflow-y-auto hidden';
+    modalEl.setAttribute('aria-labelledby', 'modal-title');
+    modalEl.setAttribute('role', 'dialog');
+    modalEl.setAttribute('aria-modal', 'true');
+    modalEl.innerHTML = this.getModalContent();
     document.body.appendChild(modalEl);
 
     // Attach event listeners
     this.attachEventListeners();
   }
 
-  getHTML() {
+  getModalContent() {
     return `
-      <div
-        class="fixed inset-0 z-50 overflow-y-auto hidden"
-        aria-labelledby="modal-title"
-        role="dialog"
-        aria-modal="true"
-      >
-        <!-- Backdrop -->
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity modal-backdrop"></div>
+      <!-- Backdrop -->
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity modal-backdrop"></div>
 
-        <!-- Modal Container -->
-        <div class="flex items-center justify-center min-h-screen p-4">
-          <!-- Modal Dialog -->
-          <div class="${this.getModalSizeClasses()} relative transform transition-all modal-dialog">
-            <div class="bg-white rounded-lg shadow-xl overflow-hidden">
-              <!-- Header -->
-              ${this.getHeaderHTML()}
+      <!-- Modal Container -->
+      <div class="flex items-center justify-center min-h-screen p-4">
+        <!-- Modal Dialog -->
+        <div class="${this.getModalSizeClasses()} relative transform transition-all modal-dialog">
+          <div class="bg-white rounded-lg shadow-xl overflow-hidden">
+            <!-- Header -->
+            ${this.getHeaderHTML()}
 
-              <!-- Body -->
-              <div class="modal-body p-6">
-                ${this.options.content}
-              </div>
-
-              <!-- Footer -->
-              ${this.getFooterHTML()}
+            <!-- Body -->
+            <div class="modal-body p-6">
+              ${this.options.content}
             </div>
+
+            <!-- Footer -->
+            ${this.getFooterHTML()}
           </div>
         </div>
       </div>

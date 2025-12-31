@@ -109,6 +109,16 @@ export const api = {
     async get(endpoint) {
         const response = await this.request(endpoint, { method: 'GET' });
         if (!response) return null;
+
+        // Handle non-JSON responses gracefully
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+            }
+            return null;
+        }
+
         return response.json();
     },
 
@@ -235,7 +245,7 @@ export const endpoints = {
     myEnrollment: '/admissions/my-enrollment/',
     myPayments: '/admissions/my-enrollment/payments/',
 
-    // Cashier endpoints (enrollment URLs are under /admissions/)
+    // Cashier endpoints (enrollment app is registered under /admissions/ prefix)
     cashierStudentSearch: '/admissions/cashier/students/search/',
     cashierPendingPayments: '/admissions/cashier/students/pending-payments/',
     cashierTodayTransactions: '/admissions/cashier/today-transactions/',
@@ -259,6 +269,7 @@ export const endpoints = {
     createDocumentRelease: '/admissions/documents/release/',
     myReleases: '/admissions/documents/my-releases/',
     allReleases: '/admissions/documents/all/',
+    studentEnrollmentStatus: (studentId) => `/admissions/students/${studentId}/enrollment-status/`,
 
     // Curriculum Management (EPIC 7)
     curricula: '/academics/curricula/',
@@ -266,6 +277,7 @@ export const endpoints = {
     curriculumStructure: (id) => `/academics/curricula/${id}/structure/`,
     curriculumAssignSubjects: (id) => `/academics/curricula/${id}/assign_subjects/`,
     curriculumRemoveSubject: (id, subjectId) => `/academics/curricula/${id}/subjects/${subjectId}/`,
+    studentCurriculum: '/admissions/my-curriculum/',
 
     // Permission Management
     users: '/accounts/users/',

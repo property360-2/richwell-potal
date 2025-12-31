@@ -20,20 +20,88 @@ const state = {
   showSchedulePreview: null,
   showConfirmModal: false,
   pendingEnrollment: null, // { subject, section }
-  enrollmentStatus: null // Enrollment status from API
-};
-
+  enrollmentStatus: null, // Enrollment status from API
   // Edit modal state
   editingEnrollment: null,
   editModalSelectedSubject: null,
   editModalSelectedSection: null,
-  showEditModal: false
+  showEditModal: false,
+  // Cart modal state
+  showCartModal: false,
+  // Filter state
+  filters: {
+    yearLevel: null,  // null = all years
+    semester: null     // null = all semesters
+  },
+  availableYears: [1, 2, 3, 4, 5],
+  availableSemesters: [
+    { value: 1, label: '1st Semester' },
+    { value: 2, label: '2nd Semester' },
+    { value: 3, label: 'Summer' }
+  ],
+  // Error states
+  noCurriculumError: null
 };
+
+// Cart persistence helpers
+function getCartStorageKey() {
+  // Make cart storage user-specific to prevent cart sharing between different student accounts
+  const userId = state.user?.id || TokenManager.getUser()?.id;
+  return userId ? `enrollment_cart_${userId}` : 'enrollment_cart';
+}
+
+function saveCartToStorage() {
+  try {
+    const cartData = state.cart.map(item => ({
+      subject: {
+        id: item.subject.id,
+        code: item.subject.code,
+        name: item.subject.name,
+        units: item.subject.units
+      },
+      section: {
+        id: item.section.id,
+        name: item.section.name,
+        schedule: item.section.schedule
+      }
+    }));
+    const storageKey = getCartStorageKey();
+    localStorage.setItem(storageKey, JSON.stringify(cartData));
+  } catch (error) {
+    console.error('Failed to save cart to localStorage:', error);
+  }
+}
+
+function loadCartFromStorage() {
+  try {
+    const storageKey = getCartStorageKey();
+    const savedCart = localStorage.getItem(storageKey);
+    if (savedCart) {
+      state.cart = JSON.parse(savedCart);
+      console.log('Loaded cart from localStorage for user:', state.user?.id || TokenManager.getUser()?.id);
+    }
+  } catch (error) {
+    console.error('Failed to load cart from localStorage:', error);
+    state.cart = [];
+  }
+}
+
+function clearCartStorage() {
+  try {
+    const storageKey = getCartStorageKey();
+    localStorage.removeItem(storageKey);
+  } catch (error) {
+    console.error('Failed to clear cart from localStorage:', error);
+  }
+}
 
 // No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
+
+  // Load saved cart from localStorage
+  loadCartFromStorage();
 
   await loadData();
   render();
@@ -69,21 +137,48 @@ async function loadData() {
 
     // Try to load recommended subjects - this includes payment status
     try {
-      const recommendedResponse = await api.get(endpoints.recommendedSubjects);
+      // Build URL with filter parameters
+      let url = endpoints.recommendedSubjects;
+      const params = [];
+
+      if (state.filters.yearLevel) {
+        params.push(`year_level=${state.filters.yearLevel}`);
+      }
+      if (state.filters.semester) {
+        params.push(`semester_number=${state.filters.semester}`);
+      }
+
+      if (params.length > 0) {
+        url += '?' + params.join('&');
+      }
+
+      const recommendedResponse = await api.get(url);
       console.log('Recommended subjects response:', recommendedResponse);
-      if (recommendedResponse?.data) {
+
+      // Check for "no curriculum" error
+      if (!recommendedResponse.success && recommendedResponse.error) {
+        state.noCurriculumError = recommendedResponse.error;
+        state.recommendedSubjects = [];
+        state.totalUnits = recommendedResponse.current_units || 0;
+        state.maxUnits = recommendedResponse.max_units || 30;
+      } else if (recommendedResponse?.data) {
+        state.noCurriculumError = null;
         const subjects = recommendedResponse.data.recommended_subjects || [];
         // Map backend fields to frontend model
         state.recommendedSubjects = subjects.map(s => ({
           ...s,
           name: s.title || s.name,
-          prerequisite_met: s.prerequisites_met,
+          prerequisite_met: s.can_enroll, // Use can_enroll from backend
+          enrollment_status: s.enrollment_status,
+          enrollment_message: s.enrollment_message,
+          missing_prerequisites: s.missing_prerequisites || s.prerequisite_codes || (s.prerequisites && !s.can_enroll ? s.prerequisites : []),
+          inc_prerequisite_code: s.inc_prerequisite_code || s.inc_prerequisite,
           sections: (s.available_sections || s.sections || []).map(sec => ({
             ...sec,
             id: sec.section_id || sec.id,
             name: sec.section_name || sec.name,
             slots: sec.available_slots || sec.slots,
-            enrolled: 0, // Backend sends available slots, not total/enrolled
+            enrolled: sec.enrolled_count || 0,
             schedule: Array.isArray(sec.schedule) ? sec.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time}`).join(', ') : sec.schedule
           }))
         }));
@@ -98,8 +193,14 @@ async function loadData() {
       }
     } catch (err) {
       console.error('Failed to load recommended subjects:', err);
-      Toast.error('Error loading subjects: ' + (err.message || 'Unknown error'));
-      state.recommendedSubjects = [];
+      // Check if it's a 400 error (no curriculum)
+      if (err.response?.status === 400 && err.response?.data?.error) {
+        state.noCurriculumError = err.response.data.error;
+        state.recommendedSubjects = [];
+      } else {
+        Toast.error('Error loading subjects: ' + (err.message || 'Unknown error'));
+        state.recommendedSubjects = [];
+      }
     }
 
     // Try to load all available subjects
@@ -111,6 +212,8 @@ async function loadData() {
           ...s,
           name: s.title || s.name,
           prerequisite_met: s.prerequisites_met,
+          missing_prerequisites: s.missing_prerequisites || s.prerequisite_codes || (s.prerequisites && !s.prerequisites_met ? s.prerequisites : []),
+          inc_prerequisite_code: s.inc_prerequisite_code || s.inc_prerequisite,
           sections: (s.available_sections || s.sections || []).map(sec => ({
             ...sec,
             id: sec.section_id || sec.id,
@@ -483,10 +586,25 @@ function render() {
         <!-- Unit Counter Bar -->
         ${renderUnitCounter()}
 
-        <!-- Main Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <!-- Left Column - Subject Selection (Takes 2 columns) -->
-          <div class="lg:col-span-2 space-y-6">
+        <!-- Filter UI -->
+        ${renderFilters()}
+
+        <!-- "No Curriculum" Error State -->
+        ${state.noCurriculumError ? `
+          <div class="card mb-6">
+            <div class="text-center py-12">
+              <svg class="w-16 h-16 mx-auto text-yellow-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+              </svg>
+              <h3 class="text-xl font-bold text-gray-800 mb-2">No Curriculum Assigned</h3>
+              <p class="text-gray-600 max-w-md mx-auto">${state.noCurriculumError}</p>
+              <p class="text-sm text-gray-500 mt-4">Please contact the registrar's office to be assigned to a curriculum before enrolling in subjects.</p>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Main Content -->
+        <div class="space-y-6">
             <!-- Recommended Subjects -->
             <div class="card">
               <div class="flex items-center justify-between mb-6">
@@ -536,41 +654,17 @@ function render() {
               })()}
             </div>
           </div>
-
-          <!-- Right Column - Cart/Enrollment Summary -->
-          <div class="space-y-6">
-            <!-- Shopping Cart -->
-            <div class="card sticky top-24">
-              <div class="flex items-center justify-between mb-4">
-                <h3 class="font-bold text-gray-800">Selected Subjects</h3>
-                <span class="text-sm text-gray-500">${state.cart.reduce((sum, item) => sum + item.subject.units, 0)} / ${state.maxUnits} units</span>
-              </div>
-              ${state.cart.length === 0 ? `
-                <div class="text-center py-6">
-                  <svg class="w-16 h-16 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                  </svg>
-                  <p class="text-gray-400 text-sm">No subjects selected yet</p>
-                  <p class="text-gray-400 text-xs mt-1">Pick subjects to enroll</p>
-                </div>
-              ` : `
-                <div class="space-y-2 mb-4">
-                  ${state.cart.map(item => renderCartItem(item)).join('')}
-                </div>
-                <button onclick="showConfirmAllModal()" class="w-full btn-primary py-3 flex items-center justify-center gap-2">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                  </svg>
-                  Confirm Enrollment (${state.cart.length})
-                </button>
-              `}
-            </div>
-          </div>
         </div>
+
+        <!-- Floating Cart Button -->
+        ${renderFloatingCartButton()}
       </main>
 
       <!-- Schedule Preview Modal -->
       ${state.showSchedulePreview ? renderSchedulePreviewModal() : ''}
+
+      <!-- Cart Modal -->
+      ${state.showCartModal ? renderCartModal() : ''}
 
       <!-- Cart Confirmation Modal -->
       ${state.showCartConfirmModal ? renderCartConfirmModal() : ''}
@@ -616,12 +710,50 @@ function renderUnitCounter() {
   `;
 }
 
+function renderFilters() {
+  return `
+    <div class="card mb-6">
+      <div class="flex items-center gap-4">
+        <div class="flex-1">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Year Level</label>
+          <select id="filter-year" onchange="handleYearFilterChange(this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">All Years</option>
+            ${state.availableYears.map(year => `
+              <option value="${year}" ${state.filters.yearLevel === year ? 'selected' : ''}>
+                Year ${year}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="flex-1">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Semester</label>
+          <select id="filter-semester" onchange="handleSemesterFilterChange(this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">All Semesters</option>
+            ${state.availableSemesters.map(sem => `
+              <option value="${sem.value}" ${state.filters.semester === sem.value ? 'selected' : ''}>
+                ${sem.label}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="flex items-end">
+          <button onclick="clearFilters()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+            Clear Filters
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderSubjectCard(subject, isRecommended) {
   const isInCart = state.cart.some(item => item.subject.id === subject.id);
   const isEnrolled = state.enrolledSubjects.find(e => e.subject?.code === subject.code);
   const hasPrerequisiteIssue = subject.prerequisite_met === false;
   const hasIncPrerequisite = subject.has_inc_prerequisite === true;
-  const canAdd = !hasPrerequisiteIssue && !hasIncPrerequisite && !isSelected && !isEnrolled;
+  const canAdd = !hasPrerequisiteIssue && !hasIncPrerequisite && !isInCart && !isEnrolled;
   const wouldExceedLimit = (state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits;
 
   // Determine block reason for display
@@ -631,10 +763,22 @@ function renderSubjectCard(subject, isRecommended) {
     blockReason = '✓ Already enrolled in this subject';
     blockClass = 'bg-blue-50 text-blue-700 border-blue-200';
   } else if (hasIncPrerequisite) {
-    blockReason = `⚠️ Cannot enroll: You have INC in prerequisite ${subject.inc_prerequisite_code || subject.prerequisite || ''}. Complete it first.`;
+    const incCode = subject.inc_prerequisite_code || subject.inc_prerequisite || subject.prerequisite || '';
+    blockReason = `⚠️ Cannot enroll: You have INC in prerequisite <strong>${incCode}</strong>. Complete it first.`;
     blockClass = 'bg-red-50 text-red-700 border-red-200';
   } else if (hasPrerequisiteIssue) {
-    blockReason = `🔒 Missing prerequisite: ${subject.missing_prerequisites?.join(', ') || subject.prerequisite || 'Required subject not passed'}`;
+    // Format missing prerequisites nicely
+    let missingPrereqs = '';
+    if (subject.missing_prerequisites && Array.isArray(subject.missing_prerequisites) && subject.missing_prerequisites.length > 0) {
+      missingPrereqs = subject.missing_prerequisites.join(', ');
+    } else if (subject.missing_prerequisites && typeof subject.missing_prerequisites === 'string') {
+      missingPrereqs = subject.missing_prerequisites;
+    } else if (subject.prerequisite) {
+      missingPrereqs = subject.prerequisite;
+    } else {
+      missingPrereqs = 'Required subject(s)';
+    }
+    blockReason = `🔒 Missing prerequisite: You must pass <strong>${missingPrereqs}</strong> first`;
     blockClass = 'bg-yellow-50 text-yellow-700 border-yellow-200';
   } else if (wouldExceedLimit) {
     blockReason = `⚠️ Adding this subject would exceed the ${state.maxUnits} unit limit`;
@@ -875,6 +1019,95 @@ function renderCartItem(item) {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </button>
+    </div>
+  `;
+}
+
+function renderFloatingCartButton() {
+  const cartCount = state.cart.length;
+  const totalUnits = state.cart.reduce((sum, item) => sum + item.subject.units, 0);
+
+  if (cartCount === 0) return '';
+
+  return `
+    <button
+      onclick="openCartModal()"
+      class="fixed bottom-8 right-8 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 hover:scale-110 z-40 p-4 group"
+      title="View Selected Subjects"
+    >
+      <div class="relative">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+        </svg>
+        <div class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
+          ${cartCount}
+        </div>
+      </div>
+      <div class="absolute bottom-full right-0 mb-2 bg-gray-900 text-white text-xs px-3 py-1 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+        ${cartCount} subject${cartCount > 1 ? 's' : ''} • ${totalUnits} units
+      </div>
+    </button>
+  `;
+}
+
+function renderCartModal() {
+  const totalUnits = state.cart.reduce((sum, item) => sum + item.subject.units, 0);
+
+  return `
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn" onclick="closeCartModal()">
+      <div class="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 shadow-2xl transform animate-slideUp max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-bold text-gray-800">Selected Subjects</h3>
+            <p class="text-gray-500 text-sm mt-1">${state.cart.length} subject${state.cart.length > 1 ? 's' : ''} • ${totalUnits} / ${state.maxUnits} units</p>
+          </div>
+          <button onclick="closeCartModal()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        ${state.cart.length === 0 ? `
+          <div class="text-center py-12">
+            <svg class="w-20 h-20 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+            <p class="text-gray-400 text-lg">No subjects selected yet</p>
+            <p class="text-gray-400 text-sm mt-1">Pick subjects to enroll</p>
+          </div>
+        ` : `
+          <!-- Subject List -->
+          <div class="space-y-3 mb-6">
+            ${state.cart.map(item => renderCartItem(item)).join('')}
+          </div>
+
+          <!-- Unit Summary -->
+          <div class="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl mb-6">
+            <div class="flex items-center justify-between">
+              <span class="text-gray-700 font-medium">Total Units</span>
+              <span class="text-2xl font-bold text-blue-600">${totalUnits} / ${state.maxUnits}</span>
+            </div>
+            <div class="mt-2 bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-500" style="width: ${Math.min((totalUnits / state.maxUnits) * 100, 100)}%"></div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex gap-3">
+            <button onclick="closeCartModal()" class="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
+              Continue Shopping
+            </button>
+            <button onclick="showConfirmAllModal()" class="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Confirm Enrollment
+            </button>
+          </div>
+        `}
+      </div>
     </div>
   `;
 }
@@ -1222,12 +1455,14 @@ window.enrollSubject = function (subjectId, sectionId) {
 
   // Add to cart
   state.cart.push({ subject, section });
+  saveCartToStorage();
   Toast.success(`${subject.code} added to enrollment list`);
   render();
 };
 
 window.removeFromCart = function (subjectId) {
   state.cart = state.cart.filter(item => item.subject.id !== subjectId);
+  saveCartToStorage();
   Toast.info('Subject removed from enrollment list');
   render();
 };
@@ -1237,7 +1472,18 @@ window.closeCartConfirmModal = function () {
   render();
 };
 
+window.openCartModal = function () {
+  state.showCartModal = true;
+  render();
+};
+
+window.closeCartModal = function () {
+  state.showCartModal = false;
+  render();
+};
+
 window.showConfirmAllModal = function () {
+  state.showCartModal = false; // Close cart modal if open
   if (state.cart.length === 0) {
     Toast.warning('Please add subjects to your enrollment list first');
     return;
@@ -1253,48 +1499,56 @@ window.confirmAllEnrollments = async function () {
   state.showCartConfirmModal = false;
   render();
 
+  // Show loading toast
+  Toast.info(`Processing enrollment for ${state.cart.length} subject(s)...`);
+
   try {
     let successCount = 0;
     let failCount = 0;
+    const failedSubjects = [];
 
     // Process enrollments sequentially to avoid SQLite database locks
     for (const item of state.cart) {
       try {
-        const response = await api.post(endpoints.enrollSubject, {
+        const data = await api.post(endpoints.enrollSubject, {
           subject_id: item.subject.id,
           section_id: item.section.id
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            successCount++;
-          } else {
-            failCount++;
-          }
+        // Check if enrollment was successful
+        if (data && (data.success || data.status === 'success' || data.id)) {
+          successCount++;
+          console.log(`✓ Successfully enrolled: ${item.subject.code}`);
         } else {
           failCount++;
+          failedSubjects.push(item.subject.code);
+          console.error(`✗ Failed to enroll: ${item.subject.code}`, data);
         }
       } catch (error) {
-        console.error('Enrollment error:', error);
+        console.error(`✗ Enrollment error for ${item.subject.code}:`, error);
         failCount++;
+        failedSubjects.push(item.subject.code);
       }
     }
 
     // Clear cart and reload data
     state.cart = [];
+    clearCartStorage();
     await loadData();
     render();
 
+    // Show appropriate feedback
     if (failCount === 0) {
       Toast.success(`Successfully enrolled in ${successCount} subject(s)!`);
+    } else if (successCount === 0) {
+      Toast.error(`Failed to enroll in all subjects. Please contact the registrar for assistance.`);
     } else {
-      Toast.warning(`Enrolled: ${successCount}, Failed: ${failCount}. Please try again for failed subjects.`);
+      Toast.warning(`Enrolled: ${successCount}, Failed: ${failCount}. Failed subjects: ${failedSubjects.join(', ')}`);
     }
 
   } catch (error) {
     console.error('Bulk enrollment failed:', error);
-    Toast.error('Failed to process enrollments. Please try again.');
+    ErrorHandler.handle(error, 'Processing enrollments');
   }
 };
 
@@ -1409,6 +1663,35 @@ window.showSchedulePreview = function (subjectId) {
 
 window.closeSchedulePreview = function () {
   state.showSchedulePreview = null;
+  render();
+};
+
+// Filter handlers
+window.handleYearFilterChange = async function(value) {
+  state.filters.yearLevel = value ? parseInt(value) : null;
+  state.loading = true;
+  render();
+  await loadData();
+  state.loading = false;
+  render();
+};
+
+window.handleSemesterFilterChange = async function(value) {
+  state.filters.semester = value ? parseInt(value) : null;
+  state.loading = true;
+  render();
+  await loadData();
+  state.loading = false;
+  render();
+};
+
+window.clearFilters = async function() {
+  state.filters.yearLevel = null;
+  state.filters.semester = null;
+  state.loading = true;
+  render();
+  await loadData();
+  state.loading = false;
   render();
 };
 
