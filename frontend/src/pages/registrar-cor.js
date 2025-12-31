@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -12,7 +16,7 @@ const state = {
   searchResults: [],
   allStudents: [],
   selectedStudent: null,
-  showCORPreview: false
+  corModal: null
 };
 
 // Fetch real subject enrollments for a student
@@ -35,7 +39,7 @@ async function loadStudentSubjectEnrollments(enrollmentId) {
     // Fallback to empty array if no subjects
     return [];
   } catch (error) {
-    console.error(`Failed to load subjects for enrollment ${enrollmentId}:`, error);
+    ErrorHandler.handle(error, `Loading subjects for enrollment ${enrollmentId}`);
     return [];
   }
 }
@@ -56,7 +60,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading user profile');
     const savedUser = TokenManager.getUser();
     if (savedUser) state.user = savedUser;
   }
@@ -90,7 +94,7 @@ async function loadAllStudents() {
 
     console.log(`Loaded ${state.allStudents.length} students`);
   } catch (error) {
-    console.error('Failed to load students:', error);
+    ErrorHandler.handle(error, 'Loading students');
     state.allStudents = [];
   }
   state.loadingStudents = false;
@@ -100,7 +104,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading COR system...');
     return;
   }
 
@@ -169,28 +173,10 @@ function render() {
           </div>
         ` : renderStudentsList()}
       </div>
-      
+
       <!-- Selected Student Details -->
       ${state.selectedStudent ? renderStudentDetails() : ''}
     </main>
-    
-    <!-- COR Preview Modal -->
-    ${state.showCORPreview && state.selectedStudent ? renderCORPreview() : ''}
-  `;
-}
-
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -445,103 +431,76 @@ function renderStudentDetails() {
   `;
 }
 
-function renderCORPreview() {
-  const student = state.selectedStudent;
+function getCORContent(student) {
   const today = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
 
   return `
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4" onclick="closeCORPreview()">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-slideUp" onclick="event.stopPropagation()">
-        <!-- Modal Header -->
-        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 flex items-center justify-between">
+    <div class="p-8" id="cor-content">
+      <div class="border-2 border-gray-300 p-8">
+        <!-- Header -->
+        <div class="text-center mb-6">
+          <h1 class="text-2xl font-bold text-gray-800">RICHWELL COLLEGES</h1>
+          <p class="text-gray-600">Quezon City, Philippines</p>
+          <h2 class="text-xl font-bold text-blue-600 mt-4">CERTIFICATE OF REGISTRATION</h2>
+          <p class="text-sm text-gray-500">${student.semester}</p>
+        </div>
+
+        <!-- Student Info -->
+        <div class="grid grid-cols-2 gap-4 mb-6 text-sm">
           <div>
-            <h2 class="text-xl font-bold">Certificate of Registration Preview</h2>
-            <p class="text-blue-100 text-sm">${student.student_number} - ${student.first_name} ${student.last_name}</p>
+            <p><strong>Student Number:</strong> ${student.student_number}</p>
+            <p><strong>Name:</strong> ${student.first_name} ${student.last_name}</p>
           </div>
-          <div class="flex items-center gap-2">
-            <button onclick="printCOR()" class="px-4 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors flex items-center gap-2">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-              </svg>
-              Print
-            </button>
-            <button onclick="closeCORPreview()" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-            </button>
+          <div>
+            <p><strong>Program:</strong> ${student.program.name}</p>
+            <p><strong>Year Level:</strong> ${student.year_level}</p>
           </div>
         </div>
-        
-        <!-- COR Content -->
-        <div class="p-8 overflow-y-auto max-h-[calc(90vh-80px)]" id="cor-content">
-          <div class="border-2 border-gray-300 p-8">
-            <!-- Header -->
-            <div class="text-center mb-6">
-              <h1 class="text-2xl font-bold text-gray-800">RICHWELL COLLEGES</h1>
-              <p class="text-gray-600">Quezon City, Philippines</p>
-              <h2 class="text-xl font-bold text-blue-600 mt-4">CERTIFICATE OF REGISTRATION</h2>
-              <p class="text-sm text-gray-500">${student.semester}</p>
+
+        <!-- Subjects Table -->
+        <table class="w-full border-collapse text-sm mb-6">
+          <thead>
+            <tr class="bg-gray-100">
+              <th class="border border-gray-300 px-3 py-2 text-left">Subject Code</th>
+              <th class="border border-gray-300 px-3 py-2 text-left">Subject Title</th>
+              <th class="border border-gray-300 px-3 py-2 text-center">Units</th>
+              <th class="border border-gray-300 px-3 py-2 text-center">Section</th>
+              <th class="border border-gray-300 px-3 py-2 text-left">Schedule</th>
+              <th class="border border-gray-300 px-3 py-2 text-center">Grade</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${student.subjects.map(s => `
+              <tr>
+                <td class="border border-gray-300 px-3 py-2 font-mono">${s.code}</td>
+                <td class="border border-gray-300 px-3 py-2">${s.name}</td>
+                <td class="border border-gray-300 px-3 py-2 text-center">${s.units}</td>
+                <td class="border border-gray-300 px-3 py-2 text-center">${s.section}</td>
+                <td class="border border-gray-300 px-3 py-2">${s.schedule}</td>
+                <td class="border border-gray-300 px-3 py-2 text-center font-bold ${s.status === 'INC' ? 'text-orange-600' : ''}">${s.grade !== null ? s.grade.toFixed(2) : 'INC'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr class="bg-gray-100 font-bold">
+              <td colspan="2" class="border border-gray-300 px-3 py-2 text-right">Total Units:</td>
+              <td class="border border-gray-300 px-3 py-2 text-center">${student.totalUnits}</td>
+              <td colspan="3" class="border border-gray-300 px-3 py-2"></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <!-- Signature Section -->
+        <div class="flex justify-between mt-12">
+          <div class="text-center">
+            <div class="w-48 border-t border-gray-400 pt-1">
+              <p class="font-semibold">Student's Signature</p>
             </div>
-            
-            <!-- Student Info -->
-            <div class="grid grid-cols-2 gap-4 mb-6 text-sm">
-              <div>
-                <p><strong>Student Number:</strong> ${student.student_number}</p>
-                <p><strong>Name:</strong> ${student.first_name} ${student.last_name}</p>
-              </div>
-              <div>
-                <p><strong>Program:</strong> ${student.program.name}</p>
-                <p><strong>Year Level:</strong> ${student.year_level}</p>
-              </div>
-            </div>
-            
-            <!-- Subjects Table -->
-            <table class="w-full border-collapse text-sm mb-6">
-              <thead>
-                <tr class="bg-gray-100">
-                  <th class="border border-gray-300 px-3 py-2 text-left">Subject Code</th>
-                  <th class="border border-gray-300 px-3 py-2 text-left">Subject Title</th>
-                  <th class="border border-gray-300 px-3 py-2 text-center">Units</th>
-                  <th class="border border-gray-300 px-3 py-2 text-center">Section</th>
-                  <th class="border border-gray-300 px-3 py-2 text-left">Schedule</th>
-                  <th class="border border-gray-300 px-3 py-2 text-center">Grade</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${student.subjects.map(s => `
-                  <tr>
-                    <td class="border border-gray-300 px-3 py-2 font-mono">${s.code}</td>
-                    <td class="border border-gray-300 px-3 py-2">${s.name}</td>
-                    <td class="border border-gray-300 px-3 py-2 text-center">${s.units}</td>
-                    <td class="border border-gray-300 px-3 py-2 text-center">${s.section}</td>
-                    <td class="border border-gray-300 px-3 py-2">${s.schedule}</td>
-                    <td class="border border-gray-300 px-3 py-2 text-center font-bold ${s.status === 'INC' ? 'text-orange-600' : ''}">${s.grade !== null ? s.grade.toFixed(2) : 'INC'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-              <tfoot>
-                <tr class="bg-gray-100 font-bold">
-                  <td colspan="2" class="border border-gray-300 px-3 py-2 text-right">Total Units:</td>
-                  <td class="border border-gray-300 px-3 py-2 text-center">${student.totalUnits}</td>
-                  <td colspan="3" class="border border-gray-300 px-3 py-2"></td>
-                </tr>
-              </tfoot>
-            </table>
-            
-            <!-- Signature Section -->
-            <div class="flex justify-between mt-12">
-              <div class="text-center">
-                <div class="w-48 border-t border-gray-400 pt-1">
-                  <p class="font-semibold">Student's Signature</p>
-                </div>
-              </div>
-              <div class="text-center">
-                <div class="w-48 border-t border-gray-400 pt-1">
-                  <p class="font-semibold">Registrar</p>
-                  <p class="text-xs text-gray-500">Date: ${today}</p>
-                </div>
-              </div>
+          </div>
+          <div class="text-center">
+            <div class="w-48 border-t border-gray-400 pt-1">
+              <p class="font-semibold">Registrar</p>
+              <p class="text-xs text-gray-500">Date: ${today}</p>
             </div>
           </div>
         </div>
@@ -575,7 +534,7 @@ window.selectStudent = async function (studentId) {
   const student = state.allStudents.find(s => s.id === studentId);
 
   if (!student) {
-    showToast('Student not found', 'error');
+    Toast.error('Student not found');
     return;
   }
 
@@ -597,25 +556,36 @@ window.selectStudent = async function (studentId) {
 window.refreshStudents = async function () {
   await loadAllStudents();
   render();
-  showToast('Students list refreshed', 'success');
+  Toast.success('Students list refreshed');
 };
 
 window.previewCOR = function () {
-  state.showCORPreview = true;
-  render();
-};
+  const student = state.selectedStudent;
 
-window.closeCORPreview = function () {
-  state.showCORPreview = false;
-  render();
+  const modal = new Modal({
+    title: `COR Preview - ${student.student_number}`,
+    content: getCORContent(student),
+    size: 'xl',
+    actions: [
+      { label: 'Close', onClick: (m) => m.close() },
+      {
+        label: 'Print',
+        primary: true,
+        onClick: () => printCOR()
+      }
+    ]
+  });
+
+  state.corModal = modal;
+  modal.show();
 };
 
 window.printCOR = async function () {
   try {
-    showToast('Generating COR PDF...', 'info');
+    Toast.info('Generating COR PDF...');
 
     // Call backend API to generate PDF
-    const enrollmentId = state.selectedStudent.id; // This should be enrollment ID from API
+    const enrollmentId = state.selectedStudent.id;
     const token = TokenManager.getToken();
 
     const response = await fetch(`${endpoints.generateCOR.replace('{enrollment_id}', enrollmentId)}`, {
@@ -641,10 +611,9 @@ window.printCOR = async function () {
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
 
-    showToast('COR generated successfully', 'success');
+    Toast.success('COR generated successfully');
   } catch (error) {
-    console.error('Failed to generate COR:', error);
-    showToast(error.message || 'Failed to generate COR', 'error');
+    ErrorHandler.handle(error, 'Generating COR PDF');
 
     // Fallback to client-side printing if backend fails
     const content = document.getElementById('cor-content').innerHTML;
@@ -680,7 +649,7 @@ window.printCOR = async function () {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
