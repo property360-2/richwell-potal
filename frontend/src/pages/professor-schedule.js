@@ -1,6 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -26,19 +30,7 @@ for (let hour = 7; hour <= 21; hour++) {
   TIME_SLOTS.push(`${hour.toString().padStart(2, '0')}:00`);
 }
 
-// Mock data
-const MOCK_SCHEDULE = [
-  { id: '1', section: { name: 'BSIT-1A' }, subject: { code: 'IT101', title: 'Introduction to Computing' }, day: 'MON', start_time: '08:00', end_time: '09:30', room: 'Room 301' },
-  { id: '2', section: { name: 'BSIT-1B' }, subject: { code: 'IT101', title: 'Introduction to Computing' }, day: 'MON', start_time: '10:00', end_time: '11:30', room: 'Room 301' },
-  { id: '3', section: { name: 'BSIT-1A' }, subject: { code: 'IT101', title: 'Introduction to Computing' }, day: 'WED', start_time: '08:00', end_time: '09:30', room: 'Room 301' },
-  { id: '4', section: { name: 'BSIT-1B' }, subject: { code: 'IT101', title: 'Introduction to Computing' }, day: 'WED', start_time: '10:00', end_time: '11:30', room: 'Room 301' },
-  { id: '5', section: { name: 'BSCS-1A' }, subject: { code: 'CS101', title: 'Intro to Computer Science' }, day: 'TUE', start_time: '13:00', end_time: '14:30', room: 'CL1' },
-  { id: '6', section: { name: 'BSCS-1A' }, subject: { code: 'CS101', title: 'Intro to Computer Science' }, day: 'THU', start_time: '13:00', end_time: '14:30', room: 'CL1' }
-];
-
-const MOCK_SEMESTERS = [
-  { id: '1', name: '1st Semester 2024-2025', is_active: true }
-];
+// No more mock data - all data comes from real API
 
 // Color palette
 const COLORS = [
@@ -83,25 +75,34 @@ async function loadUserProfile() {
 async function loadSemesters() {
   try {
     const response = await api.get(endpoints.semesters);
-    state.semesters = response?.results || response || MOCK_SEMESTERS;
-    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0];
+    state.semesters = response?.results || response || [];
+    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0] || null;
+    if (!state.semesters.length) {
+      console.warn('No semesters found in the system');
+    }
   } catch (error) {
-    state.semesters = MOCK_SEMESTERS;
-    state.activeSemester = MOCK_SEMESTERS[0];
+    ErrorHandler.handle(error, 'Loading semesters');
+    state.semesters = [];
+    state.activeSemester = null;
   }
 }
 
 async function loadSchedule() {
   if (!state.user?.id || !state.activeSemester?.id) {
-    state.schedule = MOCK_SCHEDULE;
+    state.schedule = [];
+    console.warn('Missing user ID or active semester');
     return;
   }
 
   try {
     const response = await api.get(endpoints.professorSchedule(state.user.id, state.activeSemester.id));
-    state.schedule = response?.results || response || MOCK_SCHEDULE;
+    state.schedule = response?.results || response || [];
+    if (!state.schedule.length) {
+      console.warn('No schedule found for professor');
+    }
   } catch (error) {
-    state.schedule = MOCK_SCHEDULE;
+    ErrorHandler.handle(error, 'Loading schedule');
+    state.schedule = [];
   }
 }
 
@@ -131,7 +132,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading schedule...');
     return;
   }
 
@@ -139,7 +140,11 @@ function render() {
   const uniqueSections = [...new Set(state.schedule.map(s => s.section?.name))];
 
   app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'PROFESSOR',
+      activePage: 'professor-schedule',
+      user: state.user
+    })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Header -->
@@ -246,52 +251,10 @@ function render() {
   `;
 }
 
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <div>
-            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-            <span class="text-sm text-gray-500 ml-2">Professor</span>
-          </div>
-        </div>
-        
-        <div class="flex items-center gap-4">
-          <div class="text-right hidden sm:block">
-            <p class="text-sm font-medium text-gray-800">Prof. ${state.user?.first_name || ''} ${state.user?.last_name || ''}</p>
-            <p class="text-xs text-gray-500">${state.user?.email || ''}</p>
-          </div>
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span class="hidden sm:inline">Logout</span>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading your schedule...</p>
-      </div>
-    </div>
-  `;
-}
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => window.location.href = '/login.html', 1000);
 };
 

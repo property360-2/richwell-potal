@@ -1,6 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatCurrency, requireAuth } from '../utils.js';
+import { formatCurrency, requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -40,13 +44,21 @@ async function loadGrades() {
         state.gpa = gradesResponse.data.gpa;
         state.totalUnits = gradesResponse.data.total_units || 0;
         state.isFinalized = gradesResponse.data.is_finalized || false;
+      } else {
+        // API succeeded but no data - treat as empty state, not error
+        state.grades = [];
       }
     } catch (error) {
       console.log('Grades API failed:', error);
-      showToast('Unable to load grades', 'error');
+      // Only show error for actual API failures (not 404)
+      if (error.response?.status !== 404) {
+        ErrorHandler.handle(error, 'Loading grades');
+      }
+      // If 404 or other error, leave grades empty and show the "No grades at the moment" message
+      state.grades = [];
     }
   } catch (error) {
-    console.error('Failed to load data:', error);
+    ErrorHandler.handle(error, 'Loading data');
   }
   state.loading = false;
 }
@@ -55,12 +67,16 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading grades...');
     return;
   }
 
   app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'STUDENT',
+      activePage: 'grades',
+      user: state.user
+    })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -81,8 +97,8 @@ function render() {
             <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
             </svg>
-            <p class="text-gray-500 text-sm">No grades available yet</p>
-            <p class="text-gray-400 text-xs mt-1">Grades will appear here once your professors submit them</p>
+            <p class="text-gray-500 text-sm">No grades at the moment</p>
+            <p class="text-gray-400 text-xs mt-1">Your grades will appear here once your professors finalize them</p>
           </div>
         ` : `
           <div class="overflow-x-auto">
@@ -108,48 +124,7 @@ function render() {
   `;
 }
 
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-        </div>
 
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/student-dashboard.html" class="text-gray-600 hover:text-gray-900">Dashboard</a>
-          <a href="/subject-enrollment.html" class="text-gray-600 hover:text-gray-900">Enroll Subjects</a>
-          <a href="/grades.html" class="text-blue-600 font-medium">Grades</a>
-          <a href="/soa.html" class="text-gray-600 hover:text-gray-900">SOA</a>
-        </nav>
-
-        <div class="flex items-center gap-4">
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span class="hidden sm:inline">Logout</span>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading grades...</p>
-      </div>
-    </div>
-  `;
-}
 
 function renderGPACard() {
   return `
@@ -270,7 +245,7 @@ function renderGradeRow(grade) {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);

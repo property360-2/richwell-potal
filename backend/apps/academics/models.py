@@ -109,25 +109,72 @@ class Subject(BaseModel):
         related_name='required_for',
         help_text='Subjects that must be completed before taking this subject'
     )
-    
+
+    # Multi-program support - allows subject to belong to multiple programs
+    programs = models.ManyToManyField(
+        Program,
+        related_name='multi_program_subjects',
+        blank=True,
+        help_text='All programs this subject belongs to (includes primary program)'
+    )
+
     class Meta:
         verbose_name = 'Subject'
         verbose_name_plural = 'Subjects'
-        unique_together = ['program', 'code']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['code'],
+                name='unique_subject_code',
+                violation_error_message='Subject code must be globally unique'
+            )
+        ]
         ordering = ['year_level', 'semester_number', 'code']
     
     def __str__(self):
         return f"{self.code} - {self.title}"
-    
+
+    def save(self, *args, **kwargs):
+        """Override save to ensure primary program is always in programs list"""
+        super().save(*args, **kwargs)
+        # Ensure primary program is always in programs list
+        if self.program and not self.programs.filter(id=self.program.id).exists():
+            self.programs.add(self.program)
+
+    def get_all_programs(self):
+        """Return queryset of all programs (primary + additional)"""
+        return self.programs.all()
+
+    def validate_prerequisites_for_programs(self):
+        """
+        Validate that all prerequisites exist in ALL of this subject's programs.
+        User decision: Prerequisites must exist in ALL subject's programs.
+
+        Returns: (is_valid, error_messages)
+        """
+        errors = []
+        subject_programs = set(self.programs.values_list('id', flat=True))
+
+        for prereq in self.prerequisites.all():
+            prereq_programs = set(prereq.programs.values_list('id', flat=True))
+            missing_programs = subject_programs - prereq_programs
+
+            if missing_programs:
+                missing_codes = Program.objects.filter(id__in=missing_programs).values_list('code', flat=True)
+                errors.append(
+                    f"Prerequisite {prereq.code} is not available in programs: {', '.join(missing_codes)}"
+                )
+
+        return len(errors) == 0, errors
+
     @property
     def prerequisite_list(self):
         """Returns list of prerequisite subject codes."""
         return list(self.prerequisites.values_list('code', flat=True))
-    
+
     def has_prerequisites(self):
         """Check if this subject has any prerequisites."""
         return self.prerequisites.exists()
-    
+
     def get_inc_expiry_months(self):
         """
         Returns the INC expiry period in months.
@@ -226,6 +273,37 @@ class SectionSubject(BaseModel):
     
     def __str__(self):
         return f"{self.section.name} - {self.subject.code}"
+
+
+class SectionSubjectProfessor(BaseModel):
+    """
+    Junction table for many-to-many relationship between SectionSubject and Professors.
+    Allows multiple professors to teach the same subject in a section.
+    """
+    section_subject = models.ForeignKey(
+        SectionSubject,
+        on_delete=models.CASCADE,
+        related_name='professor_assignments'
+    )
+    professor = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        related_name='section_subject_assignments',
+        limit_choices_to={'role': 'PROFESSOR'}
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text='Primary/lead professor for this section-subject'
+    )
+
+    class Meta:
+        verbose_name = 'Section Subject Professor'
+        verbose_name_plural = 'Section Subject Professors'
+        unique_together = ['section_subject', 'professor']
+        ordering = ['-is_primary', 'professor__last_name']
+
+    def __str__(self):
+        return f"{self.section_subject} - {self.professor.get_full_name()}"
 
 
 class ScheduleSlot(BaseModel):
@@ -364,4 +442,125 @@ class CurriculumVersion(BaseModel):
             notes=notes,
             is_active=True
         )
+
+
+class Curriculum(BaseModel):
+    """
+    A curriculum is a specific version/revision of a Program.
+    Example: BSIS-REV3, BSIT-2023, BSCS-K12
+
+    Each student is assigned to exactly ONE curriculum and never auto-switches.
+    This allows the school to maintain multiple curriculum versions over time
+    while keeping students on their assigned curriculum.
+    """
+
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.PROTECT,
+        related_name='curricula',
+        help_text='The program this curriculum belongs to'
+    )
+    code = models.CharField(
+        max_length=50,
+        help_text='Curriculum code (e.g., REV3, 2023, K12)'
+    )
+    name = models.CharField(
+        max_length=200,
+        help_text='Curriculum name (e.g., BSIS Revision 3, BSIT Curriculum 2023)'
+    )
+    description = models.TextField(
+        blank=True,
+        help_text='Description of this curriculum version'
+    )
+    effective_year = models.PositiveIntegerField(
+        help_text='Year this curriculum became effective'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Whether new students can be assigned to this curriculum'
+    )
+
+    class Meta:
+        verbose_name = 'Curriculum'
+        verbose_name_plural = 'Curricula'
+        unique_together = [['program', 'code']]
+        ordering = ['-effective_year', 'code']
+
+    def __str__(self):
+        return f"{self.program.code} - {self.name}"
+
+    @property
+    def total_subjects(self):
+        """Returns total number of subjects in this curriculum."""
+        return self.curriculum_subjects.filter(is_deleted=False).count()
+
+    @property
+    def total_units(self):
+        """Returns total units across all subjects in this curriculum."""
+        from django.db.models import Sum
+        return self.curriculum_subjects.filter(
+            is_deleted=False
+        ).aggregate(
+            total=Sum('subject__units')
+        )['total'] or 0
+
+    def get_subjects_for_year_semester(self, year_level, semester_number):
+        """Get all subjects for a specific year and semester."""
+        return self.curriculum_subjects.filter(
+            year_level=year_level,
+            semester_number=semester_number,
+            is_deleted=False
+        ).select_related('subject')
+
+
+class CurriculumSubject(BaseModel):
+    """
+    Assigns a Subject to a specific year/semester within a Curriculum.
+    This is the ONLY table that defines "what subjects are in which year/semester".
+
+    The same subject can appear in different year/semester slots across different curricula,
+    allowing flexibility in curriculum design over time.
+    """
+
+    curriculum = models.ForeignKey(
+        Curriculum,
+        on_delete=models.CASCADE,
+        related_name='curriculum_subjects',
+        help_text='The curriculum this assignment belongs to'
+    )
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.PROTECT,
+        related_name='curriculum_assignments',
+        help_text='The subject being assigned'
+    )
+    year_level = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text='Year level for this subject (1-5)'
+    )
+    semester_number = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(3)],
+        help_text='Semester number (1 = First, 2 = Second, 3 = Summer)'
+    )
+    semester = models.ForeignKey(
+        'enrollment.Semester',
+        on_delete=models.SET_NULL,
+        related_name='curriculum_assignments',
+        null=True,
+        blank=True,
+        help_text='Optional: Bind this subject to a specific semester instance for date-based enrollment'
+    )
+    is_required = models.BooleanField(
+        default=True,
+        help_text='Whether this is a required subject (vs elective)'
+    )
+
+    class Meta:
+        verbose_name = 'Curriculum Subject'
+        verbose_name_plural = 'Curriculum Subjects'
+        unique_together = [['curriculum', 'subject']]
+        ordering = ['year_level', 'semester_number', 'subject__code']
+
+    def __str__(self):
+        return f"{self.curriculum.code} - {self.subject.code} (Y{self.year_level}S{self.semester_number})"
 

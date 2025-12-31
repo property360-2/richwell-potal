@@ -1,6 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth, getQueryParam } from '../utils.js';
+import { requireAuth, getQueryParam } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { ConfirmModal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -32,25 +37,7 @@ for (let hour = 7; hour <= 21; hour++) {
     TIME_SLOTS.push(`${hour.toString().padStart(2, '0')}:00`);
 }
 
-// Mock data
-const MOCK_SECTIONS = [
-    { id: '1', name: 'BSIT-1A', program: { code: 'BSIT' }, year_level: 1 },
-    { id: '2', name: 'BSIT-1B', program: { code: 'BSIT' }, year_level: 1 },
-    { id: '3', name: 'BSCS-1A', program: { code: 'BSCS' }, year_level: 1 }
-];
-
-const MOCK_SECTION_SUBJECTS = [
-    { id: '1', subject: { id: '1', code: 'IT101', title: 'Introduction to Computing' }, professor: { id: '1', first_name: 'Juan', last_name: 'Dela Cruz' } },
-    { id: '2', subject: { id: '2', code: 'IT102', title: 'Computer Programming 1' }, professor: { id: '2', first_name: 'Maria', last_name: 'Santos' } },
-    { id: '3', subject: { id: '3', code: 'GE101', title: 'English Communication' }, professor: { id: '3', first_name: 'Pedro', last_name: 'Reyes' } }
-];
-
-const MOCK_SCHEDULE = [
-    { id: '1', section_subject: '1', day: 'MON', start_time: '08:00', end_time: '09:30', room: 'Room 301' },
-    { id: '2', section_subject: '2', day: 'MON', start_time: '10:00', end_time: '11:30', room: 'CL1' },
-    { id: '3', section_subject: '1', day: 'WED', start_time: '08:00', end_time: '09:30', room: 'Room 301' },
-    { id: '4', section_subject: '3', day: 'TUE', start_time: '13:00', end_time: '14:30', room: 'Room 201' }
-];
+// No more mock data - all data comes from real API
 
 // Color palette for subjects
 const COLORS = [
@@ -101,36 +88,62 @@ async function loadSections() {
     try {
         const response = await api.get(endpoints.sections);
         const sections = response?.results || response;
-        state.sections = (sections && Array.isArray(sections) && sections.length > 0) ? sections : MOCK_SECTIONS;
+        if (sections && Array.isArray(sections)) {
+            state.sections = sections;
+            console.log(`Loaded ${sections.length} sections from API`);
+        } else {
+            state.sections = [];
+            console.warn('No sections returned from API');
+        }
     } catch (error) {
-        state.sections = MOCK_SECTIONS;
+        ErrorHandler.handle(error, 'Loading sections');
+        state.sections = [];
     }
 }
 
 async function selectSection(id) {
     state.selectedSection = state.sections.find(s => s.id === id);
 
+    if (!state.selectedSection) {
+        ErrorHandler.handle(new Error(`Section not found: ${id}`), 'Selecting section');
+        return;
+    }
+
     // Load section subjects
     try {
         const response = await api.get(`${endpoints.sectionSubjects}?section=${id}`);
         const subjects = response?.results || response;
-        state.sectionSubjects = (subjects && Array.isArray(subjects) && subjects.length > 0) ? subjects : MOCK_SECTION_SUBJECTS;
+        if (subjects && Array.isArray(subjects)) {
+            state.sectionSubjects = subjects;
+            console.log(`Loaded ${subjects.length} section subjects`);
+        } else {
+            state.sectionSubjects = [];
+            console.warn('No section subjects returned');
+        }
     } catch (error) {
-        state.sectionSubjects = MOCK_SECTION_SUBJECTS;
+        ErrorHandler.handle(error, 'Loading section subjects');
+        state.sectionSubjects = [];
     }
 
     // Load schedule slots
     try {
-        const subjectIds = state.sectionSubjects.map(ss => ss.id);
-        let allSlots = [];
-        for (const ssId of subjectIds) {
-            const response = await api.get(`${endpoints.scheduleSlots}?section_subject=${ssId}`);
-            const slots = response?.results || response || [];
-            allSlots = allSlots.concat(slots);
+        if (state.sectionSubjects.length === 0) {
+            state.scheduleSlots = [];
+            console.log('No section subjects, skipping schedule slots');
+        } else {
+            const subjectIds = state.sectionSubjects.map(ss => ss.id);
+            let allSlots = [];
+            for (const ssId of subjectIds) {
+                const response = await api.get(`${endpoints.scheduleSlots}?section_subject=${ssId}`);
+                const slots = response?.results || response || [];
+                allSlots = allSlots.concat(slots);
+            }
+            state.scheduleSlots = allSlots;
+            console.log(`Loaded ${allSlots.length} schedule slots`);
         }
-        state.scheduleSlots = allSlots.length > 0 ? allSlots : MOCK_SCHEDULE;
     } catch (error) {
-        state.scheduleSlots = MOCK_SCHEDULE;
+        ErrorHandler.handle(error, 'Loading schedule slots');
+        state.scheduleSlots = [];
     }
 
     render();
@@ -142,7 +155,10 @@ function formatRole(role) {
 }
 
 function formatTime(time) {
-    const [hour, minute] = time.split(':');
+    if (!time) return 'N/A';
+    const parts = time.split(':');
+    if (parts.length < 2) return time;
+    const [hour, minute] = parts;
     const h = parseInt(hour);
     const ampm = h >= 12 ? 'PM' : 'AM';
     const hour12 = h % 12 || 12;
@@ -155,23 +171,29 @@ function getSlotPosition(startTime) {
 }
 
 function getSlotDuration(startTime, endTime) {
+    if (!startTime || !endTime) return 1; // Default to 1 hour
     const [startHour, startMin] = startTime.split(':').map(Number);
     const [endHour, endMin] = endTime.split(':').map(Number);
     const start = startHour * 60 + startMin;
     const end = endHour * 60 + endMin;
-    return (end - start) / 60; // Duration in hours
+    const duration = (end - start) / 60; // Duration in hours
+    return duration > 0 ? duration : 1; // Ensure positive duration
 }
 
 function render() {
     const app = document.getElementById('app');
 
     if (state.loading) {
-        app.innerHTML = renderLoading();
+        app.innerHTML = LoadingOverlay('Loading schedule...');
         return;
     }
 
     app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'REGISTRAR',
+      activePage: 'schedule',
+      user: state.user
+    })}
     
     <main class="max-w-full mx-auto px-4 py-8">
       <!-- Page Header -->
@@ -197,50 +219,6 @@ function render() {
     <!-- Modals -->
     ${state.showSlotModal ? renderSlotModal() : ''}
     ${state.showConflictModal ? renderConflictModal() : ''}
-  `;
-}
-
-function renderHeader() {
-    return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
-      <div class="max-w-full mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <div>
-            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-            <span class="text-sm text-gray-500 ml-2">${formatRole(state.user?.role)}</span>
-          </div>
-        </div>
-        
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/curriculum.html" class="text-gray-600 hover:text-gray-900">Curriculum</a>
-          <a href="/sections.html" class="text-gray-600 hover:text-gray-900">Sections</a>
-          <a href="/schedule.html" class="text-blue-600 font-medium">Schedule</a>
-          <a href="/admission-dashboard.html" class="text-gray-600 hover:text-gray-900">Admissions</a>
-        </nav>
-        
-        <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-          </svg>
-          <span class="hidden sm:inline">Logout</span>
-        </button>
-      </div>
-    </header>
-  `;
-}
-
-function renderLoading() {
-    return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading schedule...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -270,7 +248,7 @@ function renderScheduleGrid() {
           <h3 class="font-semibold text-gray-700 mb-3">Subjects Legend</h3>
           <div class="flex flex-wrap gap-2">
             ${state.sectionSubjects.map((ss, i) => `
-              <span class="px-3 py-1 rounded-full text-xs font-medium border ${getSubjectColor(i)}">${ss.subject?.code}</span>
+              <span class="px-3 py-1 rounded-full text-xs font-medium border ${getSubjectColor(i)}">${ss.subject_code || ss.subject?.code || 'Unknown'}</span>
             `).join('')}
           </div>
         </div>
@@ -300,12 +278,18 @@ function renderScheduleGrid() {
             const ss = state.sectionSubjects.find(ss => ss.id === slot.section_subject);
             const colorIndex = state.sectionSubjects.findIndex(ss => ss.id === slot.section_subject);
             const duration = getSlotDuration(slot.start_time, slot.end_time);
+
+            // Debug logging
+            if (!slot.end_time) {
+                console.warn('Slot missing end_time:', slot);
+            }
+
             return `
                     <div class="p-1 relative" style="grid-row: span ${Math.ceil(duration)}">
                       <div onclick="editSlot('${slot.id}')" class="p-2 rounded-lg border cursor-pointer hover:shadow-md transition-shadow h-full ${getSubjectColor(colorIndex)}" style="min-height: ${duration * 48}px">
-                        <p class="font-semibold text-xs">${ss?.subject?.code || 'N/A'}</p>
-                        <p class="text-xs opacity-75">${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}</p>
-                        <p class="text-xs opacity-75">${slot.room}</p>
+                        <p class="font-semibold text-xs">${ss?.subject_code || ss?.subject?.code || 'N/A'}</p>
+                        <p class="text-xs opacity-75">${formatTime(slot.start_time)}${slot.end_time ? ' - ' + formatTime(slot.end_time) : ''}</p>
+                        <p class="text-xs opacity-75">${slot.room || 'No room'}</p>
                       </div>
                     </div>
                   `;
@@ -368,7 +352,7 @@ function renderSlotModal() {
             <select id="slot-subject" class="form-input" required>
               <option value="">Select a subject...</option>
               ${state.sectionSubjects.map(ss => `
-                <option value="${ss.id}" ${slot.section_subject === ss.id ? 'selected' : ''}>${ss.subject?.code} - ${ss.subject?.title}</option>
+                <option value="${ss.id}" ${slot.section_subject === ss.id ? 'selected' : ''}>${ss.subject_code || ss.subject?.code || 'Unknown'} - ${ss.subject_title || ss.subject?.title || 'Unknown'}</option>
               `).join('')}
             </select>
           </div>
@@ -505,47 +489,61 @@ window.saveSlot = async function (e) {
 
     // Validate time
     if (data.start_time >= data.end_time) {
-        showToast('End time must be after start time', 'error');
+        Toast.error('End time must be after start time');
         return;
     }
 
+    // Debug logging
+    console.log('Saving slot with data:', data);
+
     state.pendingSlotData = data;
 
-    // Always use mock mode since backend APIs may not be fully integrated
-    const ss = state.sectionSubjects.find(s => s.id === data.section_subject);
-    if (state.editingSlot) {
-        const idx = state.scheduleSlots.findIndex(s => s.id === state.editingSlot);
-        if (idx >= 0) {
-            state.scheduleSlots[idx] = { ...state.scheduleSlots[idx], ...data };
+    try {
+        if (state.editingSlot) {
+            // Update existing slot
+            const response = await api.patch(endpoints.scheduleSlot(state.editingSlot), data);
+            if (response && (response.ok || response.id)) {
+                Toast.success('Schedule slot updated!');
+                closeSlotModal();
+                await selectSection(state.selectedSection.id);
+                return;
+            }
+        } else {
+            // Create new slot
+            const response = await api.post(endpoints.scheduleSlots, data);
+            if (response && (response.ok || response.id)) {
+                Toast.success('Schedule slot added!');
+                closeSlotModal();
+                await selectSection(state.selectedSection.id);
+                return;
+            }
         }
-        showToast('Schedule slot updated!', 'success');
-    } else {
-        state.scheduleSlots.push({
-            id: Date.now().toString(),
-            ...data
-        });
-        showToast('Schedule slot added!', 'success');
+    } catch (error) {
+        ErrorHandler.handle(error, 'Saving schedule slot');
     }
-    closeSlotModal();
-    render();
 };
 
 window.deleteSlot = async function (id) {
-    if (!confirm('Delete this schedule slot?')) return;
-
-    try {
-        const response = await api.delete(endpoints.scheduleSlot(id));
-        if (response && response.ok) {
-            showToast('Schedule slot deleted!', 'success');
-            closeSlotModal();
-            await selectSection(state.selectedSection.id);
+    ConfirmModal({
+        title: 'Delete Schedule Slot',
+        message: 'Are you sure you want to delete this schedule slot?',
+        confirmText: 'Delete',
+        onConfirm: async () => {
+            try {
+                const response = await api.delete(endpoints.scheduleSlot(id));
+                if (response && response.ok) {
+                    Toast.success('Schedule slot deleted!');
+                    closeSlotModal();
+                    await selectSection(state.selectedSection.id);
+                } else {
+                    const error = await response?.json();
+                    Toast.error(error?.detail || 'Failed to delete schedule slot');
+                }
+            } catch (error) {
+                ErrorHandler.handle(error, 'Deleting schedule slot');
+            }
         }
-    } catch (error) {
-        state.scheduleSlots = state.scheduleSlots.filter(s => s.id !== id);
-        showToast('Schedule slot deleted (mock)', 'success');
-        closeSlotModal();
-        render();
-    }
+    });
 };
 
 window.closeConflictModal = function () {
@@ -558,7 +556,7 @@ window.closeConflictModal = function () {
 window.overrideConflict = async function () {
     const reason = document.getElementById('override-reason').value;
     if (!reason.trim()) {
-        showToast('Please enter a reason for the override', 'error');
+        Toast.error('Please enter a reason for the override');
         return;
     }
 
@@ -567,24 +565,22 @@ window.overrideConflict = async function () {
     try {
         const response = await api.post(endpoints.scheduleSlots, data);
         if (response && response.ok) {
-            showToast('Schedule slot added with override!', 'success');
+            Toast.success('Schedule slot added with override!');
             closeConflictModal();
             closeSlotModal();
             await selectSection(state.selectedSection.id);
+        } else {
+            const error = await response?.json();
+            Toast.error(error?.detail || 'Failed to override conflict');
         }
     } catch (error) {
-        // Mock success
-        state.scheduleSlots.push({ id: Date.now().toString(), ...data });
-        showToast('Schedule slot added with override (mock)', 'success');
-        closeConflictModal();
-        closeSlotModal();
-        render();
+        ErrorHandler.handle(error, 'Overriding schedule conflict');
     }
 };
 
 window.logout = function () {
     TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
+    Toast.success('Logged out successfully');
     setTimeout(() => window.location.href = '/login.html', 1000);
 };
 

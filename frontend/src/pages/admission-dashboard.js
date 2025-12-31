@@ -1,6 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatDate, requireAuth } from '../utils.js';
+import { formatDate, requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -12,17 +17,14 @@ const state = {
     created_via: 'all'
   },
   selectedApplicant: null,
-  showPendingModal: false
+  pendingModal: null,
+  idAssignmentModal: null,
+  selectedApplicantForId: null,
+  suggestedIdNumber: '',
+  idNumberError: ''
 };
 
-// Mock data for development
-const mockApplicants = [
-  { id: 1, student_number: '2025-00001', first_name: 'Juan', last_name: 'Dela Cruz', email: 'jdelacruz@richwell.edu.ph', status: 'PENDING', created_via: 'ONLINE', created_at: '2024-12-10T10:30:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
-  { id: 2, student_number: '2025-00002', first_name: 'Maria', last_name: 'Santos', email: 'msantos@richwell.edu.ph', status: 'PENDING', created_via: 'ONLINE', created_at: '2024-12-11T14:20:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
-  { id: 3, student_number: '2025-00003', first_name: 'Pedro', last_name: 'Reyes', email: 'preyes@richwell.edu.ph', status: 'PENDING', created_via: 'TRANSFEREE', created_at: '2024-12-12T09:15:00Z', program: { code: 'BSBA', name: 'BS Business Administration' }, documents: [{ name: 'Valid ID', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'TOR', status: 'PENDING', url: 'https://via.placeholder.com/400x300?text=TOR' }] },
-  { id: 4, student_number: '2025-00004', first_name: 'Ana', last_name: 'Garcia', email: 'agarcia@richwell.edu.ph', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-04T16:45:00Z', program: { code: 'BSIT', name: 'BS Information Technology' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }] },
-  { id: 5, student_number: '2025-00005', first_name: 'Jose', last_name: 'Cruz', email: 'jcruz@richwell.edu.ph', status: 'ACTIVE', created_via: 'ONLINE', created_at: '2024-12-05T11:00:00Z', program: { code: 'BSCS', name: 'BS Computer Science' }, documents: [{ name: 'Valid ID', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Valid+ID' }, { name: 'Form 138', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Form+138' }, { name: 'Good Moral', status: 'VERIFIED', url: 'https://via.placeholder.com/400x300?text=Good+Moral' }] }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -40,7 +42,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading user profile');
     // Fallback to localStorage
     const savedUser = TokenManager.getUser();
     if (savedUser) {
@@ -70,9 +72,9 @@ async function loadApplicants() {
     console.log('LoadApplicants: Raw API response:', response);
 
     // Handle paginated response {count, results, ...}
-    const enrollments = response?.results || response;
+    const enrollments = response?.results || response || [];
 
-    if (enrollments && Array.isArray(enrollments) && enrollments.length > 0) {
+    if (enrollments && Array.isArray(enrollments)) {
       // Map API response to expected format
       state.applicants = enrollments.map(enrollment => ({
         id: enrollment.id,
@@ -83,19 +85,18 @@ async function loadApplicants() {
         status: enrollment.status,
         created_via: enrollment.created_via,
         created_at: enrollment.created_at,
-        program: { code: enrollment.program_code || 'N/A', name: 'Enrolled Program' },
+        program: { code: enrollment.program_code || 'N/A', name: enrollment.program_name || 'Enrolled Program' },
         documents: enrollment.documents || [],
         student: { first_name: enrollment.student_name?.split(' ')[0], last_name: enrollment.student_name?.split(' ').slice(1).join(' ') }
       }));
-      console.log('LoadApplicants: Mapped', state.applicants.length, 'applicants');
+      console.log('LoadApplicants: Loaded', state.applicants.length, 'applicants');
     } else {
-      console.log('LoadApplicants: No applicants from API, response was:', response);
-      console.log('LoadApplicants: Using mock data');
-      state.applicants = mockApplicants;
+        console.log('LoadApplicants: No applicants from API');
+      state.applicants = [];
     }
   } catch (error) {
-    console.error('LoadApplicants: API error:', error);
-    state.applicants = mockApplicants;
+    ErrorHandler.handle(error, 'Loading applicants');
+    state.applicants = [];
   }
   state.loading = false;
 }
@@ -112,7 +113,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading admission dashboard...');
     return;
   }
 
@@ -120,7 +121,11 @@ function render() {
 
   app.innerHTML = `
     <!-- Header -->
-    ${renderHeader()}
+    ${createHeader({
+      role: 'ADMISSION',
+      activePage: 'admission-dashboard',
+      user: state.user
+    })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -203,62 +208,9 @@ function render() {
         </table>
       </div>
     </main>
-    
+
     <!-- Applicant Detail Modal -->
     ${state.selectedApplicant ? renderApplicantModal(state.selectedApplicant) : ''}
-    
-    <!-- Pending Applicants Modal -->
-    ${state.showPendingModal ? renderPendingModal() : ''}
-  `;
-}
-
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <div>
-            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-            <span class="text-sm text-gray-500 ml-2">${formatRole(state.user?.role)}</span>
-          </div>
-        </div>
-        
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/curriculum.html" class="text-gray-600 hover:text-gray-900">Curriculum</a>
-          <a href="/sections.html" class="text-gray-600 hover:text-gray-900">Sections</a>
-          <a href="/schedule.html" class="text-gray-600 hover:text-gray-900">Schedule</a>
-          <a href="/admission-dashboard.html" class="text-blue-600 font-medium">Admissions</a>
-        </nav>
-        
-        <div class="flex items-center gap-4">
-          <div class="text-right hidden sm:block">
-            <p class="text-sm font-medium text-gray-800">${state.user?.first_name || 'Staff'} ${state.user?.last_name || 'User'}</p>
-            <p class="text-xs text-gray-500">${formatRole(state.user?.role)}</p>
-          </div>
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span class="hidden sm:inline">Logout</span>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading admission dashboard...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -444,7 +396,7 @@ function renderApplicantModal(applicant) {
         <div class="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-between">
           <div class="flex gap-2">
             ${applicant.status === 'PENDING' ? `
-              <button onclick="acceptApplicant(${applicant.id})" class="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2">
+              <button onclick="acceptApplicant('${applicant.id}')" class="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                 </svg>
@@ -503,7 +455,7 @@ window.closeModal = function (event) {
 };
 
 window.verifyDocument = async function (applicantId, docName) {
-  showToast(`Verifying ${docName}...`, 'info');
+  Toast.info(`Verifying ${docName}...`);
 
   // Simulate API call
   setTimeout(() => {
@@ -512,7 +464,7 @@ window.verifyDocument = async function (applicantId, docName) {
       const doc = applicant.documents.find(d => d.name === docName);
       if (doc) {
         doc.status = 'VERIFIED';
-        showToast(`${docName} verified successfully!`, 'success');
+        Toast.success(`${docName} verified successfully!`);
         render();
       }
     }
@@ -520,7 +472,7 @@ window.verifyDocument = async function (applicantId, docName) {
 };
 
 window.acceptApplicant = async function (applicantId) {
-  showToast('Approving applicant...', 'info');
+  Toast.info('Approving applicant...');
 
   // Simulate API call
   setTimeout(() => {
@@ -528,7 +480,7 @@ window.acceptApplicant = async function (applicantId) {
     if (applicant) {
       applicant.status = 'ACTIVE';
       state.selectedApplicant = applicant;
-      showToast(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`, 'success');
+      Toast.success(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`);
       render();
     }
   }, 500);
@@ -537,7 +489,7 @@ window.acceptApplicant = async function (applicantId) {
 window.rejectApplicant = async function (applicantId) {
   if (!confirm('Are you sure you want to reject this applicant?')) return;
 
-  showToast('Rejecting applicant...', 'info');
+  Toast.info('Rejecting applicant...');
 
   // Simulate API call
   setTimeout(() => {
@@ -545,7 +497,7 @@ window.rejectApplicant = async function (applicantId) {
     if (applicant) {
       applicant.status = 'REJECTED';
       state.selectedApplicant = applicant;
-      showToast(`${applicant.first_name} ${applicant.last_name} has been rejected.`, 'warning');
+      Toast.warning(`${applicant.first_name} ${applicant.last_name} has been rejected.`);
       render();
     }
   }, 500);
@@ -560,6 +512,102 @@ window.openPendingModal = function () {
 window.closePendingModal = function () {
   state.showPendingModal = false;
   render();
+};
+
+window.openIdAssignmentModal = async function(applicant) {
+  state.selectedApplicantForId = applicant;
+  state.idNumberError = '';
+
+  // Fetch suggested ID from backend
+  try {
+    const response = await api.get(endpoints.nextStudentNumber);
+    if (response && response.next_student_number) {
+      state.suggestedIdNumber = response.next_student_number;
+    } else {
+      // Fallback
+      const year = new Date().getFullYear();
+      state.suggestedIdNumber = `${year}-00001`;
+    }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Fetching next student number');
+    const year = new Date().getFullYear();
+    state.suggestedIdNumber = `${year}-00001`;
+  }
+
+  state.showIdAssignmentModal = true;
+  render();
+
+  // Focus input
+  setTimeout(() => {
+    const input = document.getElementById('id-number-input');
+    if (input) input.focus();
+  }, 100);
+};
+
+window.closeIdAssignmentModal = function(event) {
+  if (event && event.target !== event.currentTarget) return;
+  state.showIdAssignmentModal = false;
+  state.selectedApplicantForId = null;
+  state.suggestedIdNumber = '';
+  state.idNumberError = '';
+  render();
+};
+
+window.handleIdNumberInput = function(event) {
+  state.suggestedIdNumber = event.target.value;
+  state.idNumberError = ''; // Clear error on input
+};
+
+window.submitIdAssignment = async function() {
+  const idNumber = state.suggestedIdNumber.trim();
+  const applicant = state.selectedApplicantForId;
+
+  if (!applicant) return;
+
+  // Allow any non-empty format
+  if (!idNumber || idNumber.length === 0) {
+    state.idNumberError = 'Student ID is required';
+    render();
+    return;
+  }
+
+  Toast.info('Assigning ID and approving applicant...');
+
+  try {
+    const response = await api.patch(
+      endpoints.applicantUpdate(applicant.id),
+      {
+        action: 'accept',
+        student_number: idNumber
+      }
+    );
+
+    if (response && (response.success || response.data)) {
+      Toast.success(`${applicant.first_name} ${applicant.last_name} approved with ID: ${idNumber}`);
+
+      // Update local state
+      applicant.status = 'ACTIVE';
+      applicant.student_number = idNumber;
+
+      // Close modal and refresh
+      if (state.idAssignmentModal) state.idAssignmentModal.close();
+      state.selectedApplicantForId = null;
+      await loadApplicants();
+      render();
+      return;
+    }
+    throw new Error('Invalid API response');
+  } catch (error) {
+    ErrorHandler.handle(error, 'Assigning ID');
+
+    // Show exact backend error message
+    if (error.response?.data?.error) {
+      state.idNumberError = error.response.data.error;
+      render();
+    } else {
+      if (state.idAssignmentModal) state.idAssignmentModal.close();
+    }
+  }
 };
 
 function renderPendingModal() {
@@ -595,6 +643,77 @@ function renderPendingModal() {
               ${pendingApplicants.map(applicant => renderPendingApplicantCard(applicant)).join('')}
             </div>
           `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderIdAssignmentModal() {
+  if (!state.selectedApplicantForId) return '';
+
+  const applicant = state.selectedApplicantForId;
+
+  return `
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeIdAssignmentModal(event)">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="sticky top-0 bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <h2 class="text-xl font-bold">Assign Student ID Number</h2>
+            <p class="text-blue-100 text-sm">${applicant.first_name} ${applicant.last_name}</p>
+          </div>
+          <button onclick="closeIdAssignmentModal()" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-6">
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Student ID Number <span class="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="id-number-input"
+              class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all text-lg font-mono"
+              placeholder="Enter student ID"
+              value="${state.suggestedIdNumber}"
+              oninput="handleIdNumberInput(event)"
+            >
+            <p class="text-xs text-gray-500 mt-2">Enter any unique student ID number</p>
+            ${state.idNumberError ? `
+              <p class="text-sm text-red-600 mt-2 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                ${state.idNumberError}
+              </p>
+            ` : ''}
+          </div>
+
+          <!-- Info Box -->
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+            <h4 class="font-semibold text-blue-800 mb-2">Credentials Info</h4>
+            <div class="text-sm text-blue-700 space-y-1">
+              <p><strong>Login Email:</strong> ${applicant.email}</p>
+              <p><strong>Program:</strong> ${applicant.program?.code || 'N/A'}</p>
+              <p><strong>Password:</strong> School email (unchanged on approval)</p>
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex gap-3">
+            <button onclick="closeIdAssignmentModal()" class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors">
+              Cancel
+            </button>
+            <button onclick="submitIdAssignment()" class="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-lg">
+              Approve & Assign ID
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -679,32 +798,8 @@ window.acceptFromPending = async function (applicantId) {
   const applicant = state.applicants.find(a => a.id === applicantId);
   if (!applicant) return;
 
-  showToast(`Approving ${applicant.student?.first_name || applicant.first_name}...`, 'info');
-
-  try {
-    // Call real API
-    const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'accept' });
-    console.log('Accept API response:', response);
-
-    if (response && (response.success || response.data)) {
-      showToast(response.message || 'Applicant approved successfully!', 'success');
-      // Update local state immediately for instant feedback
-      applicant.status = 'ACTIVE';
-      // Also refresh from server to get latest data
-      await loadApplicants();
-      state.showPendingModal = false;
-      render();
-      return;
-    }
-    throw new Error('API response invalid');
-  } catch (error) {
-    console.error('Accept API error:', error);
-    // Fallback to local update if API fails
-    applicant.status = 'ACTIVE';
-    showToast(`${applicant.student?.first_name || applicant.first_name} ${applicant.student?.last_name || applicant.last_name} has been approved! They can now login.`, 'success');
-    state.showPendingModal = false;
-    render();
-  }
+  // Open modal instead of direct approval
+  openIdAssignmentModal(applicant);
 };
 
 window.rejectFromPending = async function (applicantId) {
@@ -714,34 +809,39 @@ window.rejectFromPending = async function (applicantId) {
   const name = applicant.student?.first_name || applicant.first_name;
   const lastName = applicant.student?.last_name || applicant.last_name;
 
-  if (!confirm(`Are you sure you want to reject ${name} ${lastName}?`)) return;
+  ConfirmModal({
+    title: 'Reject Applicant',
+    message: `Are you sure you want to reject ${name} ${lastName}?`,
+    confirmText: 'Reject',
+    onConfirm: async () => {
+      Toast.info(`Rejecting ${name}...`);
 
-  showToast(`Rejecting ${name}...`, 'info');
+      try {
+        // Call real API
+        const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'reject' });
+        console.log('Reject API response:', response);
 
-  try {
-    // Call real API
-    const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'reject' });
-    console.log('Reject API response:', response);
-
-    if (response && (response.success || response.data)) {
-      showToast(response.message || 'Applicant rejected.', 'warning');
-      // Update local state immediately
-      applicant.status = 'REJECTED';
-      // Also refresh from server
-      await loadApplicants();
-      state.showPendingModal = false;
-      render();
-      return;
+        if (response && (response.success || response.data)) {
+          Toast.warning(response.message || 'Applicant rejected.');
+          // Update local state immediately
+          applicant.status = 'REJECTED';
+          // Also refresh from server
+          await loadApplicants();
+          state.showPendingModal = false;
+          render();
+          return;
+        }
+        throw new Error('API response invalid');
+      } catch (error) {
+        ErrorHandler.handle(error, 'Rejecting applicant');
+        // Fallback to local update
+        applicant.status = 'REJECTED';
+        Toast.warning(`${name} ${lastName} has been rejected.`);
+        state.showPendingModal = false;
+        render();
+      }
     }
-    throw new Error('API response invalid');
-  } catch (error) {
-    console.error('Reject API error:', error);
-    // Fallback to local update
-    applicant.status = 'REJECTED';
-    showToast(`${name} ${lastName} has been rejected.`, 'warning');
-    state.showPendingModal = false;
-    render();
-  }
+  });
 };
 
 window.viewDocumentImage = function (url, name) {
@@ -751,7 +851,7 @@ window.viewDocumentImage = function (url, name) {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);

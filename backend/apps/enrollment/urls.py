@@ -11,6 +11,7 @@ app_name = 'enrollment'
 urlpatterns = [
     # Public - Admissions
     path('system/enrollment-status/', views.EnrollmentStatusView.as_view(), name='enrollment-status'),
+    path('check-email/', views.CheckEmailAvailabilityView.as_view(), name='check-email'),
     path('programs/', views.PublicProgramListView.as_view(), name='public-programs'),
     path('enroll/', views.OnlineEnrollmentView.as_view(), name='online-enroll'),
     
@@ -26,6 +27,7 @@ urlpatterns = [
     
     # Admission staff - Applicant management
     path('applicants/', views.ApplicantListView.as_view(), name='applicant-list'),
+    path('next-student-number/', views.NextStudentNumberView.as_view(), name='next-student-number'),
     path('applicants/<uuid:pk>/', views.ApplicantUpdateView.as_view(), name='applicant-update'),
     path('documents/<uuid:pk>/verify/', views.DocumentVerifyView.as_view(), name='document-verify'),
     
@@ -41,6 +43,7 @@ urlpatterns = [
     # Enrollment actions
     path('subjects/enroll/', views.EnrollSubjectView.as_view(), name='enroll-subject'),
     path('subjects/<uuid:pk>/drop/', views.DropSubjectView.as_view(), name='drop-subject'),
+    path('subjects/<uuid:pk>/edit/', views.EditSubjectEnrollmentView.as_view(), name='edit-subject'),
     
     # Registrar override
     path('enrollment/<uuid:enrollment_id>/override-enroll/', views.RegistrarOverrideEnrollmentView.as_view(), name='override-enroll'),
@@ -58,6 +61,7 @@ urlpatterns = [
     # Cashier student search
     path('cashier/students/search/', views.CashierStudentSearchView.as_view(), name='cashier-student-search'),
     path('cashier/students/pending-payments/', views.CashierPendingPaymentsView.as_view(), name='cashier-pending-payments'),
+    path('cashier/today-transactions/', views.CashierTodayTransactionsView.as_view(), name='cashier-today-transactions'),
     
     # Student payment view
     path('my-enrollment/payments/', views.MyPaymentsView.as_view(), name='my-payments'),

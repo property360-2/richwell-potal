@@ -1,6 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -71,12 +75,16 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading dashboard...');
     return;
   }
 
   app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'REGISTRAR',
+      activePage: 'registrar-dashboard',
+      user: state.user
+    })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Welcome Section -->
@@ -87,32 +95,68 @@ function render() {
       
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        ${renderStatCard('Total Students', state.stats.totalStudents, 'blue', 'users', '/registrar-cor.html')}
-        ${renderStatCard('COR Requests', state.stats.pendingCOR, 'green', 'document', '/registrar-cor.html')}
+        ${renderStatCard('Total Students', state.stats.totalStudents, 'blue', 'users', '/registrar-documents.html')}
+        ${renderStatCard('COR Requests', state.stats.pendingCOR, 'green', 'document', '/registrar-documents.html')}
         ${renderStatCard('Override Pending', state.stats.pendingOverride, 'yellow', 'clipboard', '/registrar-enrollment.html')}
-        ${renderStatCard('Students with INC', state.stats.incStudents, 'orange', 'alert', '/registrar-cor.html')}
+        ${renderStatCard('Students with INC', state.stats.incStudents, 'orange', 'alert', '/registrar-documents.html')}
       </div>
       
       <!-- Quick Actions -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <!-- COR Printing Card -->
-        <a href="/registrar-cor.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-blue-200">
+      <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+        <!-- Document Release Card -->
+        <a href="/registrar-documents.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-blue-200">
           <div class="flex items-start gap-4">
             <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
               <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
               </svg>
             </div>
             <div class="flex-1">
-              <h3 class="text-lg font-bold text-gray-800 group-hover:text-blue-600 transition-colors">COR Printing</h3>
-              <p class="text-gray-600 text-sm mt-1">Print Certificate of Registration for students. View grades and INC status.</p>
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-blue-600 transition-colors">Document Release</h3>
+              <p class="text-gray-600 text-sm mt-1">Release official documents (COR, TOR, etc.) for students.</p>
               <span class="inline-flex items-center gap-1 text-blue-600 text-sm font-medium mt-2">
                 Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
               </span>
             </div>
           </div>
         </a>
+
+        <!-- Subject Management Card -->
+        <a href="/registrar-subjects.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-purple-200">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-purple-600 transition-colors">Subject Management</h3>
+              <p class="text-gray-600 text-sm mt-1">Manage subjects, units, year levels, and prerequisites.</p>
+              <span class="inline-flex items-center gap-1 text-purple-600 text-sm font-medium mt-2">
+                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+            </div>
+          </div>
+        </a>
         
+        <!-- Semester Management Card -->
+        <a href="/registrar-semesters.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-orange-200">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-orange-600 transition-colors">Semester Management</h3>
+              <p class="text-gray-600 text-sm mt-1">Manage academic semesters and enrollment periods.</p>
+              <span class="inline-flex items-center gap-1 text-orange-600 text-sm font-medium mt-2">
+                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+            </div>
+          </div>
+        </a>
+
         <!-- Override Enrollment Card -->
         <a href="/registrar-enrollment.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-green-200">
           <div class="flex items-start gap-4">
@@ -130,8 +174,44 @@ function render() {
             </div>
           </div>
         </a>
+
+        <!-- Section Management Card -->
+        <a href="/sections.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-teal-200">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-teal-600 transition-colors">Section Management</h3>
+              <p class="text-gray-600 text-sm mt-1">Create sections, assign subjects and professors.</p>
+              <span class="inline-flex items-center gap-1 text-teal-600 text-sm font-medium mt-2">
+                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+            </div>
+          </div>
+        </a>
+
+        <!-- Schedule Management Card -->
+        <a href="/schedule.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-violet-200">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-gray-800 group-hover:text-violet-600 transition-colors">Schedule Management</h3>
+              <p class="text-gray-600 text-sm mt-1">Set up class schedules for sections and manage timetables.</p>
+              <span class="inline-flex items-center gap-1 text-violet-600 text-sm font-medium mt-2">
+                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+            </div>
+          </div>
+        </a>
       </div>
-      
+
       <!-- Recent Students Table -->
       <div class="card">
         <div class="flex items-center justify-between mb-4">
@@ -172,7 +252,7 @@ function render() {
     }
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <a href="/registrar-cor.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View COR</a>
+                    <a href="/registrar-documents.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Release Docs</a>
                   </td>
                 </tr>
               `).join('')}
@@ -181,53 +261,6 @@ function render() {
         </div>
       </div>
     </main>
-  `;
-}
-
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <div>
-            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-            <span class="text-sm text-gray-500 ml-2">Registrar Portal</span>
-          </div>
-        </div>
-        
-        <div class="flex items-center gap-4">
-          <nav class="hidden md:flex items-center gap-2">
-            <a href="/registrar-dashboard.html" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-lg font-medium">Dashboard</a>
-            <a href="/registrar-cor.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">COR</a>
-            <a href="/registrar-enrollment.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Override</a>
-          </nav>
-          <div class="text-right hidden sm:block">
-            <p class="text-sm font-medium text-gray-800">${state.user?.first_name || 'Registrar'} ${state.user?.last_name || ''}</p>
-            <p class="text-xs text-gray-500">Registrar</p>
-          </div>
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -266,7 +299,7 @@ function renderStatCard(label, value, color, icon, link) {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);

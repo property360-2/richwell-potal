@@ -2,25 +2,31 @@ System Credentials
 Admission Staff
 Email: admission@richwell.edu.ph
 Password: admission123
+
 Role: Admission Staff
 Other Available Accounts
+
 Admin
 Email: admin@richwell.edu.ph
 Password: admin123
 Role: Admin
+
 Registrar
 Email: registrar@richwell.edu.ph
 Password: registrar123
 Role: Registrar
+
 Cashier
 Email: cashier@richwell.edu.ph
 Password: (check database or reset if needed)
 Role: Cashier
+
 Professor
 Email: professor@richwell.edu.ph
 Password: (check database or reset if needed)
 Role: Professor
 Student (demo)
+
 Email: student@richwell.edu.ph
 Password: (check database or reset if needed)
 Role: Student

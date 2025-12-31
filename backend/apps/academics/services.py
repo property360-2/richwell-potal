@@ -148,13 +148,135 @@ class CurriculumService:
         """
         if collected is None:
             collected = set()
-        
+
         for prereq in subject.prerequisites.all():
             if prereq.id not in collected:
                 collected.add(prereq.id)
                 CurriculumService.get_all_prerequisites(prereq, collected)
-        
+
         return collected
+
+    @staticmethod
+    def validate_curriculum_completeness(curriculum):
+        """
+        Validate curriculum has all required subjects and proper structure.
+
+        Returns:
+            tuple: (is_valid, errors)
+            errors: list of error messages
+        """
+        from apps.academics.models import CurriculumSubject
+
+        errors = []
+
+        # Get all subjects in curriculum
+        assignments = CurriculumSubject.objects.filter(
+            curriculum=curriculum,
+            is_deleted=False
+        ).select_related('subject').prefetch_related('subject__prerequisites')
+
+        # Check 1: Prerequisite completeness
+        for assignment in assignments:
+            for prereq in assignment.subject.prerequisites.all():
+                # Check if prerequisite is in curriculum and in earlier year/semester
+                prereq_assignment = assignments.filter(subject=prereq).first()
+
+                if not prereq_assignment:
+                    errors.append(
+                        f"Subject {assignment.subject.code} requires {prereq.code} "
+                        f"but it's not in the curriculum"
+                    )
+                elif not CurriculumService._is_before_in_curriculum(
+                    prereq_assignment, assignment
+                ):
+                    errors.append(
+                        f"Prerequisite {prereq.code} must be scheduled before "
+                        f"{assignment.subject.code} in the curriculum"
+                    )
+
+        # Check 2: Total units per semester (warning, not error)
+        semester_units = {}
+        for assignment in assignments:
+            key = (assignment.year_level, assignment.semester_number)
+            semester_units[key] = semester_units.get(key, 0) + assignment.subject.units
+
+        for (year, sem), units in semester_units.items():
+            if units > 24:  # Typical max units per semester
+                errors.append(
+                    f"Year {year} Semester {sem} has {units} units "
+                    f"(recommended max: 24 units)"
+                )
+            elif units < 12:  # Typical min units
+                errors.append(
+                    f"Year {year} Semester {sem} has only {units} units "
+                    f"(recommended min: 12 units)"
+                )
+
+        return len(errors) == 0, errors
+
+    @staticmethod
+    def _is_before_in_curriculum(prereq_assignment, subject_assignment):
+        """Check if prerequisite is scheduled before subject in curriculum"""
+        if prereq_assignment.year_level < subject_assignment.year_level:
+            return True
+        elif prereq_assignment.year_level == subject_assignment.year_level:
+            return prereq_assignment.semester_number < subject_assignment.semester_number
+        return False
+
+    @staticmethod
+    def get_curriculum_statistics(curriculum):
+        """
+        Get comprehensive statistics for a curriculum.
+
+        Returns:
+            dict: {
+                'total_subjects': int,
+                'total_units': int,
+                'required_subjects': int,
+                'elective_subjects': int,
+                'major_subjects': int,
+                'by_year': {...},
+                'missing_prerequisites': [...]
+            }
+        """
+        from apps.academics.models import CurriculumSubject
+
+        assignments = CurriculumSubject.objects.filter(
+            curriculum=curriculum,
+            is_deleted=False
+        ).select_related('subject')
+
+        stats = {
+            'total_subjects': assignments.count(),
+            'total_units': sum(a.subject.units for a in assignments),
+            'required_subjects': assignments.filter(is_required=True).count(),
+            'elective_subjects': assignments.filter(is_required=False).count(),
+            'major_subjects': assignments.filter(subject__is_major=True).count(),
+            'by_year': {}
+        }
+
+        # Group by year
+        for year in range(1, curriculum.program.duration_years + 1):
+            year_assignments = assignments.filter(year_level=year)
+            stats['by_year'][year] = {
+                'subjects': year_assignments.count(),
+                'units': sum(a.subject.units for a in year_assignments),
+                'by_semester': {}
+            }
+
+            for sem in [1, 2, 3]:
+                sem_assignments = year_assignments.filter(semester_number=sem)
+                stats['by_year'][year]['by_semester'][sem] = {
+                    'subjects': sem_assignments.count(),
+                    'units': sum(a.subject.units for a in sem_assignments)
+                }
+
+        # Check for missing prerequisites
+        is_valid, errors = CurriculumService.validate_curriculum_completeness(curriculum)
+        stats['is_valid'] = is_valid
+        stats['validation_errors'] = errors
+
+        return stats
 
 
 class SchedulingService:
@@ -175,8 +297,8 @@ class SchedulingService:
     @staticmethod
     def check_professor_conflict(professor, day, start_time, end_time, semester, exclude_slot_id=None):
         """
-        Check if a professor has a schedule conflict.
-        
+        Check if a professor has a schedule conflict using junction table.
+
         Args:
             professor: User object (professor)
             day: Day of the week (e.g., 'MON')
@@ -184,30 +306,36 @@ class SchedulingService:
             end_time: End time
             semester: Semester to check
             exclude_slot_id: Optional slot ID to exclude (for updates)
-            
+
         Returns:
             tuple: (has_conflict: bool, conflicting_slot: ScheduleSlot or None)
         """
-        from apps.academics.models import ScheduleSlot
-        
-        # Get all slots for this professor on this day in this semester
-        slots = ScheduleSlot.objects.filter(
-            section_subject__professor=professor,
+        from apps.academics.models import ScheduleSlot, SectionSubjectProfessor
+
+        # Get all section_subjects assigned to this professor
+        assigned_section_subjects = SectionSubjectProfessor.objects.filter(
+            professor=professor,
             section_subject__section__semester=semester,
+            is_deleted=False
+        ).values_list('section_subject_id', flat=True)
+
+        # Get all slots for the assigned section_subjects on this day
+        slots = ScheduleSlot.objects.filter(
+            section_subject_id__in=assigned_section_subjects,
             day=day,
             is_deleted=False
         )
-        
+
         if exclude_slot_id:
             slots = slots.exclude(id=exclude_slot_id)
-        
+
         for slot in slots:
             if SchedulingService.times_overlap(
-                start_time, end_time, 
+                start_time, end_time,
                 slot.start_time, slot.end_time
             ):
                 return True, slot
-        
+
         return False, None
     
     @staticmethod
@@ -321,5 +449,92 @@ class SchedulingService:
                 'end_time': slot.end_time.strftime('%H:%M'),
                 'room': slot.room
             })
-        
+
         return schedule
+
+
+class ProfessorService:
+    """Service for professor-related operations."""
+
+    @staticmethod
+    def get_workload(professor, semester):
+        """
+        Calculate professor workload for a semester.
+        Returns: {total_sections, total_subjects, total_hours_per_week,
+                  is_overloaded, sections_detail}
+        """
+        from apps.academics.models import SectionSubjectProfessor, ScheduleSlot
+
+        assignments = SectionSubjectProfessor.objects.filter(
+            professor=professor,
+            section_subject__section__semester=semester,
+            is_deleted=False
+        ).select_related('section_subject__subject', 'section_subject__section')
+
+        sections = set()
+        subjects = set()
+        total_hours = 0
+        sections_detail = []
+
+        for assignment in assignments:
+            ss = assignment.section_subject
+            sections.add(ss.section.id)
+            subjects.add(ss.subject.id)
+
+            # Calculate hours from schedule slots
+            slots = ScheduleSlot.objects.filter(section_subject=ss, is_deleted=False)
+            section_hours = sum([
+                (slot.end_time.hour * 60 + slot.end_time.minute -
+                 slot.start_time.hour * 60 - slot.start_time.minute) / 60
+                for slot in slots
+            ])
+
+            total_hours += section_hours
+            sections_detail.append({
+                'section': ss.section.name,
+                'subject_code': ss.subject.code,
+                'subject_title': ss.subject.title,
+                'hours_per_week': section_hours,
+                'is_primary': assignment.is_primary
+            })
+
+        max_hours = getattr(professor.professor_profile, 'max_teaching_hours', 24) \
+                    if hasattr(professor, 'professor_profile') else 24
+
+        return {
+            'total_sections': len(sections),
+            'total_subjects': len(subjects),
+            'total_hours_per_week': round(total_hours, 2),
+            'is_overloaded': total_hours > max_hours,
+            'sections_detail': sections_detail
+        }
+
+    @staticmethod
+    def assign_to_section_subject(section_subject, professor, is_primary=False):
+        """Assign professor to section-subject."""
+        from apps.academics.models import SectionSubjectProfessor
+
+        existing = SectionSubjectProfessor.objects.filter(
+            section_subject=section_subject,
+            professor=professor,
+            is_deleted=False
+        ).first()
+
+        if existing:
+            return False, "Professor already assigned", None
+
+        # Ensure only one primary professor
+        if is_primary:
+            SectionSubjectProfessor.objects.filter(
+                section_subject=section_subject,
+                is_primary=True,
+                is_deleted=False
+            ).update(is_primary=False)
+
+        assignment = SectionSubjectProfessor.objects.create(
+            section_subject=section_subject,
+            professor=professor,
+            is_primary=is_primary
+        )
+
+        return True, None, assignment

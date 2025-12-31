@@ -1,0 +1,83 @@
+// Navigation configuration for all user roles
+// This is the single source of truth for navigation structure
+
+export const NAV_CONFIG = {
+  student: [
+    { label: 'Dashboard', href: '/student-dashboard.html', page: 'student-dashboard' },
+    { label: 'Enroll Subjects', href: '/subject-enrollment.html', page: 'subject-enrollment' },
+    { label: 'My Schedule', href: '/student-schedule.html', page: 'student-schedule' },
+    { label: 'Grades', href: '/grades.html', page: 'grades' },
+    { label: 'SOA', href: '/soa.html', page: 'soa' }
+  ],
+
+  registrar: [
+    { label: 'Dashboard', href: '/registrar-dashboard.html', page: 'registrar-dashboard' },
+    { label: 'Documents', href: '/registrar-documents.html', page: 'registrar-documents' },
+    { label: 'Programs', href: '/registrar-programs.html', page: 'registrar-programs' },
+    { label: 'Subjects', href: '/registrar-subjects.html', page: 'registrar-subjects' },
+    { label: 'Curricula', href: '/registrar-curricula.html', page: 'registrar-curricula' },
+    { label: 'Semesters', href: '/registrar-semesters.html', page: 'registrar-semesters' },
+    { label: 'Sections', href: '/sections.html', page: 'sections' },
+    { label: 'Professors', href: '/professors.html', page: 'professors' },
+    { label: 'Schedule', href: '/schedule.html', page: 'schedule' },
+    { label: 'Override', href: '/registrar-enrollment.html', page: 'registrar-enrollment' }
+  ],
+
+  professor: [
+    { label: 'My Schedule', href: '/professor-schedule.html', page: 'professor-schedule' }
+  ],
+
+  head: [
+    { label: 'Dashboard', href: '/head-dashboard.html', page: 'head-dashboard' }
+  ],
+
+  cashier: [
+    { label: 'Dashboard', href: '/cashier-dashboard.html', page: 'cashier-dashboard' }
+  ],
+
+  admission: [
+    { label: 'Dashboard', href: '/admission-dashboard.html', page: 'admission-dashboard' },
+    { label: 'Applicants', href: '/applicant-approval.html', page: 'applicant-approval' }
+  ],
+
+  admin: [
+    { label: 'Dashboard', href: '/admin-dashboard.html', page: 'admin-dashboard' },
+    { label: 'User Management', href: '/admin-users.html', page: 'admin-users' },
+    { label: 'Programs', href: '/registrar-programs.html', page: 'registrar-programs' },
+    { label: 'Subjects', href: '/registrar-subjects.html', page: 'registrar-subjects' },
+    { label: 'Curricula', href: '/registrar-curricula.html', page: 'registrar-curricula' },
+    { label: 'Semesters', href: '/registrar-semesters.html', page: 'registrar-semesters' },
+    { label: 'Sections', href: '/sections.html', page: 'sections' },
+    { label: 'Schedule', href: '/schedule.html', page: 'schedule' }
+  ]
+};
+
+/**
+ * Convert user role to navigation config key
+ * @param {string} userRole - User role from backend (STUDENT, REGISTRAR, etc.)
+ * @returns {string} Navigation config key
+ */
+export function getRoleKey(userRole) {
+  const roleMap = {
+    'STUDENT': 'student',
+    'REGISTRAR': 'registrar',
+    'HEAD_REGISTRAR': 'registrar',
+    'PROFESSOR': 'professor',
+    'DEPARTMENT_HEAD': 'head',
+    'CASHIER': 'cashier',
+    'ADMISSION': 'admission',
+    'ADMISSION_STAFF': 'admission',
+    'ADMIN': 'admin'
+  };
+  return roleMap[userRole] || 'student';
+}
+
+/**
+ * Get navigation items for a specific role
+ * @param {string} role - User role (can be backend format or config key)
+ * @returns {Array} Array of navigation items
+ */
+export function getNavigationForRole(role) {
+  const roleKey = getRoleKey(role);
+  return NAV_CONFIG[roleKey] || NAV_CONFIG.student;
+}

@@ -117,7 +117,17 @@ export const api = {
             method: 'POST',
             body: JSON.stringify(data)
         });
-        return response;
+        if (!response) return null;
+        return response.json();
+    },
+
+    async put(endpoint, data) {
+        const response = await this.request(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+        if (!response) return null;
+        return response.json();
     },
 
     async patch(endpoint, data) {
@@ -167,6 +177,7 @@ export const endpoints = {
     programs: '/admissions/programs/',
     enroll: '/admissions/enroll/',
     applicants: '/admissions/applicants/',
+    nextStudentNumber: '/admissions/next-student-number/',
     applicantUpdate: (id) => `/admissions/applicants/${id}/`,
     uploadDocument: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/documents/`,
     verifyDocument: (documentId) => `/admissions/documents/${documentId}/verify/`,
@@ -201,12 +212,16 @@ export const endpoints = {
     checkRoomConflict: '/academics/check-room-conflict/',
     professorSchedule: (profId, semId) => `/academics/professor/${profId}/schedule/${semId}/`,
 
-    // Epic 2: Semesters
+    // Epic 2 & 8: Semesters
     semesters: '/academics/semesters/',
+    semesterDetail: (id) => `/academics/semesters/${id}/`,
     activeSemester: '/academics/semesters/active/',
+    setCurrentSemester: (id) => `/academics/semesters/${id}/set_current/`,
 
     // Epic 2: Professors
-    professors: '/accounts/professors/',
+    professors: '/academics/professors/',
+    professorDetail: (id) => `/academics/professors/${id}/`,
+    professorWorkload: (id) => `/academics/professors/${id}/workload/`,
 
     // Epic 3: Subject Enrollment (under /admissions/)
     recommendedSubjects: '/admissions/subjects/recommended/',
@@ -223,6 +238,7 @@ export const endpoints = {
     // Cashier endpoints (enrollment URLs are under /admissions/)
     cashierStudentSearch: '/admissions/cashier/students/search/',
     cashierPendingPayments: '/admissions/cashier/students/pending-payments/',
+    cashierTodayTransactions: '/admissions/cashier/today-transactions/',
     cashierRecordPayment: '/admissions/payments/record/',
     cashierStudentPayments: (enrollmentId) => `/admissions/payments/student/${enrollmentId}/`,
 
@@ -238,5 +254,24 @@ export const endpoints = {
 
     // COR Generation
     generateCOR: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/cor/`,
+
+    // Document Release
+    createDocumentRelease: '/admissions/documents/release/',
+    myReleases: '/admissions/documents/my-releases/',
+    allReleases: '/admissions/documents/all/',
+
+    // Curriculum Management (EPIC 7)
+    curricula: '/academics/curricula/',
+    curriculumDetail: (id) => `/academics/curricula/${id}/`,
+    curriculumStructure: (id) => `/academics/curricula/${id}/structure/`,
+    curriculumAssignSubjects: (id) => `/academics/curricula/${id}/assign_subjects/`,
+    curriculumRemoveSubject: (id, subjectId) => `/academics/curricula/${id}/subjects/${subjectId}/`,
+
+    // Permission Management
+    users: '/accounts/users/',
+    userPermissions: (userId) => `/accounts/users/${userId}/permissions/`,
+    updateUserPermission: (userId) => `/accounts/users/${userId}/permissions/update/`,
+    bulkUpdatePermissions: (userId) => `/accounts/users/${userId}/permissions/bulk/`,
+    permissionCategories: '/accounts/permissions/categories/',
 };
 

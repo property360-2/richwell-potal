@@ -1,6 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatCurrency, requireAuth } from '../utils.js';
+import { formatCurrency, requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -40,7 +44,8 @@ async function loadData() {
             month: b.month,
             required: b.required,
             paid: b.paid,
-            label: `Month ${b.month}`,
+            event_label: b.event_label,
+            label: b.event_label || `Month ${b.month}`,
             dueDate: calculateDueDate(b.month) // Generate due dates
           }));
         }
@@ -61,10 +66,10 @@ async function loadData() {
         state.semester = data.semester || null;
       }
     } catch (error) {
-      console.log('Payment API failed, using empty data:', error);
+      ErrorHandler.handle(error, 'Loading payment data');
     }
   } catch (error) {
-    console.error('Failed to load data:', error);
+    ErrorHandler.handle(error, 'Loading data');
   }
   state.loading = false;
 }
@@ -81,7 +86,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading statement of account...');
     return;
   }
 
@@ -90,7 +95,11 @@ function render() {
   const balance = totalRequired - totalPaid;
 
   app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'STUDENT',
+      activePage: 'soa',
+      user: state.user
+    })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -184,14 +193,26 @@ function render() {
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-200">
-                    ${state.paymentHistory.map(payment => `
+                    ${state.paymentHistory.map(payment => {
+                      // Look up event label for the month if it's a specific month
+                      let monthDisplay = payment.monthApplied;
+                      if (payment.monthApplied !== 'Multiple' && !isNaN(payment.monthApplied)) {
+                        const bucket = state.paymentBuckets.find(b => b.month === parseInt(payment.monthApplied));
+                        if (bucket && bucket.event_label) {
+                          monthDisplay = `Month ${payment.monthApplied}: ${bucket.event_label}`;
+                        } else {
+                          monthDisplay = `Month ${payment.monthApplied}`;
+                        }
+                      }
+                      return `
                       <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3 text-sm text-gray-800">${formatDate(payment.date)}</td>
                         <td class="px-4 py-3 text-sm font-mono text-blue-600">${payment.receipt}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600">Month ${payment.monthApplied}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600">${monthDisplay}</td>
                         <td class="px-4 py-3 text-sm font-medium text-green-600 text-right">${formatCurrency(payment.amount)}</td>
                       </tr>
-                    `).join('')}
+                      `;
+                    }).join('')}
                   </tbody>
                 </table>
               </div>
@@ -252,48 +273,7 @@ function render() {
   `;
 }
 
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-        </div>
-        
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/student-dashboard.html" class="text-gray-600 hover:text-gray-900">Dashboard</a>
-          <a href="/subject-enrollment.html" class="text-gray-600 hover:text-gray-900">Enroll Subjects</a>
-          <a href="/grades.html" class="text-gray-600 hover:text-gray-900">Grades</a>
-          <a href="/soa.html" class="text-blue-600 font-medium">SOA</a>
-        </nav>
-        
-        <div class="flex items-center gap-4">
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span class="hidden sm:inline">Logout</span>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
 
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading your statement...</p>
-      </div>
-    </div>
-  `;
-}
 
 function renderPaymentBucket(bucket) {
   const percentage = Math.min(100, (bucket.paid / bucket.required) * 100);
@@ -315,7 +295,7 @@ function renderPaymentBucket(bucket) {
             `}
           </div>
           <div>
-            <p class="font-medium text-gray-800">${bucket.label}</p>
+            <p class="font-medium text-gray-800">${bucket.event_label ? `Month ${bucket.month}: ${bucket.event_label}` : `Month ${bucket.month}`}</p>
             <p class="text-xs text-gray-500">Due: ${formatDate(bucket.dueDate)}</p>
           </div>
         </div>
@@ -369,7 +349,7 @@ window.printSOA = function () {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);

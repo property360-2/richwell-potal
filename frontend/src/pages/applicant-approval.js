@@ -1,6 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -9,57 +13,7 @@ const state = {
     applicants: []
 };
 
-// Mock pending applicants
-const mockApplicants = [
-    {
-        id: 1,
-        student_number: '2025-00001',
-        first_name: 'Juan',
-        last_name: 'Dela Cruz',
-        email: 'jdelacruz@richwell.edu.ph',
-        program: { code: 'BSIT', name: 'BS Information Technology' },
-        status: 'PENDING',
-        created_at: '2024-12-10T10:30:00Z',
-        documents_verified: 2,
-        documents_total: 3
-    },
-    {
-        id: 2,
-        student_number: '2025-00002',
-        first_name: 'Maria',
-        last_name: 'Santos',
-        email: 'msantos@richwell.edu.ph',
-        program: { code: 'BSCS', name: 'BS Computer Science' },
-        status: 'PENDING',
-        created_at: '2024-12-11T14:20:00Z',
-        documents_verified: 3,
-        documents_total: 3
-    },
-    {
-        id: 3,
-        student_number: '2025-00003',
-        first_name: 'Pedro',
-        last_name: 'Reyes',
-        email: 'preyes@richwell.edu.ph',
-        program: { code: 'BSBA', name: 'BS Business Administration' },
-        status: 'PENDING',
-        created_at: '2024-12-12T09:15:00Z',
-        documents_verified: 1,
-        documents_total: 2
-    },
-    {
-        id: 4,
-        student_number: '2025-00004',
-        first_name: 'Ana',
-        last_name: 'Garcia',
-        email: 'agarcia@richwell.edu.ph',
-        program: { code: 'BSIT', name: 'BS Information Technology' },
-        status: 'PENDING',
-        created_at: '2024-12-13T08:00:00Z',
-        documents_verified: 2,
-        documents_total: 2
-    }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
     if (!requireAuth()) return;
@@ -75,11 +29,33 @@ async function loadData() {
             state.user = userResponse;
         }
     } catch (error) {
-        console.error('Failed to load user:', error);
+        ErrorHandler.handle(error, 'Loading user');
     }
 
-    // Load pending applicants (mock for now)
-    state.applicants = mockApplicants;
+    // Load pending applicants from real API
+    try {
+        const response = await api.get(`${endpoints.applicants}?status=PENDING`);
+        const enrollments = response?.results || response || [];
+
+        state.applicants = enrollments.map(enrollment => ({
+            id: enrollment.id,
+            student_number: enrollment.student_number,
+            first_name: enrollment.student_name?.split(' ')[0] || 'Unknown',
+            last_name: enrollment.student_name?.split(' ').slice(1).join(' ') || 'Student',
+            email: enrollment.student_email,
+            program: { code: enrollment.program_code || 'N/A', name: enrollment.program_name || 'Program' },
+            status: enrollment.status,
+            created_at: enrollment.created_at,
+            documents_verified: enrollment.documents?.filter(d => d.status === 'VERIFIED').length || 0,
+            documents_total: enrollment.documents?.length || 0
+        }));
+
+        console.log(`Loaded ${state.applicants.length} pending applicants`);
+    } catch (error) {
+        ErrorHandler.handle(error, 'Loading pending applicants');
+        state.applicants = [];
+    }
+
     state.loading = false;
 }
 
@@ -87,14 +63,18 @@ function render() {
     const app = document.getElementById('app');
 
     if (state.loading) {
-        app.innerHTML = renderLoading();
+        app.innerHTML = LoadingOverlay('Loading applicants...');
         return;
     }
 
     const pendingCount = state.applicants.filter(a => a.status === 'PENDING').length;
 
     app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'ADMISSION',
+      activePage: 'applicant-approval',
+      user: state.user
+    })}
     
     <main class="max-w-5xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -133,55 +113,6 @@ function render() {
         ` : state.applicants.map(applicant => renderApplicantCard(applicant)).join('')}
       </div>
     </main>
-  `;
-}
-
-function renderHeader() {
-    return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
-      <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <div>
-            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-            <span class="text-sm text-gray-500 ml-2">Approval</span>
-          </div>
-        </div>
-        
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/curriculum.html" class="text-gray-600 hover:text-gray-900">Curriculum</a>
-          <a href="/admission-dashboard.html" class="text-gray-600 hover:text-gray-900">Admissions</a>
-          <a href="/applicant-approval.html" class="text-blue-600 font-medium">Approval</a>
-        </nav>
-        
-        <div class="flex items-center gap-4">
-          <div class="text-right hidden sm:block">
-            <p class="text-sm font-medium text-gray-800">${state.user?.first_name || 'Staff'} ${state.user?.last_name || 'User'}</p>
-            <p class="text-xs text-gray-500">${state.user?.role || 'Staff'}</p>
-          </div>
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span class="hidden sm:inline">Logout</span>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
-
-function renderLoading() {
-    return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -260,12 +191,12 @@ window.acceptApplicant = async function (applicantId) {
     const applicant = state.applicants.find(a => a.id === applicantId);
     if (!applicant) return;
 
-    showToast(`Approving ${applicant.first_name} ${applicant.last_name}...`, 'info');
+    Toast.info(`Approving ${applicant.first_name} ${applicant.last_name}...`);
 
     // Simulate API call
     setTimeout(() => {
         applicant.status = 'ACTIVE';
-        showToast(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`, 'success');
+        Toast.success(`${applicant.first_name} ${applicant.last_name} has been approved! They can now login.`);
         render();
     }, 500);
 };
@@ -276,19 +207,19 @@ window.rejectApplicant = async function (applicantId) {
 
     if (!confirm(`Are you sure you want to reject ${applicant.first_name} ${applicant.last_name}?`)) return;
 
-    showToast(`Rejecting ${applicant.first_name}...`, 'info');
+    Toast.info(`Rejecting ${applicant.first_name}...`);
 
     // Simulate API call
     setTimeout(() => {
         applicant.status = 'REJECTED';
-        showToast(`${applicant.first_name} ${applicant.last_name} has been rejected.`, 'warning');
+        Toast.warning(`${applicant.first_name} ${applicant.last_name} has been rejected.`);
         render();
     }, 500);
 };
 
 window.logout = function () {
     TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
+    Toast.success('Logged out successfully');
     setTimeout(() => {
         window.location.href = '/login.html';
     }, 1000);

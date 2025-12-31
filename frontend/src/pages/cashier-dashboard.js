@@ -1,6 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatCurrency, requireAuth } from '../utils.js';
+import { formatCurrency, requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -22,77 +26,7 @@ const state = {
   }
 };
 
-// Mock students data
-const mockStudents = [
-  {
-    id: 1,
-    student_number: '2024-00001',
-    first_name: 'Juan',
-    last_name: 'Dela Cruz',
-    email: 'jdelacruz@richwell.edu.ph',
-    program: { code: 'BSIT', name: 'BS Information Technology' },
-    enrollment_status: 'ACTIVE',
-    paymentBuckets: [
-      { month: 1, required: 5000, paid: 5000 },
-      { month: 2, required: 5000, paid: 3500 },
-      { month: 3, required: 5000, paid: 0 },
-      { month: 4, required: 5000, paid: 0 },
-      { month: 5, required: 5000, paid: 0 },
-      { month: 6, required: 5000, paid: 0 }
-    ],
-    paymentHistory: [
-      { id: 1, date: '2024-09-10', amount: 5000, receipt: 'OR-2024-0001', monthApplied: 1 },
-      { id: 2, date: '2024-10-08', amount: 2000, receipt: 'OR-2024-0045', monthApplied: 2 },
-      { id: 3, date: '2024-10-20', amount: 1500, receipt: 'OR-2024-0067', monthApplied: 2 }
-    ]
-  },
-  {
-    id: 2,
-    student_number: '2024-00002',
-    first_name: 'Maria',
-    last_name: 'Santos',
-    email: 'msantos@richwell.edu.ph',
-    program: { code: 'BSCS', name: 'BS Computer Science' },
-    enrollment_status: 'PENDING',
-    paymentBuckets: [
-      { month: 1, required: 5000, paid: 0 },
-      { month: 2, required: 5000, paid: 0 },
-      { month: 3, required: 5000, paid: 0 },
-      { month: 4, required: 5000, paid: 0 },
-      { month: 5, required: 5000, paid: 0 },
-      { month: 6, required: 5000, paid: 0 }
-    ],
-    paymentHistory: []
-  },
-  {
-    id: 3,
-    student_number: '2024-00003',
-    first_name: 'Pedro',
-    last_name: 'Garcia',
-    email: 'pgarcia@richwell.edu.ph',
-    program: { code: 'BSIT', name: 'BS Information Technology' },
-    enrollment_status: 'ACTIVE',
-    paymentBuckets: [
-      { month: 1, required: 5000, paid: 5000 },
-      { month: 2, required: 5000, paid: 5000 },
-      { month: 3, required: 5000, paid: 5000 },
-      { month: 4, required: 5000, paid: 2000 },
-      { month: 5, required: 5000, paid: 0 },
-      { month: 6, required: 5000, paid: 0 }
-    ],
-    paymentHistory: [
-      { id: 4, date: '2024-09-05', amount: 5000, receipt: 'OR-2024-0005', monthApplied: 1 },
-      { id: 5, date: '2024-10-03', amount: 5000, receipt: 'OR-2024-0032', monthApplied: 2 },
-      { id: 6, date: '2024-11-02', amount: 5000, receipt: 'OR-2024-0089', monthApplied: 3 },
-      { id: 7, date: '2024-12-01', amount: 2000, receipt: 'OR-2024-0120', monthApplied: 4 }
-    ]
-  }
-];
-
-const mockTodayTransactions = [
-  { id: 1, time: '09:15 AM', student: 'Juan Dela Cruz', studentNumber: '2024-00001', amount: 1500, receipt: 'OR-2024-0067', monthApplied: 2 },
-  { id: 2, time: '10:30 AM', student: 'Pedro Garcia', studentNumber: '2024-00003', amount: 2000, receipt: 'OR-2024-0120', monthApplied: 4 }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -108,7 +42,21 @@ async function loadData() {
     if (userResponse) {
       state.user = userResponse;
     }
-    state.todayTransactions = mockTodayTransactions;
+
+    // Load today's transactions
+    try {
+      const transactionsResponse = await api.get(endpoints.cashierTodayTransactions);
+      console.log('Today transactions API response:', transactionsResponse);
+
+      if (transactionsResponse?.success) {
+        state.todayTransactions = transactionsResponse.data.transactions || [];
+      } else {
+        state.todayTransactions = [];
+      }
+    } catch (err) {
+      ErrorHandler.handle(err, 'Loading today transactions');
+      state.todayTransactions = [];
+    }
 
     // Load pending payments (students with Month 1 not paid)
     console.log('Calling pending payments API:', endpoints.cashierPendingPayments);
@@ -117,17 +65,17 @@ async function loadData() {
       console.log('Pending payments API response:', pendingResponse);
 
       if (pendingResponse?.success === false) {
-        console.error('API returned error:', pendingResponse);
+        ErrorHandler.handle(new Error('API returned error'), 'Loading pending payments');
       }
 
       // Handle both response formats
       state.pendingPayments = pendingResponse?.results || pendingResponse?.data?.results || [];
       console.log('Loaded pending payments:', state.pendingPayments.length, state.pendingPayments);
     } catch (err) {
-      console.error('Failed to load pending payments:', err);
+      ErrorHandler.handle(err, 'Loading pending payments');
     }
   } catch (error) {
-    console.error('Failed to load data:', error);
+    ErrorHandler.handle(error, 'Loading dashboard data');
   }
   state.loading = false;
 }
@@ -136,14 +84,18 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading cashier dashboard...');
     return;
   }
 
   const todayTotal = state.todayTransactions.reduce((sum, t) => sum + t.amount, 0);
 
   app.innerHTML = `
-    ${renderHeader()}
+    ${createHeader({
+      role: 'CASHIER',
+      activePage: 'cashier-dashboard',
+      user: state.user
+    })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -279,53 +231,6 @@ function render() {
   `;
 
   attachEventListeners();
-}
-
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <div>
-            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-            <span class="text-sm text-gray-500 ml-2">Cashier</span>
-          </div>
-        </div>
-        
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/cashier-dashboard.html" class="text-blue-600 font-medium">Dashboard</a>
-        </nav>
-        
-        <div class="flex items-center gap-4">
-          <div class="text-right hidden sm:block">
-            <p class="text-sm font-medium text-gray-800">${state.user?.first_name || 'Cashier'} ${state.user?.last_name || 'User'}</p>
-            <p class="text-xs text-gray-500">Cashier</p>
-          </div>
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span class="hidden sm:inline">Logout</span>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading dashboard...</p>
-      </div>
-    </div>
-  `;
 }
 
 function renderSearchResults() {
@@ -536,30 +441,17 @@ window.searchStudent = async function () {
   render();
 
   try {
-    // Try to call the real API
     const response = await api.get(`${endpoints.cashierStudentSearch}?q=${encodeURIComponent(state.searchQuery)}`);
     if (response?.results) {
       state.searchResults = response.results;
     } else {
-      // Fallback to mock data
-      const query = state.searchQuery.toLowerCase();
-      state.searchResults = mockStudents.filter(s =>
-        s.student_number.toLowerCase().includes(query) ||
-        s.first_name.toLowerCase().includes(query) ||
-        s.last_name.toLowerCase().includes(query) ||
-        `${s.first_name} ${s.last_name}`.toLowerCase().includes(query)
-      );
+      state.searchResults = [];
+      console.warn('No students found for query:', state.searchQuery);
     }
   } catch (error) {
-    console.log('API search failed, using mock:', error);
-    // Fallback to mock data
-    const query = state.searchQuery.toLowerCase();
-    state.searchResults = mockStudents.filter(s =>
-      s.student_number.toLowerCase().includes(query) ||
-      s.first_name.toLowerCase().includes(query) ||
-      s.last_name.toLowerCase().includes(query) ||
-      `${s.first_name} ${s.last_name}`.toLowerCase().includes(query)
-    );
+    ErrorHandler.handle(error, 'Searching students');
+    Toast.error('Failed to search students. Please try again.');
+    state.searchResults = [];
   }
 
   state.searchLoading = false;
@@ -573,9 +465,10 @@ window.selectStudent = function (studentId) {
   if (!state.selectedStudent) {
     state.selectedStudent = state.pendingPayments.find(s => s.id === studentId || s.id === String(studentId));
   }
-  // Fallback to mock data
+  // If still not found, show error
   if (!state.selectedStudent) {
-    state.selectedStudent = mockStudents.find(s => s.id === studentId);
+    Toast.error('Student not found');
+    return;
   }
 
   // Normalize the payment buckets format
@@ -610,7 +503,7 @@ window.submitPayment = async function (event) {
   const monthApplied = parseInt(document.getElementById('monthApplied').value);
 
   if (!amount || !receipt) {
-    showToast('Please fill in all fields', 'error');
+    Toast.error('Please fill in all fields');
     return;
   }
 
@@ -629,13 +522,16 @@ window.submitPayment = async function (event) {
       const data = await response.json();
 
       if (response.ok) {
-        showToast(data.message || 'Payment recorded successfully!', 'success');
+        Toast.success(data.message || 'Payment recorded successfully!');
 
-        // Refresh student data
+        // Refresh student data and today's transactions
         if (state.selectedStudent.enrollment_id) {
           await searchStudent();
           state.selectedStudent = state.searchResults.find(s => s.id === state.selectedStudent.id);
         }
+
+        // Reload today's transactions to show the new payment
+        await loadData();
       } else {
         if (data?.errors) {
           const errorMsg = Object.values(data.errors).flat().join(', ');
@@ -681,7 +577,7 @@ window.submitPayment = async function (event) {
       monthApplied: monthApplied
     });
 
-    showToast('Payment recorded successfully!', 'success');
+    Toast.success('Payment recorded successfully!');
   }
 
   state.showPaymentModal = false;
@@ -693,12 +589,12 @@ window.activateStudent = function () {
 
   const month1 = state.selectedStudent.paymentBuckets[0];
   if (month1.paid < month1.required) {
-    showToast('Student must pay Month 1 first', 'error');
+    Toast.error('Student must pay Month 1 first');
     return;
   }
 
   state.selectedStudent.enrollment_status = 'ACTIVE';
-  showToast(`${state.selectedStudent.first_name} ${state.selectedStudent.last_name} has been activated!`, 'success');
+  Toast.success(`${state.selectedStudent.first_name} ${state.selectedStudent.last_name} has been activated!`);
   render();
 };
 
@@ -738,7 +634,7 @@ window.confirmQuickPayment = async function (event) {
   const amount = parseFloat(document.getElementById('quickAmount').value);
 
   if (!amount || !receipt) {
-    showToast('Please check amount and receipt', 'error');
+    Toast.error('Please check amount and receipt');
     return;
   }
 
@@ -758,7 +654,7 @@ window.confirmQuickPayment = async function (event) {
       const data = await response.json();
 
       if (response.ok) {
-        showToast('Payment recorded! Student can now enroll.', 'success');
+        Toast.success('Payment recorded! Student can now enroll.');
         closeQuickPaymentModal();
         loadData(); // Refresh pending list
       } else {
@@ -772,8 +668,7 @@ window.confirmQuickPayment = async function (event) {
       throw new Error('Network response failed');
     }
   } catch (error) {
-    console.error('Quick payment error:', error);
-    showToast(`Failed: ${error.message}`, 'error');
+    ErrorHandler.handle(error, 'Processing quick payment');
   }
 };
 
@@ -838,7 +733,7 @@ function renderQuickPaymentModal() {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);

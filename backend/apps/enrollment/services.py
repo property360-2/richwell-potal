@@ -80,10 +80,19 @@ class EnrollmentService:
             username=school_email  # School email as login username
         )
         
+        # EPIC 7: Get active curriculum for program
+        from apps.academics.models import Curriculum
+        active_curriculum = Curriculum.objects.filter(
+            program=program,
+            is_active=True,
+            is_deleted=False
+        ).order_by('-effective_year').first()
+
         # Create StudentProfile
         student_profile = StudentProfile.objects.create(
             user=user,
             program=program,
+            curriculum=active_curriculum,  # EPIC 7: Assign curriculum
             year_level=1,
             middle_name=data.get('middle_name', ''),
             suffix=data.get('suffix', ''),
@@ -165,10 +174,19 @@ class EnrollmentService:
             username=data['email']
         )
         
+        # EPIC 7: Get active curriculum for program (transferees get latest curriculum)
+        from apps.academics.models import Curriculum
+        active_curriculum = Curriculum.objects.filter(
+            program=program,
+            is_active=True,
+            is_deleted=False
+        ).order_by('-effective_year').first()
+
         # Create StudentProfile
         StudentProfile.objects.create(
             user=user,
             program=program,
+            curriculum=active_curriculum,  # EPIC 7: Assign curriculum
             year_level=data['year_level'],
             middle_name=data.get('middle_name', ''),
             suffix=data.get('suffix', ''),
@@ -243,13 +261,23 @@ class EnrollmentService:
     def _generate_payment_buckets(self, enrollment: Enrollment) -> list[MonthlyPaymentBucket]:
         """
         Generate 6 monthly payment buckets for an enrollment.
-        
+
         Args:
             enrollment: The enrollment to create buckets for
-            
+
         Returns:
             list: Created MonthlyPaymentBucket instances
         """
+        # Event labels for each payment month
+        EVENT_LABELS = {
+            1: 'Subject Enrollment',
+            2: 'Chapter Test',
+            3: 'Prelims',
+            4: 'Midterms',
+            5: 'Pre Finals',
+            6: 'Finals'
+        }
+
         buckets = []
         for month in range(1, self.payment_months + 1):
             bucket = MonthlyPaymentBucket.objects.create(
@@ -257,10 +285,11 @@ class EnrollmentService:
                 month_number=month,
                 required_amount=enrollment.monthly_commitment,
                 paid_amount=Decimal('0.00'),
-                is_fully_paid=False
+                is_fully_paid=False,
+                event_label=EVENT_LABELS.get(month, '')
             )
             buckets.append(bucket)
-        
+
         return buckets
     
     def _get_current_semester(self) -> Semester:
@@ -402,92 +431,117 @@ class SubjectEnrollmentService:
         
         return total or 0
     
-    def get_recommended_subjects(self, student, semester):
+    def get_allowed_subjects_by_curriculum(self, student, semester):
         """
-        Get subjects recommended for the student based on year level and curriculum.
-        
+        EPIC 7: Get subjects allowed based on student's assigned curriculum.
+
+        Returns subjects the student is allowed to enroll in based on:
+        1. Their assigned curriculum
+        2. Their current year level
+        3. Current semester number
+        4. Not already passed/enrolled
+
+        This method implements curriculum-based filtering while maintaining
+        backward compatibility for students without an assigned curriculum.
+
         Args:
             student: User object (student)
             semester: Semester object
-            
+
         Returns:
-            QuerySet: Recommended subjects
+            QuerySet: Allowed subjects based on curriculum
         """
-        from apps.academics.models import Subject
-        
-        # Get student's program and year level
+        from apps.academics.models import Subject, CurriculumSubject
+
         profile = student.student_profile
-        program = profile.program
+        curriculum = profile.curriculum
         year_level = profile.year_level
-        
-        # Get semester number from semester name (1st Semester = 1, 2nd Semester = 2, Summer = 3)
+
+        # Determine semester number from semester name
         semester_number = 1
         if '2nd' in semester.name.lower() or 'second' in semester.name.lower():
             semester_number = 2
         elif 'summer' in semester.name.lower():
             semester_number = 3
-        
-        # Get passed subjects
+
+        # Get subjects already passed or enrolled (for reference, but don't exclude them)
         passed_subjects = self.get_student_passed_subjects(student)
-        
-        # Get currently enrolled subjects
         current_subjects = self.get_student_current_subjects(student, semester)
-        
-        # Exclude passed and currently enrolled subjects
-        excluded_subjects = passed_subjects | current_subjects
-        
-        # Get recommended subjects for current year/semester
-        recommended = Subject.objects.filter(
-            program=program,
-            year_level=year_level,
-            semester_number=semester_number,
-            is_deleted=False
-        ).exclude(id__in=excluded_subjects)
-        
-        return recommended
+        # NOTE: We're NOT excluding passed/enrolled subjects anymore
+        # User wants to see ALL subjects including completed and currently enrolled
+
+        # NEW: Filter by curriculum assignment if student has one
+        if curriculum:
+            # Get ALL subjects assigned to this curriculum (all years, all semesters)
+            curriculum_subjects = CurriculumSubject.objects.filter(
+                curriculum=curriculum,
+                is_deleted=False
+            ).select_related('subject')
+
+            subject_ids = [cs.subject_id for cs in curriculum_subjects]
+
+            allowed = Subject.objects.filter(
+                id__in=subject_ids,
+                is_deleted=False
+            )
+        else:
+            # FALLBACK: Use old logic for students without curriculum assigned
+            # Show ALL subjects from program (all years, all semesters)
+            allowed = Subject.objects.filter(
+                program=profile.program,
+                is_deleted=False
+            )
+
+        return allowed
+
+    def get_recommended_subjects(self, student, semester):
+        """
+        Get subjects recommended for the student based on year level and curriculum.
+
+        EPIC 7: Now uses curriculum-based filtering if student has curriculum assigned.
+
+        Args:
+            student: User object (student)
+            semester: Semester object
+
+        Returns:
+            QuerySet: Recommended subjects
+        """
+        # Use new curriculum-based filtering
+        return self.get_allowed_subjects_by_curriculum(student, semester)
     
     def get_available_subjects(self, student, semester):
         """
         Get all subjects the student can enroll in (has sections, meets prerequisites).
-        
+
+        EPIC 7: Now uses curriculum-based filtering if student has curriculum assigned.
+
         Args:
             student: User object (student)
             semester: Semester object
-            
+
         Returns:
             QuerySet: Available subjects with sections
         """
-        from apps.academics.models import Subject, Section
-        
+        from apps.academics.models import Section
+
         profile = student.student_profile
         program = profile.program
-        
-        # Get passed subjects
-        passed_subjects = self.get_student_passed_subjects(student)
-        
-        # Get currently enrolled subjects
-        current_subjects = self.get_student_current_subjects(student, semester)
-        
-        # Exclude passed and current
-        excluded_subjects = passed_subjects | current_subjects
-        
-        # Get all subjects from student's program not already passed/enrolled
-        available = Subject.objects.filter(
-            program=program,
-            is_deleted=False
-        ).exclude(
-            id__in=excluded_subjects
-        ).prefetch_related('prerequisites')
-        
+
+        # Use curriculum-based filtering
+        allowed_subjects = self.get_allowed_subjects_by_curriculum(student, semester)
+
         # Filter to only those with sections in this semester
         sections_exist = Section.objects.filter(
             semester=semester,
             program=program,
             is_deleted=False
         ).values_list('section_subjects__subject_id', flat=True)
-        
-        available = available.filter(id__in=sections_exist)
-        
+
+        available = allowed_subjects.filter(
+            id__in=sections_exist
+        ).prefetch_related('prerequisites')
+
         return available
     
     def check_prerequisites(self, student, subject) -> tuple[bool, list]:
@@ -686,12 +740,35 @@ class SubjectEnrollmentService:
                 f"with {conflict_info['conflicting_subject']}"
             )
 
-        # Determine if irregular (not in recommended year/semester)
+        # EPIC 7: Curriculum validation and irregular determination
         profile = student.student_profile
-        is_irregular = (
-            subject.year_level != profile.year_level or
-            self._get_semester_number(enrollment.semester) != subject.semester_number
-        )
+        curriculum = profile.curriculum
+        semester_number = self._get_semester_number(enrollment.semester)
+
+        # Check if subject is in student's curriculum
+        is_irregular = False
+        if curriculum:
+            from apps.academics.models import CurriculumSubject
+
+            curriculum_subject = CurriculumSubject.objects.filter(
+                curriculum=curriculum,
+                subject=subject,
+                is_deleted=False
+            ).first()
+
+            if not curriculum_subject:
+                # Subject not in curriculum - this is an irregular enrollment
+                is_irregular = True
+            elif (curriculum_subject.year_level != profile.year_level or
+                  curriculum_subject.semester_number != semester_number):
+                # Subject in curriculum but different year/semester
+                is_irregular = True
+        else:
+            # FALLBACK: Use old logic for students without curriculum
+            is_irregular = (
+                subject.year_level != profile.year_level or
+                semester_number != subject.semester_number
+            )
 
         # Determine enrollment status:
         # NEW FLOW: Subject enrollments now require Head approval
@@ -755,7 +832,136 @@ class SubjectEnrollmentService:
         )
         
         return subject_enrollment
-    
+
+    @transaction.atomic
+    def edit_subject_enrollment(
+        self,
+        subject_enrollment: 'SubjectEnrollment',
+        new_subject: 'Subject',
+        new_section: 'Section',
+        actor: User
+    ) -> 'SubjectEnrollment':
+        """
+        Edit a subject enrollment (change subject or section).
+        Only allowed before head approval.
+
+        Validates:
+        - Prerequisites for new subject
+        - Unit cap (adjusted for subject swap)
+        - Schedule conflicts (excluding current enrollment)
+        - No duplicate enrollments
+
+        Args:
+            subject_enrollment: SubjectEnrollment object to edit
+            new_subject: New Subject object
+            new_section: New Section object
+            actor: User performing the edit
+
+        Returns:
+            SubjectEnrollment: Updated record
+
+        Raises:
+            ConflictError: If head has already approved or duplicate enrollment
+            PrerequisiteNotSatisfiedError: If prerequisites not met
+            UnitCapExceededError: If edit would exceed unit cap
+            ScheduleConflictError: If schedule conflict with other enrollments
+        """
+        from .models import SubjectEnrollment
+        from apps.core.exceptions import (
+            ConflictError,
+            PrerequisiteNotSatisfiedError,
+            UnitCapExceededError,
+            ScheduleConflictError
+        )
+
+        # 1. Validation gate - cannot edit after head approval
+        if subject_enrollment.head_approved:
+            raise ConflictError("Cannot edit: Head has already approved this enrollment")
+
+        # 2. Store old values for audit
+        old_subject = subject_enrollment.subject
+        old_section = subject_enrollment.section
+        old_units = old_subject.units
+
+        # 3. Validate prerequisites for new subject
+        self.check_prerequisites(actor, new_subject)
+        self.check_inc_prerequisites(actor, new_subject)
+
+        # 4. Check for duplicate enrollment
+        duplicate = SubjectEnrollment.objects.filter(
+            enrollment__student=actor,
+            subject=new_subject,
+            status__in=[
+                SubjectEnrollment.Status.PENDING_HEAD,
+                SubjectEnrollment.Status.ENROLLED
+            ]
+        ).exclude(id=subject_enrollment.id).exists()
+
+        if duplicate:
+            raise ConflictError(f"Already enrolled in {new_subject.code}")
+
+        # 5. Validate unit cap (adjust for swap)
+        enrollment = subject_enrollment.enrollment
+        current_units = self.get_current_enrolled_units(actor, enrollment.semester)
+        adjusted_units = current_units - old_units + new_subject.units
+
+        if adjusted_units > 30:
+            raise UnitCapExceededError(
+                f"Would exceed unit cap: {adjusted_units}/30 units"
+            )
+
+        # 6. Check schedule conflict (excluding current enrollment's section)
+        has_conflict, conflict_info = self.check_schedule_conflict(
+            student=actor,
+            section=new_section,
+            semester=enrollment.semester
+        )
+
+        # If there's a conflict, check if it's with the current enrollment (which is OK)
+        if has_conflict:
+            # Get the conflicting enrollment to see if it's the current one being edited
+            from apps.enrollment.models import SubjectEnrollment as SE
+            conflicting_enrollments = SE.objects.filter(
+                enrollment__student=actor,
+                enrollment__semester=enrollment.semester,
+                status__in=[SE.Status.PENDING_HEAD, SE.Status.ENROLLED],
+                section=conflict_info.get('section')
+            ).exclude(id=subject_enrollment.id)
+
+            # If there are other conflicting enrollments (not just the current one), raise error
+            if conflicting_enrollments.exists():
+                conflicting = conflicting_enrollments.first()
+                raise ScheduleConflictError(
+                    f"Schedule conflict with {conflicting.subject.code}"
+                )
+
+        # 7. Update record
+        subject_enrollment.subject = new_subject
+        subject_enrollment.section = new_section
+        subject_enrollment.is_irregular = (
+            new_subject.year_level != actor.student_profile.year_level or
+            self._get_semester_number(enrollment.semester) != new_subject.semester_number
+        )
+        subject_enrollment.save(update_fields=['subject', 'section', 'is_irregular'])
+
+        # 8. Audit log
+        AuditLog.log(
+            action=AuditLog.Action.SUBJECT_EDITED,
+            target_model='SubjectEnrollment',
+            target_id=subject_enrollment.id,
+            actor=actor,
+            payload={
+                'old_subject': old_subject.code,
+                'new_subject': new_subject.code,
+                'old_section': old_section.name if old_section else None,
+                'new_section': new_section.name if new_section else None,
+                'old_units': old_units,
+                'new_units': new_subject.units
+            }
+        )
+
+        return subject_enrollment
+
     @transaction.atomic
     def registrar_override_enroll(
         self, registrar, student, enrollment, subject, section, override_reason: str

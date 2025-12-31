@@ -1,6 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatCurrency, requireAuth } from '../utils.js';
+import { formatCurrency, requireAuth } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -68,12 +72,13 @@ async function loadUserProfile() {
       console.log('Payment API response:', paymentsResponse);
 
       if (paymentsResponse?.data?.buckets) {
-        // Update payment buckets from API - API returns 'month', 'required', 'paid'
+        // Update payment buckets from API - API returns 'month', 'required', 'paid', 'event_label'
         state.paymentBuckets = paymentsResponse.data.buckets.map(b => ({
           month: b.month,
           required: b.required,
           paid: b.paid,
-          label: `Month ${b.month}`
+          event_label: b.event_label,
+          label: b.event_label || `Month ${b.month}`
         }));
 
         // Check if Month 1 is paid
@@ -107,13 +112,17 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading your dashboard...');
     return;
   }
 
   app.innerHTML = `
     <!-- Header -->
-    ${renderHeader()}
+    ${createHeader({
+      role: 'STUDENT',
+      activePage: 'student-dashboard',
+      user: state.user
+    })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Welcome Section -->
@@ -124,7 +133,7 @@ function render() {
       
       <!-- Stats Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        ${renderStatCard('Student Number', state.user?.student_number || 'N/A', 'blue', `
+        ${renderStatCard('Student Number', state.user?.student_number || 'Pending', 'blue', `
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path>
           </svg>
@@ -145,7 +154,10 @@ function render() {
       ${renderAdmissionStatusBanner()}
 
       <!-- Payment Pending Banner (if Month 1 not paid) -->
-      ${!state.month1Paid ? `
+      ${!state.month1Paid ? (() => {
+        const month1Bucket = state.paymentBuckets.find(b => b.month === 1);
+        const month1Label = month1Bucket && month1Bucket.event_label ? `Month 1: ${month1Bucket.event_label}` : 'Month 1';
+        return `
         <div class="card bg-gradient-to-r from-blue-500 to-indigo-500 text-white mb-8">
           <div class="flex items-start gap-4">
             <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -155,12 +167,13 @@ function render() {
             </div>
             <div>
               <h2 class="text-xl font-bold">💳 Payment Pending</h2>
-              <p class="mt-1 text-blue-100">You can enroll in subjects now! Your enrollments will be marked as pending until Month 1 payment is received.</p>
-              <p class="mt-2 text-sm text-blue-200">Please pay Month 1 (${formatCurrency(state.monthlyCommitment)}) at the Cashier's Office to activate your subject enrollments.</p>
+              <p class="mt-1 text-blue-100">You can enroll in subjects now! Your enrollments will be marked as pending until ${month1Label} payment is received.</p>
+              <p class="mt-2 text-sm text-blue-200">Please pay ${month1Label} (${formatCurrency(state.monthlyCommitment)}) at the Cashier's Office to activate your subject enrollments.</p>
             </div>
           </div>
         </div>
-      ` : ''}
+        `;
+      })() : ''}
       
       <!-- Main Content Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -224,53 +237,6 @@ function render() {
   `;
 }
 
-function renderHeader() {
-  return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-50">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-        </div>
-        
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/student-dashboard.html" class="text-blue-600 font-medium">Dashboard</a>
-          <a href="/subject-enrollment.html" class="text-gray-600 hover:text-gray-900">Enroll Subjects</a>
-          <a href="/grades.html" class="text-gray-600 hover:text-gray-900">Grades</a>
-          <a href="/soa.html" class="text-gray-600 hover:text-gray-900">SOA</a>
-        </nav>
-        
-        <div class="flex items-center gap-4">
-          <button class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-            </svg>
-          </button>
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span class="hidden sm:inline">Logout</span>
-          </button>
-        </div>
-      </div>
-    </header>
-  `;
-}
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading your dashboard...</p>
-      </div>
-    </div>
-  `;
-}
 
 function renderAdmissionStatusBanner() {
   // Check if student has student_number AND enrollment is approved (ACTIVE status)
@@ -299,8 +265,8 @@ function renderAdmissionStatusBanner() {
         </div>
       </div>
     `;
-  } else {
-    // Account approved
+  } else if (state.enrolledUnits === 0) {
+    // Account approved but no enrolled subjects yet
     return `
       <div class="bg-green-50 border-l-4 border-green-400 p-6 mb-8 rounded-r-xl">
         <div class="flex items-start gap-4">
@@ -324,6 +290,9 @@ function renderAdmissionStatusBanner() {
         </div>
       </div>
     `;
+  } else {
+    // Account approved and has enrolled subjects - hide the banner
+    return '';
   }
 }
 
@@ -371,7 +340,7 @@ function renderPaymentBucket(bucket) {
 
   return `
     <div class="flex items-center gap-4">
-      <div class="w-20 text-sm font-medium text-gray-600">${bucket.label}</div>
+      <div class="w-40 text-sm font-medium text-gray-600">${bucket.event_label ? `Month ${bucket.month}: ${bucket.event_label}` : `Month ${bucket.month}`}</div>
       <div class="flex-1">
         <div class="progress-bar">
           <div class="progress-bar-fill ${isComplete ? 'bg-gradient-to-r from-green-500 to-emerald-500' : ''}" style="width: ${percentage}%"></div>
@@ -443,7 +412,7 @@ function renderExamPermit(exam, unlocked) {
 // Logout function
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
@@ -469,22 +438,22 @@ window.submitPasswordChange = async function (event) {
   const confirmPassword = document.getElementById('confirmPassword').value;
 
   if (!currentPassword || !newPassword || !confirmPassword) {
-    showToast('Please fill in all fields', 'error');
+    Toast.error('Please fill in all fields');
     return;
   }
 
   if (newPassword.length < 6) {
-    showToast('New password must be at least 6 characters', 'error');
+    Toast.error('New password must be at least 6 characters');
     return;
   }
 
   if (newPassword !== confirmPassword) {
-    showToast('New passwords do not match', 'error');
+    Toast.error('New passwords do not match');
     return;
   }
 
   // Call real API to change password
-  showToast('Updating password...', 'info');
+  Toast.info('Updating password...');
 
   try {
     const response = await api.post(endpoints.changePassword, {

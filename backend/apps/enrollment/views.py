@@ -2,25 +2,27 @@
 Enrollment views - Admissions and enrollment endpoints.
 """
 
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, CreateAPIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.decorators import action
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.core.permissions import IsRegistrar, IsAdmissionStaff, IsAdmin
 from apps.core.exceptions import EnrollmentLinkDisabledError, NotFoundError
+from apps.core.validators import validate_uploaded_file
 from apps.academics.models import Program, Subject
 from apps.academics.serializers import ProgramSerializer
 from apps.audit.models import AuditLog
 
 from .models import (
-    Enrollment, EnrollmentDocument, SubjectEnrollment, CreditSource
+    Enrollment, EnrollmentDocument, SubjectEnrollment, CreditSource, Semester
 )
 from .serializers import (
     OnlineEnrollmentSerializer,
@@ -28,7 +30,9 @@ from .serializers import (
     EnrollmentDocumentSerializer,
     TransfereeCreateSerializer,
     DocumentUploadSerializer,
-    BulkCreditSerializer
+    BulkCreditSerializer,
+    SemesterSerializer,
+    SemesterCreateSerializer
 )
 from .services import EnrollmentService
 
@@ -71,6 +75,43 @@ class PublicProgramListView(ListAPIView):
     )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
+
+
+class CheckEmailAvailabilityView(APIView):
+    """Check if email is available for registration."""
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Check Email Availability",
+        description="Check if an email address is available for registration",
+        tags=["Admissions"],
+        parameters=[
+            OpenApiParameter(
+                name='email',
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description='Email address to check',
+                required=True
+            )
+        ]
+    )
+    def get(self, request):
+        email = request.query_params.get('email', '').strip().lower()
+
+        if not email:
+            return Response({
+                "available": False,
+                "message": "Email is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if email exists
+        from apps.accounts.models import User
+        exists = User.objects.filter(email=email).exists()
+
+        return Response({
+            "available": not exists,
+            "message": "Email is available" if not exists else "This email is already registered"
+        })
 
 
 class OnlineEnrollmentView(APIView):
@@ -145,7 +186,16 @@ class DocumentUploadView(APIView):
         serializer = DocumentUploadSerializer(data=request.data)
         if serializer.is_valid():
             uploaded_file = serializer.validated_data['file']
-            
+
+            # Validate file security (extension, size, MIME type)
+            try:
+                validate_uploaded_file(uploaded_file)
+            except Exception as e:
+                return Response({
+                    "success": False,
+                    "error": str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             document = EnrollmentDocument.objects.create(
                 enrollment=enrollment,
                 document_type=serializer.validated_data['document_type'],
@@ -376,6 +426,25 @@ class DocumentVerifyView(APIView):
         return Response({
             "success": True,
             "data": EnrollmentDocumentSerializer(document).data
+        })
+
+
+class NextStudentNumberView(APIView):
+    """Get the next available student number for ID assignment preview."""
+    permission_classes = [IsAuthenticated, IsAdmissionStaff | IsRegistrar | IsAdmin]
+
+    @extend_schema(
+        summary="Get Next Student Number",
+        description="Returns the next available student number in YYYY-XXXXX format",
+        tags=["Admissions"]
+    )
+    def get(self, request):
+        service = EnrollmentService()
+        next_number = service.generate_student_number()
+
+        return Response({
+            "success": True,
+            "next_student_number": next_number
         })
 
 
@@ -787,6 +856,89 @@ class DropSubjectView(APIView):
         })
 
 
+class EditSubjectEnrollmentView(APIView):
+    """
+    Edit a subject enrollment (change subject or section).
+    Only allowed if head has NOT approved yet.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Edit Subject Enrollment",
+        description="Edit subject/section before head approval",
+        tags=["Subject Enrollment"],
+        request=EnrollSubjectRequestSerializer
+    )
+    @transaction.atomic
+    def put(self, request, pk):
+        # 1. Role check
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # 2. Validate request
+        serializer = EnrollSubjectRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Get enrollment
+        try:
+            subject_enrollment = SubjectEnrollment.objects.select_related(
+                'enrollment', 'subject', 'section'
+            ).get(
+                id=pk,
+                enrollment__student=request.user
+            )
+        except SubjectEnrollment.DoesNotExist:
+            raise NotFoundError("Subject enrollment not found")
+
+        # 4. Check if editable (head not approved)
+        if subject_enrollment.head_approved:
+            return Response({
+                "success": False,
+                "error": "Cannot edit: Head has already approved this enrollment"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # 5. Get new subject and section
+        from apps.academics.models import Section
+        try:
+            new_subject = Subject.objects.get(id=serializer.validated_data['subject_id'])
+            new_section = Section.objects.get(id=serializer.validated_data['section_id'])
+        except (Subject.DoesNotExist, Section.DoesNotExist):
+            return Response({
+                "success": False,
+                "error": "Subject or section not found"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 6. Call service to edit
+        try:
+            service = SubjectEnrollmentService()
+            updated_enrollment = service.edit_subject_enrollment(
+                subject_enrollment=subject_enrollment,
+                new_subject=new_subject,
+                new_section=new_section,
+                actor=request.user
+            )
+        except Exception as e:
+            # Handle all custom exceptions from service
+            return Response({
+                "success": False,
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 7. Return success
+        return Response({
+            "success": True,
+            "message": f"Successfully updated enrollment to {new_subject.code}",
+            "data": SubjectEnrollmentSerializer(updated_enrollment).data
+        })
+
+
 class RegistrarOverrideEnrollmentView(APIView):
     """
     Registrar override enrollment.
@@ -1053,6 +1205,65 @@ class PaymentTransactionListView(ListAPIView):
             queryset = queryset.filter(is_adjustment=is_adjustment.lower() == 'true')
         
         return queryset[:100]
+
+
+class CashierTodayTransactionsView(APIView):
+    """
+    Get today's payment transactions for cashier dashboard.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Today's Transactions",
+        description="Get payment transactions processed today",
+        tags=["Cashier"]
+    )
+    def get(self, request):
+        from apps.core.permissions import IsCashier
+
+        # Check if user is cashier
+        if not IsCashier().has_permission(request, self):
+            return Response({
+                "success": False,
+                "error": "Only cashiers can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        from django.utils import timezone
+        today = timezone.now().date()
+
+        # Get today's transactions
+        transactions = PaymentTransaction.objects.filter(
+            processed_at__date=today
+        ).select_related(
+            'enrollment__student',
+            'processed_by'
+        ).order_by('-processed_at')
+
+        # Serialize data
+        data = []
+        for txn in transactions:
+            student = txn.enrollment.student
+            data.append({
+                'id': txn.id,
+                'time': txn.processed_at.strftime('%I:%M %p'),
+                'student': f"{student.first_name} {student.last_name}",
+                'studentNumber': student.student_number,
+                'amount': float(txn.amount),
+                'receipt': txn.receipt_number,
+                'monthApplied': txn.month_applied if txn.month_applied else 'Multiple'
+            })
+
+        # Calculate total
+        total = sum(txn.amount for txn in transactions)
+
+        return Response({
+            "success": True,
+            "data": {
+                "transactions": data,
+                "total": float(total),
+                "count": len(data)
+            }
+        })
 
 
 class ExamMonthMappingView(APIView):
@@ -2803,4 +3014,179 @@ class GenerateCORView(APIView):
             return response
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ============================================================
+# EPIC 8 — Semester Management ViewSet
+# ============================================================
+
+class SemesterViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for semester management.
+
+    Endpoints:
+    - GET /semesters/ - List all semesters
+    - POST /semesters/ - Create new semester
+    - GET /semesters/{id}/ - Get semester details
+    - PUT /semesters/{id}/ - Update semester
+    - DELETE /semesters/{id}/ - Soft delete semester
+    - GET /semesters/active/ - Get current active semester
+    - POST /semesters/{id}/set_current/ - Set semester as current
+    """
+
+    permission_classes = [IsAuthenticated, IsRegistrar]
+    queryset = Semester.objects.filter(is_deleted=False)
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return SemesterCreateSerializer
+        return SemesterSerializer
+
+    def list(self, request):
+        """List all semesters ordered by academic year (newest first)."""
+        semesters = self.get_queryset().order_by('-academic_year', '-start_date')
+        serializer = SemesterSerializer(semesters, many=True)
+
+        return Response({
+            'success': True,
+            'semesters': serializer.data
+        })
+
+    def create(self, request):
+        """Create a new semester."""
+        serializer = SemesterCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        semester = serializer.save()
+
+        # Log audit trail
+        AuditLog.log(
+            action='CREATE_SEMESTER',
+            target_model='Semester',
+            target_id=semester.id,
+            actor=request.user,
+            payload={
+                'name': semester.name,
+                'academic_year': semester.academic_year
+            }
+        )
+
+        return Response(
+            SemesterSerializer(semester).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def update(self, request, pk=None):
+        """Update a semester."""
+        semester = self.get_object()
+        serializer = SemesterCreateSerializer(semester, data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        old_data = {
+            'name': semester.name,
+            'academic_year': semester.academic_year,
+            'is_current': semester.is_current
+        }
+
+        semester = serializer.save()
+
+        # Log audit trail
+        AuditLog.log(
+            action='UPDATE_SEMESTER',
+            target_model='Semester',
+            target_id=semester.id,
+            actor=request.user,
+            payload={
+                'old': old_data,
+                'new': {
+                    'name': semester.name,
+                    'academic_year': semester.academic_year,
+                    'is_current': semester.is_current
+                }
+            }
+        )
+
+        return Response(SemesterSerializer(semester).data)
+
+    def destroy(self, request, pk=None):
+        """Soft delete a semester."""
+        semester = self.get_object()
+
+        # Prevent deletion of current semester
+        if semester.is_current:
+            return Response(
+                {'error': 'Cannot delete the current active semester'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if semester has enrollments
+        enrollment_count = semester.enrollments.count()
+        if enrollment_count > 0:
+            return Response(
+                {'error': f'Cannot delete semester with {enrollment_count} enrollments'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        semester.is_deleted = True
+        semester.save()
+
+        # Log audit trail
+        AuditLog.log(
+            action='DELETE_SEMESTER',
+            target_model='Semester',
+            target_id=semester.id,
+            actor=request.user,
+            payload={
+                'name': semester.name,
+                'academic_year': semester.academic_year
+            }
+        )
+
+        return Response(
+            {'success': True, 'message': 'Semester deleted'},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get the current active semester."""
+        semester = Semester.objects.filter(
+            is_current=True,
+            is_deleted=False
+        ).first()
+
+        if not semester:
+            return Response(
+                {'error': 'No active semester set'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(SemesterSerializer(semester).data)
+
+    @action(detail=True, methods=['post'])
+    def set_current(self, request, pk=None):
+        """Set this semester as the current active semester."""
+        semester = self.get_object()
+
+        # The model's save() method will auto-deactivate others
+        old_current = Semester.objects.filter(is_current=True).first()
+
+        semester.is_current = True
+        semester.save()
+
+        # Log audit trail
+        AuditLog.log(
+            action='SET_CURRENT_SEMESTER',
+            target_model='Semester',
+            target_id=semester.id,
+            actor=request.user,
+            payload={
+                'new_current': f"{semester.name} {semester.academic_year}",
+                'previous_current': f"{old_current.name} {old_current.academic_year}" if old_current else None
+            }
+        )
+
+        return Response({
+            'success': True,
+            'message': f"'{semester.name} {semester.academic_year}' is now the current semester"
+        })
 

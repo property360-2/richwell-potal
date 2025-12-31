@@ -128,7 +128,7 @@ export function redirectByRole(role) {
     const routes = {
         STUDENT: '/student-dashboard.html',
         ADMISSION_STAFF: '/admission-dashboard.html',
-        ADMIN: '/curriculum.html',
+        ADMIN: '/admin-dashboard.html',
         REGISTRAR: '/registrar-dashboard.html',
         HEAD_REGISTRAR: '/registrar-dashboard.html',
         DEPARTMENT_HEAD: '/head-dashboard.html',

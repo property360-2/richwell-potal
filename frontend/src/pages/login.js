@@ -1,6 +1,7 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, validateEmail, redirectByRole } from '../utils.js';
+import { validateEmail, redirectByRole } from '../utils.js';
+import { Toast } from '../components/Toast.js';
 
 function init() {
   // Check if already logged in
@@ -123,18 +124,12 @@ function render() {
             </div>
           </div>
           
-          <!-- Test Accounts Info -->
+          <!-- Help Text -->
           <div class="mt-6 p-4 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
-            <p class="text-xs text-blue-300 text-center mb-2">Test Accounts</p>
-            <div class="text-xs text-blue-200 space-y-1">
-              <p><span class="text-white">Admin:</span> admin@richwell.edu.ph / admin123</p>
-              <p><span class="text-white">Registrar:</span> registrar@richwell.edu.ph / registrar123</p>
-              <p><span class="text-white">Dept Head:</span> jcentita@richwell.edu.ph / head123</p>
-              <p><span class="text-white">Cashier:</span> cashier@richwell.edu.ph / cashier123</p>
-              <p><span class="text-white">Professor:</span> professor@richwell.edu.ph / prof123</p>
-              <p><span class="text-white">Student:</span> student@richwell.edu.ph / student123</p>
-              <p><span class="text-white">Admission:</span> admission@richwell.edu.ph / admission123</p>
-            </div>
+            <p class="text-xs text-blue-300 text-center mb-2">Need Help?</p>
+            <p class="text-xs text-blue-200 text-center">
+              Contact the IT department if you've forgotten your password or need assistance accessing your account.
+            </p>
           </div>
         </div>
       </div>
@@ -167,7 +162,7 @@ async function handleLogin(e) {
   const loginBtn = document.getElementById('login-btn');
 
   if (!validateEmail(email)) {
-    showToast('Please enter a valid email address', 'error');
+    Toast.error('Please enter a valid email address');
     return;
   }
 
@@ -193,14 +188,14 @@ async function handleLogin(e) {
 
       // Check if student account is pending approval
       if (data.user.role === 'STUDENT' && data.user.enrollment_status === 'PENDING') {
-        showToast('Your account is pending approval. Please wait for the Admissions Office to review your application.', 'warning');
+        Toast.warning('Your account is pending approval. Please wait for the Admissions Office to review your application.');
         resetLoginButton();
         return;
       }
 
       // Check if student account was rejected
       if (data.user.role === 'STUDENT' && data.user.enrollment_status === 'REJECTED') {
-        showToast('Your application has been rejected. Please contact the Admissions Office.', 'error');
+        Toast.error('Your application has been rejected. Please contact the Admissions Office.');
         resetLoginButton();
         return;
       }
@@ -209,7 +204,7 @@ async function handleLogin(e) {
       TokenManager.setTokens(data.access, data.refresh);
       TokenManager.setUser(data.user);
 
-      showToast('Login successful!', 'success');
+      Toast.success('Login successful!');
 
       // Redirect based on role
       setTimeout(() => {
@@ -217,11 +212,11 @@ async function handleLogin(e) {
       }, 1000);
     } else {
       const error = await response.json();
-      showToast(error.detail || 'Invalid email or password', 'error');
+      Toast.error(error.detail || 'Invalid email or password');
       resetLoginButton();
     }
   } catch (error) {
-    showToast('Network error. Please check your connection.', 'error');
+    Toast.error('Network error. Please check your connection.');
     resetLoginButton();
   }
 }

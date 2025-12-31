@@ -4,7 +4,7 @@ Academics serializers.
 
 from rest_framework import serializers
 
-from .models import Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion
+from .models import Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion, Curriculum, CurriculumSubject
 
 
 class SubjectMinimalSerializer(serializers.ModelSerializer):
@@ -17,17 +17,22 @@ class SubjectMinimalSerializer(serializers.ModelSerializer):
 
 class SubjectSerializer(serializers.ModelSerializer):
     """Full subject serializer with prerequisites."""
-    
+
     program_code = serializers.CharField(source='program.code', read_only=True)
+    program_codes = serializers.SerializerMethodField()
     prerequisites = SubjectMinimalSerializer(many=True, read_only=True)
     inc_expiry_months = serializers.IntegerField(source='get_inc_expiry_months', read_only=True)
-    
+
+    def get_program_codes(self, obj):
+        """Get all program codes this subject belongs to"""
+        return [p.code for p in obj.programs.all()]
+
     class Meta:
         model = Subject
         fields = [
             'id', 'code', 'title', 'description', 'units',
             'is_major', 'year_level', 'semester_number',
-            'allow_multiple_sections', 'program_code',
+            'allow_multiple_sections', 'program_code', 'program_codes',
             'prerequisites', 'inc_expiry_months'
         ]
 
@@ -78,55 +83,102 @@ class ProgramCreateSerializer(serializers.ModelSerializer):
 
 class SubjectCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating subjects."""
-    
+
     prerequisite_ids = serializers.ListField(
         child=serializers.UUIDField(),
         required=False,
         write_only=True,
         help_text='List of prerequisite subject UUIDs'
     )
-    
+
+    program_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        write_only=True,
+        help_text='Additional program UUIDs (primary program auto-included)'
+    )
+
     class Meta:
         model = Subject
         fields = [
             'program', 'code', 'title', 'description', 'units',
             'is_major', 'year_level', 'semester_number',
-            'allow_multiple_sections', 'prerequisite_ids'
+            'allow_multiple_sections', 'prerequisite_ids', 'program_ids'
         ]
-    
+
     def validate_code(self, value):
         """Ensure code is uppercase."""
         return value.upper()
-    
+
     def validate(self, attrs):
-        """Validate prerequisites belong to same program."""
+        """Validate prerequisites exist in ALL subject's programs"""
         prerequisite_ids = attrs.pop('prerequisite_ids', [])
         program = attrs.get('program')
-        
+        program_ids = attrs.pop('program_ids', [])
+
         if prerequisite_ids:
-            prereqs = Subject.objects.filter(id__in=prerequisite_ids, program=program)
-            if prereqs.count() != len(prerequisite_ids):
-                raise serializers.ValidationError({
-                    'prerequisite_ids': 'All prerequisites must belong to the same program'
-                })
+            # Collect all programs (primary + additional)
+            all_program_ids = {program.id if hasattr(program, 'id') else program}
+            all_program_ids.update(program_ids)
+
+            # Check each prerequisite exists in ALL programs
+            prereqs = Subject.objects.filter(id__in=prerequisite_ids)
+            for prereq in prereqs:
+                prereq_program_ids = set(prereq.programs.values_list('id', flat=True))
+
+                # Check if prerequisite exists in all subject's programs
+                missing_programs = all_program_ids - prereq_program_ids
+                if missing_programs:
+                    missing_codes = Program.objects.filter(id__in=missing_programs).values_list('code', flat=True)
+                    raise serializers.ValidationError({
+                        'prerequisite_ids':
+                            f'Prerequisite {prereq.code} must exist in all programs: {", ".join(missing_codes)}'
+                    })
+
             attrs['_prerequisites'] = prereqs
-        
+
+        attrs['_program_ids'] = program_ids
         return attrs
-    
+
     def create(self, validated_data):
+        program_ids = validated_data.pop('_program_ids', [])
         prerequisites = validated_data.pop('_prerequisites', [])
+
         subject = Subject.objects.create(**validated_data)
+
+        # Add primary program
+        subject.programs.add(subject.program)
+
+        # Add additional programs
+        if program_ids:
+            additional_programs = Program.objects.filter(id__in=program_ids)
+            subject.programs.add(*additional_programs)
+
+        # Add prerequisites
         if prerequisites:
             subject.prerequisites.set(prerequisites)
+
         return subject
-    
+
     def update(self, instance, validated_data):
+        program_ids = validated_data.pop('_program_ids', None)
         prerequisites = validated_data.pop('_prerequisites', None)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+
+        if program_ids is not None:
+            # Clear and reset programs
+            instance.programs.clear()
+            instance.programs.add(instance.program)  # Always include primary
+
+            additional_programs = Program.objects.filter(id__in=program_ids)
+            instance.programs.add(*additional_programs)
+
         if prerequisites is not None:
             instance.prerequisites.set(prerequisites)
+
         return instance
 
 
@@ -237,25 +289,35 @@ class ScheduleSlotCreateSerializer(serializers.ModelSerializer):
 
 
 class SectionSubjectSerializer(serializers.ModelSerializer):
-    """Serializer for section subjects with schedule."""
-    
+    """Serializer for section subjects with schedule and multiple professors."""
+
     subject_code = serializers.CharField(source='subject.code', read_only=True)
     subject_title = serializers.CharField(source='subject.title', read_only=True)
-    professor_name = serializers.SerializerMethodField()
+    professors = serializers.SerializerMethodField()  # CHANGED: multiple professors
     schedule_slots = ScheduleSlotSerializer(many=True, read_only=True)
-    
+
     class Meta:
         model = SectionSubject
         fields = [
             'id', 'section', 'subject', 'subject_code', 'subject_title',
-            'professor', 'professor_name', 'is_tba', 'schedule_slots'
+            'professors', 'is_tba', 'schedule_slots'
         ]
         read_only_fields = ['id']
-    
-    def get_professor_name(self, obj):
-        if obj.professor:
-            return obj.professor.get_full_name()
-        return 'TBA'
+
+    def get_professors(self, obj):
+        """Get all professors assigned to this section-subject."""
+        from apps.academics.models import SectionSubjectProfessor
+
+        assignments = SectionSubjectProfessor.objects.filter(
+            section_subject=obj, is_deleted=False
+        ).select_related('professor').order_by('-is_primary')
+
+        return [{
+            'id': str(a.professor.id),
+            'name': a.professor.get_full_name(),
+            'email': a.professor.email,
+            'is_primary': a.is_primary
+        } for a in assignments]
 
 
 class SectionSubjectCreateSerializer(serializers.ModelSerializer):
@@ -269,12 +331,13 @@ class SectionSubjectCreateSerializer(serializers.ModelSerializer):
         """Ensure subject belongs to section's program."""
         section = attrs.get('section')
         subject = attrs.get('subject')
-        
-        if subject.program != section.program:
+
+        # Check if subject belongs to ANY of section's programs (multi-program support)
+        if not subject.programs.filter(id=section.program.id).exists():
             raise serializers.ValidationError({
-                'subject': 'Subject must belong to the section\'s program'
+                'subject': f'Subject must belong to program {section.program.code}'
             })
-        
+
         return attrs
 
 
@@ -341,4 +404,172 @@ class CurriculumVersionCreateSerializer(serializers.Serializer):
         if not Semester.objects.filter(id=value).exists():
             raise serializers.ValidationError('Semester not found')
         return value
+
+
+# ============================================================
+# Curriculum Serializers (EPIC 7)
+# ============================================================
+
+class CurriculumSerializer(serializers.ModelSerializer):
+    """Serializer for Curriculum with program details."""
+
+    program_code = serializers.CharField(source='program.code', read_only=True)
+    program_name = serializers.CharField(source='program.name', read_only=True)
+    total_subjects = serializers.IntegerField(read_only=True)
+    total_units = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Curriculum
+        fields = [
+            'id', 'program', 'program_code', 'program_name',
+            'code', 'name', 'description', 'effective_year',
+            'is_active', 'total_subjects', 'total_units',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class CurriculumCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating curricula."""
+
+    class Meta:
+        model = Curriculum
+        fields = ['program', 'code', 'name', 'description', 'effective_year', 'is_active']
+
+    def validate(self, data):
+        # Check for duplicate code within program
+        program = data.get('program')
+        code = data.get('code')
+
+        # If updating, exclude current instance
+        queryset = Curriculum.objects.filter(
+            program=program,
+            code=code,
+            is_deleted=False
+        )
+        if self.instance:
+            queryset = queryset.exclude(id=self.instance.id)
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                {"code": "Curriculum code already exists for this program"}
+            )
+
+        return data
+
+
+class CurriculumSubjectSerializer(serializers.ModelSerializer):
+    """Serializer for CurriculumSubject with subject details."""
+
+    subject_code = serializers.CharField(source='subject.code', read_only=True)
+    subject_title = serializers.CharField(source='subject.title', read_only=True)
+    subject_units = serializers.IntegerField(source='subject.units', read_only=True)
+    prerequisites = serializers.SerializerMethodField()
+    semester_name = serializers.SerializerMethodField()
+    semester_dates = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CurriculumSubject
+        fields = [
+            'id', 'curriculum', 'subject', 'subject_code', 'subject_title', 'subject_units',
+            'year_level', 'semester_number', 'semester', 'semester_name', 'semester_dates',
+            'is_required', 'prerequisites'
+        ]
+
+    def get_prerequisites(self, obj):
+        """Return list of prerequisite subject codes and titles."""
+        return [
+            {
+                'code': prereq.code,
+                'title': prereq.title
+            }
+            for prereq in obj.subject.prerequisites.all()
+        ]
+
+    def get_semester_name(self, obj):
+        """Return the name of the bound semester if any."""
+        if obj.semester:
+            return f"{obj.semester.name} {obj.semester.academic_year}"
+        return None
+
+    def get_semester_dates(self, obj):
+        """Return the dates of the bound semester if any."""
+        if obj.semester:
+            return {
+                'start_date': obj.semester.start_date,
+                'end_date': obj.semester.end_date,
+                'enrollment_start': obj.semester.enrollment_start_date,
+                'enrollment_end': obj.semester.enrollment_end_date
+            }
+        return None
+
+
+class CurriculumSubjectAssignmentSerializer(serializers.Serializer):
+    """Serializer for assigning subjects to curriculum."""
+
+    subject_id = serializers.UUIDField()
+    year_level = serializers.IntegerField(min_value=1, max_value=5)
+    semester_number = serializers.IntegerField(min_value=1, max_value=3)
+    semester_id = serializers.UUIDField(required=False, allow_null=True)
+    is_required = serializers.BooleanField(default=True)
+
+
+class AssignSubjectsSerializer(serializers.Serializer):
+    """Serializer for bulk assigning subjects to curriculum."""
+
+    assignments = CurriculumSubjectAssignmentSerializer(many=True)
+
+    def validate_assignments(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one subject assignment is required")
+        return value
+
+
+class CurriculumStructureSerializer(serializers.Serializer):
+    """Serializer for curriculum structure response."""
+
+    curriculum = CurriculumSerializer()
+    structure = serializers.DictField()
+
+
+# Professor Management Serializers
+class ProfessorSerializer(serializers.ModelSerializer):
+    """Basic serializer for professor listing."""
+    full_name = serializers.CharField(source='get_full_name', read_only=True)
+
+    class Meta:
+        from apps.accounts.models import User
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name', 'full_name', 'is_active']
+
+
+class ProfessorDetailSerializer(serializers.ModelSerializer):
+    """Detailed serializer for professor with teaching load."""
+    full_name = serializers.CharField(source='get_full_name', read_only=True)
+    teaching_load = serializers.SerializerMethodField()
+
+    class Meta:
+        from apps.accounts.models import User
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name', 'full_name',
+                  'is_active', 'teaching_load']
+
+    def get_teaching_load(self, obj):
+        from apps.academics.services import ProfessorService
+        from apps.enrollment.models import Semester
+
+        semester = Semester.objects.filter(is_current=True).first()
+        return ProfessorService.get_workload(obj, semester) if semester else {}
+
+
+class SectionSubjectProfessorSerializer(serializers.ModelSerializer):
+    """Serializer for professor assignments to section-subjects."""
+    professor_name = serializers.CharField(source='professor.get_full_name', read_only=True)
+    professor_email = serializers.CharField(source='professor.email', read_only=True)
+
+    class Meta:
+        from apps.academics.models import SectionSubjectProfessor
+        model = SectionSubjectProfessor
+        fields = ['id', 'section_subject', 'professor', 'professor_name',
+                  'professor_email', 'is_primary']
 

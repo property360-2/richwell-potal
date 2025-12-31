@@ -6,6 +6,7 @@ EPIC 2: Curriculum, Subjects & Section Scheduling
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from apps.enrollment.views import SemesterViewSet
 
 app_name = 'academics'
 
@@ -16,6 +17,9 @@ router.register(r'manage/subjects', views.SubjectViewSet, basename='subject-mana
 router.register(r'sections', views.SectionViewSet, basename='section')
 router.register(r'section-subjects', views.SectionSubjectViewSet, basename='section-subject')
 router.register(r'schedule-slots', views.ScheduleSlotViewSet, basename='schedule-slot')
+router.register(r'curricula', views.CurriculumViewSet, basename='curriculum')
+router.register(r'semesters', SemesterViewSet, basename='semester')
+router.register(r'professors', views.ProfessorViewSet, basename='professor')
 
 urlpatterns = [
     # EPIC 1 - Public endpoints (unchanged)

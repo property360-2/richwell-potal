@@ -1,6 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth, formatDate } from '../utils.js';
+import { requireAuth, formatDate } from '../utils.js';
+import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal, ConfirmModal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -17,45 +22,12 @@ const state = {
     program: 'all',
     semester: 'active'
   },
-  showSectionModal: false,
-  showAssignModal: false,
+  sectionModal: null,
+  assignModal: null,
   editingSection: null
 };
 
-// Mock data
-const MOCK_PROGRAMS = [
-  { id: '1', code: 'BSIT', name: 'BS Information Technology' },
-  { id: '2', code: 'BSCS', name: 'BS Computer Science' }
-];
-
-const MOCK_SEMESTERS = [
-  { id: '1', name: '1st Semester 2024-2025', is_active: true },
-  { id: '2', name: '2nd Semester 2024-2025', is_active: false }
-];
-
-const MOCK_SECTIONS = [
-  { id: '1', name: 'BSIT-1A', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 40, enrolled_count: 35 },
-  { id: '2', name: 'BSIT-1B', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 40, enrolled_count: 38 },
-  { id: '3', name: 'BSIT-2A', program: { id: '1', code: 'BSIT' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 2, capacity: 40, enrolled_count: 32 },
-  { id: '4', name: 'BSCS-1A', program: { id: '2', code: 'BSCS' }, semester: { id: '1', name: '1st Sem 2024-2025' }, year_level: 1, capacity: 35, enrolled_count: 30 }
-];
-
-const MOCK_SUBJECTS = [
-  { id: '1', code: 'IT101', title: 'Introduction to Computing', units: 3 },
-  { id: '2', code: 'IT102', title: 'Computer Programming 1', units: 3 },
-  { id: '3', code: 'GE101', title: 'English Communication', units: 3 }
-];
-
-const MOCK_PROFESSORS = [
-  { id: '1', first_name: 'Juan', last_name: 'Dela Cruz', email: 'juan.prof@richwell.edu.ph' },
-  { id: '2', first_name: 'Maria', last_name: 'Santos', email: 'maria.prof@richwell.edu.ph' },
-  { id: '3', first_name: 'Pedro', last_name: 'Reyes', email: 'pedro.prof@richwell.edu.ph' }
-];
-
-const MOCK_SECTION_SUBJECTS = [
-  { id: '1', subject: { id: '1', code: 'IT101', title: 'Introduction to Computing' }, professor: { id: '1', first_name: 'Juan', last_name: 'Dela Cruz' }, is_tba: false },
-  { id: '2', subject: { id: '2', code: 'IT102', title: 'Computer Programming 1' }, professor: null, is_tba: true }
-];
+// No more mock data - all data comes from real API
 
 async function init() {
   if (!requireAuth()) return;
@@ -82,30 +54,34 @@ async function loadInitialData() {
   // Load programs
   try {
     const response = await api.get(endpoints.academicPrograms);
-    const programs = response?.results || response;
-    state.programs = (programs && programs.length > 0) ? programs : MOCK_PROGRAMS;
+    state.programs = response?.results || response || [];
   } catch (error) {
-    state.programs = MOCK_PROGRAMS;
+    ErrorHandler.handle(error, 'Loading programs');
+    state.programs = [];
   }
 
   // Load semesters
   try {
     const response = await api.get(endpoints.semesters);
-    const semesters = response?.results || response;
-    state.semesters = (semesters && semesters.length > 0) ? semesters : MOCK_SEMESTERS;
-    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0];
+    state.semesters = response?.results || response || [];
+    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0] || null;
+
+    if (state.semesters.length === 0) {
+      Toast.warning('No semesters found. Please create a semester first.');
+    }
   } catch (error) {
-    state.semesters = MOCK_SEMESTERS;
-    state.activeSemester = MOCK_SEMESTERS[0];
+    ErrorHandler.handle(error, 'Loading semesters');
+    state.semesters = [];
+    state.activeSemester = null;
   }
 
   // Load professors
   try {
     const response = await api.get(endpoints.professors);
-    const professors = response?.results || response;
-    state.professors = (professors && professors.length > 0) ? professors : MOCK_PROFESSORS;
+    state.professors = response?.results || response || [];
   } catch (error) {
-    state.professors = MOCK_PROFESSORS;
+    ErrorHandler.handle(error, 'Loading professors');
+    state.professors = [];
   }
 
   await loadSections();
@@ -126,9 +102,10 @@ async function loadSections() {
     if (params.length) url += '?' + params.join('&');
 
     const response = await api.get(url);
-    state.sections = response?.results || response || MOCK_SECTIONS;
+    state.sections = response?.results || response || [];
   } catch (error) {
-    state.sections = MOCK_SECTIONS;
+    ErrorHandler.handle(error, 'Loading sections');
+    state.sections = [];
   }
 }
 
@@ -136,12 +113,22 @@ async function loadSectionDetails(sectionId) {
   try {
     const response = await api.get(endpoints.section(sectionId));
     state.selectedSection = response;
+
     // Load section subjects
-    const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
-    state.selectedSection.section_subjects = subjectsResponse?.results || subjectsResponse || MOCK_SECTION_SUBJECTS;
+    try {
+      const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
+      state.selectedSection.section_subjects = subjectsResponse?.results || subjectsResponse || [];
+    } catch (error) {
+      ErrorHandler.handle(error, 'Loading section subjects');
+      state.selectedSection.section_subjects = [];
+    }
   } catch (error) {
-    state.selectedSection = state.sections.find(s => s.id === sectionId);
-    state.selectedSection.section_subjects = MOCK_SECTION_SUBJECTS;
+    ErrorHandler.handle(error, 'Loading section details');
+    // Fallback to cached section data
+    state.selectedSection = state.sections.find(s => s.id === sectionId) || null;
+    if (state.selectedSection) {
+      state.selectedSection.section_subjects = [];
+    }
   }
 
   // Load available subjects for the program
@@ -149,10 +136,13 @@ async function loadSectionDetails(sectionId) {
     const programId = state.selectedSection?.program?.id;
     if (programId) {
       const response = await api.get(`${endpoints.manageSubjects}?program=${programId}`);
-      state.subjects = response?.results || response || MOCK_SUBJECTS;
+      state.subjects = response?.results || response || [];
+    } else {
+      state.subjects = [];
     }
   } catch (error) {
-    state.subjects = MOCK_SUBJECTS;
+    ErrorHandler.handle(error, 'Loading available subjects');
+    state.subjects = [];
   }
 
   render();
@@ -171,13 +161,17 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading sections...');
     return;
   }
 
   app.innerHTML = `
-    ${renderHeader()}
-    
+    ${createHeader({
+      role: 'REGISTRAR',
+      activePage: 'sections',
+      user: state.user
+    })}
+
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Header -->
       <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
@@ -194,7 +188,7 @@ function render() {
           </button>
         </div>
       </div>
-      
+
       <!-- Filters -->
       <div class="card mb-6">
         <div class="flex flex-wrap gap-4">
@@ -214,7 +208,7 @@ function render() {
           </div>
         </div>
       </div>
-      
+
       <!-- Two Column Layout -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Sections List -->
@@ -231,67 +225,83 @@ function render() {
             </div>
           </div>
         </div>
-        
+
         <!-- Section Details -->
         <div class="lg:col-span-2">
           ${state.selectedSection ? renderSectionDetails() : renderSelectSectionPrompt()}
         </div>
       </div>
     </main>
-    
-    <!-- Modals -->
-    ${state.showSectionModal ? renderSectionModal() : ''}
-    ${state.showAssignModal ? renderAssignModal() : ''}
   `;
 }
 
-function renderHeader() {
+
+// Form generators
+function getSectionForm() {
+  const isEdit = !!state.editingSection;
+  const section = isEdit ? state.sections.find(s => s.id === state.editingSection) : {};
+
   return `
-    <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
-      <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Richwell Colleges" class="w-10 h-10 rounded-lg object-cover">
-          <div>
-            <span class="text-xl font-bold gradient-text">Richwell Colleges</span>
-            <span class="text-sm text-gray-500 ml-2">${formatRole(state.user?.role)}</span>
-          </div>
+    <form id="section-form" class="space-y-4">
+      <div>
+        <label class="form-label">Section Name *</label>
+        <input type="text" id="section-name" class="form-input" value="${section.name || ''}" placeholder="BSIT-1A" required>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Program *</label>
+          <select id="section-program" class="form-input" required>
+            ${state.programs.map(p => `<option value="${p.id}" ${section.program?.id === p.id ? 'selected' : ''}>${p.code}</option>`).join('')}
+          </select>
         </div>
-        
-        <nav class="hidden md:flex items-center gap-6">
-          <a href="/curriculum.html" class="text-gray-600 hover:text-gray-900">Curriculum</a>
-          <a href="/sections.html" class="text-blue-600 font-medium">Sections</a>
-          <a href="/schedule.html" class="text-gray-600 hover:text-gray-900">Schedule</a>
-          <a href="/admission-dashboard.html" class="text-gray-600 hover:text-gray-900">Admissions</a>
-        </nav>
-        
-        <div class="flex items-center gap-4">
-          <div class="text-right hidden sm:block">
-            <p class="text-sm font-medium text-gray-800">${state.user?.first_name || 'Staff'} ${state.user?.last_name || ''}</p>
-            <p class="text-xs text-gray-500">${formatRole(state.user?.role)}</p>
-          </div>
-          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span class="hidden sm:inline">Logout</span>
-          </button>
+        <div>
+          <label class="form-label">Year Level *</label>
+          <select id="section-year" class="form-input" required>
+            ${[1, 2, 3, 4, 5].map(y => `<option value="${y}" ${section.year_level === y ? 'selected' : ''}>${y}</option>`).join('')}
+          </select>
         </div>
       </div>
-    </header>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Semester *</label>
+          <select id="section-semester" class="form-input" required>
+            ${state.semesters.map(s => `<option value="${s.id}" ${section.semester?.id === s.id || s.is_active ? 'selected' : ''}>${s.name}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Capacity *</label>
+          <input type="number" id="section-capacity" class="form-input" value="${section.capacity || 40}" min="1" max="100" required>
+        </div>
+      </div>
+    </form>
   `;
 }
 
-function renderLoading() {
+function getAssignSubjectForm() {
+  const assignedSubjectIds = (state.selectedSection?.section_subjects || []).map(ss => ss.subject?.id);
+  const availableSubjects = state.subjects.filter(s => !assignedSubjectIds.includes(s.id));
+
   return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading sections...</p>
+    <form id="assign-form" class="space-y-4">
+      <div>
+        <label class="form-label">Subject *</label>
+        <select id="assign-subject" class="form-input" required>
+          <option value="">Select a subject...</option>
+          ${availableSubjects.map(s => `<option value="${s.id}">${s.code} - ${s.title}</option>`).join('')}
+        </select>
       </div>
-    </div>
+      <div>
+        <label class="form-label">Professor</label>
+        <select id="assign-professor" class="form-input">
+          <option value="">TBA (To Be Announced)</option>
+          ${state.professors.map(p => `<option value="${p.id}">Prof. ${p.first_name} ${p.last_name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="assign-tba" class="w-4 h-4 text-blue-600 rounded">
+        <label for="assign-tba" class="text-sm text-gray-600">Mark as TBA (Professor to be announced)</label>
+      </div>
+    </form>
   `;
 }
 
@@ -389,16 +399,55 @@ function renderSectionDetails() {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                   </svg>
                 </div>
-                <div>
+                <div class="flex-1">
                   <p class="font-semibold text-gray-800">${ss.subject?.code} - ${ss.subject?.title}</p>
-                  <p class="text-sm ${ss.is_tba ? 'text-yellow-600' : 'text-gray-500'}">
-                    ${ss.is_tba ? 'TBA' : ss.professor ? `Prof. ${ss.professor.first_name} ${ss.professor.last_name}` : 'No professor assigned'}
-                  </p>
+                  <div class="text-sm text-gray-500 space-y-1">
+                    ${ss.professors && ss.professors.length > 0 ?
+                      ss.professors.map(prof => `
+                        <div class="flex items-center gap-2">
+                          <span>${prof.name || prof.full_name || 'Unknown Professor'}</span>
+                          ${prof.is_primary ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Primary</span>' : ''}
+                        </div>
+                      `).join('')
+                      : ss.is_tba ? '<span class="text-yellow-600">TBA</span>' : '<span class="text-orange-600">No professors assigned</span>'}
+                    ${ss.schedule_slots && ss.schedule_slots.length > 0 ? `
+                      <div class="mt-2 space-y-1">
+                        ${ss.schedule_slots.map(slot => `
+                          <div class="flex items-center gap-2 text-xs text-gray-600">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span>${slot.day_display || slot.day} ${slot.start_time}-${slot.end_time}</span>
+                            ${slot.room ? `<span class="text-gray-400">• ${slot.room}</span>` : ''}
+                          </div>
+                        `).join('')}
+                      </div>
+                    ` : ss.is_tba ? '' : '<div class="text-xs text-orange-500 mt-1">No schedule set</div>'}
+                  </div>
                 </div>
               </div>
               <div class="flex items-center gap-2">
                 ${ss.is_tba ? '<span class="badge badge-warning">TBA</span>' : ''}
-                <button onclick="removeAssignment('${ss.id}')" class="p-2 text-gray-400 hover:text-red-600 rounded-lg">
+                <button
+                  onclick="toggleTBA('${ss.id}', ${!ss.is_tba})"
+                  class="p-2 text-gray-400 hover:text-yellow-600 rounded-lg"
+                  title="${ss.is_tba ? 'Mark as scheduled' : 'Mark as TBA'}">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </button>
+                <button
+                  onclick="openScheduleModal('${ss.id}')"
+                  class="p-2 text-gray-400 hover:text-blue-600 rounded-lg"
+                  title="Manage schedule">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                </button>
+                <button
+                  onclick="removeAssignment('${ss.id}')"
+                  class="p-2 text-gray-400 hover:text-red-600 rounded-lg"
+                  title="Remove subject">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                   </svg>
@@ -414,105 +463,6 @@ function renderSectionDetails() {
   `;
 }
 
-function renderSectionModal() {
-  const isEdit = !!state.editingSection;
-  const section = isEdit ? state.sections.find(s => s.id === state.editingSection) : {};
-
-  return `
-    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeSectionModal()">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
-        <div class="px-6 py-4 border-b flex items-center justify-between">
-          <h2 class="text-xl font-bold text-gray-800">${isEdit ? 'Edit' : 'Add'} Section</h2>
-          <button onclick="closeSectionModal()" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-        <form onsubmit="saveSection(event)" class="p-6 space-y-4">
-          <div>
-            <label class="form-label">Section Name *</label>
-            <input type="text" id="section-name" class="form-input" value="${section.name || ''}" placeholder="BSIT-1A" required>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="form-label">Program *</label>
-              <select id="section-program" class="form-input" required>
-                ${state.programs.map(p => `<option value="${p.id}" ${section.program?.id === p.id ? 'selected' : ''}>${p.code}</option>`).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="form-label">Year Level *</label>
-              <select id="section-year" class="form-input" required>
-                ${[1, 2, 3, 4, 5].map(y => `<option value="${y}" ${section.year_level === y ? 'selected' : ''}>${y}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="form-label">Semester *</label>
-              <select id="section-semester" class="form-input" required>
-                ${state.semesters.map(s => `<option value="${s.id}" ${section.semester?.id === s.id || s.is_active ? 'selected' : ''}>${s.name}</option>`).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="form-label">Capacity *</label>
-              <input type="number" id="section-capacity" class="form-input" value="${section.capacity || 40}" min="1" max="100" required>
-            </div>
-          </div>
-          <div class="flex justify-end gap-3 pt-4">
-            <button type="button" onclick="closeSectionModal()" class="btn-secondary">Cancel</button>
-            <button type="submit" class="btn-primary">${isEdit ? 'Update' : 'Create'} Section</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `;
-}
-
-function renderAssignModal() {
-  const assignedSubjectIds = (state.selectedSection?.section_subjects || []).map(ss => ss.subject?.id);
-  const availableSubjects = state.subjects.filter(s => !assignedSubjectIds.includes(s.id));
-
-  return `
-    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeAssignModal()">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
-        <div class="px-6 py-4 border-b flex items-center justify-between">
-          <h2 class="text-xl font-bold text-gray-800">Assign Subject to ${state.selectedSection?.name}</h2>
-          <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-        <form onsubmit="assignSubject(event)" class="p-6 space-y-4">
-          <div>
-            <label class="form-label">Subject *</label>
-            <select id="assign-subject" class="form-input" required>
-              <option value="">Select a subject...</option>
-              ${availableSubjects.map(s => `<option value="${s.id}">${s.code} - ${s.title}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label class="form-label">Professor</label>
-            <select id="assign-professor" class="form-input">
-              <option value="">TBA (To Be Announced)</option>
-              ${state.professors.map(p => `<option value="${p.id}">Prof. ${p.first_name} ${p.last_name}</option>`).join('')}
-            </select>
-          </div>
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="assign-tba" class="w-4 h-4 text-blue-600 rounded">
-            <label for="assign-tba" class="text-sm text-gray-600">Mark as TBA (Professor to be announced)</label>
-          </div>
-          <div class="flex justify-end gap-3 pt-4">
-            <button type="button" onclick="closeAssignModal()" class="btn-secondary">Cancel</button>
-            <button type="submit" class="btn-primary">Assign Subject</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `;
-}
 
 // Event Handlers
 window.selectSection = async function (id) {
@@ -529,151 +479,152 @@ window.handleFilterChange = async function () {
 
 window.openSectionModal = function (id = null) {
   state.editingSection = id;
-  state.showSectionModal = true;
-  render();
-};
+  const isEdit = !!id;
 
-window.closeSectionModal = function () {
-  state.showSectionModal = false;
-  state.editingSection = null;
-  render();
+  const modal = new Modal({
+    title: isEdit ? 'Edit Section' : 'Add Section',
+    content: getSectionForm(),
+    size: 'md',
+    actions: [
+      { label: 'Cancel', onClick: (m) => { m.close(); state.editingSection = null; } },
+      {
+        label: isEdit ? 'Update Section' : 'Create Section',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('section-form');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+
+          const data = {
+            name: document.getElementById('section-name').value,
+            program: document.getElementById('section-program').value,
+            semester: document.getElementById('section-semester').value,
+            year_level: parseInt(document.getElementById('section-year').value),
+            capacity: parseInt(document.getElementById('section-capacity').value)
+          };
+
+          try {
+            if (state.editingSection) {
+              await api.patch(endpoints.section(state.editingSection), data);
+            } else {
+              await api.post(endpoints.sections, data);
+            }
+
+            Toast.success(`Section ${isEdit ? 'updated' : 'created'} successfully!`);
+            m.close();
+            state.editingSection = null;
+            await loadSections();
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, `${isEdit ? 'Updating' : 'Creating'} section`);
+          }
+        }
+      }
+    ]
+  });
+
+  state.sectionModal = modal;
+  modal.show();
 };
 
 window.editSection = function (id) {
   openSectionModal(id);
 };
 
-window.saveSection = async function (e) {
-  e.preventDefault();
-  const data = {
-    name: document.getElementById('section-name').value,
-    program: document.getElementById('section-program').value,
-    semester: document.getElementById('section-semester').value,
-    year_level: parseInt(document.getElementById('section-year').value),
-    capacity: parseInt(document.getElementById('section-capacity').value)
-  };
-
-  try {
-    let response;
-    if (state.editingSection) {
-      response = await api.patch(endpoints.section(state.editingSection), data);
-    } else {
-      response = await api.post(endpoints.sections, data);
-    }
-
-    if (response && response.ok) {
-      showToast(`Section ${state.editingSection ? 'updated' : 'created'} successfully!`, 'success');
-      closeSectionModal();
-      await loadSections();
-      render();
-    } else {
-      const errorData = await response?.json();
-      console.error('Section save error:', errorData);
-
-      let errorMessage = 'Failed to save section';
-
-      // Handle custom exception handler format { success: false, error: { message, details } }
-      if (errorData?.error) {
-        if (errorData.error.details) {
-          // Combine field errors from details
-          errorMessage = Object.entries(errorData.error.details)
-            .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-            .join('\n');
-        } else if (errorData.error.message) {
-          errorMessage = errorData.error.message;
-        }
-      } else if (errorData?.detail) {
-        // Standard DRF error
-        errorMessage = errorData.detail;
-      } else if (typeof errorData === 'object') {
-        // Fallback for flat field errors
-        errorMessage = Object.entries(errorData)
-          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-          .join('\n');
-      }
-
-      showToast(errorMessage, 'error');
-    }
-  } catch (error) {
-    console.error('Save failed:', error);
-    showToast('An unexpected error occurred', 'error');
-  }
-};
-
 window.openAssignModal = function () {
-  state.showAssignModal = true;
-  render();
+  const modal = new Modal({
+    title: `Assign Subject to ${state.selectedSection?.name}`,
+    content: getAssignSubjectForm(),
+    size: 'md',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Assign Subject',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('assign-form');
+          const subjectId = document.getElementById('assign-subject').value;
+          const professorId = document.getElementById('assign-professor').value;
+          const isTba = document.getElementById('assign-tba').checked;
+
+          if (!subjectId) {
+            Toast.error('Please select a subject');
+            return;
+          }
+
+          const data = {
+            section: state.selectedSection.id,
+            subject: subjectId,
+            professor: professorId || null,
+            is_tba: isTba || !professorId
+          };
+
+          try {
+            await api.post(endpoints.sectionSubjects, data);
+            Toast.success('Subject assigned successfully!');
+            m.close();
+            await loadSectionDetails(state.selectedSection.id);
+          } catch (error) {
+            ErrorHandler.handle(error, 'Assigning subject');
+          }
+        }
+      }
+    ]
+  });
+
+  state.assignModal = modal;
+  modal.show();
 };
 
-window.closeAssignModal = function () {
-  state.showAssignModal = false;
-  render();
-};
-
-window.assignSubject = async function (e) {
-  e.preventDefault();
-  const subjectId = document.getElementById('assign-subject').value;
-  const professorId = document.getElementById('assign-professor').value;
-  const isTba = document.getElementById('assign-tba').checked;
-
-  if (!subjectId) {
-    showToast('Please select a subject', 'error');
-    return;
-  }
-
-  const data = {
-    section: state.selectedSection.id,
-    subject: subjectId,
-    professor: professorId || null,
-    is_tba: isTba || !professorId
-  };
-
+window.toggleTBA = async function (sectionSubjectId, isTba) {
   try {
-    const response = await api.post(endpoints.sectionSubjects, data);
-    if (response && response.ok) {
-      showToast('Subject assigned successfully!', 'success');
-      closeAssignModal();
-      await loadSectionDetails(state.selectedSection.id);
-    } else {
-      const error = await response?.json();
-      showToast(error?.detail || 'Failed to assign subject', 'error');
-    }
-  } catch (error) {
-    // Mock success
-    const subject = state.subjects.find(s => s.id === subjectId);
-    const professor = state.professors.find(p => p.id === professorId);
-    if (!state.selectedSection.section_subjects) state.selectedSection.section_subjects = [];
-    state.selectedSection.section_subjects.push({
-      id: Date.now().toString(),
-      subject: { id: subjectId, code: subject.code, title: subject.title },
-      professor: professor ? { id: professorId, first_name: professor.first_name, last_name: professor.last_name } : null,
-      is_tba: isTba || !professorId
+    await api.patch(endpoints.sectionSubject(sectionSubjectId), {
+      is_tba: isTba
     });
-    showToast('Subject assigned (mock)', 'success');
-    closeAssignModal();
-    render();
+
+    Toast.success(isTba ? 'Marked as TBA' : 'Removed TBA status');
+    await loadSectionDetails(state.selectedSection.id);
+  } catch (error) {
+    ErrorHandler.handle(error, 'Updating TBA status');
   }
+};
+
+window.openScheduleModal = function (sectionSubjectId) {
+  // Navigate to schedule page with this section-subject pre-selected
+  const sectionSubject = state.selectedSection?.section_subjects?.find(ss => ss.id === sectionSubjectId);
+  if (!sectionSubject) return;
+
+  // Store in localStorage for the schedule page to pick up
+  localStorage.setItem('schedule_section_id', state.selectedSection.id);
+  localStorage.setItem('schedule_section_subject_id', sectionSubjectId);
+
+  window.location.href = '/schedule.html';
 };
 
 window.removeAssignment = async function (id) {
-  if (!confirm('Remove this subject from the section?')) return;
+  const confirmed = await ConfirmModal({
+    title: 'Remove Subject',
+    message: 'Remove this subject from the section?',
+    confirmLabel: 'Remove',
+    danger: true
+  });
+
+  if (!confirmed) return;
 
   try {
-    const response = await api.delete(endpoints.sectionSubject(id));
-    if (response && response.ok) {
-      showToast('Subject removed!', 'success');
-      await loadSectionDetails(state.selectedSection.id);
-    }
+    await api.delete(endpoints.sectionSubject(id));
+    Toast.success('Subject removed!');
+    await loadSectionDetails(state.selectedSection.id);
   } catch (error) {
-    state.selectedSection.section_subjects = state.selectedSection.section_subjects.filter(ss => ss.id !== id);
-    showToast('Subject removed (mock)', 'success');
-    render();
+    ErrorHandler.handle(error, 'Removing subject');
   }
 };
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);

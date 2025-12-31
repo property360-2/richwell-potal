@@ -161,6 +161,12 @@ class MonthlyPaymentBucket(BaseModel):
         validators=[MinValueValidator(1), MaxValueValidator(6)],
         help_text='Month number (1-6)'
     )
+    event_label = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text='Event associated with this payment month (e.g., Subject Enrollment, Midterms)'
+    )
     required_amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
