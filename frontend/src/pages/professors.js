@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal } from '../components/Modal.js';
 
 const state = {
   user: null,
@@ -11,8 +15,7 @@ const state = {
   selectedProfessor: null,
   workloadData: null,
   loading: true,
-  showAddModal: false,
-  showWorkloadModal: false
+  workloadModal: null
 };
 
 async function init() {
@@ -32,7 +35,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading user profile');
   }
 }
 
@@ -42,7 +45,7 @@ async function loadSemesters() {
     state.semesters = response?.semesters || response?.results || response || [];
     state.activeSemester = state.semesters.find(s => s.is_active || s.is_current) || state.semesters[0];
   } catch (error) {
-    console.error('Failed to load semesters:', error);
+    ErrorHandler.handle(error, 'Loading semesters');
   }
 }
 
@@ -51,8 +54,8 @@ async function loadProfessors() {
     const response = await api.get('/academics/professors/');
     state.professors = response?.results || response || [];
   } catch (error) {
-    console.error('Failed to load professors:', error);
-    showToast('Failed to load professors', 'error');
+    ErrorHandler.handle(error, 'Loading professors');
+    state.professors = [];
   }
 }
 
@@ -60,7 +63,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading professors...');
     return;
   }
 
@@ -83,8 +86,6 @@ function render() {
 
       ${state.professors.length === 0 ? renderEmptyState() : renderProfessorList()}
     </main>
-
-    ${state.showWorkloadModal ? renderWorkloadModal() : ''}
   `;
 }
 
@@ -138,84 +139,51 @@ function renderProfessorCard(prof) {
   `;
 }
 
-function renderWorkloadModal() {
-  if (!state.workloadData) {
-    return `
-      <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4">
-          <p>Loading workload data...</p>
-        </div>
-      </div>
-    `;
-  }
-
-  const data = state.workloadData;
-
+function getWorkloadContent(data) {
   return `
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
-         onclick="closeWorkloadModal()">
-      <div class="bg-white rounded-2xl p-8 max-w-4xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto"
-           onclick="event.stopPropagation()">
-        <div class="flex items-center justify-between mb-6">
-          <h3 class="text-2xl font-bold text-gray-800">
-            Professor Workload - ${data.professor_name}
-          </h3>
-          <button onclick="closeWorkloadModal()" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
+    <div class="grid grid-cols-3 gap-4 mb-6">
+      <div class="card bg-blue-50">
+        <div class="text-3xl font-bold text-blue-600">${data.total_sections}</div>
+        <div class="text-sm text-gray-600">Sections</div>
+      </div>
+      <div class="card bg-green-50">
+        <div class="text-3xl font-bold text-green-600">${data.total_subjects}</div>
+        <div class="text-sm text-gray-600">Subjects</div>
+      </div>
+      <div class="card ${data.is_overloaded ? 'bg-red-50' : 'bg-purple-50'}">
+        <div class="text-3xl font-bold ${data.is_overloaded ? 'text-red-600' : 'text-purple-600'}">
+          ${data.total_hours_per_week} hrs
         </div>
+        <div class="text-sm text-gray-600">Per Week</div>
+      </div>
+    </div>
 
-        <div class="grid grid-cols-3 gap-4 mb-6">
-          <div class="card bg-blue-50">
-            <div class="text-3xl font-bold text-blue-600">${data.total_sections}</div>
-            <div class="text-sm text-gray-600">Sections</div>
-          </div>
-          <div class="card bg-green-50">
-            <div class="text-3xl font-bold text-green-600">${data.total_subjects}</div>
-            <div class="text-sm text-gray-600">Subjects</div>
-          </div>
-          <div class="card ${data.is_overloaded ? 'bg-red-50' : 'bg-purple-50'}">
-            <div class="text-3xl font-bold ${data.is_overloaded ? 'text-red-600' : 'text-purple-600'}">
-              ${data.total_hours_per_week} hrs
-            </div>
-            <div class="text-sm text-gray-600">Per Week</div>
-          </div>
-        </div>
+    ${data.is_overloaded ? `
+      <div class="bg-red-50 border-l-4 border-red-600 p-4 mb-6">
+        <p class="text-red-800 font-bold">⚠️ Warning: Professor is overloaded!</p>
+      </div>
+    ` : ''}
 
-        ${data.is_overloaded ? `
-          <div class="bg-red-50 border-l-4 border-red-600 p-4 mb-6">
-            <p class="text-red-800 font-bold">⚠️ Warning: Professor is overloaded!</p>
-          </div>
-        ` : ''}
-
-        <h4 class="font-bold text-gray-800 mb-4">Teaching Assignments</h4>
-        <div class="space-y-2">
-          ${data.sections_detail && data.sections_detail.length > 0 ? data.sections_detail.map(detail => `
-            <div class="border rounded-lg p-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <div class="font-bold text-gray-800">
-                    ${detail.subject_code} - ${detail.subject_title}
-                  </div>
-                  <div class="text-sm text-gray-600">
-                    Section: ${detail.section}
-                    ${detail.is_primary ? '<span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Primary</span>' : ''}
-                  </div>
-                </div>
-                <div class="text-right">
-                  <div class="font-bold text-gray-700">${detail.hours_per_week} hrs/week</div>
-                </div>
+    <h4 class="font-bold text-gray-800 mb-4">Teaching Assignments</h4>
+    <div class="space-y-2">
+      ${data.sections_detail && data.sections_detail.length > 0 ? data.sections_detail.map(detail => `
+        <div class="border rounded-lg p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-bold text-gray-800">
+                ${detail.subject_code} - ${detail.subject_title}
+              </div>
+              <div class="text-sm text-gray-600">
+                Section: ${detail.section}
+                ${detail.is_primary ? '<span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Primary</span>' : ''}
               </div>
             </div>
-          `).join('') : '<p class="text-gray-500 text-center py-4">No teaching assignments</p>'}
+            <div class="text-right">
+              <div class="font-bold text-gray-700">${detail.hours_per_week} hrs/week</div>
+            </div>
+          </div>
         </div>
-
-        <div class="mt-6 flex justify-end">
-          <button onclick="closeWorkloadModal()" class="btn-secondary">Close</button>
-        </div>
-      </div>
+      `).join('') : '<p class="text-gray-500 text-center py-4">No teaching assignments</p>'}
     </div>
   `;
 }
@@ -232,47 +200,40 @@ function renderEmptyState() {
   `;
 }
 
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading professors...</p>
-      </div>
-    </div>
-  `;
-}
 
 // Global functions
 window.viewWorkload = async function(professorId) {
-  state.showWorkloadModal = true;
-  state.workloadData = null;
-  render();
+  const professor = state.professors.find(p => p.id === professorId);
+
+  // Show modal with loading state
+  const modal = new Modal({
+    title: `Professor Workload - ${professor?.full_name || 'Loading...'}`,
+    content: '<div class="text-center py-8"><p class="text-gray-600">Loading workload data...</p></div>',
+    size: 'xl',
+    actions: [
+      { label: 'Close', onClick: (m) => m.close() }
+    ]
+  });
+
+  state.workloadModal = modal;
+  modal.show();
 
   try {
     const data = await api.get(`/academics/professors/${professorId}/workload/?semester=${state.activeSemester.id}`);
     state.workloadData = data;
-    render();
-  } catch (error) {
-    console.error('Failed to load workload:', error);
-    showToast('Failed to load workload', 'error');
-    state.showWorkloadModal = false;
-    render();
-  }
-};
 
-window.closeWorkloadModal = function() {
-  state.showWorkloadModal = false;
-  state.workloadData = null;
-  render();
+    // Update modal content with actual data
+    modal.updateContent(getWorkloadContent(data));
+    modal.updateTitle(`Professor Workload - ${data.professor_name}`);
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading workload');
+    modal.close();
+  }
 };
 
 window.logout = function() {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
