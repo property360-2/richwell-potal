@@ -1,7 +1,12 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatDate, requireAuth } from '../utils.js';
+import { requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal } from '../components/Modal.js';
+import { ConfirmModal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -14,7 +19,7 @@ const state = {
     search: ''
   },
   selectedEnrollment: null,
-  showApprovalModal: false
+  approvalModal: null
 };
 
 // No more mock data - all data comes from real API
@@ -35,7 +40,7 @@ async function loadUserProfile() {
       TokenManager.setUser(response);
     }
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    ErrorHandler.handle(error, 'Loading user profile');
     const savedUser = TokenManager.getUser();
     if (savedUser) {
       state.user = savedUser;
@@ -89,8 +94,7 @@ async function loadPendingEnrollments() {
       console.warn('No pending enrollments found');
     }
   } catch (error) {
-    console.error('Failed to load pending enrollments:', error);
-    showToast('Failed to load pending enrollments. Please refresh the page.', 'error');
+    ErrorHandler.handle(error, 'Loading pending enrollments');
     state.pendingEnrollments = [];
   }
   state.loading = false;
@@ -115,7 +119,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading dashboard...');
     return;
   }
 
@@ -201,24 +205,6 @@ function render() {
         `}
       </div>
     </main>
-    
-    <!-- Approval Modal -->
-    ${state.showApprovalModal && state.selectedEnrollment ? renderApprovalModal() : ''}
-  `;
-}
-
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading dashboard...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -308,105 +294,62 @@ function renderEnrollmentCard(enrollment) {
   `;
 }
 
-function renderApprovalModal() {
-  const enrollment = state.selectedEnrollment;
-
+function getApprovalContent(enrollment) {
   return `
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn" onclick="closeModal()">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden animate-slideUp" onclick="event.stopPropagation()">
-        <!-- Modal Header -->
-        <div class="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <h2 class="text-xl font-bold">Subject Enrollment Details</h2>
-              <p class="text-blue-100 text-sm">${enrollment.student_name} - ${enrollment.student_number}</p>
-            </div>
-            <button onclick="closeModal()" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-            </button>
-          </div>
+    <!-- Student Info -->
+    <div class="bg-gray-50 rounded-xl p-4 mb-6">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+          <p class="text-xs text-gray-500">Program</p>
+          <p class="font-medium">${enrollment.program}</p>
         </div>
-        
-        <!-- Modal Body -->
-        <div class="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
-          <!-- Student Info -->
-          <div class="bg-gray-50 rounded-xl p-4 mb-6">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p class="text-xs text-gray-500">Program</p>
-                <p class="font-medium">${enrollment.program}</p>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500">Year Level</p>
-                <p class="font-medium">Year ${enrollment.year_level}</p>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500">Total Units</p>
-                <p class="font-medium">${enrollment.total_units} units</p>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500">Payment Status</p>
-                <p class="font-medium ${enrollment.payment_status === 'Paid' ? 'text-green-600' : 'text-amber-600'}">${enrollment.payment_status}</p>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Subjects Table -->
-          <h4 class="font-bold text-gray-800 mb-3">Subjects for Approval</h4>
-          <div class="border border-gray-200 rounded-xl overflow-hidden">
-            <table class="w-full">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Subject</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Section</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Schedule</th>
-                  <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Units</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100">
-                ${enrollment.subjects.map(subject => `
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3">
-                      <p class="font-mono font-medium text-blue-600">${subject.code}</p>
-                      <p class="text-sm text-gray-600">${subject.name}</p>
-                    </td>
-                    <td class="px-4 py-3 text-gray-700">${subject.section}</td>
-                    <td class="px-4 py-3 text-gray-700 text-sm">${subject.schedule}</td>
-                    <td class="px-4 py-3 text-center font-medium">${subject.units}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-              <tfoot class="bg-gray-50">
-                <tr>
-                  <td colspan="3" class="px-4 py-3 text-right font-semibold text-gray-700">Total Units:</td>
-                  <td class="px-4 py-3 text-center font-bold text-blue-600">${enrollment.total_units}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+        <div>
+          <p class="text-xs text-gray-500">Year Level</p>
+          <p class="font-medium">Year ${enrollment.year_level}</p>
         </div>
-        
-        <!-- Modal Footer -->
-        <div class="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-between">
-          <button onclick="rejectEnrollment('${enrollment.id}')" class="px-6 py-3 text-red-600 border-2 border-red-200 hover:bg-red-50 rounded-xl font-medium transition-colors flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-            Reject
-          </button>
-          <div class="flex gap-3">
-            <button onclick="closeModal()" class="btn-secondary">Cancel</button>
-            <button onclick="confirmApproval('${enrollment.id}')" class="btn-primary flex items-center gap-2">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-              </svg>
-              Approve All Subjects
-            </button>
-          </div>
+        <div>
+          <p class="text-xs text-gray-500">Total Units</p>
+          <p class="font-medium">${enrollment.total_units} units</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Payment Status</p>
+          <p class="font-medium ${enrollment.payment_status === 'Paid' ? 'text-green-600' : 'text-amber-600'}">${enrollment.payment_status}</p>
         </div>
       </div>
+    </div>
+
+    <!-- Subjects Table -->
+    <h4 class="font-bold text-gray-800 mb-3">Subjects for Approval</h4>
+    <div class="border border-gray-200 rounded-xl overflow-hidden">
+      <table class="w-full">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Subject</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Section</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Schedule</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Units</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          ${enrollment.subjects.map(subject => `
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3">
+                <p class="font-mono font-medium text-blue-600">${subject.code}</p>
+                <p class="text-sm text-gray-600">${subject.name}</p>
+              </td>
+              <td class="px-4 py-3 text-gray-700">${subject.section}</td>
+              <td class="px-4 py-3 text-gray-700 text-sm">${subject.schedule}</td>
+              <td class="px-4 py-3 text-center font-medium">${subject.units}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot class="bg-gray-50">
+          <tr>
+            <td colspan="3" class="px-4 py-3 text-right font-semibold text-gray-700">Total Units:</td>
+            <td class="px-4 py-3 text-center font-bold text-blue-600">${enrollment.total_units}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   `;
 }
@@ -418,28 +361,54 @@ window.handleSearch = function (event) {
 };
 
 window.viewDetails = function (enrollmentId) {
-  state.selectedEnrollment = state.pendingEnrollments.find(e => e.id === enrollmentId);
-  state.showApprovalModal = true;
-  render();
-};
+  const enrollment = state.pendingEnrollments.find(e => e.id === enrollmentId);
+  if (!enrollment) return;
 
-window.closeModal = function () {
-  state.showApprovalModal = false;
-  state.selectedEnrollment = null;
-  render();
+  state.selectedEnrollment = enrollment;
+
+  const modal = new Modal({
+    title: `Subject Enrollment Details - ${enrollment.student_name} (${enrollment.student_number})`,
+    content: getApprovalContent(enrollment),
+    size: 'xl',
+    actions: [
+      {
+        label: 'Reject',
+        onClick: async (m) => {
+          await rejectEnrollment(enrollmentId);
+          m.close();
+        }
+      },
+      {
+        label: 'Cancel',
+        onClick: (m) => {
+          state.selectedEnrollment = null;
+          m.close();
+        }
+      },
+      {
+        label: 'Approve All Subjects',
+        primary: true,
+        onClick: async (m) => {
+          await confirmApproval(enrollmentId);
+          m.close();
+        }
+      }
+    ]
+  });
+
+  state.approvalModal = modal;
+  modal.show();
 };
 
 window.approveEnrollment = function (enrollmentId) {
-  state.selectedEnrollment = state.pendingEnrollments.find(e => e.id === enrollmentId);
-  state.showApprovalModal = true;
-  render();
+  viewDetails(enrollmentId);
 };
 
 window.confirmApproval = async function (enrollmentId) {
   const enrollment = state.pendingEnrollments.find(e => e.id === enrollmentId);
   if (!enrollment) return;
 
-  showToast(`Approving ${enrollment.student_name}'s enrollment...`, 'info');
+  Toast.info(`Approving ${enrollment.student_name}'s enrollment...`);
 
   try {
     // Approve all subjects for this student
@@ -449,14 +418,12 @@ window.confirmApproval = async function (enrollmentId) {
 
     // Remove from pending list
     state.pendingEnrollments = state.pendingEnrollments.filter(e => e.id !== enrollmentId);
-    state.showApprovalModal = false;
     state.selectedEnrollment = null;
 
-    showToast(`${enrollment.student_name}'s subject enrollment has been approved!`, 'success');
+    Toast.success(`${enrollment.student_name}'s subject enrollment has been approved!`);
     render();
   } catch (error) {
-    console.error('Approval failed:', error);
-    showToast('Failed to approve enrollment. Please try again.', 'error');
+    ErrorHandler.handle(error, 'Approving enrollment');
   }
 };
 
@@ -467,7 +434,7 @@ window.rejectEnrollment = async function (enrollmentId) {
   const reason = prompt('Please provide a reason for rejection:');
   if (!reason) return;
 
-  showToast(`Rejecting ${enrollment.student_name}'s enrollment...`, 'info');
+  Toast.info(`Rejecting ${enrollment.student_name}'s enrollment...`);
 
   try {
     // Reject all subjects for this student
@@ -476,50 +443,52 @@ window.rejectEnrollment = async function (enrollmentId) {
     }
 
     state.pendingEnrollments = state.pendingEnrollments.filter(e => e.id !== enrollmentId);
-    state.showApprovalModal = false;
     state.selectedEnrollment = null;
 
-    showToast(`${enrollment.student_name}'s enrollment has been rejected.`, 'warning');
+    Toast.warning(`${enrollment.student_name}'s enrollment has been rejected.`);
     render();
   } catch (error) {
-    console.error('Rejection failed:', error);
-    showToast('Failed to reject enrollment. Please try again.', 'error');
+    ErrorHandler.handle(error, 'Rejecting enrollment');
   }
 };
 
 window.approveAll = async function () {
   if (state.pendingEnrollments.length === 0) return;
 
-  if (!confirm(`Are you sure you want to approve all ${state.pendingEnrollments.length} pending enrollments?`)) return;
+  ConfirmModal({
+    title: 'Approve All Enrollments',
+    message: `Are you sure you want to approve all ${state.pendingEnrollments.length} pending enrollments?`,
+    confirmText: 'Approve All',
+    onConfirm: async () => {
+      Toast.info('Approving all pending enrollments...');
 
-  showToast('Approving all pending enrollments...', 'info');
+      try {
+        // Collect all subject IDs
+        const allSubjectIds = [];
+        for (const enrollment of state.pendingEnrollments) {
+          for (const subject of enrollment.subjects) {
+            allSubjectIds.push(subject.id);
+          }
+        }
 
-  try {
-    // Collect all subject IDs
-    const allSubjectIds = [];
-    for (const enrollment of state.pendingEnrollments) {
-      for (const subject of enrollment.subjects) {
-        allSubjectIds.push(subject.id);
+        // Bulk approve
+        await api.post(endpoints.headBulkApprove, { ids: allSubjectIds });
+
+        const count = state.pendingEnrollments.length;
+        state.pendingEnrollments = [];
+
+        Toast.success(`Successfully approved ${count} student enrollments!`);
+        render();
+      } catch (error) {
+        ErrorHandler.handle(error, 'Bulk approving enrollments');
       }
     }
-
-    // Bulk approve
-    await api.post(endpoints.headBulkApprove, { ids: allSubjectIds });
-
-    const count = state.pendingEnrollments.length;
-    state.pendingEnrollments = [];
-
-    showToast(`Successfully approved ${count} student enrollments!`, 'success');
-    render();
-  } catch (error) {
-    console.error('Bulk approval failed:', error);
-    showToast('Failed to approve enrollments. Please try again.', 'error');
-  }
+  });
 };
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
