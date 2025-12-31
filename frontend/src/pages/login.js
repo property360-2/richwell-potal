@@ -1,6 +1,7 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, validateEmail, redirectByRole } from '../utils.js';
+import { validateEmail, redirectByRole } from '../utils.js';
+import { Toast } from '../components/Toast.js';
 
 function init() {
   // Check if already logged in
@@ -161,7 +162,7 @@ async function handleLogin(e) {
   const loginBtn = document.getElementById('login-btn');
 
   if (!validateEmail(email)) {
-    showToast('Please enter a valid email address', 'error');
+    Toast.error('Please enter a valid email address');
     return;
   }
 
@@ -187,14 +188,14 @@ async function handleLogin(e) {
 
       // Check if student account is pending approval
       if (data.user.role === 'STUDENT' && data.user.enrollment_status === 'PENDING') {
-        showToast('Your account is pending approval. Please wait for the Admissions Office to review your application.', 'warning');
+        Toast.warning('Your account is pending approval. Please wait for the Admissions Office to review your application.');
         resetLoginButton();
         return;
       }
 
       // Check if student account was rejected
       if (data.user.role === 'STUDENT' && data.user.enrollment_status === 'REJECTED') {
-        showToast('Your application has been rejected. Please contact the Admissions Office.', 'error');
+        Toast.error('Your application has been rejected. Please contact the Admissions Office.');
         resetLoginButton();
         return;
       }
@@ -203,7 +204,7 @@ async function handleLogin(e) {
       TokenManager.setTokens(data.access, data.refresh);
       TokenManager.setUser(data.user);
 
-      showToast('Login successful!', 'success');
+      Toast.success('Login successful!');
 
       // Redirect based on role
       setTimeout(() => {
@@ -211,11 +212,11 @@ async function handleLogin(e) {
       }, 1000);
     } else {
       const error = await response.json();
-      showToast(error.detail || 'Invalid email or password', 'error');
+      Toast.error(error.detail || 'Invalid email or password');
       resetLoginButton();
     }
   } catch (error) {
-    showToast('Network error. Please check your connection.', 'error');
+    Toast.error('Network error. Please check your connection.');
     resetLoginButton();
   }
 }
