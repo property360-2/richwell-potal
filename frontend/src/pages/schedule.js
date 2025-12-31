@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth, getQueryParam } from '../utils.js';
+import { requireAuth, getQueryParam } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { ConfirmModal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -92,7 +96,7 @@ async function loadSections() {
             console.warn('No sections returned from API');
         }
     } catch (error) {
-        console.error('Error loading sections:', error);
+        ErrorHandler.handle(error, 'Loading sections');
         state.sections = [];
     }
 }
@@ -101,7 +105,7 @@ async function selectSection(id) {
     state.selectedSection = state.sections.find(s => s.id === id);
 
     if (!state.selectedSection) {
-        console.error('Section not found:', id);
+        ErrorHandler.handle(new Error(`Section not found: ${id}`), 'Selecting section');
         return;
     }
 
@@ -117,7 +121,7 @@ async function selectSection(id) {
             console.warn('No section subjects returned');
         }
     } catch (error) {
-        console.error('Error loading section subjects:', error);
+        ErrorHandler.handle(error, 'Loading section subjects');
         state.sectionSubjects = [];
     }
 
@@ -138,7 +142,7 @@ async function selectSection(id) {
             console.log(`Loaded ${allSlots.length} schedule slots`);
         }
     } catch (error) {
-        console.error('Error loading schedule slots:', error);
+        ErrorHandler.handle(error, 'Loading schedule slots');
         state.scheduleSlots = [];
     }
 
@@ -180,7 +184,7 @@ function render() {
     const app = document.getElementById('app');
 
     if (state.loading) {
-        app.innerHTML = renderLoading();
+        app.innerHTML = LoadingOverlay('Loading schedule...');
         return;
     }
 
@@ -215,21 +219,6 @@ function render() {
     <!-- Modals -->
     ${state.showSlotModal ? renderSlotModal() : ''}
     ${state.showConflictModal ? renderConflictModal() : ''}
-  `;
-}
-
-
-function renderLoading() {
-    return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading schedule...</p>
-      </div>
-    </div>
   `;
 }
 
@@ -500,7 +489,7 @@ window.saveSlot = async function (e) {
 
     // Validate time
     if (data.start_time >= data.end_time) {
-        showToast('End time must be after start time', 'error');
+        Toast.error('End time must be after start time');
         return;
     }
 
@@ -514,7 +503,7 @@ window.saveSlot = async function (e) {
             // Update existing slot
             const response = await api.patch(endpoints.scheduleSlot(state.editingSlot), data);
             if (response && (response.ok || response.id)) {
-                showToast('Schedule slot updated!', 'success');
+                Toast.success('Schedule slot updated!');
                 closeSlotModal();
                 await selectSection(state.selectedSection.id);
                 return;
@@ -523,36 +512,38 @@ window.saveSlot = async function (e) {
             // Create new slot
             const response = await api.post(endpoints.scheduleSlots, data);
             if (response && (response.ok || response.id)) {
-                showToast('Schedule slot added!', 'success');
+                Toast.success('Schedule slot added!');
                 closeSlotModal();
                 await selectSection(state.selectedSection.id);
                 return;
             }
         }
     } catch (error) {
-        console.error('Failed to save schedule slot:', error);
-        const errorMessage = error?.error || error?.message || 'Failed to save schedule slot. Please try again.';
-        showToast(errorMessage, 'error');
+        ErrorHandler.handle(error, 'Saving schedule slot');
     }
 };
 
 window.deleteSlot = async function (id) {
-    if (!confirm('Delete this schedule slot?')) return;
-
-    try {
-        const response = await api.delete(endpoints.scheduleSlot(id));
-        if (response && response.ok) {
-            showToast('Schedule slot deleted!', 'success');
-            closeSlotModal();
-            await selectSection(state.selectedSection.id);
-        } else {
-            const error = await response?.json();
-            showToast(error?.detail || 'Failed to delete schedule slot', 'error');
+    ConfirmModal({
+        title: 'Delete Schedule Slot',
+        message: 'Are you sure you want to delete this schedule slot?',
+        confirmText: 'Delete',
+        onConfirm: async () => {
+            try {
+                const response = await api.delete(endpoints.scheduleSlot(id));
+                if (response && response.ok) {
+                    Toast.success('Schedule slot deleted!');
+                    closeSlotModal();
+                    await selectSection(state.selectedSection.id);
+                } else {
+                    const error = await response?.json();
+                    Toast.error(error?.detail || 'Failed to delete schedule slot');
+                }
+            } catch (error) {
+                ErrorHandler.handle(error, 'Deleting schedule slot');
+            }
         }
-    } catch (error) {
-        console.error('Failed to delete schedule slot:', error);
-        showToast('Failed to delete schedule slot. Please try again.', 'error');
-    }
+    });
 };
 
 window.closeConflictModal = function () {
@@ -565,7 +556,7 @@ window.closeConflictModal = function () {
 window.overrideConflict = async function () {
     const reason = document.getElementById('override-reason').value;
     if (!reason.trim()) {
-        showToast('Please enter a reason for the override', 'error');
+        Toast.error('Please enter a reason for the override');
         return;
     }
 
@@ -574,23 +565,22 @@ window.overrideConflict = async function () {
     try {
         const response = await api.post(endpoints.scheduleSlots, data);
         if (response && response.ok) {
-            showToast('Schedule slot added with override!', 'success');
+            Toast.success('Schedule slot added with override!');
             closeConflictModal();
             closeSlotModal();
             await selectSection(state.selectedSection.id);
         } else {
             const error = await response?.json();
-            showToast(error?.detail || 'Failed to override conflict', 'error');
+            Toast.error(error?.detail || 'Failed to override conflict');
         }
     } catch (error) {
-        console.error('Failed to override conflict:', error);
-        showToast('Failed to override conflict. Please try again.', 'error');
+        ErrorHandler.handle(error, 'Overriding schedule conflict');
     }
 };
 
 window.logout = function () {
     TokenManager.clearTokens();
-    showToast('Logged out successfully', 'success');
+    Toast.success('Logged out successfully');
     setTimeout(() => window.location.href = '/login.html', 1000);
 };
 
