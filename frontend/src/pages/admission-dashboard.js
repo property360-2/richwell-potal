@@ -809,34 +809,39 @@ window.rejectFromPending = async function (applicantId) {
   const name = applicant.student?.first_name || applicant.first_name;
   const lastName = applicant.student?.last_name || applicant.last_name;
 
-  if (!confirm(`Are you sure you want to reject ${name} ${lastName}?`)) return;
+  ConfirmModal({
+    title: 'Reject Applicant',
+    message: `Are you sure you want to reject ${name} ${lastName}?`,
+    confirmText: 'Reject',
+    onConfirm: async () => {
+      Toast.info(`Rejecting ${name}...`);
 
-  showToast(`Rejecting ${name}...`, 'info');
+      try {
+        // Call real API
+        const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'reject' });
+        console.log('Reject API response:', response);
 
-  try {
-    // Call real API
-    const response = await api.patch(endpoints.applicantUpdate(applicantId), { action: 'reject' });
-    console.log('Reject API response:', response);
-
-    if (response && (response.success || response.data)) {
-      showToast(response.message || 'Applicant rejected.', 'warning');
-      // Update local state immediately
-      applicant.status = 'REJECTED';
-      // Also refresh from server
-      await loadApplicants();
-      state.showPendingModal = false;
-      render();
-      return;
+        if (response && (response.success || response.data)) {
+          Toast.warning(response.message || 'Applicant rejected.');
+          // Update local state immediately
+          applicant.status = 'REJECTED';
+          // Also refresh from server
+          await loadApplicants();
+          state.showPendingModal = false;
+          render();
+          return;
+        }
+        throw new Error('API response invalid');
+      } catch (error) {
+        ErrorHandler.handle(error, 'Rejecting applicant');
+        // Fallback to local update
+        applicant.status = 'REJECTED';
+        Toast.warning(`${name} ${lastName} has been rejected.`);
+        state.showPendingModal = false;
+        render();
+      }
     }
-    throw new Error('API response invalid');
-  } catch (error) {
-    console.error('Reject API error:', error);
-    // Fallback to local update
-    applicant.status = 'REJECTED';
-    showToast(`${name} ${lastName} has been rejected.`, 'warning');
-    state.showPendingModal = false;
-    render();
-  }
+  });
 };
 
 window.viewDocumentImage = function (url, name) {
@@ -846,7 +851,7 @@ window.viewDocumentImage = function (url, name) {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
