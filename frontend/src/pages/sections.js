@@ -1,7 +1,11 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, requireAuth, formatDate } from '../utils.js';
+import { requireAuth, formatDate } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
+import { Modal, ConfirmModal } from '../components/Modal.js';
 
 // State
 const state = {
@@ -18,8 +22,8 @@ const state = {
     program: 'all',
     semester: 'active'
   },
-  showSectionModal: false,
-  showAssignModal: false,
+  sectionModal: null,
+  assignModal: null,
   editingSection: null
 };
 
@@ -51,13 +55,8 @@ async function loadInitialData() {
   try {
     const response = await api.get(endpoints.academicPrograms);
     state.programs = response?.results || response || [];
-
-    if (state.programs.length === 0) {
-      console.warn('No programs found in the system');
-    }
   } catch (error) {
-    console.error('Failed to load programs:', error);
-    showToast('Failed to load programs. Please refresh the page.', 'error');
+    ErrorHandler.handle(error, 'Loading programs');
     state.programs = [];
   }
 
@@ -68,12 +67,10 @@ async function loadInitialData() {
     state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0] || null;
 
     if (state.semesters.length === 0) {
-      console.warn('No semesters found. Please create a semester first.');
-      showToast('No semesters found. Please create a semester first.', 'warning');
+      Toast.warning('No semesters found. Please create a semester first.');
     }
   } catch (error) {
-    console.error('Failed to load semesters:', error);
-    showToast('Failed to load semesters. Please refresh the page.', 'error');
+    ErrorHandler.handle(error, 'Loading semesters');
     state.semesters = [];
     state.activeSemester = null;
   }
@@ -82,12 +79,8 @@ async function loadInitialData() {
   try {
     const response = await api.get(endpoints.professors);
     state.professors = response?.results || response || [];
-
-    if (state.professors.length === 0) {
-      console.warn('No professors found in the system');
-    }
   } catch (error) {
-    console.error('Failed to load professors:', error);
+    ErrorHandler.handle(error, 'Loading professors');
     state.professors = [];
   }
 
@@ -110,11 +103,8 @@ async function loadSections() {
 
     const response = await api.get(url);
     state.sections = response?.results || response || [];
-
-    console.log(`Loaded ${state.sections.length} sections`);
   } catch (error) {
-    console.error('Failed to load sections:', error);
-    showToast('Failed to load sections', 'error');
+    ErrorHandler.handle(error, 'Loading sections');
     state.sections = [];
   }
 }
@@ -128,14 +118,12 @@ async function loadSectionDetails(sectionId) {
     try {
       const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
       state.selectedSection.section_subjects = subjectsResponse?.results || subjectsResponse || [];
-      console.log(`Loaded ${state.selectedSection.section_subjects.length} section subjects`);
     } catch (error) {
-      console.error('Failed to load section subjects:', error);
+      ErrorHandler.handle(error, 'Loading section subjects');
       state.selectedSection.section_subjects = [];
     }
   } catch (error) {
-    console.error('Failed to load section details:', error);
-    showToast('Failed to load section details', 'error');
+    ErrorHandler.handle(error, 'Loading section details');
     // Fallback to cached section data
     state.selectedSection = state.sections.find(s => s.id === sectionId) || null;
     if (state.selectedSection) {
@@ -149,12 +137,11 @@ async function loadSectionDetails(sectionId) {
     if (programId) {
       const response = await api.get(`${endpoints.manageSubjects}?program=${programId}`);
       state.subjects = response?.results || response || [];
-      console.log(`Loaded ${state.subjects.length} available subjects for program`);
     } else {
       state.subjects = [];
     }
   } catch (error) {
-    console.error('Failed to load available subjects:', error);
+    ErrorHandler.handle(error, 'Loading available subjects');
     state.subjects = [];
   }
 
@@ -174,7 +161,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading sections...');
     return;
   }
 
@@ -184,7 +171,7 @@ function render() {
       activePage: 'sections',
       user: state.user
     })}
-    
+
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Header -->
       <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
@@ -201,7 +188,7 @@ function render() {
           </button>
         </div>
       </div>
-      
+
       <!-- Filters -->
       <div class="card mb-6">
         <div class="flex flex-wrap gap-4">
@@ -221,7 +208,7 @@ function render() {
           </div>
         </div>
       </div>
-      
+
       <!-- Two Column Layout -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Sections List -->
@@ -238,32 +225,83 @@ function render() {
             </div>
           </div>
         </div>
-        
+
         <!-- Section Details -->
         <div class="lg:col-span-2">
           ${state.selectedSection ? renderSectionDetails() : renderSelectSectionPrompt()}
         </div>
       </div>
     </main>
-    
-    <!-- Modals -->
-    ${state.showSectionModal ? renderSectionModal() : ''}
-    ${state.showAssignModal ? renderAssignModal() : ''}
   `;
 }
 
 
-function renderLoading() {
+// Form generators
+function getSectionForm() {
+  const isEdit = !!state.editingSection;
+  const section = isEdit ? state.sections.find(s => s.id === state.editingSection) : {};
+
   return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading sections...</p>
+    <form id="section-form" class="space-y-4">
+      <div>
+        <label class="form-label">Section Name *</label>
+        <input type="text" id="section-name" class="form-input" value="${section.name || ''}" placeholder="BSIT-1A" required>
       </div>
-    </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Program *</label>
+          <select id="section-program" class="form-input" required>
+            ${state.programs.map(p => `<option value="${p.id}" ${section.program?.id === p.id ? 'selected' : ''}>${p.code}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Year Level *</label>
+          <select id="section-year" class="form-input" required>
+            ${[1, 2, 3, 4, 5].map(y => `<option value="${y}" ${section.year_level === y ? 'selected' : ''}>${y}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Semester *</label>
+          <select id="section-semester" class="form-input" required>
+            ${state.semesters.map(s => `<option value="${s.id}" ${section.semester?.id === s.id || s.is_active ? 'selected' : ''}>${s.name}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Capacity *</label>
+          <input type="number" id="section-capacity" class="form-input" value="${section.capacity || 40}" min="1" max="100" required>
+        </div>
+      </div>
+    </form>
+  `;
+}
+
+function getAssignSubjectForm() {
+  const assignedSubjectIds = (state.selectedSection?.section_subjects || []).map(ss => ss.subject?.id);
+  const availableSubjects = state.subjects.filter(s => !assignedSubjectIds.includes(s.id));
+
+  return `
+    <form id="assign-form" class="space-y-4">
+      <div>
+        <label class="form-label">Subject *</label>
+        <select id="assign-subject" class="form-input" required>
+          <option value="">Select a subject...</option>
+          ${availableSubjects.map(s => `<option value="${s.id}">${s.code} - ${s.title}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Professor</label>
+        <select id="assign-professor" class="form-input">
+          <option value="">TBA (To Be Announced)</option>
+          ${state.professors.map(p => `<option value="${p.id}">Prof. ${p.first_name} ${p.last_name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="assign-tba" class="w-4 h-4 text-blue-600 rounded">
+        <label for="assign-tba" class="text-sm text-gray-600">Mark as TBA (Professor to be announced)</label>
+      </div>
+    </form>
   `;
 }
 
@@ -425,105 +463,6 @@ function renderSectionDetails() {
   `;
 }
 
-function renderSectionModal() {
-  const isEdit = !!state.editingSection;
-  const section = isEdit ? state.sections.find(s => s.id === state.editingSection) : {};
-
-  return `
-    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeSectionModal()">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
-        <div class="px-6 py-4 border-b flex items-center justify-between">
-          <h2 class="text-xl font-bold text-gray-800">${isEdit ? 'Edit' : 'Add'} Section</h2>
-          <button onclick="closeSectionModal()" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-        <form onsubmit="saveSection(event)" class="p-6 space-y-4">
-          <div>
-            <label class="form-label">Section Name *</label>
-            <input type="text" id="section-name" class="form-input" value="${section.name || ''}" placeholder="BSIT-1A" required>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="form-label">Program *</label>
-              <select id="section-program" class="form-input" required>
-                ${state.programs.map(p => `<option value="${p.id}" ${section.program?.id === p.id ? 'selected' : ''}>${p.code}</option>`).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="form-label">Year Level *</label>
-              <select id="section-year" class="form-input" required>
-                ${[1, 2, 3, 4, 5].map(y => `<option value="${y}" ${section.year_level === y ? 'selected' : ''}>${y}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="form-label">Semester *</label>
-              <select id="section-semester" class="form-input" required>
-                ${state.semesters.map(s => `<option value="${s.id}" ${section.semester?.id === s.id || s.is_active ? 'selected' : ''}>${s.name}</option>`).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="form-label">Capacity *</label>
-              <input type="number" id="section-capacity" class="form-input" value="${section.capacity || 40}" min="1" max="100" required>
-            </div>
-          </div>
-          <div class="flex justify-end gap-3 pt-4">
-            <button type="button" onclick="closeSectionModal()" class="btn-secondary">Cancel</button>
-            <button type="submit" class="btn-primary">${isEdit ? 'Update' : 'Create'} Section</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `;
-}
-
-function renderAssignModal() {
-  const assignedSubjectIds = (state.selectedSection?.section_subjects || []).map(ss => ss.subject?.id);
-  const availableSubjects = state.subjects.filter(s => !assignedSubjectIds.includes(s.id));
-
-  return `
-    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeAssignModal()">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
-        <div class="px-6 py-4 border-b flex items-center justify-between">
-          <h2 class="text-xl font-bold text-gray-800">Assign Subject to ${state.selectedSection?.name}</h2>
-          <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-        <form onsubmit="assignSubject(event)" class="p-6 space-y-4">
-          <div>
-            <label class="form-label">Subject *</label>
-            <select id="assign-subject" class="form-input" required>
-              <option value="">Select a subject...</option>
-              ${availableSubjects.map(s => `<option value="${s.id}">${s.code} - ${s.title}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label class="form-label">Professor</label>
-            <select id="assign-professor" class="form-input">
-              <option value="">TBA (To Be Announced)</option>
-              ${state.professors.map(p => `<option value="${p.id}">Prof. ${p.first_name} ${p.last_name}</option>`).join('')}
-            </select>
-          </div>
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="assign-tba" class="w-4 h-4 text-blue-600 rounded">
-            <label for="assign-tba" class="text-sm text-gray-600">Mark as TBA (Professor to be announced)</label>
-          </div>
-          <div class="flex justify-end gap-3 pt-4">
-            <button type="button" onclick="closeAssignModal()" class="btn-secondary">Cancel</button>
-            <button type="submit" class="btn-primary">Assign Subject</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `;
-}
 
 // Event Handlers
 window.selectSection = async function (id) {
@@ -540,130 +479,115 @@ window.handleFilterChange = async function () {
 
 window.openSectionModal = function (id = null) {
   state.editingSection = id;
-  state.showSectionModal = true;
-  render();
-};
+  const isEdit = !!id;
 
-window.closeSectionModal = function () {
-  state.showSectionModal = false;
-  state.editingSection = null;
-  render();
+  const modal = new Modal({
+    title: isEdit ? 'Edit Section' : 'Add Section',
+    content: getSectionForm(),
+    size: 'md',
+    actions: [
+      { label: 'Cancel', onClick: (m) => { m.close(); state.editingSection = null; } },
+      {
+        label: isEdit ? 'Update Section' : 'Create Section',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('section-form');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+
+          const data = {
+            name: document.getElementById('section-name').value,
+            program: document.getElementById('section-program').value,
+            semester: document.getElementById('section-semester').value,
+            year_level: parseInt(document.getElementById('section-year').value),
+            capacity: parseInt(document.getElementById('section-capacity').value)
+          };
+
+          try {
+            if (state.editingSection) {
+              await api.patch(endpoints.section(state.editingSection), data);
+            } else {
+              await api.post(endpoints.sections, data);
+            }
+
+            Toast.success(`Section ${isEdit ? 'updated' : 'created'} successfully!`);
+            m.close();
+            state.editingSection = null;
+            await loadSections();
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, `${isEdit ? 'Updating' : 'Creating'} section`);
+          }
+        }
+      }
+    ]
+  });
+
+  state.sectionModal = modal;
+  modal.show();
 };
 
 window.editSection = function (id) {
   openSectionModal(id);
 };
 
-window.saveSection = async function (e) {
-  e.preventDefault();
-  const data = {
-    name: document.getElementById('section-name').value,
-    program: document.getElementById('section-program').value,
-    semester: document.getElementById('section-semester').value,
-    year_level: parseInt(document.getElementById('section-year').value),
-    capacity: parseInt(document.getElementById('section-capacity').value)
-  };
-
-  try {
-    let response;
-    if (state.editingSection) {
-      response = await api.patch(endpoints.section(state.editingSection), data);
-    } else {
-      response = await api.post(endpoints.sections, data);
-    }
-
-    if (response && response.ok) {
-      showToast(`Section ${state.editingSection ? 'updated' : 'created'} successfully!`, 'success');
-      closeSectionModal();
-      await loadSections();
-      render();
-    } else {
-      const errorData = await response?.json();
-      console.error('Section save error:', errorData);
-
-      let errorMessage = 'Failed to save section';
-
-      // Handle custom exception handler format { success: false, error: { message, details } }
-      if (errorData?.error) {
-        if (errorData.error.details) {
-          // Combine field errors from details
-          errorMessage = Object.entries(errorData.error.details)
-            .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-            .join('\n');
-        } else if (errorData.error.message) {
-          errorMessage = errorData.error.message;
-        }
-      } else if (errorData?.detail) {
-        // Standard DRF error
-        errorMessage = errorData.detail;
-      } else if (typeof errorData === 'object') {
-        // Fallback for flat field errors
-        errorMessage = Object.entries(errorData)
-          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-          .join('\n');
-      }
-
-      showToast(errorMessage, 'error');
-    }
-  } catch (error) {
-    console.error('Save failed:', error);
-    showToast('An unexpected error occurred', 'error');
-  }
-};
-
 window.openAssignModal = function () {
-  state.showAssignModal = true;
-  render();
-};
+  const modal = new Modal({
+    title: `Assign Subject to ${state.selectedSection?.name}`,
+    content: getAssignSubjectForm(),
+    size: 'md',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Assign Subject',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('assign-form');
+          const subjectId = document.getElementById('assign-subject').value;
+          const professorId = document.getElementById('assign-professor').value;
+          const isTba = document.getElementById('assign-tba').checked;
 
-window.closeAssignModal = function () {
-  state.showAssignModal = false;
-  render();
-};
+          if (!subjectId) {
+            Toast.error('Please select a subject');
+            return;
+          }
 
-window.assignSubject = async function (e) {
-  e.preventDefault();
-  const subjectId = document.getElementById('assign-subject').value;
-  const professorId = document.getElementById('assign-professor').value;
-  const isTba = document.getElementById('assign-tba').checked;
+          const data = {
+            section: state.selectedSection.id,
+            subject: subjectId,
+            professor: professorId || null,
+            is_tba: isTba || !professorId
+          };
 
-  if (!subjectId) {
-    showToast('Please select a subject', 'error');
-    return;
-  }
+          try {
+            await api.post(endpoints.sectionSubjects, data);
+            Toast.success('Subject assigned successfully!');
+            m.close();
+            await loadSectionDetails(state.selectedSection.id);
+          } catch (error) {
+            ErrorHandler.handle(error, 'Assigning subject');
+          }
+        }
+      }
+    ]
+  });
 
-  const data = {
-    section: state.selectedSection.id,
-    subject: subjectId,
-    professor: professorId || null,
-    is_tba: isTba || !professorId
-  };
-
-  try {
-    const response = await api.post(endpoints.sectionSubjects, data);
-    showToast('Subject assigned successfully!', 'success');
-    closeAssignModal();
-    await loadSectionDetails(state.selectedSection.id);
-  } catch (error) {
-    console.error('Failed to assign subject:', error);
-    const errorMessage = error?.error || error?.message || 'Failed to assign subject. Please try again.';
-    showToast(errorMessage, 'error');
-  }
+  state.assignModal = modal;
+  modal.show();
 };
 
 window.toggleTBA = async function (sectionSubjectId, isTba) {
   try {
-    const response = await api.patch(endpoints.sectionSubject(sectionSubjectId), {
+    await api.patch(endpoints.sectionSubject(sectionSubjectId), {
       is_tba: isTba
     });
 
-    if (response && response.ok) {
-      showToast(isTba ? 'Marked as TBA' : 'Removed TBA status', 'success');
-      await loadSectionDetails(state.selectedSection.id);
-    }
+    Toast.success(isTba ? 'Marked as TBA' : 'Removed TBA status');
+    await loadSectionDetails(state.selectedSection.id);
   } catch (error) {
-    console.error('Failed to toggle TBA:', error);
-    showToast('Failed to update TBA status', 'error');
+    ErrorHandler.handle(error, 'Updating TBA status');
   }
 };
 
@@ -680,21 +604,27 @@ window.openScheduleModal = function (sectionSubjectId) {
 };
 
 window.removeAssignment = async function (id) {
-  if (!confirm('Remove this subject from the section?')) return;
+  const confirmed = await ConfirmModal({
+    title: 'Remove Subject',
+    message: 'Remove this subject from the section?',
+    confirmLabel: 'Remove',
+    danger: true
+  });
+
+  if (!confirmed) return;
 
   try {
     await api.delete(endpoints.sectionSubject(id));
-    showToast('Subject removed!', 'success');
+    Toast.success('Subject removed!');
     await loadSectionDetails(state.selectedSection.id);
   } catch (error) {
-    console.error('Failed to remove subject:', error);
-    showToast('Failed to remove subject. Please try again.', 'error');
+    ErrorHandler.handle(error, 'Removing subject');
   }
 };
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
