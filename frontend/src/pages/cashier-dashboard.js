@@ -1,7 +1,10 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { showToast, formatCurrency, requireAuth } from '../utils.js';
+import { formatCurrency, requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
+import { Toast } from '../components/Toast.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { LoadingOverlay } from '../components/Spinner.js';
 
 // State
 const state = {
@@ -51,7 +54,7 @@ async function loadData() {
         state.todayTransactions = [];
       }
     } catch (err) {
-      console.error('Failed to load today transactions:', err);
+      ErrorHandler.handle(err, 'Loading today transactions');
       state.todayTransactions = [];
     }
 
@@ -62,17 +65,17 @@ async function loadData() {
       console.log('Pending payments API response:', pendingResponse);
 
       if (pendingResponse?.success === false) {
-        console.error('API returned error:', pendingResponse);
+        ErrorHandler.handle(new Error('API returned error'), 'Loading pending payments');
       }
 
       // Handle both response formats
       state.pendingPayments = pendingResponse?.results || pendingResponse?.data?.results || [];
       console.log('Loaded pending payments:', state.pendingPayments.length, state.pendingPayments);
     } catch (err) {
-      console.error('Failed to load pending payments:', err);
+      ErrorHandler.handle(err, 'Loading pending payments');
     }
   } catch (error) {
-    console.error('Failed to load data:', error);
+    ErrorHandler.handle(error, 'Loading dashboard data');
   }
   state.loading = false;
 }
@@ -81,7 +84,7 @@ function render() {
   const app = document.getElementById('app');
 
   if (state.loading) {
-    app.innerHTML = renderLoading();
+    app.innerHTML = LoadingOverlay('Loading cashier dashboard...');
     return;
   }
 
@@ -228,21 +231,6 @@ function render() {
   `;
 
   attachEventListeners();
-}
-
-
-function renderLoading() {
-  return `
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-12 h-12 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-4 text-gray-600">Loading dashboard...</p>
-      </div>
-    </div>
-  `;
 }
 
 function renderSearchResults() {
@@ -461,8 +449,8 @@ window.searchStudent = async function () {
       console.warn('No students found for query:', state.searchQuery);
     }
   } catch (error) {
-    console.error('Failed to search students:', error);
-    showToast('Failed to search students. Please try again.', 'error');
+    ErrorHandler.handle(error, 'Searching students');
+    Toast.error('Failed to search students. Please try again.');
     state.searchResults = [];
   }
 
@@ -479,7 +467,7 @@ window.selectStudent = function (studentId) {
   }
   // If still not found, show error
   if (!state.selectedStudent) {
-    showToast('Student not found', 'error');
+    Toast.error('Student not found');
     return;
   }
 
@@ -515,7 +503,7 @@ window.submitPayment = async function (event) {
   const monthApplied = parseInt(document.getElementById('monthApplied').value);
 
   if (!amount || !receipt) {
-    showToast('Please fill in all fields', 'error');
+    Toast.error('Please fill in all fields');
     return;
   }
 
@@ -534,7 +522,7 @@ window.submitPayment = async function (event) {
       const data = await response.json();
 
       if (response.ok) {
-        showToast(data.message || 'Payment recorded successfully!', 'success');
+        Toast.success(data.message || 'Payment recorded successfully!');
 
         // Refresh student data and today's transactions
         if (state.selectedStudent.enrollment_id) {
@@ -589,7 +577,7 @@ window.submitPayment = async function (event) {
       monthApplied: monthApplied
     });
 
-    showToast('Payment recorded successfully!', 'success');
+    Toast.success('Payment recorded successfully!');
   }
 
   state.showPaymentModal = false;
@@ -601,12 +589,12 @@ window.activateStudent = function () {
 
   const month1 = state.selectedStudent.paymentBuckets[0];
   if (month1.paid < month1.required) {
-    showToast('Student must pay Month 1 first', 'error');
+    Toast.error('Student must pay Month 1 first');
     return;
   }
 
   state.selectedStudent.enrollment_status = 'ACTIVE';
-  showToast(`${state.selectedStudent.first_name} ${state.selectedStudent.last_name} has been activated!`, 'success');
+  Toast.success(`${state.selectedStudent.first_name} ${state.selectedStudent.last_name} has been activated!`);
   render();
 };
 
@@ -646,7 +634,7 @@ window.confirmQuickPayment = async function (event) {
   const amount = parseFloat(document.getElementById('quickAmount').value);
 
   if (!amount || !receipt) {
-    showToast('Please check amount and receipt', 'error');
+    Toast.error('Please check amount and receipt');
     return;
   }
 
@@ -666,7 +654,7 @@ window.confirmQuickPayment = async function (event) {
       const data = await response.json();
 
       if (response.ok) {
-        showToast('Payment recorded! Student can now enroll.', 'success');
+        Toast.success('Payment recorded! Student can now enroll.');
         closeQuickPaymentModal();
         loadData(); // Refresh pending list
       } else {
@@ -680,8 +668,7 @@ window.confirmQuickPayment = async function (event) {
       throw new Error('Network response failed');
     }
   } catch (error) {
-    console.error('Quick payment error:', error);
-    showToast(`Failed: ${error.message}`, 'error');
+    ErrorHandler.handle(error, 'Processing quick payment');
   }
 };
 
@@ -746,7 +733,7 @@ function renderQuickPaymentModal() {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  showToast('Logged out successfully', 'success');
+  Toast.success('Logged out successfully');
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
