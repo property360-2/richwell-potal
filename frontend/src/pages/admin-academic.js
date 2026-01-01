@@ -33,6 +33,12 @@ const state = {
   subjectModal: null,
   editingSubject: null,
 
+  // Prerequisite selection state
+  prereqState: {
+    add: { selected: [], results: [], search: '' },
+    edit: { selected: [], results: [], search: '' }
+  },
+
   // Curricula state
   curricula: [],
   selectedCurriculum: null,
@@ -386,14 +392,31 @@ function renderSubjectsTab() {
               <div class="flex-1">
                 <div class="flex items-center gap-3 mb-2">
                   <h3 class="text-lg font-bold text-blue-600 font-mono">${subject.code}</h3>
-                  <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">
-                    Year ${subject.year_level} - ${subject.semester === 1 ? '1st' : '2nd'} Sem
+                  <span class="px-2 py-1 text-xs font-medium rounded ${
+                    subject.year_level === 1 ? 'bg-green-100 text-green-800' :
+                    subject.year_level === 2 ? 'bg-blue-100 text-blue-800' :
+                    subject.year_level === 3 ? 'bg-purple-100 text-purple-800' :
+                    'bg-orange-100 text-orange-800'
+                  }">
+                    Year ${subject.year_level} - ${subject.semester === 1 ? '1st' : '2nd'} Semester
                   </span>
-                  <span class="px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">
-                    ${subject.units} units
+                  <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">
+                    ${subject.units} ${subject.units === 1 ? 'unit' : 'units'}
                   </span>
                 </div>
-                <p class="text-gray-900 font-medium">${subject.title || subject.name}</p>
+                <p class="text-gray-900 font-medium mb-2">${subject.title || subject.name}</p>
+                <div class="flex items-center gap-2 flex-wrap">
+                  ${subject.prerequisites && subject.prerequisites.length > 0 ? `
+                    <span class="text-xs text-gray-500">Prerequisites:</span>
+                    ${subject.prerequisites.map(p => `
+                      <span class="px-2 py-0.5 text-xs font-mono bg-amber-100 text-amber-800 rounded border border-amber-200" title="${p.title || p.name || ''}">
+                        ${p.code}
+                      </span>
+                    `).join('')}
+                  ` : `
+                    <span class="text-xs text-gray-400 italic">No prerequisites</span>
+                  `}
+                </div>
               </div>
               <div class="flex gap-2">
                 <button onclick="openEditSubjectModal('${subject.id}')" class="btn btn-secondary text-sm">Edit</button>
@@ -410,17 +433,19 @@ function renderSubjectsTab() {
 function getSubjectForm(subject = null) {
   const isEdit = subject !== null;
   const prefix = isEdit ? 'edit' : 'add';
+  const prereqMode = isEdit ? 'edit' : 'add';
+  const selectedPrereqs = state.prereqState[prereqMode].selected;
 
   return `
     <form id="${prefix}-subject-form" class="space-y-4">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Subject Code *</label>
-        <input type="text" id="${prefix}-sub-code" value="${subject?.code || ''}" required class="form-input">
+        <input type="text" id="${prefix}-sub-code" value="${subject?.code || ''}" required class="form-input" placeholder="e.g., IT101, CS201">
       </div>
 
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Subject Title *</label>
-        <input type="text" id="${prefix}-sub-title" value="${subject?.title || subject?.name || ''}" required class="form-input">
+        <input type="text" id="${prefix}-sub-title" value="${subject?.title || subject?.name || ''}" required class="form-input" placeholder="e.g., Introduction to Programming">
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -445,6 +470,48 @@ function getSubjectForm(subject = null) {
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Units *</label>
         <input type="number" id="${prefix}-sub-units" value="${subject?.units || 3}" min="1" max="6" required class="form-input">
+      </div>
+
+      <!-- Prerequisites Section -->
+      <div class="border-t pt-4 mt-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          Prerequisites (Optional)
+        </label>
+
+        <!-- Search Input -->
+        <div class="relative">
+          <input
+            type="text"
+            id="${prefix}-prereq-search"
+            placeholder="Search subjects by code or title..."
+            class="form-input pr-10"
+            autocomplete="off"
+          />
+          <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+
+        <!-- Search Results Dropdown -->
+        <div id="${prefix}-prereq-dropdown" class="hidden absolute z-50 mt-1 w-[calc(100%-3rem)] bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+        </div>
+
+        <!-- Selected Prerequisites -->
+        <div id="${prefix}-selected-prereqs" class="flex flex-wrap gap-2 mt-3">
+          ${selectedPrereqs.length === 0 ? `
+            <p class="text-sm text-gray-400">No prerequisites selected</p>
+          ` : selectedPrereqs.map(p => `
+            <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+              <span class="font-mono font-medium">${p.code}</span>
+              <button type="button" onclick="removePrerequisite('${prereqMode}', '${p.id}')"
+                      class="hover:text-red-600 ml-1 focus:outline-none">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </span>
+          `).join('')}
+        </div>
       </div>
     </form>
   `;
@@ -852,12 +919,15 @@ window.handleProgramFilterChange = async function(programId) {
 window.openAddSubjectModal = function() {
   if (!state.selectedProgram) { Toast.error('Select a program first'); return; }
 
+  // Reset prerequisite state
+  resetPrereqState('add');
+
   const modal = new Modal({
     title: 'Add New Subject',
     content: getSubjectForm(),
     size: 'lg',
     actions: [
-      { label: 'Cancel', onClick: (m) => m.close() },
+      { label: 'Cancel', onClick: (m) => { resetPrereqState('add'); m.close(); } },
       {
         label: 'Add Subject',
         primary: true,
@@ -871,12 +941,14 @@ window.openAddSubjectModal = function() {
             year_level: parseInt(document.getElementById('add-sub-year').value),
             semester: parseInt(document.getElementById('add-sub-semester').value),
             units: parseInt(document.getElementById('add-sub-units').value),
-            program: state.selectedProgram.id
+            program: state.selectedProgram.id,
+            prerequisite_ids: state.prereqState.add.selected.map(p => p.id)
           };
 
           try {
             await api.post(endpoints.manageSubjects, data);
             Toast.success('Subject added');
+            resetPrereqState('add');
             m.close();
             await loadSubjects(state.selectedProgram.id);
             render();
@@ -888,6 +960,9 @@ window.openAddSubjectModal = function() {
     ]
   });
   modal.show();
+
+  // Setup search listeners after modal is shown
+  setTimeout(() => setupPrereqSearchListeners('add'), 100);
 };
 
 window.openEditSubjectModal = async function(subjectId) {
@@ -895,12 +970,15 @@ window.openEditSubjectModal = async function(subjectId) {
     const response = await api.get(endpoints.manageSubject(subjectId));
     state.editingSubject = response;
 
+    // Initialize prerequisites from the subject
+    initEditPrerequisites(response);
+
     const modal = new Modal({
       title: 'Edit Subject',
       content: getSubjectForm(response),
       size: 'lg',
       actions: [
-        { label: 'Cancel', onClick: (m) => { m.close(); state.editingSubject = null; } },
+        { label: 'Cancel', onClick: (m) => { m.close(); state.editingSubject = null; resetPrereqState('edit'); } },
         {
           label: 'Save Changes',
           primary: true,
@@ -913,7 +991,8 @@ window.openEditSubjectModal = async function(subjectId) {
               title: document.getElementById('edit-sub-title').value,
               year_level: parseInt(document.getElementById('edit-sub-year').value),
               semester: parseInt(document.getElementById('edit-sub-semester').value),
-              units: parseInt(document.getElementById('edit-sub-units').value)
+              units: parseInt(document.getElementById('edit-sub-units').value),
+              prerequisite_ids: state.prereqState.edit.selected.map(p => p.id)
             };
 
             try {
@@ -921,6 +1000,7 @@ window.openEditSubjectModal = async function(subjectId) {
               Toast.success('Subject updated');
               m.close();
               state.editingSubject = null;
+              resetPrereqState('edit');
               await loadSubjects(state.selectedProgram.id);
               render();
             } catch (error) {
@@ -931,6 +1011,9 @@ window.openEditSubjectModal = async function(subjectId) {
       ]
     });
     modal.show();
+
+    // Setup search listeners after modal is shown
+    setTimeout(() => setupPrereqSearchListeners('edit'), 100);
   } catch (error) {
     ErrorHandler.handle(error, 'Loading subject');
   }
@@ -1180,6 +1263,135 @@ window.deleteSemester = async function(semesterId) {
   } catch (error) {
     ErrorHandler.handle(error, 'Deleting semester');
   }
+};
+
+// ============================================================
+// PREREQUISITE FUNCTIONS
+// ============================================================
+
+function resetPrereqState(mode) {
+  state.prereqState[mode] = { selected: [], results: [], search: '' };
+}
+
+function initEditPrerequisites(subject) {
+  state.prereqState.edit.selected = (subject.prerequisites || []).map(p => ({
+    id: p.id,
+    code: p.code,
+    title: p.title || p.name
+  }));
+}
+
+function updatePrereqDropdown(mode) {
+  const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-dropdown`);
+  if (!dropdown) return;
+
+  if (state.prereqState[mode].results.length === 0) {
+    dropdown.classList.add('hidden');
+    return;
+  }
+
+  dropdown.classList.remove('hidden');
+  dropdown.innerHTML = state.prereqState[mode].results.map(s => `
+    <button type="button" onclick="addPrerequisite('${mode}', '${s.id}', '${s.code}', '${(s.title || s.name || '').replace(/'/g, "\\'")}')"
+            class="w-full px-4 py-2 text-left hover:bg-gray-100 flex justify-between items-center border-b border-gray-100 last:border-0">
+      <span class="font-mono text-blue-600 font-medium">${s.code}</span>
+      <span class="text-gray-600 text-sm truncate ml-2">${s.title || s.name || ''}</span>
+    </button>
+  `).join('');
+}
+
+function updateSelectedPrereqs(mode) {
+  const container = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-selected-prereqs`);
+  if (!container) return;
+
+  if (state.prereqState[mode].selected.length === 0) {
+    container.innerHTML = '<p class="text-sm text-gray-400">No prerequisites selected</p>';
+    return;
+  }
+
+  container.innerHTML = state.prereqState[mode].selected.map(p => `
+    <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+      <span class="font-mono font-medium">${p.code}</span>
+      <button type="button" onclick="removePrerequisite('${mode}', '${p.id}')"
+              class="hover:text-red-600 ml-1 focus:outline-none">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </span>
+  `).join('');
+}
+
+function setupPrereqSearchListeners(mode) {
+  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-search`);
+  if (!searchInput) return;
+
+  let debounceTimer;
+
+  searchInput.addEventListener('input', (e) => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      searchPrerequisites(mode, e.target.value);
+    }, 300);
+  });
+
+  searchInput.addEventListener('focus', () => {
+    if (state.prereqState[mode].results.length > 0) {
+      updatePrereqDropdown(mode);
+    }
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-dropdown`);
+    if (dropdown && !searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+}
+
+function searchPrerequisites(mode, query) {
+  state.prereqState[mode].search = query;
+
+  if (query.length < 2) {
+    state.prereqState[mode].results = [];
+    updatePrereqDropdown(mode);
+    return;
+  }
+
+  const lowerQuery = query.toLowerCase();
+  const editingId = state.editingSubject?.id;
+
+  // Filter from loaded subjects
+  const results = state.subjects.filter(s =>
+    (s.code.toLowerCase().includes(lowerQuery) ||
+     (s.title || s.name || '').toLowerCase().includes(lowerQuery)) &&
+    !state.prereqState[mode].selected.find(p => p.id === s.id) &&
+    s.id !== editingId  // Can't be prerequisite of itself
+  ).slice(0, 10);
+
+  state.prereqState[mode].results = results;
+  updatePrereqDropdown(mode);
+}
+
+window.addPrerequisite = function(mode, id, code, title) {
+  if (!state.prereqState[mode].selected.find(p => p.id === id)) {
+    state.prereqState[mode].selected.push({ id, code, title });
+    updateSelectedPrereqs(mode);
+  }
+
+  // Clear search
+  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-search`);
+  if (searchInput) {
+    searchInput.value = '';
+  }
+  state.prereqState[mode].results = [];
+  updatePrereqDropdown(mode);
+};
+
+window.removePrerequisite = function(mode, id) {
+  state.prereqState[mode].selected = state.prereqState[mode].selected.filter(p => p.id !== id);
+  updateSelectedPrereqs(mode);
 };
 
 // Global logout

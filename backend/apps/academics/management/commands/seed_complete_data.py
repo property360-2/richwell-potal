@@ -58,11 +58,11 @@ import random
 from apps.accounts.models import User, StudentProfile, ProfessorProfile, Permission, UserPermission
 from apps.academics.models import (
     Program, Subject, Curriculum, CurriculumSubject,
-    Semester, Section, SectionSubject, SectionSubjectProfessor
+    Section, SectionSubject, SectionSubjectProfessor, ScheduleSlot
 )
 from apps.enrollment.models import (
-    Enrollment, EnrollmentSubject, Grade, ScheduleSlot,
-    ExamSchedule, Payment, PaymentBucket, PaymentItem, ExamPermit
+    Semester, Enrollment, SubjectEnrollment, MonthlyPaymentBucket,
+    ExamMonthMapping, ExamPermit, PaymentTransaction, GradeHistory
 )
 from apps.accounts.models import StudentDocument, TransferCredit
 from apps.audit.models import AuditLog
@@ -779,40 +779,151 @@ class Command(BaseCommand):
         return section_subjects
 
     def seed_schedule_slots(self, section_subjects):
-        """Create weekly schedules for each section-subject"""
-        days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
-        time_slots = [
-            ('07:00', '08:30'), ('08:30', '10:00'), ('10:00', '11:30'),
-            ('13:00', '14:30'), ('14:30', '16:00'), ('16:00', '17:30')
+        """
+        Create realistic weekly schedules for each section-subject.
+        Uses 1-hour blocks (7:00 AM - 9:00 PM) and Monday-Sunday.
+        Avoids room and professor conflicts within the same section.
+        """
+        # 1-hour time blocks from 7am to 9pm
+        time_blocks = [
+            ('07:00', '08:00'), ('08:00', '09:00'), ('09:00', '10:00'),
+            ('10:00', '11:00'), ('11:00', '12:00'), ('12:00', '13:00'),
+            ('13:00', '14:00'), ('14:00', '15:00'), ('15:00', '16:00'),
+            ('16:00', '17:00'), ('17:00', '18:00'), ('18:00', '19:00'),
+            ('19:00', '20:00'), ('20:00', '21:00')
         ]
-        rooms = ['RM101', 'RM102', 'RM201', 'RM202', 'LAB1', 'LAB2', 'LAB3']
 
-        schedule_conflicts = {}  # Track (day, time, room) conflicts
+        # Room types
+        lecture_rooms = ['Room 101', 'Room 102', 'Room 103', 'Room 104', 'Room 105',
+                        'Room 201', 'Room 202', 'Room 203', 'Room 204', 'Room 205']
+        lab_rooms = ['Lab 1', 'Lab 2', 'Lab 3', 'Lab 4', 'Lab 5']
 
-        for section_subject in section_subjects:
-            # Each subject gets 1-2 schedule slots per week
-            num_slots = 2 if section_subject.subject.units >= 3 else 1
+        # Common schedule patterns (days of week)
+        patterns = {
+            'MWF': ['MON', 'WED', 'FRI'],      # 3 days/week (typical for 3-unit lecture)
+            'TTH': ['TUE', 'THU'],              # 2 days/week (typical for 2-unit or labs)
+            'MW': ['MON', 'WED'],               # 2 days/week
+            'TF': ['TUE', 'FRI'],               # 2 days/week
+            'SAT': ['SAT'],                     # Saturday only (weekend classes)
+            'SUN': ['SUN'],                     # Sunday only (makeup classes)
+            'DAILY': ['MON', 'TUE', 'WED', 'THU', 'FRI'],  # Daily (intensive)
+        }
 
-            for slot_num in range(num_slots):
-                # Find available day/time/room combination
-                for attempt in range(20):  # Try 20 times to find non-conflicting slot
-                    day = random.choice(days)
-                    time_slot = random.choice(time_slots)
-                    room = random.choice(rooms)
+        # Track occupied slots per section: (section_id, day, time_slot) -> True
+        section_occupied = {}
+        # Track room usage globally: (day, time_slot, room) -> True
+        room_occupied = {}
 
-                    conflict_key = (day, time_slot[0], room)
-                    if conflict_key not in schedule_conflicts:
-                        ScheduleSlot.objects.create(
-                            section_subject=section_subject,
-                            day=day,
-                            start_time=time_slot[0],
-                            end_time=time_slot[1],
-                            room=room
-                        )
-                        schedule_conflicts[conflict_key] = True
-                        break
+        # Group section_subjects by section for better scheduling
+        sections_map = {}
+        for ss in section_subjects:
+            section_id = ss.section.id
+            if section_id not in sections_map:
+                sections_map[section_id] = []
+            sections_map[section_id].append(ss)
 
-        self.log(f'  Total schedule slots: {ScheduleSlot.objects.count()}')
+        created_count = 0
+
+        for section_id, section_subs in sections_map.items():
+            # Sort by subject code for consistency
+            section_subs.sort(key=lambda x: x.subject.code)
+
+            # Assign time slots sequentially for this section
+            current_slot_idx = 0  # Start at 7am
+            current_pattern_idx = 0
+            pattern_list = ['MWF', 'TTH', 'MW', 'TF', 'MWF', 'TTH']  # Rotate through patterns
+
+            for section_subject in section_subs:
+                subject = section_subject.subject
+                units = subject.units
+
+                # Determine if it's a lab subject (needs lab room)
+                is_lab = 'LAB' in subject.code.upper() or 'PROG' in subject.code.upper() or 'WEBDEV' in subject.code.upper()
+                available_rooms = lab_rooms if is_lab else lecture_rooms
+
+                # Choose pattern based on units
+                if units >= 3:
+                    # 3+ units: MWF pattern (3 meetings per week, 1 hour each)
+                    pattern_key = pattern_list[current_pattern_idx % len(pattern_list)]
+                    days = patterns.get(pattern_key, ['MON', 'WED', 'FRI'])
+                else:
+                    # 2 units or less: TTH or MW pattern (2 meetings per week)
+                    pattern_key = 'TTH' if current_pattern_idx % 2 == 0 else 'MW'
+                    days = patterns[pattern_key]
+
+                current_pattern_idx += 1
+
+                # Find an available time slot
+                slot_found = False
+                for time_idx in range(len(time_blocks)):
+                    adjusted_idx = (current_slot_idx + time_idx) % len(time_blocks)
+                    time_slot = time_blocks[adjusted_idx]
+
+                    # Skip lunch hour (12:00-13:00)
+                    if time_slot[0] == '12:00':
+                        continue
+
+                    # Check if all days in pattern are available for this section
+                    all_days_available = True
+                    for day in days:
+                        key = (section_id, day, time_slot[0])
+                        if key in section_occupied:
+                            all_days_available = False
+                            break
+
+                    if all_days_available:
+                        # Find an available room
+                        room_found = None
+                        for room in available_rooms:
+                            room_available = True
+                            for day in days:
+                                room_key = (day, time_slot[0], room)
+                                if room_key in room_occupied:
+                                    room_available = False
+                                    break
+                            if room_available:
+                                room_found = room
+                                break
+
+                        if room_found:
+                            # Create schedule slots for all days in pattern
+                            for day in days:
+                                ScheduleSlot.objects.create(
+                                    section_subject=section_subject,
+                                    day=day,
+                                    start_time=time_slot[0],
+                                    end_time=time_slot[1],
+                                    room=room_found
+                                )
+                                created_count += 1
+
+                                # Mark as occupied
+                                section_occupied[(section_id, day, time_slot[0])] = True
+                                room_occupied[(day, time_slot[0], room_found)] = True
+
+                            slot_found = True
+                            current_slot_idx = (adjusted_idx + 1) % len(time_blocks)
+                            break
+
+                if not slot_found:
+                    # Fallback: Create a single slot on Saturday if no regular slot available
+                    for time_idx, time_slot in enumerate(time_blocks[:10]):  # Morning/afternoon only
+                        room = random.choice(available_rooms)
+                        room_key = ('SAT', time_slot[0], room)
+                        if room_key not in room_occupied:
+                            ScheduleSlot.objects.create(
+                                section_subject=section_subject,
+                                day='SAT',
+                                start_time=time_slot[0],
+                                end_time=time_slot[1],
+                                room=room
+                            )
+                            created_count += 1
+                            room_occupied[room_key] = True
+                            self.log(f'    [!] Fallback SAT schedule for {subject.code}')
+                            break
+
+        self.log(f'  Total schedule slots: {created_count}')
 
     def seed_professor_assignments(self, section_subjects, professors):
         """Assign professors to section-subjects"""

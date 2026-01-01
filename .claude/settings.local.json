@@ -41,7 +41,8 @@
       "Bash(grep:*)",
       "Bash(del \"c:\\\\Users\\\\Administrator\\\\Desktop\\\\richwell-potal\\\\frontend\\\\public\\\\student-curriculum.html\")",
       "Bash(del \"c:\\\\Users\\\\Administrator\\\\Desktop\\\\richwell-potal\\\\frontend\\\\src\\\\pages\\\\student-curriculum.js\")",
-      "Bash(del \"c:\\\\Users\\\\Administrator\\\\Desktop\\\\richwell-potal\\\\frontend\\\\public\\\\admin-audit-logs.html\")"
+      "Bash(del \"c:\\\\Users\\\\Administrator\\\\Desktop\\\\richwell-potal\\\\frontend\\\\public\\\\admin-audit-logs.html\")",
+      "Bash(python manage.py seed_complete_data:*)"
     ]
   }
 }

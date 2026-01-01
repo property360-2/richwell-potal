@@ -319,6 +319,7 @@ class ScheduleSlot(BaseModel):
         THU = 'THU', 'Thursday'
         FRI = 'FRI', 'Friday'
         SAT = 'SAT', 'Saturday'
+        SUN = 'SUN', 'Sunday'
     
     section_subject = models.ForeignKey(
         SectionSubject,
