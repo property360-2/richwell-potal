@@ -5,9 +5,8 @@ export const NAV_CONFIG = {
   student: [
     { label: 'Dashboard', href: '/student-dashboard.html', page: 'student-dashboard' },
     { label: 'Subjects', href: '/subject-enrollment.html', page: 'subject-enrollment' },
-    { label: 'My Curriculum', href: '/student-curriculum.html', page: 'student-curriculum' },
     { label: 'My Schedule', href: '/student-schedule.html', page: 'student-schedule' },
-    { label: 'Grades', href: '/grades.html', page: 'grades' },
+    { label: 'Grades & Curriculum', href: '/grades.html', page: 'grades' },
     { label: 'SOA', href: '/soa.html', page: 'soa' }
   ],
 
@@ -15,7 +14,6 @@ export const NAV_CONFIG = {
     { label: 'Dashboard', href: '/registrar-dashboard.html', page: 'registrar-dashboard' },
     { label: 'Documents', href: '/registrar-documents.html', page: 'registrar-documents' },
     { label: 'Academic', href: '/registrar-academic.html', page: 'registrar-academic' },
-    { label: 'Semesters', href: '/registrar-semesters.html', page: 'registrar-semesters' },
     { label: 'Sections', href: '/registrar-sections.html', page: 'registrar-sections' },
     { label: 'Override', href: '/registrar-enrollment.html', page: 'registrar-enrollment' }
   ],
@@ -39,13 +37,10 @@ export const NAV_CONFIG = {
 
   admin: [
     { label: 'Dashboard', href: '/admin-dashboard.html', page: 'admin-dashboard' },
-    { label: 'User Management', href: '/admin-users.html', page: 'admin-users' },
-    { label: 'Programs', href: '/registrar-programs.html', page: 'registrar-programs' },
-    { label: 'Subjects', href: '/registrar-subjects.html', page: 'registrar-subjects' },
-    { label: 'Curricula', href: '/registrar-curricula.html', page: 'registrar-curricula' },
-    { label: 'Semesters', href: '/registrar-semesters.html', page: 'registrar-semesters' },
-    { label: 'Sections', href: '/sections.html', page: 'sections' },
-    { label: 'Schedule', href: '/schedule.html', page: 'schedule' }
+    { label: 'Users', href: '/admin-users.html', page: 'admin-users' },
+    { label: 'Academic', href: '/admin-academic.html', page: 'admin-academic' },
+    { label: 'Sections', href: '/admin-sections.html', page: 'admin-sections' },
+    { label: 'Audit Logs', href: '/admin-audit-logs.html', page: 'admin-audit-logs' }
   ]
 };
 

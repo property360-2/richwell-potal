@@ -1,6 +1,6 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { requireAuth, formatDate } from '../utils.js';
+import { requireAuth } from '../utils.js';
 import { createHeader } from '../components/header.js';
 import { Toast } from '../components/Toast.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -26,20 +26,23 @@ const state = {
   programs: [],
   semesters: [],
   activeSemester: null,
-  selectedSection: null,
 
   // Professors state
-  professors: [],
-
-  // Schedule state
-  schedules: [],
-  timeSlots: []
+  professors: []
 };
 
 async function init() {
   if (!requireAuth()) return;
 
   await loadUserProfile();
+
+  // Check if user is admin
+  if (state.user?.role !== 'ADMIN') {
+    Toast.error('Access denied. Admin only.');
+    window.location.href = '/login.html';
+    return;
+  }
+
   await loadInitialData();
 
   // Initialize hash navigation
@@ -140,8 +143,8 @@ function render() {
 
   app.innerHTML = `
     ${createHeader({
-      role: 'REGISTRAR',
-      activePage: 'registrar-sections',
+      role: 'ADMIN',
+      activePage: 'admin-sections',
       user: state.user
     })}
 
@@ -309,7 +312,7 @@ function renderProfessorsTab() {
 function renderScheduleTab() {
   return `
     <div class="mb-6">
-      <h2 class="text-xl font-bold text-gray-800">Schedule Management</h2>
+      <h2 class="text-xl font-bold text-gray-800">Schedule</h2>
       <p class="text-sm text-gray-600 mt-1">Class schedules and time slots</p>
     </div>
 
@@ -317,15 +320,14 @@ function renderScheduleTab() {
       <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
       </svg>
-      <p class="text-gray-500 text-lg">Schedule Management</p>
-      <p class="text-gray-400 text-sm mt-2">Full schedule functionality will be available here</p>
-      <p class="text-gray-400 text-xs mt-1">Access the original schedule page for full features</p>
+      <p class="text-gray-500 text-lg">Schedule management</p>
+      <p class="text-gray-400 text-sm mt-2">Select a section to view and manage its schedule</p>
     </div>
   `;
 }
 
 // ============================================================
-// EVENT HANDLERS - TAB SWITCHING
+// EVENT HANDLERS
 // ============================================================
 
 window.switchTab = function(tabId) {
@@ -334,31 +336,107 @@ window.switchTab = function(tabId) {
   render();
 };
 
-// ============================================================
-// EVENT HANDLERS - SECTIONS
-// ============================================================
-
 window.openAddSectionModal = function() {
-  Toast.info('Section creation interface will open here');
+  const modal = new Modal({
+    title: 'Add New Section',
+    content: getSectionForm(),
+    size: 'lg',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Create Section',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('add-section-form');
+          if (!form.checkValidity()) { form.reportValidity(); return; }
+
+          const data = {
+            name: document.getElementById('add-section-name').value,
+            program: document.getElementById('add-section-program').value,
+            semester: document.getElementById('add-section-semester').value,
+            year_level: parseInt(document.getElementById('add-section-year').value),
+            max_students: parseInt(document.getElementById('add-section-max').value)
+          };
+
+          try {
+            await api.post(endpoints.sections, data);
+            Toast.success('Section created');
+            m.close();
+            await loadSections();
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, 'Creating section');
+          }
+        }
+      }
+    ]
+  });
+  modal.show();
 };
 
+function getSectionForm() {
+  return `
+    <form id="add-section-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Section Name *</label>
+        <input type="text" id="add-section-name" required class="form-input" placeholder="e.g., BSIT-1A">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Program *</label>
+        <select id="add-section-program" required class="form-select">
+          <option value="">Select a program...</option>
+          ${state.programs.map(p => `
+            <option value="${p.id}">${p.code} - ${p.name}</option>
+          `).join('')}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Semester *</label>
+        <select id="add-section-semester" required class="form-select">
+          <option value="">Select a semester...</option>
+          ${state.semesters.map(s => `
+            <option value="${s.id}" ${s.is_current ? 'selected' : ''}>${s.name} - ${s.academic_year}</option>
+          `).join('')}
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
+          <select id="add-section-year" required class="form-select">
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Max Students *</label>
+          <input type="number" id="add-section-max" value="40" min="1" max="100" required class="form-input">
+        </div>
+      </div>
+    </form>
+  `;
+}
+
 window.viewSection = function(sectionId) {
-  Toast.info('Section details will be displayed here');
+  Toast.info('View section - coming soon');
 };
 
 window.deleteSection = async function(sectionId) {
   const confirmed = await ConfirmModal({
     title: 'Delete Section',
-    message: 'Are you sure you want to delete this section? This action cannot be undone.',
+    message: 'Are you sure you want to delete this section?',
     confirmLabel: 'Delete',
     danger: true
   });
-
   if (!confirmed) return;
 
   try {
     await api.delete(endpoints.section(sectionId));
-    Toast.success('Section deleted successfully');
+    Toast.success('Section deleted');
     await loadSections();
     render();
   } catch (error) {
@@ -366,10 +444,7 @@ window.deleteSection = async function(sectionId) {
   }
 };
 
-// ============================================================
-// GLOBAL HANDLERS
-// ============================================================
-
+// Global logout
 window.logout = function() {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');

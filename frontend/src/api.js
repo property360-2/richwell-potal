@@ -285,5 +285,10 @@ export const endpoints = {
     updateUserPermission: (userId) => `/accounts/users/${userId}/permissions/update/`,
     bulkUpdatePermissions: (userId) => `/accounts/users/${userId}/permissions/bulk/`,
     permissionCategories: '/accounts/permissions/categories/',
+
+    // Audit Logs
+    auditLogs: '/audit/logs/',
+    auditLogFilters: '/audit/logs/filters/',
+    auditLogDetail: (id) => `/audit/logs/${id}/`,
 };
 

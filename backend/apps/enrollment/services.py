@@ -563,19 +563,29 @@ class SubjectEnrollmentService:
         passed_subjects = self.get_student_passed_subjects(student)
         current_subjects = self.get_student_current_subjects(student, semester)
 
+        # Get SectionSubjects for this semester that match our curriculum subjects
+        from apps.academics.models import SectionSubject
+        section_subjects = SectionSubject.objects.filter(
+            section__semester=semester,
+            section__is_deleted=False,
+            subject_id__in=subject_ids,
+            is_deleted=False
+        ).select_related('section', 'subject')
+
+        # Group section_subjects by subject_id
+        sections_by_subject = {}
+        for ss in section_subjects:
+            if ss.subject_id not in sections_by_subject:
+                sections_by_subject[ss.subject_id] = []
+            sections_by_subject[ss.subject_id].append(ss)
+
         # Build subject data with sections
         subjects_with_sections = []
         for subject in subjects:
-            # Get available sections for this subject
-            sections = Section.objects.filter(
-                semester=semester,
-                subject=subject,
-                is_deleted=False
-            ).annotate(
-                enrolled_count=models.Count('subject_enrollments')
-            )
+            # Get sections for this subject
+            subject_section_subjects = sections_by_subject.get(subject.id, [])
 
-            if not sections.exists():
+            if not subject_section_subjects:
                 continue
 
             # Get curriculum placement info
@@ -605,14 +615,15 @@ class SubjectEnrollmentService:
                 inc_list = ', '.join([f"{p['code']}" for p in inc_prereqs])
                 enrollment_message = f'Prerequisites with INC: {inc_list}'
 
-            # Build section data
+            # Build section data from SectionSubjects
             section_data = []
-            for section in sections:
+            for ss in subject_section_subjects:
+                section = ss.section
                 section_data.append({
                     'id': str(section.id),
                     'name': section.name,
                     'enrolled_count': section.enrolled_count,
-                    'capacity': section.capacity if hasattr(section, 'capacity') else None
+                    'capacity': section.capacity
                 })
 
             subject_data = {

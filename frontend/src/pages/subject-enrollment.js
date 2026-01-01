@@ -1531,19 +1531,27 @@ window.confirmAllEnrollments = async function () {
       }
     }
 
-    // Clear cart and reload data
+    // Clear cart
     state.cart = [];
     clearCartStorage();
-    await loadData();
-    render();
 
-    // Show appropriate feedback
+    // Show appropriate feedback and reload page
     if (failCount === 0) {
-      Toast.success(`Successfully enrolled in ${successCount} subject(s)!`);
+      Toast.success(`Successfully enrolled in ${successCount} subject(s)! Reloading...`);
+      // Reload page after a short delay to show the success message
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } else if (successCount === 0) {
       Toast.error(`Failed to enroll in all subjects. Please contact the registrar for assistance.`);
+      await loadData();
+      render();
     } else {
-      Toast.warning(`Enrolled: ${successCount}, Failed: ${failCount}. Failed subjects: ${failedSubjects.join(', ')}`);
+      Toast.warning(`Enrolled: ${successCount}, Failed: ${failCount}. Failed subjects: ${failedSubjects.join(', ')}. Reloading...`);
+      // Reload page after a short delay to show the warning message
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     }
 
   } catch (error) {

@@ -765,14 +765,14 @@ class MySubjectEnrollmentsView(APIView):
 
 class StudentCurriculumView(APIView):
     """
-    Get student's complete curriculum structure with completion status.
-    Shows all years and semesters with enrolled/completed/pending subjects.
+    Get student's complete curriculum structure with grades.
+    Shows all years and semesters with grade information.
     """
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        summary="Get Student Curriculum",
-        description="Get student's full curriculum structure with progress tracking",
+        summary="Get Student Curriculum with Grades",
+        description="Get student's full curriculum structure with grades and progress tracking",
         tags=["Subject Enrollment"]
     )
     def get(self, request):
@@ -783,6 +783,7 @@ class StudentCurriculumView(APIView):
             }, status=status.HTTP_403_FORBIDDEN)
 
         from apps.academics.models import CurriculumSubject
+        from datetime import date
 
         student = request.user
         profile = student.student_profile
@@ -802,24 +803,28 @@ class StudentCurriculumView(APIView):
             is_deleted=False
         ).select_related('subject').prefetch_related('subject__prerequisites')
 
-        # Get student's completed subjects
-        passed_subjects = SubjectEnrollment.objects.filter(
-            enrollment__student=student,
-            status__in=[SubjectEnrollment.Status.PASSED, SubjectEnrollment.Status.CREDITED]
-        ).values_list('subject_id', flat=True)
+        # Get ALL subject enrollments for this student (with grades)
+        all_enrollments = SubjectEnrollment.objects.filter(
+            enrollment__student=student
+        ).select_related(
+            'subject', 'enrollment__semester', 'section'
+        ).order_by('-enrollment__semester__start_date', '-created_at')
 
-        # Get currently enrolled subjects
+        # Build a map of subject_id -> list of enrollments (for retake tracking)
+        enrollments_by_subject = {}
+        for se in all_enrollments:
+            if se.subject_id not in enrollments_by_subject:
+                enrollments_by_subject[se.subject_id] = []
+            enrollments_by_subject[se.subject_id].append(se)
+
+        # Get currently enrolled subjects (current semester)
         current_semester = Semester.objects.filter(is_current=True).first()
-        enrolled_subjects = []
-        if current_semester:
-            enrolled_subjects = SubjectEnrollment.objects.filter(
-                enrollment__student=student,
-                enrollment__semester=current_semester,
-                status__in=[SubjectEnrollment.Status.ENROLLED, SubjectEnrollment.Status.PENDING_HEAD]
-            ).values_list('subject_id', flat=True)
 
         # Group subjects by year and semester
         structure = {}
+        total_grade_points = 0
+        total_graded_units = 0
+
         for cs in curriculum_subjects:
             year_key = str(cs.year_level)
             sem_key = str(cs.semester_number)
@@ -829,12 +834,66 @@ class StudentCurriculumView(APIView):
             if sem_key not in structure[year_key]:
                 structure[year_key][sem_key] = []
 
-            # Determine subject status
+            # Get enrollment history for this subject
+            subject_enrollments = enrollments_by_subject.get(cs.subject_id, [])
+
+            # Determine subject status and grade info
             subject_status = 'pending'
-            if cs.subject_id in passed_subjects:
-                subject_status = 'completed'
-            elif cs.subject_id in enrolled_subjects:
-                subject_status = 'enrolled'
+            grade_value = None
+            grade_status = None
+            inc_expiry_date = None
+            inc_days_remaining = None
+            retake_count = len(subject_enrollments)
+            professor_name = None
+            semester_taken = None
+
+            if subject_enrollments:
+                # Get the most recent enrollment
+                latest = subject_enrollments[0]
+
+                # Check status
+                if latest.status == SubjectEnrollment.Status.PASSED:
+                    subject_status = 'completed'
+                    grade_status = 'PASSED'
+                elif latest.status == SubjectEnrollment.Status.CREDITED:
+                    subject_status = 'completed'
+                    grade_status = 'CREDITED'
+                elif latest.status == SubjectEnrollment.Status.FAILED:
+                    subject_status = 'failed'
+                    grade_status = 'FAILED'
+                elif latest.status == SubjectEnrollment.Status.INC:
+                    subject_status = 'inc'
+                    grade_status = 'INC'
+                    # Calculate INC expiry
+                    if latest.inc_expiry_date:
+                        inc_expiry_date = latest.inc_expiry_date.isoformat()
+                        days_left = (latest.inc_expiry_date - date.today()).days
+                        inc_days_remaining = max(0, days_left)
+                elif latest.status in [SubjectEnrollment.Status.ENROLLED, SubjectEnrollment.Status.PENDING_HEAD]:
+                    subject_status = 'enrolled'
+                    grade_status = 'ENROLLED'
+
+                # Get grade value
+                if latest.grade:
+                    grade_value = str(latest.grade)
+
+                # Get professor name if available
+                if hasattr(latest, 'graded_by') and latest.graded_by:
+                    professor_name = latest.graded_by.get_full_name()
+
+                # Get semester when grade was earned
+                if latest.enrollment and latest.enrollment.semester:
+                    semester_taken = str(latest.enrollment.semester)
+
+                # Calculate GPA contribution (only for numeric passing grades)
+                if grade_value and grade_status == 'PASSED':
+                    try:
+                        numeric_grade = float(grade_value)
+                        if 1.0 <= numeric_grade <= 3.0:
+                            total_grade_points += numeric_grade * cs.subject.units
+                            total_graded_units += cs.subject.units
+                    except ValueError:
+                        pass
 
             structure[year_key][sem_key].append({
                 'id': str(cs.subject.id),
@@ -844,6 +903,13 @@ class StudentCurriculumView(APIView):
                 'is_required': cs.is_required,
                 'is_major': cs.subject.is_major,
                 'status': subject_status,
+                'grade': grade_value,
+                'grade_status': grade_status,
+                'inc_expiry_date': inc_expiry_date,
+                'inc_days_remaining': inc_days_remaining,
+                'retake_count': retake_count if retake_count > 1 else 0,
+                'professor_name': professor_name,
+                'semester_taken': semester_taken,
                 'prerequisites': [
                     {'code': p.code, 'title': p.title}
                     for p in cs.subject.prerequisites.all()
@@ -852,14 +918,36 @@ class StudentCurriculumView(APIView):
 
         # Calculate completion statistics
         total_subjects = curriculum_subjects.count()
-        completed_subjects = len([s for s in passed_subjects if s in curriculum_subjects.values_list('subject_id', flat=True)])
-        total_units = sum(cs.subject.units for cs in curriculum_subjects)
-        completed_units = sum(
-            cs.subject.units for cs in curriculum_subjects
-            if cs.subject_id in passed_subjects
-        )
+        curriculum_subject_ids = set(cs.subject_id for cs in curriculum_subjects)
 
-        completion_percentage = round((completed_subjects / total_subjects * 100) if total_subjects > 0 else 0, 1)
+        completed_count = 0
+        completed_units = 0
+        inc_count = 0
+        failed_count = 0
+
+        for subj_id in curriculum_subject_ids:
+            enrollments = enrollments_by_subject.get(subj_id, [])
+            if enrollments:
+                latest = enrollments[0]
+                if latest.status in [SubjectEnrollment.Status.PASSED, SubjectEnrollment.Status.CREDITED]:
+                    completed_count += 1
+                    # Find the curriculum subject to get units
+                    for cs in curriculum_subjects:
+                        if cs.subject_id == subj_id:
+                            completed_units += cs.subject.units
+                            break
+                elif latest.status == SubjectEnrollment.Status.INC:
+                    inc_count += 1
+                elif latest.status == SubjectEnrollment.Status.FAILED:
+                    failed_count += 1
+
+        total_units = sum(cs.subject.units for cs in curriculum_subjects)
+        completion_percentage = round((completed_count / total_subjects * 100) if total_subjects > 0 else 0, 1)
+
+        # Calculate GWA
+        gwa = None
+        if total_graded_units > 0:
+            gwa = round(total_grade_points / total_graded_units, 2)
 
         return Response({
             "success": True,
@@ -873,15 +961,19 @@ class StudentCurriculumView(APIView):
                 },
                 "student": {
                     "current_year_level": profile.year_level,
-                    "student_number": student.student_number
+                    "student_number": student.student_number,
+                    "name": student.get_full_name()
                 },
                 "structure": structure,
                 "statistics": {
                     "total_subjects": total_subjects,
-                    "completed_subjects": completed_subjects,
+                    "completed_subjects": completed_count,
                     "total_units": total_units,
                     "completed_units": completed_units,
-                    "completion_percentage": completion_percentage
+                    "completion_percentage": completion_percentage,
+                    "inc_count": inc_count,
+                    "failed_count": failed_count,
+                    "gwa": gwa
                 }
             }
         })

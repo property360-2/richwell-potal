@@ -65,13 +65,38 @@ class AuditLog(models.Model):
         # System actions
         CONFIG_CHANGED = 'CONFIG_CHANGED', 'Configuration Changed'
         SYSTEM_EVENT = 'SYSTEM_EVENT', 'System Event'
-        
+
         # Override actions
         OVERRIDE_APPLIED = 'OVERRIDE_APPLIED', 'Override Applied'
-        
+
         # Exam Permit actions (EPIC 4)
         EXAM_PERMIT_GENERATED = 'EXAM_PERMIT_GENERATED', 'Exam Permit Generated'
         EXAM_PERMIT_PRINTED = 'EXAM_PERMIT_PRINTED', 'Exam Permit Printed'
+
+        # Generic CRUD actions
+        RECORD_CREATED = 'RECORD_CREATED', 'Record Created'
+        RECORD_UPDATED = 'RECORD_UPDATED', 'Record Updated'
+        RECORD_DELETED = 'RECORD_DELETED', 'Record Deleted'
+
+        # Program/Subject/Curriculum actions
+        PROGRAM_CREATED = 'PROGRAM_CREATED', 'Program Created'
+        PROGRAM_UPDATED = 'PROGRAM_UPDATED', 'Program Updated'
+        PROGRAM_DELETED = 'PROGRAM_DELETED', 'Program Deleted'
+        SUBJECT_CREATED = 'SUBJECT_CREATED', 'Subject Created'
+        SUBJECT_UPDATED = 'SUBJECT_UPDATED', 'Subject Updated'
+        SUBJECT_DELETED = 'SUBJECT_DELETED', 'Subject Deleted'
+        CURRICULUM_CREATED = 'CURRICULUM_CREATED', 'Curriculum Created'
+        CURRICULUM_UPDATED = 'CURRICULUM_UPDATED', 'Curriculum Updated'
+        CURRICULUM_DELETED = 'CURRICULUM_DELETED', 'Curriculum Deleted'
+
+        # Semester actions
+        SEMESTER_CREATED = 'SEMESTER_CREATED', 'Semester Created'
+        SEMESTER_UPDATED = 'SEMESTER_UPDATED', 'Semester Updated'
+        SEMESTER_DELETED = 'SEMESTER_DELETED', 'Semester Deleted'
+        SEMESTER_SET_CURRENT = 'SEMESTER_SET_CURRENT', 'Semester Set as Current'
+
+        # Section actions
+        SECTION_DELETED = 'SECTION_DELETED', 'Section Deleted'
     
     id = models.UUIDField(
         primary_key=True,
