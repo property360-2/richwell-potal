@@ -39,6 +39,7 @@ urlpatterns = [
     path('subjects/recommended/', views.RecommendedSubjectsView.as_view(), name='recommended-subjects'),
     path('subjects/available/', views.AvailableSubjectsView.as_view(), name='available-subjects'),
     path('subjects/my-enrollments/', views.MySubjectEnrollmentsView.as_view(), name='my-subject-enrollments'),
+    path('my-schedule/', views.MyScheduleView.as_view(), name='my-schedule'),
     path('my-curriculum/', views.StudentCurriculumView.as_view(), name='student-curriculum'),
     
     # Enrollment actions

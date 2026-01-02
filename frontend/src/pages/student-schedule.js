@@ -17,14 +17,15 @@ const state = {
   viewMode: 'grid' // 'grid' or 'list'
 };
 
-// Constants
+// Constants - Monday to Sunday
 const DAYS = [
   { code: 'MON', name: 'Monday', short: 'Mon' },
   { code: 'TUE', name: 'Tuesday', short: 'Tue' },
   { code: 'WED', name: 'Wednesday', short: 'Wed' },
   { code: 'THU', name: 'Thursday', short: 'Thu' },
   { code: 'FRI', name: 'Friday', short: 'Fri' },
-  { code: 'SAT', name: 'Saturday', short: 'Sat' }
+  { code: 'SAT', name: 'Saturday', short: 'Sat' },
+  { code: 'SUN', name: 'Sunday', short: 'Sun' }
 ];
 
 const TIME_SLOTS = [];
@@ -96,45 +97,78 @@ async function loadSemesters() {
 }
 
 async function loadSchedule() {
-  if (!state.user?.id || !state.activeSemester?.id) {
-    state.schedule = [];
-    return;
-  }
-
   try {
-    // Load enrolled subjects with schedule information
-    const response = await api.get(endpoints.myEnrollments);
-    console.log('My enrollments response:', response);
+    // Use the new my-schedule endpoint which returns properly formatted schedule data
+    const response = await api.get(endpoints.mySchedule);
+    console.log('My schedule response:', response);
 
-    if (response?.data?.subject_enrollments) {
-      const enrollments = response.data.subject_enrollments;
+    if (response?.data) {
+      const { schedule, subjects, semester } = response.data;
 
-      // Transform enrollments into schedule slots
+      // Transform API response into flat schedule slots for grid rendering
       state.schedule = [];
-      enrollments.forEach(enrollment => {
-        if (enrollment.section && enrollment.section.section_subjects) {
-          // Find the section_subject that matches the enrolled subject
-          const matchingSectionSubject = enrollment.section.section_subjects.find(
-            ss => ss.subject === enrollment.subject.id || ss.subject_code === enrollment.subject_code
-          );
+      state.enrolledSubjects = subjects || [];
 
-          if (matchingSectionSubject && matchingSectionSubject.schedule_slots) {
-            matchingSectionSubject.schedule_slots.forEach(slot => {
+      if (schedule && Array.isArray(schedule)) {
+        schedule.forEach(dayData => {
+          if (dayData.slots && Array.isArray(dayData.slots)) {
+            dayData.slots.forEach(slot => {
               state.schedule.push({
-                id: slot.id,
-                day: slot.day,
+                id: `${dayData.day}-${slot.start_time}-${slot.subject_code}`,
+                day: dayData.day,
                 start_time: slot.start_time,
                 end_time: slot.end_time,
                 room: slot.room,
                 subject: {
-                  code: enrollment.subject.code,
-                  title: enrollment.subject.title || enrollment.subject.name
+                  id: slot.subject_id,
+                  code: slot.subject_code,
+                  title: slot.subject_title
                 },
-                section: enrollment.section,
-                professor: matchingSectionSubject.professor
+                section: { name: slot.section },
+                professor_name: slot.professor_name
               });
             });
           }
+        });
+      }
+
+      // Update semester info if provided
+      if (semester) {
+        state.activeSemester = { name: semester };
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load schedule:', error);
+    // Fallback: try the old endpoint
+    await loadScheduleFallback();
+  }
+}
+
+async function loadScheduleFallback() {
+  try {
+    const response = await api.get(endpoints.myEnrollments);
+    if (response?.data?.subject_enrollments) {
+      const enrollments = response.data.subject_enrollments;
+      state.schedule = [];
+
+      enrollments.forEach(enrollment => {
+        // Check for schedule data in the enrollment response
+        if (enrollment.schedule && Array.isArray(enrollment.schedule)) {
+          enrollment.schedule.forEach(slot => {
+            state.schedule.push({
+              id: `${slot.day}-${slot.start_time}-${enrollment.subject_code}`,
+              day: slot.day,
+              start_time: slot.start_time,
+              end_time: slot.end_time,
+              room: slot.room,
+              subject: {
+                code: enrollment.subject_code || enrollment.subject?.code,
+                title: enrollment.subject_title || enrollment.subject?.title
+              },
+              section: { name: enrollment.section_name || enrollment.section?.name },
+              professor_name: enrollment.professor_name
+            });
+          });
         }
       });
 
@@ -270,6 +304,8 @@ function renderGridCell(day, timeSlot) {
 
   const duration = calculateDuration(slot.start_time, slot.end_time);
 
+  const professorDisplay = slot.professor_name || (slot.professor ? `${slot.professor.first_name} ${slot.professor.last_name}` : null);
+
   return `
     <td class="border border-gray-200 px-2 py-2 align-top" rowspan="${duration}">
       <div class="rounded-lg border-l-4 p-3 h-full ${color}">
@@ -278,7 +314,7 @@ function renderGridCell(day, timeSlot) {
         <div class="text-xs opacity-90">
           <div>${slot.start_time} - ${slot.end_time}</div>
           ${slot.room ? `<div>${slot.room}</div>` : ''}
-          ${slot.professor ? `<div class="mt-1">Prof. ${slot.professor.first_name} ${slot.professor.last_name}</div>` : ''}
+          ${professorDisplay ? `<div class="mt-1">${professorDisplay}</div>` : ''}
         </div>
       </div>
     </td>
@@ -310,6 +346,7 @@ function renderListView() {
             <div class="space-y-3">
               ${daySchedule.map(slot => {
                 const color = getSubjectColor(slot.subject.code);
+                const professorDisplay = slot.professor_name || (slot.professor ? `${slot.professor.first_name} ${slot.professor.last_name}` : null);
                 return `
                   <div class="flex items-start gap-4 p-4 rounded-xl border-l-4 ${color}">
                     <div class="flex-1">
@@ -319,9 +356,9 @@ function renderListView() {
                         ${slot.room ? ` • ${slot.room}` : ''}
                         ${slot.section?.name ? ` • Section ${slot.section.name}` : ''}
                       </div>
-                      ${slot.professor ? `
+                      ${professorDisplay ? `
                         <div class="text-sm text-gray-500 mt-1">
-                          Prof. ${slot.professor.first_name} ${slot.professor.last_name}
+                          ${professorDisplay}
                         </div>
                       ` : ''}
                     </div>

@@ -763,6 +763,142 @@ class MySubjectEnrollmentsView(APIView):
         })
 
 
+class MyScheduleView(APIView):
+    """
+    Get current student's schedule organized by day for the weekly grid view.
+    Returns schedule slots grouped by day (MON-SUN) with subject and professor info.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Get My Weekly Schedule",
+        description="Get the student's enrolled subjects schedule organized by day for the weekly grid",
+        tags=["Subject Enrollment"]
+    )
+    def get(self, request):
+        if request.user.role != 'STUDENT':
+            return Response({
+                "success": False,
+                "error": "Only students can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        from apps.academics.models import SectionSubject, ScheduleSlot, SectionSubjectProfessor
+
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            return Response({
+                "success": True,
+                "data": {
+                    "semester": None,
+                    "schedule": [],
+                    "subjects": []
+                }
+            })
+
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            semester=semester
+        ).first()
+
+        if not enrollment:
+            return Response({
+                "success": True,
+                "data": {
+                    "semester": str(semester),
+                    "schedule": [],
+                    "subjects": []
+                }
+            })
+
+        # Get enrolled subjects with their sections
+        subject_enrollments = SubjectEnrollment.objects.filter(
+            enrollment=enrollment,
+            status=SubjectEnrollment.Status.ENROLLED,
+            section__isnull=False
+        ).select_related('subject', 'section')
+
+        # Build schedule by day
+        days_order = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+        day_names = {
+            'MON': 'Monday', 'TUE': 'Tuesday', 'WED': 'Wednesday',
+            'THU': 'Thursday', 'FRI': 'Friday', 'SAT': 'Saturday', 'SUN': 'Sunday'
+        }
+        schedule_by_day = {day: [] for day in days_order}
+        subjects_list = []
+
+        for se in subject_enrollments:
+            subject = se.subject
+            section = se.section
+
+            # Get section subject to access schedule slots
+            section_subject = SectionSubject.objects.filter(
+                section=section,
+                subject=subject
+            ).first()
+
+            if not section_subject:
+                continue
+
+            # Get professor
+            professor_assignment = SectionSubjectProfessor.objects.filter(
+                section_subject=section_subject,
+                is_primary=True
+            ).select_related('professor').first()
+
+            professor_name = None
+            if professor_assignment:
+                prof = professor_assignment.professor
+                professor_name = f"{prof.first_name} {prof.last_name}"
+
+            # Add to subjects list
+            subjects_list.append({
+                'id': str(subject.id),
+                'code': subject.code,
+                'title': subject.title,
+                'units': subject.units,
+                'section': section.name,
+                'professor': professor_name
+            })
+
+            # Get schedule slots
+            slots = ScheduleSlot.objects.filter(
+                section_subject=section_subject,
+                is_deleted=False
+            )
+
+            for slot in slots:
+                schedule_by_day[slot.day].append({
+                    'subject_id': str(subject.id),
+                    'subject_code': subject.code,
+                    'subject_title': subject.title,
+                    'start_time': slot.start_time.strftime('%H:%M'),
+                    'end_time': slot.end_time.strftime('%H:%M'),
+                    'room': slot.room or 'TBA',
+                    'professor_name': professor_name or 'TBA',
+                    'section': section.name
+                })
+
+        # Convert to list format sorted by time
+        schedule = []
+        for day in days_order:
+            day_slots = sorted(schedule_by_day[day], key=lambda x: x['start_time'])
+            if day_slots:  # Only include days that have slots
+                schedule.append({
+                    'day': day,
+                    'day_name': day_names[day],
+                    'slots': day_slots
+                })
+
+        return Response({
+            "success": True,
+            "data": {
+                "semester": str(semester),
+                "schedule": schedule,
+                "subjects": subjects_list
+            }
+        })
+
+
 class StudentCurriculumView(APIView):
     """
     Get student's complete curriculum structure with grades.

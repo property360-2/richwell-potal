@@ -94,9 +94,10 @@ class Command(BaseCommand):
 
     def assign_professors(self, section_subjects):
         """Assign professors to section-subjects."""
-        professors = list(ProfessorProfile.objects.all())
+        # Get professor users directly (SectionSubjectProfessor.professor is a User FK)
+        professor_users = list(User.objects.filter(role='PROFESSOR'))
 
-        if not professors:
+        if not professor_users:
             self.stdout.write(self.style.WARNING('  No professors found. Creating default professors...'))
             # Create some default professors
             prof_data = [
@@ -107,28 +108,29 @@ class Command(BaseCommand):
                 ('prof.lopez@richwell.edu.ph', 'Jose', 'Lopez'),
             ]
             for email, first, last in prof_data:
-                user, _ = User.objects.get_or_create(
+                user, created = User.objects.get_or_create(
                     email=email,
                     defaults={
                         'first_name': first,
                         'last_name': last,
                         'role': 'PROFESSOR',
-                        'is_verified': True
+                        'username': email.split('@')[0]
                     }
                 )
-                if not hasattr(user, 'professor_profile'):
-                    prof = ProfessorProfile.objects.create(user=user)
-                    professors.append(prof)
-                else:
-                    professors.append(user.professor_profile)
+                if created:
+                    user.set_password('password123')
+                    user.save()
+                # Create professor profile if doesn't exist
+                ProfessorProfile.objects.get_or_create(user=user)
+                professor_users.append(user)
 
         assigned_count = 0
         for ss in section_subjects:
             if not SectionSubjectProfessor.objects.filter(section_subject=ss).exists():
-                professor = random.choice(professors)
+                professor_user = random.choice(professor_users)
                 SectionSubjectProfessor.objects.create(
                     section_subject=ss,
-                    professor=professor,
+                    professor=professor_user,  # This is the User instance
                     is_primary=True
                 )
                 assigned_count += 1
