@@ -92,10 +92,10 @@ function render() {
 
   app.innerHTML = `
     ${createHeader({
-      role: 'REGISTRAR',
-      activePage: 'registrar-enrollment',
-      user: state.user
-    })}
+    role: 'REGISTRAR',
+    activePage: 'registrar-enrollment',
+    user: state.user
+  })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -162,7 +162,7 @@ function render() {
             <div class="card">
               <h2 class="text-xl font-bold text-gray-800 mb-4">Select Subject to Enroll</h2>
               <div class="space-y-3 max-h-80 overflow-y-auto">
-                ${mockSubjects.map(subject => renderSubjectOption(subject)).join('')}
+                ${state.availableSubjects.map(subject => renderSubjectOption(subject)).join('')}
               </div>
             </div>
             
@@ -420,7 +420,7 @@ window.selectStudent = function (studentId) {
 };
 
 window.selectSubject = function (subjectId) {
-  state.selectedSubject = mockSubjects.find(s => s.id === subjectId);
+  state.selectedSubject = state.availableSubjects.find(s => s.id === subjectId);
   state.selectedSection = null;
   render();
 };

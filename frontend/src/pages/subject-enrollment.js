@@ -404,10 +404,10 @@ function renderCategorizedSubjects(grouped, isRecommended, sectionId) {
         <!-- Year Content (Collapsible) -->
         <div id="${yearId}" class="accordion-content" style="display: block;">
           ${semesterKeys.map(semesterNum => {
-            const subjects = semesters[semesterNum];
-            const semId = `${yearId}-sem-${semesterNum}`;
+      const subjects = semesters[semesterNum];
+      const semId = `${yearId}-sem-${semesterNum}`;
 
-            return `
+      return `
               <!-- Semester Accordion (Nested) -->
               <div class="border-t border-gray-200">
                 <!-- Semester Header -->
@@ -435,7 +435,7 @@ function renderCategorizedSubjects(grouped, isRecommended, sectionId) {
                 </div>
               </div>
             `;
-          }).join('')}
+    }).join('')}
         </div>
       </div>
     `;
@@ -457,10 +457,10 @@ function render() {
   if (!isApproved) {
     app.innerHTML = `
       ${createHeader({
-        role: 'STUDENT',
-        activePage: 'subject-enrollment',
-        user: state.user
-      })}
+      role: 'STUDENT',
+      activePage: 'subject-enrollment',
+      user: state.user
+    })}
 
       <main class="max-w-7xl mx-auto px-4 py-8">
         <div class="max-w-2xl mx-auto mt-12 p-8 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
@@ -495,10 +495,10 @@ function render() {
   if (state.hasEnrolledSubjects) {
     app.innerHTML = `
       ${createHeader({
-        role: 'STUDENT',
-        activePage: 'subject-enrollment',
-        user: state.user
-      })}
+      role: 'STUDENT',
+      activePage: 'subject-enrollment',
+      user: state.user
+    })}
 
       <main class="max-w-7xl mx-auto px-4 py-8">
         <!-- Page Title -->
@@ -571,10 +571,10 @@ function render() {
     // Show normal enrollment interface
     app.innerHTML = `
       ${createHeader({
-        role: 'STUDENT',
-        activePage: 'subject-enrollment',
-        user: state.user
-      })}
+      role: 'STUDENT',
+      activePage: 'subject-enrollment',
+      user: state.user
+    })}
 
       <main class="max-w-7xl mx-auto px-4 py-8">
         <!-- Page Title -->
@@ -618,13 +618,13 @@ function render() {
               </div>
 
               ${state.recommendedSubjects.length > 0 ?
-                renderCategorizedSubjects(
-                  groupSubjectsByYearAndSemester(state.recommendedSubjects),
-                  true,
-                  'recommended'
-                ) :
-                '<p class="text-gray-500 text-center py-8">No recommended subjects available</p>'
-              }
+        renderCategorizedSubjects(
+          groupSubjectsByYearAndSemester(state.recommendedSubjects),
+          true,
+          'recommended'
+        ) :
+        '<p class="text-gray-500 text-center py-8">No recommended subjects available</p>'
+      }
             </div>
 
             <!-- All Available Subjects -->
@@ -640,18 +640,18 @@ function render() {
               </div>
 
               ${(() => {
-                const filtered = state.availableSubjects.filter(s =>
-                  !state.recommendedSubjects.find(r => r.id === s.id)
-                );
+        const filtered = state.availableSubjects.filter(s =>
+          !state.recommendedSubjects.find(r => r.id === s.id)
+        );
 
-                return filtered.length > 0 ?
-                  renderCategorizedSubjects(
-                    groupSubjectsByYearAndSemester(filtered),
-                    false,
-                    'available'
-                  ) :
-                  '<p class="text-gray-500 text-center py-8">No additional subjects available</p>';
-              })()}
+        return filtered.length > 0 ?
+          renderCategorizedSubjects(
+            groupSubjectsByYearAndSemester(filtered),
+            false,
+            'available'
+          ) :
+          '<p class="text-gray-500 text-center py-8">No additional subjects available</p>';
+      })()}
             </div>
           </div>
         </div>
@@ -750,7 +750,7 @@ function renderFilters() {
 
 function renderSubjectCard(subject, isRecommended) {
   const isInCart = state.cart.some(item => item.subject.id === subject.id);
-  const isEnrolled = state.enrolledSubjects.find(e => e.subject?.code === subject.code);
+  const isEnrolled = state.enrolledSubjects.some(e => (e.subject?.code || e.subject_code || e.code) === subject.code);
   const hasPrerequisiteIssue = subject.prerequisite_met === false;
   const hasIncPrerequisite = subject.has_inc_prerequisite === true;
   const canAdd = !hasPrerequisiteIssue && !hasIncPrerequisite && !isInCart && !isEnrolled;
@@ -810,10 +810,10 @@ function renderSubjectCard(subject, isRecommended) {
           <!-- Sections -->
           <div class="mt-3 space-y-2">
             ${subject.sections?.map(section => {
-              const cartItem = state.cart.find(item => item.subject.id === subject.id);
-              const isThisSectionInCart = cartItem && cartItem.section.id === section.id;
+    const cartItem = state.cart.find(item => item.subject.id === subject.id);
+    const isThisSectionInCart = cartItem && cartItem.section.id === section.id;
 
-              return `
+    return `
               <div class="flex items-center justify-between text-sm p-2 bg-white rounded-lg">
                 <div class="flex items-center gap-2">
                   <span class="font-medium">Section ${section.name}</span>
@@ -1404,7 +1404,7 @@ function attachEventListeners() {
  * Toggle accordion open/closed state
  * @param {String} accordionId - ID of accordion content div
  */
-window.toggleAccordion = function(accordionId) {
+window.toggleAccordion = function (accordionId) {
   const content = document.getElementById(accordionId);
   const chevron = document.getElementById(`${accordionId}-chevron`);
 
@@ -1573,7 +1573,7 @@ function calculateEditUnitImpact(enrollment, newSubject) {
 }
 
 // Open edit modal
-window.openEditModal = function(enrollmentId) {
+window.openEditModal = function (enrollmentId) {
   const enrollment = state.enrolledSubjects.find(e => e.id === enrollmentId);
   if (!enrollment) return;
 
@@ -1585,7 +1585,7 @@ window.openEditModal = function(enrollmentId) {
 };
 
 // Close edit modal
-window.closeEditModal = function() {
+window.closeEditModal = function () {
   state.editingEnrollment = null;
   state.editModalSelectedSubject = null;
   state.editModalSelectedSection = null;
@@ -1594,7 +1594,7 @@ window.closeEditModal = function() {
 };
 
 // Handle subject change in edit modal
-window.onEditSubjectChange = function() {
+window.onEditSubjectChange = function () {
   const select = document.getElementById('edit-subject-select');
   state.editModalSelectedSubject = select.value || null;
   state.editModalSelectedSection = null;
@@ -1602,7 +1602,7 @@ window.onEditSubjectChange = function() {
 };
 
 // Confirm edit enrollment
-window.confirmEditEnrollment = async function() {
+window.confirmEditEnrollment = async function () {
   const enrollment = state.editingEnrollment;
   if (!enrollment || !state.editModalSelectedSection) return;
 
@@ -1675,7 +1675,7 @@ window.closeSchedulePreview = function () {
 };
 
 // Filter handlers
-window.handleYearFilterChange = async function(value) {
+window.handleYearFilterChange = async function (value) {
   state.filters.yearLevel = value ? parseInt(value) : null;
   state.loading = true;
   render();
@@ -1684,7 +1684,7 @@ window.handleYearFilterChange = async function(value) {
   render();
 };
 
-window.handleSemesterFilterChange = async function(value) {
+window.handleSemesterFilterChange = async function (value) {
   state.filters.semester = value ? parseInt(value) : null;
   state.loading = true;
   render();
@@ -1693,7 +1693,7 @@ window.handleSemesterFilterChange = async function(value) {
   render();
 };
 
-window.clearFilters = async function() {
+window.clearFilters = async function () {
   state.filters.yearLevel = null;
   state.filters.semester = null;
   state.loading = true;
