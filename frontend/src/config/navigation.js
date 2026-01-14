@@ -40,7 +40,7 @@ export const NAV_CONFIG = {
     { label: 'Users', href: '/admin-users.html', page: 'admin-users' },
     { label: 'Academic', href: '/admin-academic.html', page: 'admin-academic' },
     { label: 'Sections', href: '/admin-sections.html', page: 'admin-sections' },
-    { label: 'Audit Logs', href: '/admin-audit-logs.html', page: 'admin-audit-logs' }
+    // { label: 'Audit Logs', href: '/admin-audit-logs.html', page: 'admin-audit-logs' }
   ]
 };
 

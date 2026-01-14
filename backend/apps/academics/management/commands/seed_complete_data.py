@@ -64,7 +64,6 @@ from apps.enrollment.models import (
     Semester, Enrollment, SubjectEnrollment, MonthlyPaymentBucket,
     ExamMonthMapping, ExamPermit, PaymentTransaction, GradeHistory
 )
-from apps.accounts.models import StudentDocument, TransferCredit
 from apps.audit.models import AuditLog
 
 
@@ -134,22 +133,6 @@ class Command(BaseCommand):
                 self.log('[Layer 7] Seeding enrollments...')
                 semesters = Semester.objects.all()
                 enrollments = self.seed_enrollments(students, sections, semesters)
-                self.log('[Layer 7] Seeding exam schedules...')
-                self.seed_exam_schedules(semesters)
-
-                # Layer 8: Enrollment Details
-                self.log('[Layer 8] Seeding enrollment subjects...')
-                self.seed_enrollment_subjects(enrollments, section_subjects)
-                self.log('[Layer 8] Seeding grades...')
-                self.seed_grades(enrollments, subjects, semesters)
-                self.log('[Layer 8] Seeding payments...')
-                payments = self.seed_payments(enrollments, semesters)
-                self.log('[Layer 8] Seeding exam permits...')
-                self.seed_exam_permits(students, semesters, payments)
-                self.log('[Layer 8] Seeding student documents...')
-                self.seed_student_documents(students)
-                self.log('[Layer 8] Seeding transfer credits...')
-                self.seed_transfer_credits(students, subjects)
 
                 self.log('\n' + '=' * 60)
                 self.log('SEEDING COMPLETED SUCCESSFULLY!')
@@ -174,12 +157,10 @@ class Command(BaseCommand):
         """Delete all existing data (except superusers)"""
         # Delete in reverse dependency order
         models_to_flush = [
-            ExamPermit, PaymentItem, PaymentBucket, Payment,
-            Grade, EnrollmentSubject, Enrollment,
+            ExamPermit, ExamMonthMapping, PaymentTransaction, GradeHistory,
+            SubjectEnrollment, MonthlyPaymentBucket, Enrollment,
             ScheduleSlot, SectionSubjectProfessor, SectionSubject, Section,
-            CurriculumSubject, Curriculum,
-            ExamSchedule, Semester,
-            TransferCredit, StudentDocument,
+            CurriculumSubject, Curriculum, Semester,
             UserPermission, ProfessorProfile, StudentProfile,
             Subject, Program,
         ]
@@ -216,25 +197,26 @@ class Command(BaseCommand):
 
         # Create Semesters
         semesters_data = [
-            {'name': 'AY 2023-2024, 1st Semester', 'start': '2023-08-01', 'end': '2023-12-15', 'status': 'CLOSED'},
-            {'name': 'AY 2023-2024, 2nd Semester', 'start': '2024-01-15', 'end': '2024-05-31', 'status': 'CLOSED'},
-            {'name': 'AY 2024-2025, 1st Semester', 'start': '2024-08-01', 'end': '2024-12-15', 'status': 'CLOSED'},
-            {'name': 'AY 2024-2025, 2nd Semester', 'start': '2025-01-15', 'end': '2025-05-31', 'status': 'ACTIVE'},
-            {'name': 'AY 2025-2026, 1st Semester', 'start': '2025-08-01', 'end': '2025-12-15', 'status': 'UPCOMING'},
-            {'name': 'AY 2025-2026, 2nd Semester', 'start': '2026-01-15', 'end': '2026-05-31', 'status': 'UPCOMING'},
+            {'name': '1st Semester', 'academic_year': '2023-2024', 'start': '2023-08-01', 'end': '2023-12-15', 'is_current': False},
+            {'name': '2nd Semester', 'academic_year': '2023-2024', 'start': '2024-01-15', 'end': '2024-05-31', 'is_current': False},
+            {'name': '1st Semester', 'academic_year': '2024-2025', 'start': '2024-08-01', 'end': '2024-12-15', 'is_current': False},
+            {'name': '2nd Semester', 'academic_year': '2024-2025', 'start': '2025-01-15', 'end': '2025-05-31', 'is_current': True},
+            {'name': '1st Semester', 'academic_year': '2025-2026', 'start': '2025-08-01', 'end': '2025-12-15', 'is_current': False},
+            {'name': '2nd Semester', 'academic_year': '2025-2026', 'start': '2026-01-15', 'end': '2026-05-31', 'is_current': False},
         ]
 
         for sem_data in semesters_data:
             semester, created = Semester.objects.get_or_create(
                 name=sem_data['name'],
+                academic_year=sem_data['academic_year'],
                 defaults={
                     'start_date': sem_data['start'],
                     'end_date': sem_data['end'],
-                    'status': sem_data['status']
+                    'is_current': sem_data['is_current']
                 }
             )
             if created:
-                self.log(f'  [+] Created semester: {semester.name}')
+                self.log(f'  [+] Created semester: {semester}')
 
         self.log(f'  Total programs: {Program.objects.count()}')
         self.log(f'  Total semesters: {Semester.objects.count()}')
@@ -292,13 +274,15 @@ class Command(BaseCommand):
 
         users = {}
         for user_data in users_data:
+            # Generate username from email
+            username = user_data['email'].split('@')[0].replace('.', '_')
             user, created = User.objects.get_or_create(
                 email=user_data['email'],
                 defaults={
+                    'username': username,
                     'first_name': user_data['first_name'],
                     'last_name': user_data['last_name'],
                     'role': user_data['role'],
-                    'is_verified': True
                 }
             )
             if created:
@@ -310,13 +294,15 @@ class Command(BaseCommand):
         # Seed students (23 students - 6 BSIS + 17 others)
         student_data = self.generate_student_data()
         for data in student_data:
+            # Generate username from email
+            username = data['email'].split('@')[0].replace('.', '_')
             user, created = User.objects.get_or_create(
                 email=data['email'],
                 defaults={
+                    'username': username,
                     'first_name': data['first_name'],
                     'last_name': data['last_name'],
                     'role': 'STUDENT',
-                    'is_verified': True
                 }
             )
             if created:
@@ -450,6 +436,7 @@ class Command(BaseCommand):
 
     def seed_user_extensions(self, users, programs):
         """Create StudentProfile, ProfessorProfile, UserPermission records"""
+        from datetime import date
         students = []
         professors = []
 
@@ -466,12 +453,19 @@ class Command(BaseCommand):
             year = int(student_num[:4])
             year_level = 2025 - year + 1
 
+            # Generate random birthdate (18-25 years old)
+            birth_year = 2025 - 18 - year_level
+            birthdate = date(birth_year, random.randint(1, 12), random.randint(1, 28))
+
             student, created = StudentProfile.objects.get_or_create(
                 user=user,
                 defaults={
                     'program': program_map.get(program_code, programs[0]),
                     'year_level': year_level,
-                    'status': 'ENROLLED'
+                    'status': StudentProfile.Status.ACTIVE,
+                    'birthdate': birthdate,
+                    'address': f'{random.randint(1, 999)} Sample Street, Metro Manila',
+                    'contact_number': f'09{random.randint(100000000, 999999999)}',
                 }
             )
 
@@ -485,13 +479,13 @@ class Command(BaseCommand):
                 self.log(f'  [+] Created student profile: {user.student_number}')
 
         # Create ProfessorProfile records
-        for user in users.get('PROFESSOR', []):
+        departments = ['Computer Science', 'Information Technology', 'Information Systems', 'Business Administration']
+        for idx, user in enumerate(users.get('PROFESSOR', [])):
             professor, created = ProfessorProfile.objects.get_or_create(
                 user=user,
                 defaults={
-                    'department': programs[0],  # Assign to first program
-                    'employee_number': f'EMP{user.id}',
-                    'rank': 'ASSISTANT_PROFESSOR'
+                    'department': departments[idx % len(departments)],
+                    'specialization': 'General',
                 }
             )
             professors.append(professor)
@@ -723,7 +717,7 @@ class Command(BaseCommand):
 
     def seed_sections(self, programs):
         """Create sections for active semester"""
-        active_semester = Semester.objects.filter(status='ACTIVE').first()
+        active_semester = Semester.objects.filter(is_current=True).first()
         if not active_semester:
             self.log('  [!] No active semester found, skipping sections')
             return []
@@ -755,7 +749,7 @@ class Command(BaseCommand):
     def seed_section_subjects(self, sections, subjects):
         """Assign subjects to sections based on year/semester"""
         section_subjects = []
-        active_semester = Semester.objects.filter(status='ACTIVE').first()
+        active_semester = Semester.objects.filter(is_current=True).first()
         current_sem_number = 2  # Assuming 2nd semester is active
 
         for section in sections:
@@ -932,11 +926,11 @@ class Command(BaseCommand):
             return
 
         for section_subject in section_subjects:
-            # Assign 1 primary professor
-            professor = random.choice(professors)
+            # Assign 1 primary professor (use professor.user since SectionSubjectProfessor expects User)
+            professor_profile = random.choice(professors)
             SectionSubjectProfessor.objects.get_or_create(
                 section_subject=section_subject,
-                professor=professor,
+                professor=professor_profile.user,
                 defaults={'is_primary': True}
             )
 
@@ -944,42 +938,38 @@ class Command(BaseCommand):
 
     def seed_enrollments(self, students, sections, semesters):
         """Create enrollments for students in active semester"""
-        active_semester = semesters.filter(status='ACTIVE').first()
+        from decimal import Decimal
+
+        active_semester = semesters.filter(is_current=True).first()
         if not active_semester:
             self.log('  [!] No active semester')
             return []
 
         enrollments = []
-        statuses = ['PENDING', 'PENDING_PAYMENT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED']
-        status_weights = [10, 20, 15, 50, 5]  # Distribution percentages
+        statuses = [Enrollment.Status.PENDING, Enrollment.Status.PENDING_PAYMENT,
+                    Enrollment.Status.ACTIVE, Enrollment.Status.HOLD, Enrollment.Status.REJECTED]
+        status_weights = [10, 20, 50, 15, 5]  # Distribution percentages
 
         for student in students:
-            # Find section matching student's program and year level
-            section = Section.objects.filter(
-                semester=active_semester,
-                program=student.program,
-                year_level=student.year_level
-            ).first()
-
-            if not section:
-                continue
-
             # Randomly assign enrollment status
             status = random.choices(statuses, weights=status_weights)[0]
 
+            # Random monthly commitment between 5000-15000
+            monthly_commitment = Decimal(str(random.randint(5000, 15000)))
+
+            # Enrollment uses User (student.user), not StudentProfile
             enrollment, created = Enrollment.objects.get_or_create(
-                student=student,
+                student=student.user,
                 semester=active_semester,
-                section=section,
                 defaults={
                     'status': status,
-                    'payment_approved': status in ['APPROVED', 'PENDING_APPROVAL'],
-                    'head_approved': status == 'APPROVED'
+                    'monthly_commitment': monthly_commitment,
+                    'first_month_paid': status == Enrollment.Status.ACTIVE,
                 }
             )
             enrollments.append(enrollment)
             if created:
-                self.log(f'  [+] Enrolled {student.user.student_number} in {section.name} ({status})')
+                self.log(f'  [+] Enrolled {student.user.student_number} ({status})')
 
         self.log(f'  Total enrollments: {Enrollment.objects.count()}')
         return enrollments
@@ -1029,7 +1019,7 @@ class Command(BaseCommand):
         self.seed_bsis_test_grades(semesters)
 
         # Then seed regular random grades for other students
-        closed_semesters = semesters.filter(status='CLOSED')
+        closed_semesters = semesters.filter(is_current=False)
         grades_list = ['1.0', '1.25', '1.5', '1.75', '2.0', '2.25', '2.5', '2.75', '3.0', 'INC', '5.0']
         grade_weights = [5, 10, 15, 15, 20, 15, 10, 5, 3, 1, 1]  # Distribution
 
@@ -1099,7 +1089,7 @@ class Command(BaseCommand):
         }
 
         # Get past semesters for historical data
-        past_semesters = list(semesters.filter(status='CLOSED').order_by('start_date'))
+        past_semesters = list(semesters.filter(is_current=False).order_by('start_date'))
 
         # TEST CASE 1: 2024BSIS0002 - Has INC in PROG101 (prerequisite for many Y2 subjects)
         student_inc = User.objects.filter(student_number='2024BSIS0002').first()
@@ -1268,7 +1258,7 @@ class Command(BaseCommand):
 
     def seed_exam_permits(self, students, semesters, payments):
         """Issue exam permits for students with PAID status"""
-        active_semester = semesters.filter(status='ACTIVE').first()
+        active_semester = semesters.filter(is_current=True).first()
         if not active_semester:
             return
 
@@ -1294,39 +1284,6 @@ class Command(BaseCommand):
                     )
 
         self.log(f'  Total exam permits: {ExamPermit.objects.count()}')
-
-    def seed_student_documents(self, students):
-        """Upload student documents"""
-        doc_types = ['BIRTH_CERTIFICATE', 'DIPLOMA', 'TOR', 'GOOD_MORAL', 'MEDICAL_CERT']
-
-        for student in students[:10]:  # First 10 students
-            for doc_type in random.sample(doc_types, 3):  # 3 random doc types
-                StudentDocument.objects.get_or_create(
-                    student=student,
-                    document_type=doc_type,
-                    defaults={'status': random.choice(['PENDING', 'APPROVED'])}
-                )
-
-        self.log(f'  Total student documents: {StudentDocument.objects.count()}')
-
-    def seed_transfer_credits(self, students, subjects):
-        """Create transfer credits for some transferee students"""
-        transferees = random.sample(list(students), min(5, len(students)))
-
-        for student in transferees:
-            # Give 1-2 transfer credits
-            transfer_subjects = random.sample(list(subjects), min(2, len(subjects)))
-            for subject in transfer_subjects:
-                TransferCredit.objects.get_or_create(
-                    student=student,
-                    subject=subject,
-                    defaults={
-                        'previous_school': 'Previous University',
-                        'grade': random.choice(['1.5', '2.0', '2.5'])
-                    }
-                )
-
-        self.log(f'  Total transfer credits: {TransferCredit.objects.count()}')
 
     def print_summary(self):
         """Print summary of seeded data"""
