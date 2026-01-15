@@ -168,6 +168,22 @@ export const api = {
             headers,
             body: formData
         });
+    },
+
+    async putFormData(endpoint, formData) {
+        const url = `${API_BASE_URL}${endpoint}`;
+        const headers = {};
+
+        const token = TokenManager.getAccessToken();
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        return fetch(url, {
+            method: 'PUT',
+            headers,
+            body: formData
+        });
     }
 };
 
@@ -291,5 +307,12 @@ export const endpoints = {
     auditLogs: '/audit/logs/',
     auditLogFilters: '/audit/logs/filters/',
     auditLogDetail: (id) => `/audit/logs/${id}/`,
+
+    // System Configuration (Core)
+    systemConfig: '/core/config/',
+    systemConfigDetail: (key) => `/core/config/${key}/`,
+
+    // Reports
+    reports: '/admissions/reports/',
 };
 

@@ -37,6 +37,7 @@ urlpatterns = [
         path('admissions/', include('apps.enrollment.urls')),
         path('academics/', include('apps.academics.urls')),
         path('audit/', include('apps.audit.urls')),
+        path('core/', include('apps.core.urls')),
     ])),
     
     # API Documentation

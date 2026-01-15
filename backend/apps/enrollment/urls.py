@@ -134,6 +134,11 @@ urlpatterns = [
     path('head/bulk-approve/', views.HeadBulkApproveView.as_view(), name='head-bulk-approve'),
 
     # ============================================================
+    # Reports (EPIC 13)
+    # ============================================================
+    path('reports/', views.HeadReportView.as_view(), name='head-reports'),
+
+    # ============================================================
     # COR (Certificate of Registration)
     # ============================================================
 
