@@ -37,6 +37,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Project apps
+    'rest_framework',
+    'apps.core',
+    'apps.accounts',
+    'apps.enrollment',
+    'apps.academics',
+    'apps.audit',
 ]
 
 MIDDLEWARE = [
@@ -120,3 +127,12 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# REST framework settings - use core custom exception handler for standardized responses
+REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'apps.core.exceptions.custom_exception_handler',
+}
+
+# Document signing defaults
+DOCUMENT_SIGNING_SALT = 'richwell-document-download-salt'
+DOCUMENT_SIGNED_URL_EXPIRY_HOURS = 24
