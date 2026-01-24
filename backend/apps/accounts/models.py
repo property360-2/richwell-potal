@@ -441,3 +441,59 @@ class UserPermission(BaseModel):
     def __str__(self):
         action = 'granted' if self.granted else 'revoked'
         return f"{self.user.email}: {self.permission.code} ({action})"
+
+
+class PasswordResetToken(BaseModel):
+    """
+    Password reset token for forgot password functionality.
+    Tokens expire after 1 hour and can only be used once.
+    """
+    
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='password_reset_tokens',
+        help_text='User requesting password reset'
+    )
+    token = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text='Unique reset token sent via email'
+    )
+    expires_at = models.DateTimeField(
+        help_text='Token expiration time (1 hour from creation)'
+    )
+    used = models.BooleanField(
+        default=False,
+        help_text='Whether this token has been used'
+    )
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the token was used'
+    )
+    
+    class Meta:
+        verbose_name = 'Password Reset Token'
+        verbose_name_plural = 'Password Reset Tokens'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['token', 'used', 'expires_at']),
+        ]
+    
+    def __str__(self):
+        status = 'used' if self.used else 'pending'
+        return f"{self.user.email} - {status} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+    
+    def is_valid(self):
+        """Check if token is still valid (not used and not expired)"""
+        from django.utils import timezone
+        return not self.used and timezone.now() < self.expires_at
+    
+    def mark_as_used(self):
+        """Mark token as used"""
+        from django.utils import timezone
+        self.used = True
+        self.used_at = timezone.now()
+        self.save()
+

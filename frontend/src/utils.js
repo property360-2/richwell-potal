@@ -159,3 +159,123 @@ export function getQueryParam(param) {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get(param);
 }
+
+/**
+ * Logout user - centralized function used across all pages
+ */
+export async function logout() {
+    const { TokenManager } = await import('./api.js');
+    const { Toast } = await import('./components/Toast.js');
+
+    TokenManager.clearTokens();
+    Toast.success('Logged out successfully');
+    setTimeout(() => {
+        window.location.href = '/login.html';
+    }, 1000);
+}
+
+// Make logout globally available
+if (typeof window !== 'undefined') {
+    window.logout = logout;
+}
+
+/**
+ * Set button loading state
+ * @param {HTMLElement} btn - Button element
+ * @param {boolean} isLoading - Loading state
+ * @param {string} loadingText - Text to show during loading
+ */
+export function setButtonLoading(btn, isLoading, loadingText = 'Loading...') {
+    if (!btn) return;
+
+    btn.disabled = isLoading;
+
+    if (!btn.dataset.originalText) {
+        btn.dataset.originalText = btn.innerHTML;
+    }
+
+    btn.innerHTML = isLoading
+        ? `<svg class="w-5 h-5 animate-spin inline-block mr-2" viewBox="0 0 24 24" fill="none">
+             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+           </svg>${loadingText}`
+        : btn.dataset.originalText;
+}
+
+/**
+ * Validate form field with visual feedback
+ * @param {HTMLInputElement} input - Input element
+ * @param {Function} validationFn - Validation function
+ * @param {string} errorMessage - Error message to display
+ * @returns {boolean} Is valid
+ */
+export function validateField(input, validationFn, errorMessage) {
+    if (!input) return false;
+
+    const isValid = validationFn(input.value);
+
+    // Add/remove error class
+    if (isValid) {
+        input.classList.remove('border-red-400', 'focus:ring-red-500');
+        input.classList.add('border-gray-200', 'focus:ring-blue-500');
+        input.setAttribute('aria-invalid', 'false');
+    } else {
+        input.classList.remove('border-gray-200', 'focus:ring-blue-500');
+        input.classList.add('border-red-400', 'focus:ring-red-500');
+        input.setAttribute('aria-invalid', 'true');
+    }
+
+    // Update error message container
+    const errorContainer = input.parentElement.querySelector('.error-message');
+    if (errorContainer) {
+        errorContainer.textContent = isValid ? '' : errorMessage;
+        errorContainer.setAttribute('aria-live', 'assertive');
+    }
+
+    return isValid;
+}
+
+/**
+ * Add error message container to input
+ * @param {HTMLInputElement} input - Input element
+ */
+export function addErrorContainer(input) {
+    if (!input || !input.parentElement) return;
+
+    const existing = input.parentElement.querySelector('.error-message');
+    if (existing) return;
+
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message text-red-500 text-sm mt-1';
+    errorDiv.setAttribute('role', 'alert');
+    input.parentElement.appendChild(errorDiv);
+}
+
+/**
+ * Initialize form validation for a form element
+ * @param {HTMLFormElement} form - Form element
+ * @param {Object} validationRules - Validation rules { fieldName: { fn, message } }
+ */
+export function initFormValidation(form, validationRules) {
+    if (!form) return;
+
+    Object.entries(validationRules).forEach(([fieldName, rule]) => {
+        const input = form.querySelector(`[name="${fieldName}"]`);
+        if (!input) return;
+
+        addErrorContainer(input);
+
+        // Validate on blur
+        input.addEventListener('blur', () => {
+            validateField(input, rule.fn, rule.message);
+        });
+
+        // Clear error on input
+        input.addEventListener('input', () => {
+            if (input.classList.contains('border-red-400')) {
+                validateField(input, rule.fn, rule.message);
+            }
+        });
+    });
+}
+

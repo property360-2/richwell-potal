@@ -184,6 +184,25 @@ class CheckEmailAvailabilityView(APIView):
         })
 
 
+class CheckStudentIdAvailabilityView(APIView):
+    """Public endpoint to check if student ID is available."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        from apps.accounts.models import User
+        student_id = request.query_params.get('student_id', '')
+        if not student_id:
+            return Response({"available": False, "message": "Student ID is required"})
+        
+        # Check against User model's student_number
+        exists = User.objects.filter(student_number__iexact=student_id).exists()
+        
+        return Response({
+            "available": not exists,
+            "message": "Student ID is already assigned" if exists else "Student ID is available"
+        })
+
+
 # Register simple view classes for expected names
 class OnlineEnrollmentView(APIView):
     """Public endpoint for online enrollment - creates student account and enrollment."""

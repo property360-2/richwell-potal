@@ -1,6 +1,6 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { validateEmail, redirectByRole } from '../utils.js';
+import { validateEmail, redirectByRole, setButtonLoading } from '../utils.js';
 import { Toast } from '../components/Toast.js';
 
 function init() {
@@ -71,44 +71,73 @@ function render() {
             
             <form id="login-form" class="space-y-6">
               <div>
-                <label class="block text-sm font-medium text-blue-200 mb-2">Email Address</label>
+                <label for="email" class="block text-sm font-medium text-blue-200 mb-2">Email Address</label>
                 <div class="relative">
-                  <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                     </svg>
                   </span>
-                  <input type="email" id="email" class="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" placeholder="you@example.com" required>
+                  <input 
+                    type="email" 
+                    id="email" 
+                    name="email"
+                    class="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                    placeholder="you@example.com" 
+                    required
+                    aria-required="true"
+                    autocomplete="email"
+                  >
                 </div>
+                <div class="error-message text-red-300 text-sm mt-1" role="alert"></div>
               </div>
               
               <div>
-                <label class="block text-sm font-medium text-blue-200 mb-2">Password</label>
+                <label for="password" class="block text-sm font-medium text-blue-200 mb-2">Password</label>
                 <div class="relative">
-                  <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                     </svg>
                   </span>
-                  <input type="password" id="password" class="w-full pl-12 pr-12 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" placeholder="••••••••" required>
-                  <button type="button" id="toggle-password" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors">
+                  <input 
+                    type="password" 
+                    id="password" 
+                    name="password"
+                    class="w-full pl-12 pr-12 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                    placeholder="••••••••" 
+                    required
+                    aria-required="true"
+                    autocomplete="current-password"
+                  >
+                  <button 
+                    type="button" 
+                    id="toggle-password" 
+                    class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                    aria-label="Toggle password visibility"
+                  >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                     </svg>
                   </button>
                 </div>
+                <div class="error-message text-red-300 text-sm mt-1" role="alert"></div>
               </div>
               
               <div class="flex items-center justify-between">
                 <label class="flex items-center cursor-pointer">
-                  <input type="checkbox" id="remember" class="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500">
+                  <input type="checkbox" id="remember" name="remember" class="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500">
                   <span class="ml-2 text-sm text-blue-200">Remember me</span>
                 </label>
-                <a href="#" class="text-sm text-blue-300 hover:text-white transition-colors">Forgot password?</a>
+                <a href="/forgot-password.html" class="text-sm text-blue-300 hover:text-white transition-colors">Forgot password?</a>
               </div>
               
-              <button type="submit" id="login-btn" class="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-indigo-700 focus:ring-4 focus:ring-blue-500/50 transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+              <button 
+                type="submit" 
+                id="login-btn" 
+                class="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-indigo-700 focus:ring-4 focus:ring-blue-500/50 transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+              >
                 <span>Sign In</span>
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
@@ -163,18 +192,14 @@ async function handleLogin(e) {
 
   if (!validateEmail(email)) {
     Toast.error('Please enter a valid email address');
+    const emailInput = document.getElementById('email');
+    emailInput.setAttribute('aria-invalid', 'true');
+    emailInput.focus();
     return;
   }
 
-  // Disable button and show loading
-  loginBtn.disabled = true;
-  loginBtn.innerHTML = `
-    <svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-    <span>Signing in...</span>
-  `;
+  // Use centralized button loading utility
+  setButtonLoading(loginBtn, true, 'Signing in...');
 
   try {
     const response = await fetch('/api/v1/accounts/login/', {
@@ -213,24 +238,15 @@ async function handleLogin(e) {
     } else {
       const error = await response.json();
       Toast.error(error.detail || 'Invalid email or password');
-      resetLoginButton();
+      setButtonLoading(loginBtn, false);
     }
   } catch (error) {
     Toast.error('Network error. Please check your connection.');
-    resetLoginButton();
+    setButtonLoading(loginBtn, false);
   }
 }
 
-function resetLoginButton() {
-  const loginBtn = document.getElementById('login-btn');
-  loginBtn.disabled = false;
-  loginBtn.innerHTML = `
-    <span>Sign In</span>
-    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-    </svg>
-  `;
-}
+// resetLoginButton function no longer needed - using setButtonLoading utility
 
 document.addEventListener('DOMContentLoaded', init);
 if (document.readyState !== 'loading') init();

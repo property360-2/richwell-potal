@@ -35,13 +35,16 @@ export function createHeader({ role, activePage, user, roleDisplay = null }) {
         <!-- Desktop Navigation (hidden on mobile) -->
         ${createDesktopNavigation({ role, activePage })}
 
-        <!-- Right Section: User Info + Logout + Mobile Menu -->
+        <!-- Right Section: Notifications + User Info + Logout + Mobile Menu -->
         <div class="flex items-center gap-4">
           <!-- User Info (hidden on small screens) -->
           <div class="text-right hidden sm:block">
             <p class="text-sm font-medium text-gray-800">${userName}</p>
             <p class="text-xs text-gray-500">${displayRole}</p>
           </div>
+          
+          <!-- Notification Bell (will be initialized after render) -->
+          <div id="notification-bell-placeholder"></div>
 
           <!-- Logout Button (hidden on mobile, shown in drawer instead) -->
           <button onclick="logout()" class="hidden md:flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">

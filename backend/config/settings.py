@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config, Csv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,13 +20,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-c3+w1g!=34n&*$%uvqe9_0n2xm2cxwl2l05nh4vwf)5vqso)r&'
+# SECURITY: Load SECRET_KEY from environment variable
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-only-change-in-production')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# SECURITY: Load DEBUG from environment variable
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = []
+# SECURITY: Load ALLOWED_HOSTS from environment variable
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+
+# Custom User Model
+AUTH_USER_MODEL = 'accounts.User'
 
 
 # Application definition
@@ -37,8 +42,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Project apps
+    # Third-party apps
     'rest_framework',
+    'corsheaders',
+    # Project apps
     'apps.core',
     'apps.accounts',
     'apps.enrollment',
@@ -47,6 +54,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # Must be before CommonMiddleware
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -54,6 +62,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.core.middleware.request_logging.RequestLoggingMiddleware',  # Request logging
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -136,3 +145,13 @@ REST_FRAMEWORK = {
 # Document signing defaults
 DOCUMENT_SIGNING_SALT = 'richwell-document-download-salt'
 DOCUMENT_SIGNED_URL_EXPIRY_HOURS = 24
+
+# CORS Configuration
+# https://github.com/adamchainz/django-cors-headers
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:3000,http://127.0.0.1:3000',
+    cast=Csv()
+)
+CORS_ALLOW_CREDENTIALS = True
+

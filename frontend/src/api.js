@@ -187,19 +187,23 @@ export const api = {
     }
 };
 
-/**
- * API Endpoints for Epic 1 & Epic 2
- */
+// API Endpoints
 export const endpoints = {
-    // Authentication
-    login: '/accounts/login/',
-    logout: '/accounts/logout/',
-    me: '/accounts/me/',
-    tokenRefresh: '/accounts/token/refresh/',
-    changePassword: '/accounts/change-password/',
+    // Authentication & Accounts
+    accounts: {
+        login: '/api/v1/accounts/login/',
+        logout: '/api/v1/accounts/logout/',
+        profile: '/api/v1/accounts/me/',
+        changePassword: '/api/v1/accounts/change-password/',
+        requestPasswordReset: '/api/v1/accounts/password/request-reset/',
+        validateResetToken: '/api/v1/accounts/password/validate-token/',
+        resetPassword: '/api/v1/accounts/password/reset/',
+    },
+    tokenRefresh: '/accounts/token/refresh/', // Kept at top level as per instruction's implied scope
 
     // Epic 1: Admissions
     enrollmentStatus: '/admissions/system/enrollment-status/',
+    checkStudentId: (id) => `/admissions/check-student-id/?student_id=${encodeURIComponent(id)}`,
     programs: '/admissions/programs/',
     enroll: '/admissions/enroll/',
     applicants: '/admissions/applicants/',
@@ -314,5 +318,17 @@ export const endpoints = {
 
     // Reports
     reports: '/admissions/reports/',
+
+    // Notifications
+    notifications: {
+        list: '/core/notifications/',
+        unreadCount: '/core/notifications/unread-count/',
+        markRead: (id) => `/core/notifications/${id}/mark-read/`,
+        markAllRead: '/core/notifications/mark-all-read/',
+        delete: (id) => `/core/notifications/${id}/`,
+    },
+
+    // Legacy endpoints (for backwards compatibility)
+    me: '/accounts/me/',
 };
 

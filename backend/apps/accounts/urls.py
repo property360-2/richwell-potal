@@ -1,11 +1,8 @@
-"""
-Accounts URL configuration.
-"""
-
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from . import views
+from . import password_reset_views
 
 app_name = 'accounts'
 
@@ -18,6 +15,11 @@ urlpatterns = [
     # Profile
     path('me/', views.ProfileView.as_view(), name='profile'),
     path('change-password/', views.ChangePasswordView.as_view(), name='change-password'),
+    
+    # Password Reset
+    path('password/request-reset/', password_reset_views.RequestPasswordResetView.as_view(), name='request-password-reset'),
+    path('password/validate-token/', password_reset_views.ValidateResetTokenView.as_view(), name='validate-reset-token'),
+    path('password/reset/', password_reset_views.ResetPasswordView.as_view(), name='reset-password'),
 
     # Permission Management
     path('users/', views.UserListView.as_view(), name='user-list'),

@@ -50,14 +50,14 @@ async function loadUserProfile() {
 async function loadCurriculumWithGrades() {
   try {
     const response = await api.get(endpoints.studentCurriculum);
-    if (response.success) {
+    if (response && response.success) {
       const data = response.data;
       state.curriculum = data.curriculum;
       state.structure = data.structure;
       state.statistics = data.statistics;
       state.studentInfo = data.student;
     } else {
-      state.error = response.error || 'Failed to load curriculum';
+      state.error = response?.error || 'Failed to load curriculum';
     }
   } catch (error) {
     if (error.response?.status === 400) {
@@ -77,12 +77,17 @@ function render() {
     return;
   }
 
+  // Check if we have necessary data to render content
+  if (!state.curriculum && !state.error) {
+    state.error = 'No curriculum data available.';
+  }
+
   app.innerHTML = `
     ${createHeader({
-      role: 'STUDENT',
-      activePage: 'grades',
-      user: state.user
-    })}
+    role: 'STUDENT',
+    activePage: 'grades',
+    user: state.user
+  })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       ${state.error ? renderErrorState() : renderGradesContent()}
@@ -137,18 +142,8 @@ function renderStatistics() {
   const stats = state.statistics;
 
   return `
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-      <!-- GWA -->
-      <div class="card bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
-        <p class="text-blue-100 text-xs font-medium">GWA</p>
-        <p class="text-3xl font-bold mt-1">${stats.gwa || 'N/A'}</p>
-      </div>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
 
-      <!-- Completion -->
-      <div class="card">
-        <p class="text-gray-500 text-xs font-medium">Completion</p>
-        <p class="text-3xl font-bold text-green-600 mt-1">${stats.completion_percentage}%</p>
-      </div>
 
       <!-- Subjects -->
       <div class="card">
@@ -404,7 +399,7 @@ function getSemesterLabel(semester) {
 }
 
 // Event handlers
-window.toggleYear = function(yearLevel) {
+window.toggleYear = function (yearLevel) {
   if (state.expandedYears.has(yearLevel)) {
     state.expandedYears.delete(yearLevel);
   } else {
@@ -413,13 +408,6 @@ window.toggleYear = function(yearLevel) {
   render();
 };
 
-window.logout = function() {
-  TokenManager.clearTokens();
-  Toast.success('Logged out successfully');
-  setTimeout(() => {
-    window.location.href = '/login.html';
-  }, 1000);
-};
-
 document.addEventListener('DOMContentLoaded', init);
 if (document.readyState !== 'loading') init();
+

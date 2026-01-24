@@ -6,6 +6,8 @@ import { Toast } from '../components/Toast.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { LoadingOverlay } from '../components/Spinner.js';
 import { Modal } from '../components/Modal.js';
+import { createSearchInput } from '../components/SearchInput.js';
+import { createEmptyState, EmptyStateIcons } from '../components/EmptyState.js';
 
 // State
 const state = {
@@ -80,10 +82,10 @@ function render() {
 
   app.innerHTML = `
     ${createHeader({
-      role: 'REGISTRAR',
-      activePage: 'registrar-documents',
-      user: state.user
-    })}
+    role: 'REGISTRAR',
+    activePage: 'registrar-documents',
+    user: state.user
+  })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -108,19 +110,7 @@ function render() {
 
         <!-- Search -->
         <div class="flex gap-4 mb-4">
-          <div class="flex-1">
-            <div class="relative">
-              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-              </svg>
-              <input type="text"
-                     id="searchInput"
-                     placeholder="Search by student number or name..."
-                     value="${state.searchQuery}"
-                     oninput="handleSearch(event)"
-                     class="form-input pl-10">
-            </div>
-          </div>
+          <div class="flex-1" id="search-container"></div>
         </div>
 
         <!-- Students Table -->
@@ -136,6 +126,34 @@ function render() {
       </div>
     </main>
   `;
+
+  // Initialize search input after render
+  const searchContainer = document.getElementById('search-container');
+  if (searchContainer) {
+    const searchInput = createSearchInput({
+      placeholder: 'Search by student number or name...',
+      onSearch: (query) => {
+        state.searchQuery = query;
+        const displayStudents = query.trim()
+          ? state.allStudents.filter(student =>
+            student.student_number.toLowerCase().includes(query.toLowerCase()) ||
+            student.full_name.toLowerCase().includes(query.toLowerCase()) ||
+            student.first_name.toLowerCase().includes(query.toLowerCase()) ||
+            student.last_name.toLowerCase().includes(query.toLowerCase())
+          )
+          : state.allStudents;
+        state.searchResults = displayStudents;
+
+        // Re-render student list
+        const tableContainer = document.querySelector('.overflow-x-auto')?.parentElement;
+        if (tableContainer) {
+          const listHtml = renderStudentsList();
+          tableContainer.innerHTML = listHtml;
+        }
+      }
+    });
+    searchContainer.appendChild(searchInput);
+  }
 }
 
 
@@ -145,11 +163,19 @@ function renderStudentsList() {
     : state.allStudents;
 
   if (displayStudents.length === 0) {
-    return `
-      <div class="text-center py-12 text-gray-500">
-        ${state.searchQuery ? 'No students found matching your search.' : 'No students found.'}
-      </div>
-    `;
+    return createEmptyState({
+      icon: state.searchQuery ? EmptyStateIcons.search : EmptyStateIcons.users,
+      title: state.searchQuery ? 'No students found' : 'No students enrolled',
+      description: state.searchQuery
+        ? 'Try adjusting your search criteria or check the student number.'
+        : 'There are no enrolled students in the system yet.',
+      actionText: state.searchQuery ? 'Clear Search' : null,
+      onAction: state.searchQuery ? () => {
+        state.searchQuery = '';
+        state.searchResults = [];
+        render();
+      } : null
+    }).outerHTML;
   }
 
   return `
@@ -295,7 +321,7 @@ function getReleaseForm(student, enrollmentStatus) {
 }
 
 // Handle document type change to show warning for COR
-window.handleDocTypeChange = function(docType, canReleaseCOR) {
+window.handleDocTypeChange = function (docType, canReleaseCOR) {
   if (docType === 'COR' && !canReleaseCOR) {
     Toast.warning('COR cannot be released: Student has no enrolled subjects');
     // Reset selection
@@ -304,33 +330,13 @@ window.handleDocTypeChange = function(docType, canReleaseCOR) {
 };
 
 // Event handlers
-window.handleSearch = function(event) {
-  const query = event.target.value.toLowerCase().trim();
-  state.searchQuery = query;
-
-  if (!query) {
-    state.searchResults = [];
-    render();
-    return;
-  }
-
-  state.searchResults = state.allStudents.filter(student =>
-    student.student_number.toLowerCase().includes(query) ||
-    student.full_name.toLowerCase().includes(query) ||
-    student.first_name.toLowerCase().includes(query) ||
-    student.last_name.toLowerCase().includes(query)
-  );
-
-  render();
-};
-
-window.refreshStudents = async function() {
+window.refreshStudents = async function () {
   await loadAllStudents();
   render();
   Toast.success('Student list refreshed');
 };
 
-window.openReleaseModal = async function(studentId) {
+window.openReleaseModal = async function (studentId) {
   const student = state.allStudents.find(s => s.student_id === studentId);
   if (!student) return;
 
@@ -400,7 +406,7 @@ window.openReleaseModal = async function(studentId) {
 };
 
 
-window.logout = function() {
+window.logout = function () {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');
   setTimeout(() => {

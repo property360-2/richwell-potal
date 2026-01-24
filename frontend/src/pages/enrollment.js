@@ -505,6 +505,17 @@ function attachEventListeners() {
 // Handle input changes
 function handleInputChange(e) {
   const { id, value, type, checked } = e.target;
+
+  // Enforce numbers only for contact_number
+  if (id === 'contact_number') {
+    const numericValue = value.replace(/[^0-9]/g, '');
+    if (value !== numericValue) {
+      e.target.value = numericValue;
+    }
+    state.formData[id] = numericValue;
+    return; // Skip default handling
+  }
+
   if (state.formData.hasOwnProperty(id)) {
     state.formData[id] = type === 'checkbox' ? checked : type === 'number' ? parseFloat(value) : value;
 

@@ -5,11 +5,13 @@ import { createHeader } from '../components/header.js';
 import { Toast } from '../components/Toast.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { LoadingOverlay } from '../components/Spinner.js';
+import { createErrorState, parseApiError } from '../components/ErrorState.js';
 
 // State
 const state = {
   user: null,
   loading: true,
+  error: null, // Track error state
   showChangePasswordModal: false,
   month1Paid: false, // Default to false - will be updated from API
   totalPaid: 0,
@@ -19,15 +21,22 @@ const state = {
   enrollmentStatus: 'N/A', // Enrollment status from API
   enrolledUnits: 0, // Units enrolled from API
   maxUnits: 30, // Maximum units (default)
-  programCode: null // Program code from enrollment
+  programCode: null, // Program code from enrollment
+  activeSemester: null // Active semester from API
 };
 
 async function init() {
   if (!requireAuth()) return;
 
+  state.loading = true;
+  state.error = null;
   await loadUserProfile();
   render();
 }
+
+window.retryLoadData = async function () {
+  await init();
+};
 
 async function loadUserProfile() {
   try {
@@ -46,6 +55,10 @@ async function loadUserProfile() {
         state.enrollmentStatus = enrollmentResponse.data.status || 'N/A';
         // Get program code from enrollment if available
         state.programCode = enrollmentResponse.data.program_code || null;
+        // Get active semester
+        if (enrollmentResponse.data.semester) {
+          state.activeSemester = enrollmentResponse.data.semester;
+        }
       }
     } catch (error) {
       console.log('Enrollment API failed:', error);
@@ -102,10 +115,14 @@ async function loadUserProfile() {
       state.totalPaid = 0;
       state.totalRequired = 30000; // Default estimate
     }
+
+    state.loading = false;
+    state.error = null;
   } catch (error) {
     console.error('Failed to load profile:', error);
+    state.loading = false;
+    state.error = error;
   }
-  state.loading = false;
 }
 
 function render() {
@@ -113,6 +130,29 @@ function render() {
 
   if (state.loading) {
     app.innerHTML = LoadingOverlay('Loading your dashboard...');
+    return;
+  }
+
+  // Show error state if data failed to load
+  if (state.error) {
+    const errorInfo = parseApiError(state.error);
+    const errorContainer = document.createElement('div');
+    errorContainer.innerHTML = `
+      ${createHeader({
+      role: 'STUDENT',
+      activePage: 'student-dashboard',
+      user: state.user
+    })}
+      <main class="max-w-7xl mx-auto px-4 py-8">
+        <div class="card">
+          ${createErrorState({
+      ...errorInfo,
+      onRetry: window.retryLoadData
+    }).outerHTML}
+        </div>
+      </main>
+    `;
+    app.innerHTML = errorContainer.innerHTML;
     return;
   }
 
@@ -184,7 +224,9 @@ function render() {
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-xl font-bold text-gray-800">Payment Progress</h2>
               <div class="flex items-center gap-2">
-                <span class="badge badge-info">Semester 1, 2024-2025</span>
+                <span class="badge badge-info">
+                  ${state.activeSemester?.name || 'Current Semester'}
+                </span>
                 <a href="/soa.html" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
                   View SOA
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -206,6 +248,17 @@ function render() {
               </div>
             </div>
             
+            <!-- Permit Status -->
+            <div class="space-y-3 mb-6">
+              <h3 class="text-lg font-semibold text-gray-800">Permit Status</h3>
+              ${renderExamPermit('Subject Enrollment', state.month1Paid)}
+              ${renderExamPermit('Chapter Test', state.paymentBuckets.find(b => b.month === 2)?.paid >= state.paymentBuckets.find(b => b.month === 2)?.required)}
+              ${renderExamPermit('Prelims', state.paymentBuckets.find(b => b.month === 3)?.paid >= state.paymentBuckets.find(b => b.month === 3)?.required)}
+              ${renderExamPermit('Midterms', state.paymentBuckets.find(b => b.month === 4)?.paid >= state.paymentBuckets.find(b => b.month === 4)?.required)}
+              ${renderExamPermit('Prefinals', state.paymentBuckets.find(b => b.month === 5)?.paid >= state.paymentBuckets.find(b => b.month === 5)?.required)}
+              ${renderExamPermit('Finals', state.paymentBuckets.find(b => b.month === 6)?.paid >= state.paymentBuckets.find(b => b.month === 6)?.required)}
+            </div>
+
             <!-- 6 Month Buckets -->
             <div class="space-y-4">
               ${state.paymentBuckets.map(bucket => renderPaymentBucket(bucket)).join('')}
@@ -391,14 +444,7 @@ function renderExamPermit(exam, unlocked) {
   `;
 }
 
-// Logout function
-window.logout = function () {
-  TokenManager.clearTokens();
-  Toast.success('Logged out successfully');
-  setTimeout(() => {
-    window.location.href = '/login.html';
-  }, 1000);
-};
+// Logout function now centralized in utils.js and globally available via window.logout
 
 // Change Password functions
 window.openChangePasswordModal = function () {

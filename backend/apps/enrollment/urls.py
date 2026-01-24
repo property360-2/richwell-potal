@@ -5,6 +5,7 @@ Includes public admissions endpoints and authenticated enrollment endpoints.
 
 from django.urls import path
 from . import views
+from . import export_views
 
 app_name = 'enrollment'
 
@@ -12,6 +13,7 @@ urlpatterns = [
     # Public - Admissions
     path('system/enrollment-status/', views.EnrollmentStatusView.as_view(), name='enrollment-status'),
     path('check-email/', views.CheckEmailAvailabilityView.as_view(), name='check-email'),
+    path('check-student-id/', views.CheckStudentIdAvailabilityView.as_view(), name='check-student-id'),
     path('programs/', views.PublicProgramListView.as_view(), name='public-programs'),
     path('enroll/', views.OnlineEnrollmentView.as_view(), name='online-enroll'),
     
@@ -30,6 +32,13 @@ urlpatterns = [
     path('next-student-number/', views.NextStudentNumberView.as_view(), name='next-student-number'),
     path('applicants/<uuid:pk>/', views.ApplicantUpdateView.as_view(), name='applicant-update'),
     path('documents/<uuid:pk>/verify/', views.DocumentVerifyView.as_view(), name='document-verify'),
+    
+    # ============================================================
+    # Export (NEW)
+    # ============================================================
+    path('export/students/', export_views.ExportStudentsView.as_view(), name='export-students'),
+    path('export/enrollments/', export_views.ExportEnrollmentsView.as_view(), name='export-enrollments'),
+    path('export/payments/', export_views.ExportPaymentsView.as_view(), name='export-payments'),
     
     # ============================================================
     # Subject Enrollment (EPIC 3)
@@ -144,3 +153,4 @@ urlpatterns = [
 
     path('enrollment/<uuid:enrollment_id>/cor/', views.GenerateCORView.as_view(), name='generate-cor'),
 ]
+

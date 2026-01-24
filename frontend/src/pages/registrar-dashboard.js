@@ -5,11 +5,13 @@ import { createHeader } from '../components/header.js';
 import { Toast } from '../components/Toast.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { LoadingOverlay } from '../components/Spinner.js';
+import { createErrorState, parseApiError } from '../components/ErrorState.js';
 
 // State
 const state = {
   user: null,
   loading: true,
+  error: null, // Track error state
   stats: {
     totalStudents: 0,
     pendingCOR: 0,
@@ -21,11 +23,20 @@ const state = {
 
 async function init() {
   if (!requireAuth()) return;
+
+  state.loading = true;
+  state.error = null;
+
   await loadUserProfile();
   await loadStudents();
+
   state.loading = false;
   render();
 }
+
+window.retryLoadData = async function () {
+  await init();
+};
 
 async function loadUserProfile() {
   try {
@@ -67,6 +78,7 @@ async function loadStudents() {
     console.log(`Loaded ${state.recentStudents.length} students for dashboard`);
   } catch (error) {
     console.error('Failed to load students:', error);
+    state.error = error;
     state.recentStudents = [];
   }
 }
@@ -79,12 +91,35 @@ function render() {
     return;
   }
 
-  app.innerHTML = `
-    ${createHeader({
+  // Show error state if data failed to load
+  if (state.error) {
+    const errorInfo = parseApiError(state.error);
+    const errorContainer = document.createElement('div');
+    errorContainer.innerHTML = `
+      ${createHeader({
       role: 'REGISTRAR',
       activePage: 'registrar-dashboard',
       user: state.user
     })}
+      <main class="max-w-7xl mx-auto px-4 py-8">
+        <div class="card">
+          ${createErrorState({
+      ...errorInfo,
+      onRetry: window.retryLoadData
+    }).outerHTML}
+        </div>
+      </main>
+    `;
+    app.innerHTML = errorContainer.innerHTML;
+    return;
+  }
+
+  app.innerHTML = `
+    ${createHeader({
+    role: 'REGISTRAR',
+    activePage: 'registrar-dashboard',
+    user: state.user
+  })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Welcome Section -->
@@ -297,13 +332,7 @@ function renderStatCard(label, value, color, icon, link) {
   `;
 }
 
-window.logout = function () {
-  TokenManager.clearTokens();
-  Toast.success('Logged out successfully');
-  setTimeout(() => {
-    window.location.href = '/login.html';
-  }, 1000);
-};
+// Logout function now centralized in utils.js
 
 document.addEventListener('DOMContentLoaded', init);
 if (document.readyState !== 'loading') init();

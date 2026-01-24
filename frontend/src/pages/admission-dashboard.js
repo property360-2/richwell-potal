@@ -1,6 +1,6 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { formatDate, requireAuth } from '../utils.js';
+import { formatDate, requireAuth, debounce } from '../utils.js';
 import { createHeader } from '../components/header.js';
 import { Toast } from '../components/Toast.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -21,7 +21,8 @@ const state = {
   idAssignmentModal: null,
   selectedApplicantForId: null,
   suggestedIdNumber: '',
-  idNumberError: ''
+  idNumberError: '',
+  idCheckStatus: 'idle' // idle, checking, available, taken, error
 };
 
 // No more mock data - all data comes from real API
@@ -565,9 +566,117 @@ window.closeIdAssignmentModal = function (event) {
 };
 
 window.handleIdNumberInput = function (event) {
-  state.suggestedIdNumber = event.target.value;
-  state.idNumberError = ''; // Clear error on input
+  const idValue = event.target.value.trim();
+  state.suggestedIdNumber = idValue;
+  state.idNumberError = ''; // Clear error on initial input
+  state.idCheckStatus = 'idle';
+
+  if (idValue.length > 0) {
+    state.idCheckStatus = 'checking';
+    renderIdStatus(); // Update UI to show checking state
+    debouncedCheckId(idValue);
+  } else {
+    renderIdStatus(); // Clear status
+  }
 };
+
+// Debounced function to check ID availability
+const debouncedCheckId = debounce(async (id) => {
+  if (!id) return;
+
+  try {
+    // Check ID availability using dedicated endpoint
+    const response = await api.get(endpoints.checkStudentId(id));
+
+    if (response) {
+      if (response.available) {
+        state.idCheckStatus = 'available';
+        state.idNumberError = '';
+      } else {
+        state.idCheckStatus = 'taken';
+        state.idNumberError = response.message || 'This Student ID is already assigned to another student';
+      }
+    } else {
+      throw new Error("No response from server");
+    }
+  } catch (error) {
+    console.error('Error checking ID:', error);
+    state.idCheckStatus = 'error';
+    state.idNumberError = 'Could not verify ID availability (network/permission error)';
+  }
+  renderIdStatus(); // Update UI with result
+}, 500);
+
+// Helper to update just the ID status part of the modal without re-rendering the whole page/modal (avoids losing focus)
+function renderIdStatus() {
+  const container = document.getElementById('id-status-container');
+  if (!container) return; // If modal closed
+
+  let content = '';
+
+  if (state.idCheckStatus === 'checking') {
+    content = `
+      <p class="text-sm text-blue-600 mt-2 flex items-center gap-2">
+        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Checking availability...
+      </p>
+    `;
+  } else if (state.idCheckStatus === 'taken') {
+    content = `
+      <p class="text-sm text-red-600 mt-2 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        ${state.idNumberError}
+      </p>
+    `;
+  } else if (state.idCheckStatus === 'available') {
+    content = `
+      <p class="text-sm text-green-600 mt-2 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        ID Available
+      </p>
+    `;
+  } else if (state.idCheckStatus === 'error' && state.idNumberError) {
+    content = `
+      <p class="text-sm text-yellow-600 mt-2 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+        ${state.idNumberError}
+      </p>
+    `;
+  } else if (state.idNumberError) {
+    // Fallback for non-check errors
+    content = `
+      <p class="text-sm text-red-600 mt-2 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        ${state.idNumberError}
+      </p>
+    `;
+  }
+
+  container.innerHTML = content;
+
+  // Also disable/enable submit button
+  const submitBtn = document.getElementById('btn-submit-id');
+  if (submitBtn) {
+    // Disable if checking or taken. Allow if available, error, or idle (fail open on error)
+    submitBtn.disabled = state.idCheckStatus === 'taken' || state.idCheckStatus === 'checking';
+    if (state.idCheckStatus === 'taken') {
+      submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+      submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+}
 
 window.submitIdAssignment = async function () {
   const idNumber = state.suggestedIdNumber.trim();
@@ -703,14 +812,18 @@ function renderIdAssignmentModal() {
               oninput="handleIdNumberInput(event)"
             >
             <p class="text-xs text-gray-500 mt-2">Enter any unique student ID number</p>
-            ${state.idNumberError ? `
-              <p class="text-sm text-red-600 mt-2 flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                ${state.idNumberError}
-              </p>
-            ` : ''}
+            
+            <!-- Dynamic Status Container -->
+            <div id="id-status-container" class="min-h-[24px]">
+              ${state.idNumberError ? `
+                <p class="text-sm text-red-600 mt-2 flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  ${state.idNumberError}
+                </p>
+              ` : ''}
+            </div>
           </div>
 
           <!-- Info Box -->
@@ -728,7 +841,7 @@ function renderIdAssignmentModal() {
             <button onclick="closeIdAssignmentModal()" class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors">
               Cancel
             </button>
-            <button onclick="submitIdAssignment()" class="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-lg">
+            <button id="btn-submit-id" onclick="submitIdAssignment()" class="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-lg">
               Approve & Assign ID
             </button>
           </div>
