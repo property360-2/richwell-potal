@@ -79,19 +79,19 @@ async function loadApplicants() {
       state.applicants = enrollments.map(enrollment => ({
         id: enrollment.id,
         student_number: enrollment.student_number,
-        first_name: enrollment.student_name?.split(' ')[0] || 'Unknown',
-        last_name: enrollment.student_name?.split(' ').slice(1).join(' ') || 'Student',
-        email: enrollment.student_email,
+        first_name: enrollment.first_name || 'Unknown',
+        last_name: enrollment.last_name || 'Student',
+        email: enrollment.email,
         status: enrollment.status,
-        created_via: enrollment.created_via,
+        created_via: enrollment.created_via || 'ONLINE',
         created_at: enrollment.created_at,
-        program: { code: enrollment.program_code || 'N/A', name: enrollment.program_name || 'Enrolled Program' },
+        program: enrollment.program || { code: 'N/A', name: 'Enrolled Program' },
         documents: enrollment.documents || [],
-        student: { first_name: enrollment.student_name?.split(' ')[0], last_name: enrollment.student_name?.split(' ').slice(1).join(' ') }
+        student: { first_name: enrollment.first_name, last_name: enrollment.last_name }
       }));
       console.log('LoadApplicants: Loaded', state.applicants.length, 'applicants');
     } else {
-        console.log('LoadApplicants: No applicants from API');
+      console.log('LoadApplicants: No applicants from API');
       state.applicants = [];
     }
   } catch (error) {
@@ -122,10 +122,10 @@ function render() {
   app.innerHTML = `
     <!-- Header -->
     ${createHeader({
-      role: 'ADMISSION',
-      activePage: 'admission-dashboard',
-      user: state.user
-    })}
+    role: 'ADMISSION',
+    activePage: 'admission-dashboard',
+    user: state.user
+  })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -186,9 +186,6 @@ function render() {
             <tr class="table-header">
               <th class="px-6 py-4 text-left">Student</th>
               <th class="px-6 py-4 text-left">Program</th>
-              <th class="px-6 py-4 text-left">Status</th>
-              <th class="px-6 py-4 text-left">Source</th>
-              <th class="px-6 py-4 text-left">Documents</th>
               <th class="px-6 py-4 text-left">Date</th>
               <th class="px-6 py-4 text-center">Actions</th>
             </tr>
@@ -196,7 +193,7 @@ function render() {
           <tbody>
             ${filteredApplicants.length > 0 ? filteredApplicants.map(applicant => renderApplicantRow(applicant)).join('') : `
               <tr>
-                <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                <td colspan="4" class="px-6 py-12 text-center text-gray-500">
                   <svg class="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
                   </svg>
@@ -237,39 +234,16 @@ function renderStatCard(label, value, color) {
 }
 
 function renderApplicantRow(applicant) {
-  const pendingDocs = applicant.documents?.filter(d => d.status === 'PENDING').length || 0;
-  const verifiedDocs = applicant.documents?.filter(d => d.status === 'VERIFIED').length || 0;
-  const totalDocs = applicant.documents?.length || 0;
-
   return `
     <tr class="table-row">
       <td class="px-6 py-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-            ${applicant.first_name[0]}${applicant.last_name[0]}
-          </div>
-          <div>
-            <p class="font-medium text-gray-800">${applicant.first_name} ${applicant.last_name}</p>
-            <p class="text-sm text-gray-500">${applicant.student_number}</p>
-          </div>
+        <div>
+          <p class="font-medium text-gray-800">${applicant.first_name} ${applicant.last_name}</p>
+          <p class="text-sm text-gray-500">${applicant.student_number}</p>
         </div>
       </td>
       <td class="px-6 py-4">
         <span class="font-medium text-gray-800">${applicant.program?.code || 'N/A'}</span>
-      </td>
-      <td class="px-6 py-4">
-        <span class="badge ${applicant.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}">${applicant.status}</span>
-      </td>
-      <td class="px-6 py-4">
-        <span class="badge ${applicant.created_via === 'ONLINE' ? 'badge-info' : 'badge-warning'}">${applicant.created_via}</span>
-      </td>
-      <td class="px-6 py-4">
-        <div class="flex items-center gap-2">
-          <div class="w-24 progress-bar">
-            <div class="progress-bar-fill" style="width: ${totalDocs > 0 ? (verifiedDocs / totalDocs) * 100 : 0}%"></div>
-          </div>
-          <span class="text-sm text-gray-500">${verifiedDocs}/${totalDocs}</span>
-        </div>
       </td>
       <td class="px-6 py-4 text-sm text-gray-500">
         ${formatDate(applicant.created_at)}
@@ -304,12 +278,18 @@ function renderApplicantModal(applicant) {
             <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
               ${(applicant.first_name || 'U')[0]}${(applicant.last_name || 'N')[0]}
             </div>
-            <div>
+            <div class="flex-1">
               <h3 class="text-xl font-bold text-gray-800">${applicant.first_name || 'Unknown'} ${applicant.last_name || 'Student'}</h3>
               <p class="text-gray-500">${applicant.email || applicant.student_email || 'No email'}</p>
-              <div class="flex gap-2 mt-2">
+              <div class="flex gap-2 mt-2 items-center">
                 <span class="badge badge-info">${applicant.student_number}</span>
                 <span class="badge ${applicant.status === 'ACTIVE' ? 'badge-success' : applicant.status === 'REJECTED' ? 'badge-error' : 'badge-warning'}">${applicant.status}</span>
+                <button onclick="editStudentIdFromModal('${applicant.id}')" class="text-xs text-blue-600 hover:text-blue-800 font-medium ml-2 flex items-center gap-1">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                  </svg>
+                  Edit IDN
+                </button>
               </div>
             </div>
           </div>
@@ -329,7 +309,7 @@ function renderApplicantModal(applicant) {
               </div>
               <div class="bg-white rounded-lg p-3 border border-blue-100">
                 <p class="text-xs text-gray-500 mb-1">Password</p>
-                <p class="font-medium text-blue-600 font-mono text-sm">${applicant.student_number || 'N/A'}</p>
+                <p class="font-medium text-blue-600 font-mono text-sm">richwell123</p>
               </div>
             </div>
           </div>
@@ -402,13 +382,13 @@ function renderApplicantModal(applicant) {
         <div class="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-between">
           <div class="flex gap-2">
             ${applicant.status === 'PENDING' ? `
-              <button onclick="acceptApplicant('${applicant.id}')" class="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2">
+              <button onclick="approveFromViewDetails('${applicant.id}')" class="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                 </svg>
                 Accept
               </button>
-              <button onclick="rejectApplicant(${applicant.id})" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 flex items-center gap-2">
+              <button onclick="rejectApplicant('${applicant.id}')" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
@@ -450,7 +430,8 @@ window.resetFilters = function () {
 };
 
 window.viewApplicant = function (id) {
-  state.selectedApplicant = state.applicants.find(a => a.id === id);
+  // Use loose equality to handle string/number mismatches
+  state.selectedApplicant = state.applicants.find(a => a.id == id);
   render();
 };
 
@@ -520,7 +501,31 @@ window.closePendingModal = function () {
   render();
 };
 
-window.openIdAssignmentModal = async function(applicant) {
+// Approve from View Details modal - opens ID assignment modal
+window.approveFromViewDetails = async function (applicantId) {
+  const applicant = state.applicants.find(a => a.id == applicantId);
+  if (!applicant) return;
+
+  // Close view details modal first
+  state.selectedApplicant = null;
+
+  // Open ID assignment modal
+  openIdAssignmentModal(applicant);
+};
+
+// Edit Student ID from View Details modal
+window.editStudentIdFromModal = async function (applicantId) {
+  const applicant = state.applicants.find(a => a.id == applicantId);
+  if (!applicant) return;
+
+  // Close view details modal first
+  state.selectedApplicant = null;
+
+  // Open ID assignment modal for editing
+  openIdAssignmentModal(applicant);
+};
+
+window.openIdAssignmentModal = async function (applicant) {
   state.selectedApplicantForId = applicant;
   state.idNumberError = '';
 
@@ -550,7 +555,7 @@ window.openIdAssignmentModal = async function(applicant) {
   }, 100);
 };
 
-window.closeIdAssignmentModal = function(event) {
+window.closeIdAssignmentModal = function (event) {
   if (event && event.target !== event.currentTarget) return;
   state.showIdAssignmentModal = false;
   state.selectedApplicantForId = null;
@@ -559,12 +564,12 @@ window.closeIdAssignmentModal = function(event) {
   render();
 };
 
-window.handleIdNumberInput = function(event) {
+window.handleIdNumberInput = function (event) {
   state.suggestedIdNumber = event.target.value;
   state.idNumberError = ''; // Clear error on input
 };
 
-window.submitIdAssignment = async function() {
+window.submitIdAssignment = async function () {
   const idNumber = state.suggestedIdNumber.trim();
   const applicant = state.selectedApplicantForId;
 
@@ -602,6 +607,13 @@ window.submitIdAssignment = async function() {
       render();
       return;
     }
+
+    if (response && response.error) {
+      state.idNumberError = response.error;
+      render();
+      throw new Error(response.error);
+    }
+
     throw new Error('Invalid API response');
   } catch (error) {
     ErrorHandler.handle(error, 'Assigning ID');
@@ -734,13 +746,13 @@ function renderPendingApplicantCard(applicant) {
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div class="flex items-center gap-4">
             <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-lg font-bold">
-              ${applicant.first_name[0]}${applicant.last_name[0]}
+              ${(applicant.first_name || 'U')[0]}${(applicant.last_name || 'N')[0]}
             </div>
             <div>
               <h3 class="text-lg font-bold text-gray-800">${applicant.first_name} ${applicant.last_name}</h3>
               <p class="text-sm text-gray-500">${applicant.student_number} • ${applicant.email}</p>
               <div class="flex items-center gap-2 mt-1">
-                <span class="text-sm font-medium text-blue-600">${applicant.program?.code}</span>
+                <span class="text-sm font-medium text-blue-600">${applicant.program?.code || 'N/A'}</span>
                 <span class="text-xs text-gray-400">•</span>
                 <span class="text-sm text-gray-500">${applicant.created_via}</span>
               </div>

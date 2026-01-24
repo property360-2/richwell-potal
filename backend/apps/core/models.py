@@ -66,3 +66,53 @@ class BaseModelWithActiveManager(BaseModel):
 
     class Meta:
         abstract = True
+
+
+class SystemConfig(BaseModel):
+    """
+    Dynamic system configuration.
+    Stores key-value pairs for runtime settings.
+    """
+    
+    key = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text='Configuration key (e.g., ENROLLMENT_ENABLED)'
+    )
+    value = models.JSONField(
+        default=dict,
+        help_text='Configuration value (can be boolean, string, number, or object)'
+    )
+    description = models.TextField(
+        blank=True,
+        help_text='Description of what this setting controls'
+    )
+    
+    class Meta:
+        verbose_name = 'System Configuration'
+        verbose_name_plural = 'System Configurations'
+        ordering = ['key']
+        
+    def __str__(self):
+        return f"{self.key}: {self.value}"
+
+    @classmethod
+    def get_value(cls, key, default=None):
+        """Get config value by key."""
+        try:
+            return cls.objects.get(key=key, is_deleted=False).value
+        except cls.DoesNotExist:
+            return default
+            
+    @classmethod
+    def set_value(cls, key, value, description=''):
+        """Set config value."""
+        config, created = cls.objects.update_or_create(
+            key=key,
+            defaults={
+                'value': value,
+                'description': description,
+                'is_deleted': False
+            }
+        )
+        return config

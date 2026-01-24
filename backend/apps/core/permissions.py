@@ -2,7 +2,7 @@
 Core permission classes for role-based access control.
 """
 
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
 class IsStudent(BasePermission):
@@ -168,4 +168,21 @@ class CanViewAuditLogs(BasePermission):
             request.user and 
             request.user.is_authenticated and 
             request.user.role in ['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR']
+        )
+
+
+class IsAdminOrReadOnly(BasePermission):
+    """
+    Custom permission to only allow admin users to edit objects.
+    All authenticated users can read.
+    """
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return request.user and request.user.is_authenticated
+        
+        return (
+            request.user and 
+            request.user.is_authenticated and 
+            (request.user.role == 'ADMIN' or request.user.is_superuser)
         )

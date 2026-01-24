@@ -100,6 +100,12 @@ class Subject(BaseModel):
         default=False,
         help_text='Whether a student can enroll in multiple sections (for irregular students)'
     )
+    syllabus = models.FileField(
+        upload_to='syllabi/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text='Syllabus file for this subject'
+    )
     
     # Prerequisites - subjects that must be passed before taking this subject
     prerequisites = models.ManyToManyField(

@@ -23,7 +23,8 @@ export const NAV_CONFIG = {
   ],
 
   head: [
-    { label: 'Dashboard', href: '/head-dashboard.html', page: 'head-dashboard' }
+    { label: 'Dashboard', href: '/head-dashboard.html', page: 'head-dashboard' },
+    { label: 'Reports', href: '/head-reports.html', page: 'head-reports' }
   ],
 
   cashier: [
@@ -40,6 +41,7 @@ export const NAV_CONFIG = {
     { label: 'Users', href: '/admin-users.html', page: 'admin-users' },
     { label: 'Academic', href: '/admin-academic.html', page: 'admin-academic' },
     { label: 'Sections', href: '/admin-sections.html', page: 'admin-sections' },
+    { label: 'System Config', href: '/admin-system-config.html', page: 'admin-system-config' },
     // { label: 'Audit Logs', href: '/admin-audit-logs.html', page: 'admin-audit-logs' }
   ]
 };

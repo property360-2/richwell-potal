@@ -140,7 +140,16 @@ function render() {
                     <span class="text-sm font-bold text-gray-900">${subject.code}</span>
                   </td>
                   <td class="px-6 py-4">
-                    <div class="text-sm text-gray-900">${subject.title || subject.name}</div>
+                    <div class="text-sm text-gray-900 flex items-center gap-2">
+                        ${subject.title || subject.name}
+                        ${subject.syllabus ? `
+                            <a href="${subject.syllabus}" target="_blank" title="View Syllabus" class="text-blue-600 hover:text-blue-800">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </a>
+                        ` : ''}
+                    </div>
                     ${subject.description ? `<div class="text-xs text-gray-500 mt-1">${subject.description}</div>` : ''}
                   </td>
                   <td class="px-6 py-4">
@@ -220,18 +229,15 @@ function renderAddModal() {
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">Programs *</label>
-            <div id="add-programs" class="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3 bg-gray-50">
-              ${state.programs.map((p, index) => `
-                <label class="flex items-center space-x-2 p-2 hover:bg-white rounded cursor-pointer transition-colors">
-                  <input type="checkbox" name="add-program-checkbox" value="${p.id}" ${index === 0 ? 'checked' : ''} class="rounded border-gray-300 text-blue-600">
-                  <span class="text-sm font-medium">${p.code}</span>
-                  <span class="text-sm text-gray-600">- ${p.name}</span>
-                </label>
-              `).join('')}
-            </div>
             <p class="text-xs text-gray-500 mt-1">
               Select all programs this subject belongs to. At least one program is required.
             </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Syllabus (PDF)</label>
+            <input type="file" id="add-syllabus" accept=".pdf" class="form-input">
+            <p class="text-xs text-gray-500 mt-1">Optional. Upload a PDF syllabus.</p>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
@@ -333,6 +339,12 @@ function renderEditModal() {
             <p class="text-xs text-gray-500 mt-1">
               Select all programs this subject belongs to. At least one program is required.
             </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Syllabus (PDF)</label>
+            <input type="file" id="edit-syllabus" accept=".pdf" class="form-input">
+            ${subject.syllabus ? `<p class="text-xs text-blue-600 mt-1"><a href="${subject.syllabus}" target="_blank" class="hover:underline">View Current Syllabus</a></p>` : '<p class="text-xs text-gray-500 mt-1">Optional. Upload to replace.</p>'}
           </div>
 
           <div class="grid grid-cols-2 gap-4">
@@ -444,24 +456,36 @@ window.handleAddSubject = async function(event) {
   const primaryProgram = checkedPrograms[0];
   const additionalProgramIds = checkedPrograms.slice(1);
 
-  const data = {
-    code: document.getElementById('add-code').value,
-    title: document.getElementById('add-name').value,
-    description: document.getElementById('add-description').value,
-    units: parseInt(document.getElementById('add-units').value),
-    program: primaryProgram,  // Primary program (first checked)
-    program_ids: additionalProgramIds,  // Additional programs
-    year_level: parseInt(document.getElementById('add-year').value),
-    semester_number: parseInt(document.getElementById('add-semester').value),
-    prerequisite_ids: selectedPrereqs
-  };
+  const formData = new FormData();
+  formData.append('code', document.getElementById('add-code').value);
+  formData.append('title', document.getElementById('add-name').value);
+  formData.append('description', document.getElementById('add-description').value);
+  formData.append('units', document.getElementById('add-units').value);
+  formData.append('program', primaryProgram);
+  formData.append('year_level', document.getElementById('add-year').value);
+  formData.append('semester_number', document.getElementById('add-semester').value);
+
+  // Append arrays
+  additionalProgramIds.forEach(id => formData.append('program_ids', id));
+  selectedPrereqs.forEach(id => formData.append('prerequisite_ids', id));
+
+  // Append syllabus
+  const syllabusFile = document.getElementById('add-syllabus').files[0];
+  if (syllabusFile) {
+    formData.append('syllabus', syllabusFile);
+  }
 
   try {
-    const response = await api.post(endpoints.manageSubjects, data);
-    Toast.success('Subject added successfully');
-    state.showAddModal = false;
-    await loadSubjects();
-    render();
+    const response = await api.postFormData(endpoints.manageSubjects, formData);
+    if (response.ok) {
+        Toast.success('Subject added successfully');
+        state.showAddModal = false;
+        await loadSubjects();
+        render();
+    } else {
+        const error = await response.json();
+        Toast.error(error.detail || 'Failed to add subject');
+    }
   } catch (error) {
     ErrorHandler.handle(error, 'Adding subject');
   }
@@ -472,7 +496,6 @@ window.handleEditSubject = async function(event) {
 
   const hasPrereq = document.getElementById('edit-has-prereq').checked;
   const selectedPrereqs = hasPrereq ? getSelectedPrerequisites('edit') : [];
-  const oldPrereqs = state.editingSubject.prerequisites?.map(p => p.id) || [];
 
   // Collect all checked programs
   const checkedPrograms = Array.from(document.querySelectorAll('input[name="edit-program-checkbox"]:checked'))
@@ -487,25 +510,37 @@ window.handleEditSubject = async function(event) {
   const primaryProgram = checkedPrograms[0];
   const additionalProgramIds = checkedPrograms.slice(1);
 
-  const data = {
-    code: document.getElementById('edit-code').value,
-    title: document.getElementById('edit-name').value,
-    description: document.getElementById('edit-description').value,
-    units: parseInt(document.getElementById('edit-units').value),
-    program: primaryProgram,  // Primary program (first checked)
-    program_ids: additionalProgramIds,  // Additional programs
-    year_level: parseInt(document.getElementById('edit-year').value),
-    semester_number: parseInt(document.getElementById('edit-semester').value),
-    prerequisite_ids: selectedPrereqs
-  };
+  const formData = new FormData();
+  formData.append('code', document.getElementById('edit-code').value);
+  formData.append('title', document.getElementById('edit-name').value);
+  formData.append('description', document.getElementById('edit-description').value);
+  formData.append('units', document.getElementById('edit-units').value);
+  formData.append('program', primaryProgram);
+  formData.append('year_level', document.getElementById('edit-year').value);
+  formData.append('semester_number', document.getElementById('edit-semester').value);
+
+  // Append arrays
+  additionalProgramIds.forEach(id => formData.append('program_ids', id));
+  selectedPrereqs.forEach(id => formData.append('prerequisite_ids', id));
+
+  // Append syllabus
+  const syllabusFile = document.getElementById('edit-syllabus').files[0];
+  if (syllabusFile) {
+    formData.append('syllabus', syllabusFile);
+  }
 
   try {
-    await api.put(endpoints.manageSubject(state.editingSubject.id), data);
-    Toast.success('Subject updated successfully');
-    state.showEditModal = false;
-    state.editingSubject = null;
-    await loadSubjects();
-    render();
+    const response = await api.putFormData(endpoints.manageSubject(state.editingSubject.id), formData);
+    if (response.ok) {
+        Toast.success('Subject updated successfully');
+        state.showEditModal = false;
+        state.editingSubject = null;
+        await loadSubjects();
+        render();
+    } else {
+        const error = await response.json();
+        Toast.error(error.detail || 'Failed to update subject');
+    }
   } catch (error) {
     ErrorHandler.handle(error, 'Updating subject');
   }

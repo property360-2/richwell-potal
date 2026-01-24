@@ -33,7 +33,7 @@ class SubjectSerializer(serializers.ModelSerializer):
             'id', 'code', 'title', 'description', 'units',
             'is_major', 'year_level', 'semester_number',
             'allow_multiple_sections', 'program_code', 'program_codes',
-            'prerequisites', 'inc_expiry_months'
+            'prerequisites', 'inc_expiry_months', 'syllabus'
         ]
 
 
@@ -103,7 +103,8 @@ class SubjectCreateSerializer(serializers.ModelSerializer):
         fields = [
             'program', 'code', 'title', 'description', 'units',
             'is_major', 'year_level', 'semester_number',
-            'allow_multiple_sections', 'prerequisite_ids', 'program_ids'
+            'allow_multiple_sections', 'prerequisite_ids', 'program_ids',
+            'syllabus'
         ]
 
     def validate_code(self, value):
