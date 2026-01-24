@@ -128,6 +128,13 @@ export const api = {
             body: JSON.stringify(data)
         });
         if (!response) return null;
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const error = new Error(errorData.detail || errorData.error || `Server error: ${response.status}`);
+            error.status = response.status;
+            error.data = errorData;
+            throw error;
+        }
         return response.json();
     },
 
@@ -137,6 +144,13 @@ export const api = {
             body: JSON.stringify(data)
         });
         if (!response) return null;
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const error = new Error(errorData.detail || errorData.error || `Server error: ${response.status}`);
+            error.status = response.status;
+            error.data = errorData;
+            throw error;
+        }
         return response.json();
     },
 
@@ -146,11 +160,25 @@ export const api = {
             body: JSON.stringify(data)
         });
         if (!response) return null;
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const error = new Error(errorData.detail || errorData.error || `Server error: ${response.status}`);
+            error.status = response.status;
+            error.data = errorData;
+            throw error;
+        }
         return response.json();
     },
 
     async delete(endpoint) {
         const response = await this.request(endpoint, { method: 'DELETE' });
+        if (!response.ok && response.status !== 204) {
+            const errorData = await response.json().catch(() => ({}));
+            const error = new Error(errorData.detail || errorData.error || `Server error: ${response.status}`);
+            error.status = response.status;
+            error.data = errorData;
+            throw error;
+        }
         return response;
     },
 
@@ -294,7 +322,9 @@ export const endpoints = {
 
     // Curriculum Management (EPIC 7)
     curricula: '/academics/curricula/',
+    curriculum: (id) => `/academics/curricula/${id}/`,
     curriculumDetail: (id) => `/academics/curricula/${id}/`,
+    curriculumSubjects: '/academics/curriculum-subjects/',
     curriculumStructure: (id) => `/academics/curricula/${id}/structure/`,
     curriculumAssignSubjects: (id) => `/academics/curricula/${id}/assign_subjects/`,
     curriculumRemoveSubject: (id, subjectId) => `/academics/curricula/${id}/subjects/${subjectId}/`,

@@ -14,7 +14,6 @@ export const NAV_CONFIG = {
     { label: 'Dashboard', href: '/registrar-dashboard.html', page: 'registrar-dashboard' },
     { label: 'Documents', href: '/registrar-documents.html', page: 'registrar-documents' },
     { label: 'Academic', href: '/registrar-academic.html', page: 'registrar-academic' },
-    { label: 'Sections', href: '/registrar-sections.html', page: 'registrar-sections' },
     { label: 'Override', href: '/registrar-enrollment.html', page: 'registrar-enrollment' }
   ],
 
@@ -40,7 +39,6 @@ export const NAV_CONFIG = {
     { label: 'Dashboard', href: '/admin-dashboard.html', page: 'admin-dashboard' },
     { label: 'Users', href: '/admin-users.html', page: 'admin-users' },
     { label: 'Academic', href: '/admin-academic.html', page: 'admin-academic' },
-    { label: 'Sections', href: '/admin-sections.html', page: 'admin-sections' },
     { label: 'System Config', href: '/admin-system-config.html', page: 'admin-system-config' },
     // { label: 'Audit Logs', href: '/admin-audit-logs.html', page: 'admin-audit-logs' }
   ]

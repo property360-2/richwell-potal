@@ -11,10 +11,44 @@ import { createTabs, initHashNavigation, updateHash } from '../components/tabs.j
 // Tab constants
 const TABS = {
   PROGRAMS: 'programs',
-  SUBJECTS: 'subjects',
+  PROFESSORS: 'professors',
+  SECTIONS: 'sections',
   CURRICULA: 'curricula',
   SEMESTERS: 'semesters'
 };
+
+// Section Constants
+const DAYS = [
+  { code: 'MON', name: 'Monday', short: 'Mon' },
+  { code: 'TUE', name: 'Tuesday', short: 'Tue' },
+  { code: 'WED', name: 'Wednesday', short: 'Wed' },
+  { code: 'THU', name: 'Thursday', short: 'Thu' },
+  { code: 'FRI', name: 'Friday', short: 'Fri' },
+  { code: 'SAT', name: 'Saturday', short: 'Sat' },
+  { code: 'SUN', name: 'Sunday', short: 'Sun' }
+];
+
+const TIME_SLOTS = [];
+for (let hour = 7; hour <= 21; hour++) {
+  TIME_SLOTS.push(`${hour.toString().padStart(2, '0')}:00`);
+}
+
+const ROOMS = [
+  'Room 101', 'Room 102', 'Room 103', 'Room 104', 'Room 105',
+  'Room 201', 'Room 202', 'Room 203', 'Room 204', 'Room 205',
+  'Lab 1', 'Lab 2', 'Lab 3', 'Lab 4', 'Lab 5'
+];
+
+const COLORS = [
+  'bg-blue-100 border-blue-400 text-blue-800',
+  'bg-green-100 border-green-400 text-green-800',
+  'bg-purple-100 border-purple-400 text-purple-800',
+  'bg-orange-100 border-orange-400 text-orange-800',
+  'bg-pink-100 border-pink-400 text-pink-800',
+  'bg-teal-100 border-teal-400 text-teal-800',
+  'bg-indigo-100 border-indigo-400 text-indigo-800',
+  'bg-red-100 border-red-400 text-red-800'
+];
 
 // State
 const state = {
@@ -22,22 +56,27 @@ const state = {
   loading: true,
   activeTab: TABS.PROGRAMS,
 
+  // Navigation State (New)
+  activeProgram: null, // For Program > Curricula view
+  subView: 'list', // 'list' or 'program_curricula'
+
   // Programs state
   programs: [],
   programModal: null,
   editingProgram: null,
 
-  // Subjects state
-  subjects: [],
-  selectedProgram: null,
-  subjectModal: null,
-  editingSubject: null,
-  prereqModal: null,
+  // Professors state
+  professors: [],
+  professorModal: null,
+  editingProfessor: null,
+  subjectSelectionModal: null,
+  professorSearch: '',
 
-  // Prerequisite selection state
-  prereqState: {
-    add: { selected: [], results: [], search: '' },
-    edit: { selected: [], results: [], search: '' }
+  // Subject selection state for professors
+  profSubjectState: {
+    selected: [],
+    results: [],
+    search: ''
   },
 
   // Curricula state
@@ -61,7 +100,16 @@ const state = {
     enrollment_start_date: '',
     enrollment_end_date: '',
     is_current: false
-  }
+  },
+
+  // Sections state
+  sections: [],
+  selectedSection: null,
+  sectionSubjects: [],
+  sectionSchedule: [],
+  sectionSearch: '',
+  sectionFilterProgram: 'all',
+  sectionFilterYear: 'all'
 };
 
 async function init() {
@@ -125,6 +173,16 @@ async function loadSubjects(programId = null) {
   }
 }
 
+async function loadProfessors() {
+  try {
+    const response = await api.get(endpoints.professors);
+    state.professors = response?.results || response || [];
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading professors');
+    state.professors = [];
+  }
+}
+
 async function loadCurricula(programId = null) {
   try {
     const url = programId
@@ -141,29 +199,41 @@ async function loadCurricula(programId = null) {
 async function loadSemesters() {
   try {
     const response = await api.get(endpoints.semesters);
+    console.log('API Response (Semesters):', response);
+
+    let semestersList = [];
     if (response && response.semesters) {
-      state.semesters = response.semesters;
-      state.activeSemester = response.semesters.find(s => s.is_current);
+      // Custom format from earlier impl
+      semestersList = response.semesters;
+    } else if (response && response.results) {
+      // DRF Standard Pagination
+      semestersList = response.results;
     } else if (Array.isArray(response)) {
-      state.semesters = response;
-      state.activeSemester = response.find(s => s.is_current);
-    } else {
-      state.semesters = [];
+      // Direct List
+      semestersList = response;
     }
+
+    console.log('Parsed Semesters List:', semestersList);
+    state.semesters = semestersList || [];
+    state.activeSemester = state.semesters.find(s => s.is_current);
+
     filterSemesters();
   } catch (error) {
+    console.error('Error loading semesters:', error);
     ErrorHandler.handle(error, 'Loading semesters');
     state.semesters = [];
   }
 }
 
 function filterSemesters() {
+  console.log('Filtering Semesters. State:', { total: state.semesters.length, filter: state.semesterFilterYear });
   if (state.semesterFilterYear === 'all') {
     state.filteredSemesters = state.semesters;
   } else {
     state.filteredSemesters = state.semesters.filter(s => s.academic_year === state.semesterFilterYear);
   }
 }
+
 
 function getUniqueAcademicYears() {
   const years = [...new Set(state.semesters.map(s => s.academic_year))];
@@ -174,6 +244,95 @@ function formatSemesterDate(dateString) {
   if (!dateString) return 'Not set';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+async function loadSections() {
+  try {
+    let url = endpoints.sections;
+    const params = [];
+    if (state.activeSemester?.id) params.push(`semester=${state.activeSemester.id}`);
+    if (state.sectionFilterProgram !== 'all') params.push(`program=${state.sectionFilterProgram}`);
+
+    if (params.length > 0) url += `?${params.join('&')}`;
+
+    const response = await api.get(url);
+    state.sections = response?.results || response || [];
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading sections');
+    state.sections = [];
+  }
+}
+
+async function loadSectionDetails(sectionId) {
+  try {
+    const response = await api.get(endpoints.section(sectionId));
+    state.selectedSection = response;
+
+    // Load section subjects with schedules
+    const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
+    state.sectionSubjects = subjectsResponse?.results || subjectsResponse || [];
+
+    // Build schedule from section subjects
+    state.sectionSchedule = [];
+    state.sectionSubjects.forEach(ss => {
+      if (ss.schedule_slots) {
+        ss.schedule_slots.forEach(slot => {
+          state.sectionSchedule.push({
+            id: slot.id,
+            section_subject_id: ss.id,
+            subject_id: ss.subject?.id || ss.subject,
+            subject_code: ss.subject_code,
+            subject_title: ss.subject_title,
+            day: slot.day,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+            room: slot.room,
+            professor_id: slot.professor,
+            professor_name: slot.professor_name
+          });
+        });
+      }
+    });
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading section details');
+  }
+}
+
+function getFilteredSections() {
+  let filtered = [...state.sections];
+
+  if (state.sectionSearch) {
+    const q = state.sectionSearch.toLowerCase();
+    filtered = filtered.filter(s => s.name.toLowerCase().includes(q));
+  }
+
+  if (state.sectionFilterYear !== 'all') {
+    filtered = filtered.filter(s => s.year_level === parseInt(state.sectionFilterYear));
+  }
+
+  return filtered;
+}
+
+function getSubjectColor(subjectCode) {
+  const codes = [...new Set(state.sectionSchedule.map(s => s.subject_code))];
+  const index = codes.indexOf(subjectCode);
+  return COLORS[index % COLORS.length];
+}
+
+function formatTime(time24) {
+  if (!time24) return '';
+  const [hours, minutes] = time24.split(':');
+  const hour = parseInt(hours);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return `${hour12}${ampm}`;
+}
+
+function calculateDuration(startTime, endTime) {
+  if (!startTime || !endTime) return 1;
+  const start = parseInt(startTime.split(':')[0]);
+  const end = parseInt(endTime.split(':')[0]);
+  return Math.max(1, end - start);
 }
 
 function render() {
@@ -192,6 +351,9 @@ function render() {
   })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
+      <!-- Breadcrumbs -->
+      ${renderBreadcrumbs()}
+
       <!-- Page Header -->
       <div class="mb-8">
         <h1 class="text-3xl font-bold text-gray-800">Academic Structure</h1>
@@ -202,8 +364,8 @@ function render() {
       ${createTabs({
     tabs: [
       { id: TABS.PROGRAMS, label: 'Programs' },
-      { id: TABS.SUBJECTS, label: 'Subjects' },
-      { id: TABS.CURRICULA, label: 'Curricula' },
+      { id: TABS.PROFESSORS, label: 'Professors' },
+      { id: TABS.SECTIONS, label: 'Sections' },
       { id: TABS.SEMESTERS, label: 'Semesters' }
     ],
     activeTab: state.activeTab,
@@ -218,14 +380,67 @@ function render() {
   `;
 }
 
+function renderBreadcrumbs() {
+  const parts = [];
+
+  // Base
+  parts.push(`<span class="text-gray-500">Academic Structure</span>`);
+
+  // Active Tab
+  if (state.activeTab === TABS.PROGRAMS) {
+    parts.push(`<a href="#" onclick="event.preventDefault(); switchTab('${TABS.PROGRAMS}')" class="text-blue-600 hover:text-blue-800">Programs</a>`);
+
+    // Sub-view: Program Curricula
+    if (state.subView === 'program_curricula' && state.activeProgram) {
+      parts.push(`<span class="text-gray-900 font-medium">${state.activeProgram.code} - Curricula</span>`);
+    }
+  } else if (state.activeTab === TABS.PROFESSORS) {
+    parts.push(`<span class="text-gray-900">Professors</span>`);
+  } else if (state.activeTab === TABS.SECTIONS) {
+    parts.push(`<a href="#" onclick="event.preventDefault(); switchTab('${TABS.SECTIONS}')" class="text-blue-600 hover:text-blue-800">Sections</a>`);
+    if (state.selectedSection) {
+      parts.push(`<span class="text-gray-900 font-medium">${state.selectedSection.name}</span>`);
+    }
+  } else if (state.activeTab === TABS.CURRICULA) {
+    parts.push(`<span class="text-gray-900">All Curricula</span>`);
+  } else if (state.activeTab === TABS.SEMESTERS) {
+    parts.push(`<span class="text-gray-900">Semesters</span>`);
+  }
+
+  return `
+    <nav class="flex mb-4" aria-label="Breadcrumb">
+      <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        ${parts.map((part, index) => `
+          <li class="inline-flex items-center">
+            ${index > 0 ? `<svg class="w-3 h-3 text-gray-400 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+            </svg>` : ''}
+            <div class="flex items-center text-sm font-medium">
+              ${part}
+            </div>
+          </li>
+        `).join('')}
+      </ol>
+    </nav>
+  `;
+}
+
 function renderTabContent() {
   switch (state.activeTab) {
     case TABS.PROGRAMS:
+      if (state.subView === 'program_curricula') {
+        return renderProgramCurriculaView();
+      }
+      if (state.subView === 'program_details') {
+        return renderProgramDetailsView();
+      }
       return renderProgramsTab();
-    case TABS.SUBJECTS:
-      return renderSubjectsTab();
+    case TABS.PROFESSORS:
+      return renderProfessorsTab();
+    case TABS.SECTIONS:
+      return state.selectedSection ? renderSectionDetail() : renderSectionsTab();
     case TABS.CURRICULA:
-      return renderCurriculaTab();
+      return renderCurriculaTab(); // Original global view (optional/admin)
     case TABS.SEMESTERS:
       return renderSemestersTab();
     default:
@@ -234,7 +449,7 @@ function renderTabContent() {
 }
 
 // ============================================================
-// PROGRAMS TAB
+// PROGRAMS TAB & NAVIGATION
 // ============================================================
 
 function renderProgramsTab() {
@@ -262,11 +477,17 @@ function renderProgramsTab() {
           <p class="text-gray-400 text-sm mt-2">Click "Add Program" to create your first program</p>
         </div>
       ` : state.programs.map(program => `
-        <div class="card hover:shadow-lg transition-shadow">
+        <div onclick="viewProgramDetails('${program.id}')" class="card hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-1 relative group">
+          <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span class="text-blue-600 text-sm font-medium flex items-center gap-1">
+                  View Details <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </span>
+          </div>
+
           <div class="flex items-start justify-between mb-4">
             <div class="flex-1">
               <div class="flex items-center gap-2 mb-2">
-                <h3 class="text-xl font-bold text-gray-800">${program.code}</h3>
+                <h3 class="text-xl font-bold text-gray-800 group-hover:text-blue-600 transition-colors">${program.code}</h3>
                 ${program.is_active
       ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Active</span>'
       : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>'
@@ -277,27 +498,26 @@ function renderProgramsTab() {
           </div>
 
           ${program.description ? `
-            <p class="text-sm text-gray-600 mb-4 line-clamp-2">${program.description}</p>
+            <p class="text-sm text-gray-600 mb-6 line-clamp-2">${program.description}</p>
           ` : ''}
 
-          <div class="grid grid-cols-2 gap-4 mb-4">
-            <div class="bg-blue-50 rounded-lg p-3">
+          <div class="grid grid-cols-2 gap-4">
+            <div class="bg-blue-50 rounded-lg p-3 group-hover:bg-blue-100 transition-colors">
               <p class="text-xs text-gray-600 mb-1">Duration</p>
               <p class="text-lg font-bold text-blue-600">${program.duration_years} ${program.duration_years === 1 ? 'year' : 'years'}</p>
             </div>
-            <div class="bg-purple-50 rounded-lg p-3">
-              <p class="text-xs text-gray-600 mb-1">Subjects</p>
-              <p class="text-lg font-bold text-purple-600">${program.total_subjects || 0}</p>
+            
+            <div class="bg-purple-50 rounded-lg p-3 group-hover:bg-purple-100 transition-colors">
+              <div class="flex justify-between items-start">
+                  <div>
+                      <p class="text-xs text-gray-600 mb-1">Curricula</p>
+                      <p class="text-lg font-bold text-purple-600">${program.total_curricula || 0}</p>
+                  </div>
+                  <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                  </svg>
+              </div>
             </div>
-          </div>
-
-          <div class="flex gap-2 pt-4 border-t border-gray-200">
-            <button onclick="openEditProgramModal('${program.id}')" class="btn btn-secondary flex-1 text-sm">
-              Edit
-            </button>
-            <button onclick="deleteProgram('${program.id}')" class="btn btn-danger flex-1 text-sm">
-              Delete
-            </button>
           </div>
         </div>
       `).join('')}
@@ -305,369 +525,1595 @@ function renderProgramsTab() {
   `;
 }
 
-function getProgramForm(program = null) {
-  const isEdit = program !== null;
-  const prefix = isEdit ? 'edit' : 'add';
+// PROGRAM > DETAILS VIEW
+window.viewProgramDetails = async function (programId) {
+  const program = state.programs.find(p => p.id === programId);
+  if (!program) return;
+
+  state.activeProgram = program;
+  state.subView = 'program_details';
+
+  // Default detail tab
+  state.programDetailTab = state.programDetailTab || 'subjects';
+
+  // Load necessary data
+  await Promise.all([
+    loadCurricula(programId),
+    loadSubjects(programId) // Ensure subjects are loaded for this program
+  ]);
+
+  render();
+  window.scrollTo(0, 0);
+};
+
+window.switchProgramDetailTab = function (tab) {
+  state.programDetailTab = tab;
+  render();
+};
+
+function renderProgramDetailsView() {
+  const program = state.activeProgram;
+  if (!program) return renderProgramsTab();
+
+  const activeTab = state.programDetailTab || 'subjects';
 
   return `
-    <form id="${prefix}-program-form" class="space-y-4">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Program Code *</label>
-        <input type="text" id="${prefix}-code" value="${program?.code || ''}" required class="form-input" placeholder="e.g., BSIT, BSCS" pattern="[A-Z]+" title="Must be uppercase letters only">
-        <p class="text-xs text-gray-500 mt-1">Use uppercase letters only (e.g., BSIT, BSCS)</p>
+        <div class="mb-6">
+            <button onclick="returnToProgramList()" class="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1 mb-4">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Back to Programs
+            </button>
+
+            <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <h1 class="text-3xl font-bold text-gray-900">${program.code}</h1>
+                        ${program.is_active
+      ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>'
+      : '<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>'
+    }
+                    </div>
+                    <h2 class="text-xl text-gray-700 font-medium mb-2">${program.name}</h2>
+                    ${program.description ? `<p class="text-gray-500 max-w-2xl">${program.description}</p>` : ''}
+                    
+                    <div class="flex gap-6 mt-4">
+                        <div class="text-sm">
+                            <span class="block text-gray-500">Duration</span>
+                            <span class="font-semibold text-gray-900">${program.duration_years} Years</span>
+                        </div>
+                        <div class="text-sm">
+                            <span class="block text-gray-500">Curricula</span>
+                            <span class="font-semibold text-gray-900">${state.curricula.length} Versions</span>
+                        </div>
+                         <div class="text-sm">
+                            <span class="block text-gray-500">Total Subjects</span>
+                            <span class="font-semibold text-gray-900">${state.subjects.length} Subjects</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="openEditProgramModal('${program.id}')" class="btn btn-secondary flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        Edit Program
+                    </button>
+                    <button onclick="deleteProgram('${program.id}')" class="btn btn-danger flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail Tabs -->
+        <div class="border-b border-gray-200 mb-6">
+            <nav class="-mb-px flex space-x-8">
+                <button onclick="switchProgramDetailTab('subjects')" class="${activeTab === 'subjects' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    Subjects
+                </button>
+                <button onclick="switchProgramDetailTab('curricula')" class="${activeTab === 'curricula' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    Curricula
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab Content -->
+        <div>
+            ${activeTab === 'subjects' ? renderProgramSubjectsTable() : ''}
+            ${activeTab === 'curricula' ? renderProgramCurriculaList() : ''}
+        </div>
+    `;
+}
+
+// Helper for filtering/sorting
+function getFilteredAndSortedSubjects() {
+  let filtered = [...state.subjects];
+
+  // Filter
+  if (state.subjectSearchQuery) {
+    const q = state.subjectSearchQuery.toLowerCase();
+    filtered = filtered.filter(s =>
+      s.code.toLowerCase().includes(q) ||
+      s.title.toLowerCase().includes(q)
+    );
+  }
+
+  // Sort
+  const sortKey = state.subjectSortOrder || 'level_asc';
+
+  filtered.sort((a, b) => {
+    if (sortKey === 'code_asc') return a.code.localeCompare(b.code);
+    if (sortKey === 'code_desc') return b.code.localeCompare(a.code);
+    if (sortKey === 'title_asc') return a.title.localeCompare(b.title);
+    if (sortKey === 'units_desc') return b.units - a.units;
+
+    // Default: level_asc (Year > Sem > Code)
+    if (a.year_level !== b.year_level) return (a.year_level || 0) - (b.year_level || 0);
+    if (a.semester_number !== b.semester_number) return (a.semester_number || 0) - (b.semester_number || 0);
+    return a.code.localeCompare(b.code);
+  });
+
+  return filtered;
+}
+
+// Event Handlers
+window.handleProgramSubjectSearch = function (query) {
+  state.subjectSearchQuery = query;
+  render(); // Re-render to update table
+
+  // Maintain focus on search input after re-render (naive approach)
+  setTimeout(() => {
+    const input = document.getElementById('prog-subject-search');
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }, 0);
+};
+
+window.handleProgramSubjectSort = function (order) {
+  state.subjectSortOrder = order;
+  render();
+};
+
+function renderProgramSubjectsTable() {
+  const subjects = getFilteredAndSortedSubjects();
+
+  return `
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+             <h3 class="text-lg font-medium text-gray-900">Program Subjects Masterlist</h3>
+             
+             <div class="flex items-center gap-2">
+                <!-- Search -->
+                <div class="relative">
+                    <input type="text" 
+                        id="prog-subject-search" 
+                        placeholder="Search subjects..." 
+                        class="form-input text-sm pl-8 py-1.5 w-64"
+                        value="${state.subjectSearchQuery || ''}"
+                        oninput="handleProgramSubjectSearch(this.value)">
+                    <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+
+                <!-- Sort -->
+                <select onchange="handleProgramSubjectSort(this.value)" class="form-select text-sm py-1.5 w-48">
+                    <option value="level_asc" ${state.subjectSortOrder === 'level_asc' ? 'selected' : ''}>Year Level (Asc)</option>
+                    <option value="code_asc" ${state.subjectSortOrder === 'code_asc' ? 'selected' : ''}>Code (A-Z)</option>
+                    <option value="code_desc" ${state.subjectSortOrder === 'code_desc' ? 'selected' : ''}>Code (Z-A)</option>
+                    <option value="title_asc" ${state.subjectSortOrder === 'title_asc' ? 'selected' : ''}>Title (A-Z)</option>
+                    <option value="units_desc" ${state.subjectSortOrder === 'units_desc' ? 'selected' : ''}>Units (High-Low)</option>
+                </select>
+
+                <button onclick="openAddSubjectModal()" class="btn btn-primary text-sm whitespace-nowrap">
+                    + Add Subject
+                </button>
+             </div>
+        </div>
+
+        <div class="bg-white shadow overflow-hidden rounded-lg border border-gray-200">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                         <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Level</th>
+                         <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Code</th>
+                         <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Title</th>
+                         <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Units</th>
+                         <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prerequisites</th>
+                         <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    ${subjects.length === 0 ? `
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                                No subjects found.
+                            </td>
+                        </tr>
+                    ` : subjects.map(s => `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ${s.year_level ? `<span class="px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">Year ${s.year_level} ${s.semester_number ? `- ${s.semester_number === 3 ? 'Summer' : (s.semester_number === 1 ? '1st' : '2nd')}` : ''}</span>` : '-'}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">${s.code}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900">
+                                ${s.title}
+                                ${s.description ? `<p class="text-xs text-gray-500 truncate max-w-[300px] mt-0.5">${s.description}</p>` : ''}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">${s.units}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                ${s.prerequisites && s.prerequisites.length > 0
+      ? s.prerequisites.map(p => `<code class="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">${p.code}</code>`).join(' ')
+      : '<span class="text-gray-300">-</span>'}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button onclick="openEditSubjectModal('${s.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                                <button onclick="deleteSubject('${s.id}')" class="text-red-600 hover:text-red-900">Delete</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderProgramCurriculaList() {
+  // Reuse existing render logic or simplified version
+  // renderProgramCurriculaView() effectively does this but as a full page. 
+  // We can extract the inner list logic.
+
+  // Group by Effective Year
+  const curriculaByYear = {};
+  state.curricula.forEach(c => {
+    if (!curriculaByYear[c.effective_year]) {
+      curriculaByYear[c.effective_year] = [];
+    }
+    curriculaByYear[c.effective_year].push(c);
+  });
+  const sortedYears = Object.keys(curriculaByYear).sort().reverse();
+
+  return `
+      <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900">Curriculum Versions</h3>
+            <button onclick="openAddCurriculumModal()" class="btn btn-primary text-sm">
+                + Add Curriculum
+            </button>
       </div>
 
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Program Name *</label>
-        <input type="text" id="${prefix}-name" value="${program?.name || ''}" required class="form-input" placeholder="e.g., Bachelor of Science in Information Technology">
-      </div>
+       ${state.curricula.length === 0 ? `
+            <div class="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
+                <p class="text-gray-500">No curricula defined yet.</p>
+            </div>
+       ` : `
+            <div class="space-y-6">
+            ${sortedYears.map(year => `
+                <div>
+                     <span class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Effective ${year}</span>
+                     <div class="grid grid-cols-1 gap-3">
+                        ${curriculaByYear[year].map(c => `
+                            <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow flex justify-between items-center ${c.is_active ? 'border-l-4 border-l-green-500' : ''}">
+                                <div>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h4 class="text-lg font-bold text-gray-800">${c.code}</h4>
+                                        ${c.is_active ? '<span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">Active</span>' : ''}
+                                    </div>
+                                    <div class="text-sm text-gray-500 flex gap-4">
+                                        <span>${c.total_subjects || 0} Subjects</span>
+                                        <span>${c.total_units || 0} Units</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="viewCurriculum('${c.id}')" class="btn btn-sm btn-secondary">
+                                        View Structure
+                                    </button>
+                                     <button onclick="openEditCurriculumModal('${c.id}')" class="p-2 text-gray-400 hover:text-blue-600">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                    </button>
+                                    <button onclick="deleteCurriculum('${c.id}')" class="p-2 text-gray-400 hover:text-red-600">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                     </div>
+                </div>
+            `).join('')}
+            </div>
+       `}
+    `;
+}
 
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-        <textarea id="${prefix}-description" rows="3" class="form-input" placeholder="Optional description of the program">${program?.description || ''}</textarea>
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Duration (Years) *</label>
-        <select id="${prefix}-duration" required class="form-select">
-          <option value="2" ${program?.duration_years === 2 ? 'selected' : ''}>2 years</option>
-          <option value="3" ${program?.duration_years === 3 ? 'selected' : ''}>3 years</option>
-          <option value="4" ${program?.duration_years === 4 ? 'selected' : '' || !program ? 'selected' : ''}>4 years</option>
-          <option value="5" ${program?.duration_years === 5 ? 'selected' : ''}>5 years</option>
-          <option value="6" ${program?.duration_years === 6 ? 'selected' : ''}>6 years</option>
-        </select>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <input type="checkbox" id="${prefix}-active" ${program?.is_active !== false ? 'checked' : ''} class="rounded border-gray-300">
-        <label for="${prefix}-active" class="text-sm font-medium text-gray-700">Active (currently offered)</label>
-      </div>
-    </form>
-  `;
+// PROGRAM > CURRICULA VIEW (New Page)
+// Deprecated effectively by renderProgramDetailsView, but kept for compatibility logic ref if needed
+function renderProgramCurriculaView() {
+  if (!state.activeProgram) return renderProgramsTab();
+  // ... (rest is handled by new view)
+  return renderProgramDetailsView(); // Redirect logic
 }
 
 // ============================================================
 // SUBJECTS TAB
 // ============================================================
 
-function renderSubjectsTab() {
-  return `
-    <div class="mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h2 class="text-xl font-bold text-gray-800">Subjects</h2>
-          <p class="text-sm text-gray-600 mt-1">Manage subjects and prerequisites</p>
-        </div>
-        ${state.selectedProgram ? `
-          <button onclick="openAddSubjectModal()" class="btn btn-primary flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-            </svg>
-            Add Subject
-          </button>
-        ` : ''}
-      </div>
+// ============================================================
+// PROFESSORS TAB
+// ============================================================
 
-      <!-- Program Filter -->
-      <div class="card mb-6">
-        <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Program</label>
-        <select onchange="handleProgramFilterChange(this.value)" class="form-select">
-          <option value="">Select a program...</option>
-          ${state.programs.map(p => `
-            <option value="${p.id}" ${state.selectedProgram?.id === p.id ? 'selected' : ''}>${p.code} - ${p.name}</option>
-          `).join('')}
-        </select>
+function renderProfessorsTab() {
+  const filteredProfessors = state.professors.filter(p => {
+    if (!state.professorSearch) return true;
+    const q = state.professorSearch.toLowerCase();
+    return p.full_name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+  });
+
+  return `
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">Professor Management</h2>
+        <p class="text-sm text-gray-600 mt-1">Manage academic faculty and subject assignments</p>
+      </div>
+      
+      <div class="flex items-center gap-4">
+        <div class="relative">
+            <input type="text" 
+                   id="prof-search" 
+                   placeholder="Search professors..." 
+                   class="form-input text-sm pl-8 py-1.5 w-64"
+                   value="${state.professorSearch || ''}"
+                   oninput="handleProfessorSearch(this.value)">
+            <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+        </div>
+        
+        <button onclick="openAddProfessorModal()" class="btn btn-primary flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          Add Professor
+        </button>
       </div>
     </div>
 
-    ${!state.selectedProgram ? `
-      <div class="card text-center py-12">
-        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-        </svg>
-        <p class="text-gray-500 text-lg">Select a program to view subjects</p>
-      </div>
-    ` : state.subjects.length === 0 ? `
-      <div class="card text-center py-12">
-        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-        </svg>
-        <p class="text-gray-500 text-lg">No subjects found</p>
-        <p class="text-gray-400 text-sm mt-2">Click "Add Subject" to create your first subject</p>
-      </div>
-    ` : `
-      <div class="space-y-3">
-        ${state.subjects.map(subject => `
-          <div class="card">
-            <div class="flex items-start justify-between">
-              <div class="flex-1">
-                <div class="flex items-center gap-3 mb-2">
-                  <h3 class="text-lg font-bold text-blue-600 font-mono">${subject.code}</h3>
-                  <span class="px-2 py-1 text-xs font-medium rounded ${subject.year_level === 1 ? 'bg-green-100 text-green-800' :
-      subject.year_level === 2 ? 'bg-blue-100 text-blue-800' :
-        subject.year_level === 3 ? 'bg-purple-100 text-purple-800' :
-          'bg-orange-100 text-orange-800'
-    }">
-                    Year ${subject.year_level} - ${subject.semester === 1 ? '1st' : '2nd'} Semester
-                  </span>
-                  <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">
-                    ${subject.units} ${subject.units === 1 ? 'unit' : 'units'}
-                  </span>
-                </div>
-                <p class="text-gray-900 font-medium mb-2">${subject.title || subject.name}</p>
-                <div class="flex items-center gap-2 flex-wrap">
-                  ${subject.prerequisites && subject.prerequisites.length > 0 ? `
-                    <span class="text-xs text-gray-500">Prerequisites:</span>
-                    ${subject.prerequisites.map(p => `
-                      <span class="px-2 py-0.5 text-xs font-mono bg-amber-100 text-amber-800 rounded border border-amber-200" title="${p.title || p.name || ''}">
-                        ${p.code}
-                      </span>
-                    `).join('')}
-                  ` : `
-                    <span class="text-xs text-gray-400 italic">No prerequisites</span>
-                  `}
-                </div>
-              </div>
-              <div class="flex gap-2">
-                <button onclick="openEditSubjectModal('${subject.id}')" class="btn btn-secondary text-sm">
-                  Edit
-                </button>
-                <button onclick="deleteSubject('${subject.id}')" class="btn btn-danger text-sm">
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `}
+    <div class="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Professor</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Department</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Specialization</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Assigned Subjects</th>
+                    <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                ${filteredProfessors.length === 0 ? `
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                            No professors found.
+                        </td>
+                    </tr>
+                ` : filteredProfessors.map(p => `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="h-10 w-10 flex-shrink-0 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                                    ${(p.first_name || '?')[0]}${(p.last_name || '?')[0]}
+                                </div>
+                                <div class="ml-4">
+                                    <div class="text-sm font-bold text-gray-900">${p.full_name}</div>
+                                    <div class="text-sm text-gray-500">${p.email}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            ${p.profile?.department || '<span class="text-gray-300">Not set</span>'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            ${p.profile?.specialization || '<span class="text-gray-300">Not set</span>'}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-wrap gap-1">
+                                ${p.profile?.assigned_subjects && p.profile.assigned_subjects.length > 0
+      ? p.profile.assigned_subjects.map(s => `<span class="bg-blue-50 text-blue-700 text-[10px] px-1.5 py-0.5 rounded border border-blue-100 font-medium">${s.code}</span>`).join('')
+      : '<span class="text-gray-300 text-sm">-</span>'}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="openEditProfessorModal('${p.id}')" class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+                            <button onclick="deleteProfessor('${p.id}')" class="text-red-600 hover:text-red-900">Delete</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
   `;
 }
 
-function getSubjectForm(subject = null) {
-  const isEdit = subject !== null;
-  const prefix = isEdit ? 'edit' : 'add';
-  const prereqMode = isEdit ? 'edit' : 'add';
-  const selectedPrereqs = state.prereqState[prereqMode].selected;
+window.handleProfessorSearch = function (query) {
+  const input = document.getElementById('prof-search');
+  const start = input?.selectionStart;
+  const end = input?.selectionEnd;
+
+  state.professorSearch = query;
+  render();
+
+  const newInput = document.getElementById('prof-search');
+  if (newInput) {
+    newInput.focus();
+    if (start !== undefined && end !== undefined) {
+      newInput.setSelectionRange(start, end);
+    }
+  }
+};
+
+function getProfessorForm(professor = null) {
+  const isEdit = professor !== null;
+  const profile = professor?.profile || {};
 
   return `
-    <form id="${prefix}-subject-form" class="space-y-4">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Subject Code *</label>
-        <input type="text" id="${prefix}-sub-code" value="${subject?.code || ''}" required class="form-input" placeholder="e.g., IT101, CS201">
+    <form id="professor-form" class="space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+          <input type="text" id="prof-first-name" value="${professor?.first_name || ''}" required class="form-input">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+          <input type="text" id="prof-last-name" value="${professor?.last_name || ''}" required class="form-input">
+        </div>
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Subject Title *</label>
-        <input type="text" id="${prefix}-sub-title" value="${subject?.title || subject?.name || ''}" required class="form-input" placeholder="e.g., Introduction to Programming">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
+        <input type="email" id="prof-email" value="${professor?.email || ''}" required class="form-input" ${isEdit ? 'readonly' : ''}>
+        ${isEdit ? '<p class="text-xs text-gray-500 mt-1">Email cannot be changed after creation.</p>' : ''}
       </div>
 
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
-          <select id="${prefix}-sub-year" required class="form-select">
-            <option value="1" ${subject?.year_level === 1 ? 'selected' : ''}>1st Year</option>
-            <option value="2" ${subject?.year_level === 2 ? 'selected' : ''}>2nd Year</option>
-            <option value="3" ${subject?.year_level === 3 ? 'selected' : ''}>3rd Year</option>
-            <option value="4" ${subject?.year_level === 4 ? 'selected' : ''}>4th Year</option>
-          </select>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+          <input type="text" id="prof-department" value="${profile.department || ''}" class="form-input" placeholder="e.g. Computer Studies">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Semester *</label>
-          <select id="${prefix}-sub-semester" required class="form-select">
-            <option value="1" ${subject?.semester === 1 ? 'selected' : ''}>1st Semester</option>
-            <option value="2" ${subject?.semester === 2 ? 'selected' : ''}>2nd Semester</option>
-          </select>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Specialization</label>
+          <input type="text" id="prof-specialization" value="${profile.specialization || ''}" class="form-input" placeholder="e.g. Web Development">
         </div>
       </div>
 
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Units *</label>
-        <input type="number" id="${prefix}-sub-units" value="${subject?.units || 3}" min="1" max="6" required class="form-input">
-      </div>
-
-      <!-- Prerequisites Section -->
-      <div class="border-t pt-4 mt-4">
-        <label class="block text-sm font-medium text-gray-700 mb-2">
-          Prerequisites (Optional)
-        </label>
-
-        <!-- Search Input -->
-        <div class="relative">
-          <input
-            type="text"
-            id="${prefix}-prereq-search"
-            placeholder="Search subjects by code or title..."
-            class="form-input pr-10"
-            autocomplete="off"
-          />
-          <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-          </svg>
+      <div class="border-t border-gray-200 pt-4 mt-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Qualified Subjects</label>
+        <div class="relative mb-2">
+            <input type="text" 
+                   id="prof-subject-search"
+                   placeholder="Search subjects to assign..." 
+                   class="form-input text-sm"
+                   autocomplete="off">
+            <div id="prof-subject-dropdown" class="hidden absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+               <!-- Results -->
+            </div>
         </div>
 
-        <!-- Search Results Dropdown -->
-        <div id="${prefix}-prereq-dropdown" class="hidden absolute z-50 mt-1 w-[calc(100%-3rem)] bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-        </div>
-
-        <!-- Selected Prerequisites -->
-        <div id="${prefix}-selected-prereqs" class="flex flex-wrap gap-2 mt-3">
-          ${selectedPrereqs.length === 0 ? `
-            <p class="text-sm text-gray-400">No prerequisites selected</p>
-          ` : selectedPrereqs.map(p => `
-            <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-              <span class="font-mono font-medium">${p.code}</span>
-              <button type="button" onclick="removePrerequisite('${prereqMode}', '${p.id}')"
-                      class="hover:text-red-600 ml-1 focus:outline-none">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-              </button>
-            </span>
-          `).join('')}
+        <div id="prof-selected-subjects" class="flex flex-wrap gap-2 min-h-[30px]">
+             ${(profile.assigned_subjects || []).map(s => `
+                <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                    <span class="font-mono font-medium">${s.code}</span>
+                    <button type="button" onclick="removeProfessorSubject('${s.id}')" class="text-blue-600 hover:text-blue-800 ml-1">
+                        &times;
+                    </button>
+                </span>
+             `).join('')}
+             ${!profile.assigned_subjects || profile.assigned_subjects.length === 0 ? '<p class="text-sm text-gray-400">No subjects assigned</p>' : ''}
         </div>
       </div>
     </form>
   `;
 }
 
-// ============================================================
-// CURRICULA TAB
-// ============================================================
+window.openAddProfessorModal = function () {
+  state.editingProfessor = null;
+  state.profSubjectState.selected = [];
 
-function renderCurriculaTab() {
-  return `
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h2 class="text-xl font-bold text-gray-800">Curricula</h2>
-        <p class="text-sm text-gray-600 mt-1">Curriculum versions and subject mapping</p>
-      </div>
-      <button onclick="openAddCurriculumModal()" class="btn btn-primary flex items-center gap-2">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        Add Curriculum
-      </button>
-    </div>
-
-    ${state.curricula.length === 0 ? `
-      <div class="card text-center py-12">
-        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-        </svg>
-        <p class="text-gray-500 text-lg">No curricula found</p>
-        <p class="text-gray-400 text-sm mt-2">Click "Add Curriculum" to create your first curriculum</p>
-      </div>
-    ` : `
-      <div class="space-y-4">
-        ${state.curricula.map(curriculum => `
-          <div class="card">
-            <div class="flex items-start justify-between mb-4">
-              <div class="flex-1">
-                <div class="flex items-center gap-3 mb-2">
-                  <h3 class="text-xl font-bold text-gray-800">${curriculum.code}</h3>
-                  ${curriculum.is_active
-      ? '<span class="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">Active</span>'
-      : '<span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">Inactive</span>'
-    }
-                </div>
-                <p class="text-gray-600">Effective Year: ${curriculum.effective_year}</p>
-                <p class="text-sm text-gray-500 mt-1">${curriculum.program_name || 'No program assigned'}</p>
-              </div>
-              <div class="flex gap-2">
-                <button onclick="openEditCurriculumModal('${curriculum.id}')" class="btn btn-secondary text-sm">
-                  Edit
-                </button>
-                <button onclick="viewCurriculum('${curriculum.id}')" class="btn btn-secondary text-sm">
-                  View
-                </button>
-                <button onclick="deleteCurriculum('${curriculum.id}')" class="btn btn-danger text-sm">
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `}
-  `;
-}
-
-// ============================================================
-// EVENT HANDLERS - TAB SWITCHING
-// ============================================================
-
-window.switchTab = function (tabId) {
-  state.activeTab = tabId;
-  updateHash(tabId);
-
-  // Load data for the tab if needed
-  if (tabId === TABS.SUBJECTS && !state.subjects.length && state.selectedProgram) {
-    loadSubjects(state.selectedProgram.id).then(render);
-  } else if (tabId === TABS.CURRICULA && !state.curricula.length) {
-    loadCurricula().then(render);
-  } else if (tabId === TABS.SEMESTERS && !state.semesters.length) {
-    loadSemesters().then(render);
-  } else {
-    render();
-  }
-};
-
-// ============================================================
-// EVENT HANDLERS - PROGRAMS
-// ============================================================
-
-window.openAddProgramModal = function () {
   const modal = new Modal({
-    title: 'Add New Program',
-    content: getProgramForm(),
-    size: 'lg',
+    title: 'Add New Professor',
+    content: getProfessorForm(),
     actions: [
       {
         label: 'Cancel',
         onClick: (m) => m.close()
       },
       {
-        label: 'Add Program',
+        label: 'Create Professor',
         primary: true,
         onClick: async (m) => {
-          const form = document.getElementById('add-program-form');
+          const form = document.getElementById('professor-form');
           if (!form.checkValidity()) {
             form.reportValidity();
             return;
           }
 
           const data = {
-            code: document.getElementById('add-code').value.toUpperCase(),
-            name: document.getElementById('add-name').value,
-            description: document.getElementById('add-description').value,
-            duration_years: parseInt(document.getElementById('add-duration').value),
-            is_active: document.getElementById('add-active').checked
+            first_name: document.getElementById('prof-first-name').value,
+            last_name: document.getElementById('prof-last-name').value,
+            email: document.getElementById('prof-email').value,
+            profile: {
+              department: document.getElementById('prof-department').value,
+              specialization: document.getElementById('prof-specialization').value,
+              assigned_subject_ids: state.profSubjectState.selected.map(s => s.id)
+            }
           };
 
-          // Prevent double-submit
-          const submitBtn = m.element.querySelector('[data-action="primary"]');
-          const { setButtonLoading } = await import('../utils.js');
-          setButtonLoading(submitBtn, true, 'Adding...');
-
           try {
-            await api.post(endpoints.managePrograms, data);
-            Toast.success('Program added successfully');
+            await api.post(endpoints.professors, data);
+            Toast.success('Professor added successfully');
             m.close();
-            await loadPrograms();
+            await loadProfessors();
             render();
           } catch (error) {
-            ErrorHandler.handle(error, 'Adding program');
-            setButtonLoading(submitBtn, false);
+            ErrorHandler.handle(error, 'Adding professor');
           }
         }
       }
     ]
   });
 
-  state.programModal = modal;
+  state.professorModal = modal;
+  modal.show();
+  setTimeout(() => setupProfessorSubjectSearch(), 100);
+};
+
+window.openEditProfessorModal = async function (professorId) {
+  try {
+    const professor = await api.get(endpoints.professorDetail(professorId));
+    state.editingProfessor = professor;
+    state.profSubjectState.selected = (professor.profile?.assigned_subjects || []).map(s => ({
+      id: s.id,
+      code: s.code,
+      title: s.title
+    }));
+
+    const modal = new Modal({
+      title: 'Edit Professor',
+      content: getProfessorForm(professor),
+      actions: [
+        {
+          label: 'Cancel',
+          onClick: (m) => m.close()
+        },
+        {
+          label: 'Save Changes',
+          primary: true,
+          onClick: async (m) => {
+            const form = document.getElementById('professor-form');
+            if (!form.checkValidity()) {
+              form.reportValidity();
+              return;
+            }
+
+            const data = {
+              first_name: document.getElementById('prof-first-name').value,
+              last_name: document.getElementById('prof-last-name').value,
+              profile: {
+                department: document.getElementById('prof-department').value,
+                specialization: document.getElementById('prof-specialization').value,
+                assigned_subject_ids: state.profSubjectState.selected.map(s => s.id)
+              }
+            };
+
+            try {
+              await api.patch(endpoints.professorDetail(professorId), data);
+              Toast.success('Professor updated successfully');
+              m.close();
+              await loadProfessors();
+              render();
+            } catch (error) {
+              ErrorHandler.handle(error, 'Updating professor');
+            }
+          }
+        }
+      ]
+    });
+
+    state.professorModal = modal;
+    modal.show();
+    setTimeout(() => setupProfessorSubjectSearch(), 100);
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading professor details');
+  }
+};
+
+window.deleteProfessor = async function (professorId) {
+  const confirmed = await ConfirmModal({
+    title: 'Delete Professor Account',
+    message: 'Are you sure you want to deactivate this professor? They will no longer be able to log in or be assigned to sections.',
+    confirmLabel: 'Deactivate',
+    danger: true
+  });
+
+  if (!confirmed) return;
+
+  try {
+    // In many systems we don't hard delete users, but the API might support it or we patch is_active
+    // The ProfessorViewSet get_queryset filters by is_active=True
+    await api.patch(endpoints.professorDetail(professorId), { is_active: false });
+    Toast.success('Professor deactivated successfully');
+    await loadProfessors();
+    render();
+  } catch (error) {
+    ErrorHandler.handle(error, 'Deactivating professor');
+  }
+};
+
+window.setupProfessorSubjectSearch = function () {
+  const searchInput = document.getElementById('prof-subject-search');
+  const resultsDropdown = document.getElementById('prof-subject-dropdown');
+
+  if (!searchInput || !resultsDropdown) return;
+
+  let debounceTimer;
+
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    clearTimeout(debounceTimer);
+
+    if (query.length < 2) {
+      resultsDropdown.classList.add('hidden');
+      return;
+    }
+
+    debounceTimer = setTimeout(async () => {
+      try {
+        // Search from API
+        const response = await api.get(`${endpoints.manageSubjects}?search=${encodeURIComponent(query)}`);
+        const subjects = response?.results || response || [];
+
+        // Filter out already selected
+        const matches = subjects.filter(s => {
+          return !state.profSubjectState.selected.some(sel => sel.id === s.id);
+        }).slice(0, 10);
+
+        if (matches.length > 0) {
+          resultsDropdown.innerHTML = matches.map(s => `
+                <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center border-b border-gray-50 last:border-0" 
+                     onclick="addProfessorSubject('${s.id}', '${s.code}', '${(s.title || '').replace(/'/g, "\\'")}')">
+                    <div class="flex flex-col">
+                        <span class="font-bold text-sm text-blue-600">${s.code}</span>
+                        <span class="text-xs text-gray-500 truncate max-w-[200px]">${s.title}</span>
+                    </div>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </div>
+              `).join('');
+          resultsDropdown.classList.remove('hidden');
+        } else {
+          resultsDropdown.innerHTML = `<div class="px-3 py-2 text-sm text-gray-500">No subjects found for "${query}"</div>`;
+          resultsDropdown.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error searching subjects:', error);
+      }
+    }, 300);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!searchInput.contains(e.target) && !resultsDropdown.contains(e.target)) {
+      resultsDropdown.classList.add('hidden');
+    }
+  });
+};
+
+window.addProfessorSubject = function (id, code, title) {
+  if (!state.profSubjectState.selected.find(s => s.id === id)) {
+    state.profSubjectState.selected.push({ id, code, title });
+  }
+  updateProfessorSubjectTags();
+
+  const searchInput = document.getElementById('prof-subject-search');
+  const resultsDropdown = document.getElementById('prof-subject-dropdown');
+  if (searchInput) searchInput.value = '';
+  if (resultsDropdown) resultsDropdown.classList.add('hidden');
+};
+
+window.removeProfessorSubject = function (id) {
+  state.profSubjectState.selected = state.profSubjectState.selected.filter(s => s.id !== id);
+  updateProfessorSubjectTags();
+};
+
+window.updateProfessorSubjectTags = function () {
+  const container = document.getElementById('prof-selected-subjects');
+  if (!container) return;
+
+  const selected = state.profSubjectState.selected;
+
+  if (selected.length === 0) {
+    container.innerHTML = '<p class="text-sm text-gray-400">No subjects assigned</p>';
+    return;
+  }
+
+  container.innerHTML = selected.map(p => `
+        <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+            <span class="font-mono font-medium" title="${p.title || ''}">${p.code}</span>
+            <button type="button" onclick="removeProfessorSubject('${p.id}')" class="text-blue-600 hover:text-blue-800 ml-1">
+                &times;
+            </button>
+        </span>
+    `).join('');
+};
+
+
+function getSubjectForm(subject = null) {
+  const isEdit = subject !== null;
+  const prefix = isEdit ? 'edit' : 'add';
+
+  return `
+    <form id="${prefix}-subject-form" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Subject Code *</label>
+                <input type="text" id="${prefix}-sub-code" value="${subject?.code || ''}" required class="form-input uppercase" placeholder="e.g. IT101">
+            </div>
+            <div>
+                 <label class="block text-sm font-medium text-gray-700 mb-1">Units *</label>
+                 <input type="number" id="${prefix}-sub-units" value="${subject?.units || 3}" required class="form-input" min="0" max="10">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Descriptive Title *</label>
+            <input type="text" id="${prefix}-sub-title" value="${subject?.title || ''}" required class="form-input" placeholder="e.g. Introduction to Computing">
+        </div>
+        
+        <div class="mt-4">
+             <label class="block text-sm font-medium text-gray-700 mb-2 border-b border-gray-200 pb-1">Recommended Year Level and Semester</label>
+             <div class="grid grid-cols-2 gap-4">
+                 <div>
+                    <label class="block text-xs text-gray-500 mb-1">Year Level</label>
+                    <select id="${prefix}-sub-year" class="form-select">
+                        ${[1, 2, 3, 4, 5].map(y => `<option value="${y}" ${subject?.year_level === y ? 'selected' : ''}>Year ${y}</option>`).join('')}
+                    </select>
+                 </div>
+                 <div>
+                    <label class="block text-xs text-gray-500 mb-1">Semester</label>
+                    <select id="${prefix}-sub-semester" class="form-select">
+                        <option value="1" ${subject?.semester_number === 1 ? 'selected' : ''}>1st Semester</option>
+                        <option value="2" ${subject?.semester_number === 2 ? 'selected' : ''}>2nd Semester</option>
+                        <option value="3" ${subject?.semester_number === 3 ? 'selected' : ''}>Summer</option>
+                    </select>
+                 </div>
+             </div>
+        </div>
+
+        <!-- Prerequisites Section -->
+        <div class="border-t border-gray-200 pt-4 mt-4">
+             <label class="block text-sm font-medium text-gray-700 mb-2">Prerequisites</label>
+             
+             <div class="relative mb-2">
+                <input type="text" 
+                       id="${prefix}-prereq-search"
+                       placeholder="Search subject code to add..." 
+                       class="form-input text-sm"
+                       autocomplete="off">
+                <div id="${prefix}-prereq-dropdown" class="hidden absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+                   <!-- Results -->
+                </div>
+             </div>
+
+             <div id="${prefix}-selected-prereqs" class="flex flex-wrap gap-2 min-h-[30px]">
+                 ${(isEdit && subject.prerequisites ? subject.prerequisites : []).map(p => `
+                    <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                        <span class="font-mono font-medium">${p.code}</span>
+                        <button type="button" onclick="removePrerequisite('${prefix}', '${p.id}')" class="text-blue-600 hover:text-blue-800 ml-1">
+                            &times;
+                        </button>
+                    </span>
+                 `).join('')}
+                 ${!isEdit || !subject.prerequisites || subject.prerequisites.length === 0 ? '<p class="text-sm text-gray-400">No prerequisites selected</p>' : ''}
+             </div>
+        </div>
+    </form>
+  `;
+}
+
+// ============================================================
+// SECTIONS TAB
+// ============================================================
+
+function renderSectionsTab() {
+  const filteredSections = getFilteredSections();
+
+  return `
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">Section Management</h2>
+        <p class="text-sm text-gray-600 mt-1">Manage class sections for ${state.activeSemester?.name || 'current semester'}</p>
+      </div>
+      
+      <div class="flex items-center gap-2">
+        <button onclick="openAddSectionModal()" class="btn btn-primary flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          Add Section
+        </button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="relative">
+        <input type="text" 
+               placeholder="Search by name..." 
+               class="form-input text-sm pl-8"
+               value="${state.sectionSearch}"
+               oninput="handleSectionSearch(this.value)">
+        <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </div>
+      
+      <select onchange="handleSectionFilterProgram(this.value)" class="form-select text-sm">
+        <option value="all">All Programs</option>
+        ${state.programs.map(p => `<option value="${p.id}" ${state.sectionFilterProgram === p.id ? 'selected' : ''}>${p.code}</option>`).join('')}
+      </select>
+      
+      <select onchange="handleSectionFilterYear(this.value)" class="form-select text-sm">
+        <option value="all">All Years</option>
+        <option value="1" ${state.sectionFilterYear === '1' ? 'selected' : ''}>1st Year</option>
+        <option value="2" ${state.sectionFilterYear === '2' ? 'selected' : ''}>2nd Year</option>
+        <option value="3" ${state.sectionFilterYear === '3' ? 'selected' : ''}>3rd Year</option>
+        <option value="4" ${state.sectionFilterYear === '4' ? 'selected' : ''}>4th Year</option>
+      </select>
+
+      <div class="flex items-center gap-2 text-xs text-gray-500">
+        <span>Semester:</span>
+        <span class="font-bold text-blue-600">${state.activeSemester?.name || 'None'}</span>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Section Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Program</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Year Level</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Enrolled</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Subjects</th>
+                    <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                ${filteredSections.length === 0 ? `
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                            No sections found.
+                        </td>
+                    </tr>
+                ` : filteredSections.map(section => `
+                    <tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="viewSection('${section.id}')">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-bold text-gray-900">${section.name}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-600">${section.program_code || section.program.code}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${section.year_level === 1 ? 'bg-green-100 text-green-800' :
+      section.year_level === 2 ? 'bg-blue-100 text-blue-800' :
+        section.year_level === 3 ? 'bg-purple-100 text-purple-800' :
+          'bg-orange-100 text-orange-800'
+    }">
+                                Year ${section.year_level}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center gap-2">
+                                <div class="w-16 bg-gray-200 rounded-full h-1.5">
+                                    <div class="bg-blue-600 h-1.5 rounded-full" style="width: ${Math.min(100, (section.enrolled_count / section.capacity) * 100)}%"></div>
+                                </div>
+                                <span class="text-xs text-gray-600 font-medium">${section.enrolled_count} / ${section.capacity}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-600">${section.section_subjects?.length || 0} Subjects</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="event.stopPropagation(); viewSection('${section.id}')" class="text-blue-600 hover:text-blue-900 mr-3">View</button>
+                            <button onclick="event.stopPropagation(); deleteSection('${section.id}')" class="text-red-600 hover:text-red-900">Delete</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
+  `;
+}
+
+function renderSectionDetail() {
+  const section = state.selectedSection;
+  if (!section) return renderSectionsTab();
+
+  return `
+    <!-- Back Button -->
+    <div class="mb-6 flex items-center justify-between">
+      <button onclick="backToSections()" class="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+        </svg>
+        <span>Back to Sections</span>
+      </button>
+      
+      <div class="flex gap-2">
+        <button onclick="openEditSectionModal()" class="btn btn-secondary btn-sm flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+          </svg>
+          Edit
+        </button>
+        <button onclick="deleteSection('${section.id}')" class="btn btn-danger btn-sm">Delete</button>
+      </div>
+    </div>
+
+    <!-- Header Card -->
+    <div class="card mb-8">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <div class="flex items-center gap-3 mb-2">
+            <h1 class="text-3xl font-bold text-gray-900">${section.name}</h1>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 uppercase tracking-wider">
+              Year ${section.year_level}
+            </span>
+          </div>
+          <p class="text-gray-600 text-lg font-medium">${section.program_code || section.program.code} - ${section.program_name || section.program.name}</p>
+          <div class="flex items-center gap-4 mt-3 text-sm text-gray-500">
+            <span class="flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+              ${state.activeSemester?.name}
+            </span>
+            <span class="flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+              ${section.enrolled_count || 0} / ${section.capacity} Students
+            </span>
+          </div>
+        </div>
+        
+        <div class="flex gap-3">
+          <button onclick="openAssignSubjectModal()" class="btn btn-primary flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+            </svg>
+            Assign Subject
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <!-- Assigned Subjects List -->
+      <div class="lg:col-span-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+            <h3 class="font-bold text-gray-800">Assigned Subjects</h3>
+            <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">${state.sectionSubjects.length} Items</span>
+          </div>
+          <div class="p-5 space-y-4 max-h-[600px] overflow-y-auto">
+            ${state.sectionSubjects.length === 0 ? `
+              <div class="text-center py-8 text-gray-400">
+                <svg class="w-12 h-12 mx-auto mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                <p>No subjects assigned yet.</p>
+              </div>
+            ` : state.sectionSubjects.map(ss => `
+              <div class="group relative bg-gray-50 hover:bg-white hover:shadow-md border border-gray-100 p-4 rounded-xl transition-all">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1 min-w-0 pr-8">
+                    <p class="text-sm font-bold text-blue-600 truncate mb-0.5">${ss.subject_code}</p>
+                    <h4 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug mb-2">${ss.subject_title}</h4>
+                    
+                    <div class="space-y-1.5">
+                         ${ss.professors && ss.professors.length > 0 ? ss.professors.map(p => `
+                            <div class="flex items-center gap-2 text-xs text-gray-600">
+                                <div class="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                                <span class="font-medium">Prof. ${p.name}</span>
+                                ${p.is_primary ? '<span class="text-[10px] text-gray-400 italic">(Primary)</span>' : ''}
+                            </div>
+                         `).join('') : `
+                            <div class="flex items-center gap-2 text-xs text-orange-500 font-medium">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                <span>No professor assigned</span>
+                            </div>
+                         `}
+                    </div>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                      <button onclick="openScheduleSlotModal('${ss.id}')" 
+                              class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Add Schedule Slot">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                      </button>
+                       <button onclick="removeSubjectFromSection('${ss.id}')" 
+                              class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Remove Subject">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                      </button>
+                  </div>
+                </div>
+                
+                ${ss.schedule_slots && ss.schedule_slots.length > 0 ? `
+                  <div class="mt-3 pt-3 border-t border-gray-100 grid grid-cols-1 gap-1">
+                    ${ss.schedule_slots.map(slot => `
+                      <div class="flex items-center justify-between text-[11px] text-gray-500 py-1 px-2 bg-white rounded-md border border-gray-100 group/slot">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-gray-700">${slot.day}</span>
+                            <span>${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}</span>
+                            <span class="text-gray-300">|</span>
+                            <span class="bg-gray-100 px-1 rounded font-mono">${slot.room || 'TBA'}</span>
+                        </div>
+                        <button onclick="deleteScheduleSlot('${slot.id}')" class="opacity-0 group-hover/slot:opacity-100 text-red-400 hover:text-red-600 p-0.5">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule Grid View -->
+      <div class="lg:col-span-8">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+            <h3 class="font-bold text-gray-800">Weekly Schedule Grid</h3>
+            <div class="flex items-center gap-4 text-xs">
+              <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 bg-blue-100 border border-blue-300 rounded-sm"></div>Lecture</div>
+              <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 bg-green-100 border border-green-300 rounded-sm"></div>Laboratory</div>
+            </div>
+          </div>
+          <div class="p-0 overflow-x-auto">
+            ${renderSectionScheduleGrid()}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSectionScheduleGrid() {
+  return `
+    <table class="w-full border-collapse table-fixed min-w-[800px]">
+      <thead>
+        <tr class="bg-gray-50 border-b border-gray-200">
+          <th class="w-20 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">Time</th>
+          ${DAYS.map(day => `
+            <th class="py-3 text-xs font-bold text-gray-600 uppercase tracking-wider text-center border-r border-gray-100">
+                ${day.name}
+            </th>
+          `).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${TIME_SLOTS.map(time => `
+          <tr class="h-12 border-b border-gray-100 group hover:bg-gray-50/30 transition-colors">
+            <td class="text-[10px] font-bold text-gray-400 text-center border-r border-gray-100 align-top pt-2">
+                ${formatTime(time)}
+            </td>
+            ${DAYS.map(day => renderScheduleCell(day.code, time)).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table >
+    `;
+}
+
+function renderScheduleCell(day, timeSlot) {
+  const matchingSlots = state.sectionSchedule.filter(s => {
+    if (s.day !== day) return false;
+    const slotHour = parseInt(timeSlot.split(':')[0]);
+    const startHour = parseInt(s.start_time.split(':')[0]);
+    const endHour = parseInt(s.end_time.split(':')[0]);
+    return slotHour >= startHour && slotHour < endHour;
+  });
+
+  if (matchingSlots.length === 0) {
+    return `< td class="border-r border-gray-100 p-0.5" ></td > `;
+  }
+
+  const slot = matchingSlots[0];
+  const isFirstRow = timeSlot.startsWith(slot.start_time.substring(0, 2));
+
+  if (!isFirstRow) {
+    // We handle grouping with rowspan on the first matching row, 
+    // so skip rendering a cell for subsequent matching rows.
+    // Wait, for table cells to align correctly in a simple row-by-row render, 
+    // we can't easily use rowspan unless we track what cells are already "covered".
+    // Instead, let's render a transparent or empty cell, or better, 
+    // use the same logic as registrar-sections.js which expects rowspan handling 
+    // if we were building the whole table in one go.
+    // But here we are rendering row by row.
+    return '';
+  }
+
+  const duration = calculateDuration(slot.start_time, slot.end_time);
+  const colorClass = getSubjectColor(slot.subject_code);
+
+  return `
+    < td class="border-r border-gray-100 p-1 align-top" rowspan = "${duration}" >
+      <div class="h-full rounded-lg border-l-4 shadow-sm p-2 flex flex-col justify-between ${colorClass} transition-transform hover:scale-[1.02] cursor-default">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-tight opacity-75">${slot.subject_code}</p>
+          <p class="text-xs font-bold leading-tight line-clamp-2">${slot.subject_title}</p>
+        </div>
+        <div class="mt-auto pt-2 flex items-center justify-between gap-1 border-t border-black/5">
+          <span class="text-[10px] font-bold"><span class="opacity-60">RM</span> ${slot.room || 'TBA'}</span>
+          ${slot.professor_name ? `<span class="text-[9px] truncate font-medium max-w-[60px] text-right" title="${slot.professor_name}">${slot.professor_name.split(' ').pop()}</span>` : ''}
+        </div>
+      </div>
+        </td >
+    `;
+}
+
+// ============================================================
+// SECTION EVENT HANDLERS
+// ============================================================
+
+window.handleSectionSearch = function (q) {
+  state.sectionSearch = q;
+  render();
+};
+
+window.handleSectionFilterProgram = function (id) {
+  state.sectionFilterProgram = id;
+  loadSections().then(render);
+};
+
+window.handleSectionFilterYear = function (y) {
+  state.sectionFilterYear = y;
+  render();
+};
+
+window.viewSection = async function (id) {
+  state.loadingSection = true;
+  render(); // Show spinner? 
+  await loadSectionDetails(id);
+  state.loadingSection = false;
+  render();
+  window.scrollTo(0, 0);
+};
+
+window.backToSections = function () {
+  state.selectedSection = null;
+  state.sectionSubjects = [];
+  state.sectionSchedule = [];
+  render();
+};
+
+window.openAddSectionModal = function () {
+  const modal = new Modal({
+    title: 'Create New Section',
+    content: `
+    < form id = "add-section-form" class="space-y-4" >
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Section Name *</label>
+          <input type="text" id="sec-name" required class="form-input" placeholder="e.g. BSIT-1A">
+            <p class="text-[11px] text-gray-500 mt-1">Recommended format: [Program]-[Year][Letter]</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Academic Program *</label>
+          <select id="sec-program" required class="form-select">
+            <option value="">Select Program</option>
+            ${state.programs.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('')}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
+          <select id="sec-year" required class="form-select">
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Student Capacity *</label>
+          <input type="number" id="sec-capacity" value="40" required class="form-input" min="1" max="100">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+          <div class="form-input bg-gray-50 text-gray-500 flex items-center h-[38px]">${state.activeSemester?.name || 'Current'}</div>
+        </div>
+      </div>
+      </form >
+    `,
+    size: 'lg',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Create Section',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('add-section-form');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+
+          const data = {
+            name: document.getElementById('sec-name').value,
+            program: document.getElementById('sec-program').value,
+            semester: state.activeSemester?.id,
+            year_level: parseInt(document.getElementById('sec-year').value),
+            capacity: parseInt(document.getElementById('sec-capacity').value)
+          };
+
+          try {
+            await api.post(endpoints.sections, data);
+            Toast.success('Section created successfully');
+            m.close();
+            await loadSections();
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, 'Creating section');
+          }
+        }
+      }
+    ]
+  });
   modal.show();
 };
+
+window.openEditSectionModal = function () {
+  const section = state.selectedSection;
+  const modal = new Modal({
+    title: 'Edit Section',
+    content: `
+    < form id = "edit-section-form" class="space-y-4" >
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Section Name *</label>
+          <input type="text" id="edit-sec-name" value="${section.name}" required class="form-input">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Academic Program</label>
+          <div class="form-input bg-gray-50 text-gray-500 flex items-center h-[38px]">${section.program_code || section.program.code}</div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
+          <select id="edit-sec-year" required class="form-select">
+            <option value="1" ${section.year_level === 1 ? 'selected' : ''}>1st Year</option>
+            <option value="2" ${section.year_level === 2 ? 'selected' : ''}>2nd Year</option>
+            <option value="3" ${section.year_level === 3 ? 'selected' : ''}>3rd Year</option>
+            <option value="4" ${section.year_level === 4 ? 'selected' : ''}>4th Year</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Student Capacity *</label>
+          <input type="number" id="edit-sec-capacity" value="${section.capacity}" required class="form-input" min="1" max="100">
+        </div>
+      </div>
+      </form >
+    `,
+    size: 'lg',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Save Changes',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('edit-section-form');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+
+          const data = {
+            name: document.getElementById('edit-sec-name').value,
+            year_level: parseInt(document.getElementById('edit-sec-year').value),
+            capacity: parseInt(document.getElementById('edit-sec-capacity').value)
+          };
+
+          try {
+            await api.patch(endpoints.section(section.id), data);
+            Toast.success('Section updated');
+            m.close();
+            await loadSectionDetails(section.id);
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, 'Updating section');
+          }
+        }
+      }
+    ]
+  });
+  modal.show();
+};
+
+window.deleteSection = async function (id) {
+  const confirmed = await ConfirmModal({
+    title: 'Delete Section',
+    message: 'Are you sure you want to delete this section? This will remove all subject assignments and schedules.',
+    confirmLabel: 'Delete Section',
+    danger: true
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await api.delete(endpoints.section(id));
+    Toast.success('Section deleted');
+    backToSections();
+    await loadSections();
+    render();
+  } catch (error) {
+    ErrorHandler.handle(error, 'Deleting section');
+  }
+};
+
+window.openAssignSubjectModal = async function () {
+  const section = state.selectedSection;
+
+  // Load curricula for this program to find appropriate subjects
+  const curricula = await api.get(`${endpoints.curricula}?program = ${section.program.id}& is_active=true`);
+  const activeCurriculum = curricula.results?.[0] || curricula[0];
+
+  if (!activeCurriculum) {
+    Toast.error('No active curriculum found for this program. Create one first.');
+    return;
+  }
+
+  // Load subjects for the matched year/semester (optional filtering) or just all from curriculum
+  const subjectsRes = await api.get(`${endpoints.curriculum(activeCurriculum.id)} `);
+  const availableSubjects = subjectsRes.subjects || [];
+
+  // Filter out already assigned
+  const assignedCodes = new Set(state.sectionSubjects.map(ss => ss.subject_code));
+  const unassignedSubjects = availableSubjects.filter(s => !assignedCodes.has(s.subject_code));
+
+  const modal = new Modal({
+    title: 'Assign Subject to Section',
+    content: `
+    < div class="space-y-4" >
+        <p class="text-sm text-gray-600">Selecting subjects from <span class="font-bold">${activeCurriculum.name}</span></p>
+        
+        <div class="max-h-[400px] overflow-y-auto border border-gray-100 rounded-lg">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Subject</th>
+                        <th class="px-4 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Year/Sem</th>
+                        <th class="px-4 py-2 text-right text-[10px] font-bold text-gray-400 uppercase">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                    ${unassignedSubjects.length === 0 ? `
+                        <tr><td colspan="3" class="px-4 py-8 text-center text-gray-400">No more subjects to assign.</td></tr>
+                    ` : unassignedSubjects.map(s => `
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-4 py-3">
+                                <div class="font-bold text-blue-600 text-sm">${s.subject_code}</div>
+                                <div class="text-xs text-gray-600 line-clamp-1">${s.subject_title}</div>
+                            </td>
+                            <td class="px-4 py-3 text-xs text-gray-500">
+                                Y${s.year_level} S${s.semester_number}
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <button onclick="assignSubjectToSection('${s.subject}')" class="text-blue-600 hover:text-blue-800 font-bold text-xs uppercase tracking-wider">Assign</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+      </div >
+    `,
+    size: 'lg',
+    actions: [{ label: 'Close', onClick: (m) => m.close() }]
+  });
+
+  window.assignSubjectToSection = async (subjectId) => {
+    try {
+      await api.post(endpoints.sectionSubjects, {
+        section: section.id,
+        subject: subjectId
+      });
+      Toast.success('Subject assigned');
+      modal.close();
+      await loadSectionDetails(section.id);
+      render();
+    } catch (error) {
+      ErrorHandler.handle(error, 'Assigning subject');
+    }
+  };
+
+  modal.show();
+};
+
+window.removeSubjectFromSection = async function (ssId) {
+  const confirmed = await ConfirmModal({
+    title: 'Remove Subject',
+    message: 'Are you sure you want to remove this subject? It will also delete all schedule slots associated with it.',
+    danger: true
+  });
+  if (!confirmed) return;
+
+  try {
+    await api.delete(endpoints.sectionSubject(ssId));
+    Toast.success('Subject removed');
+    await loadSectionDetails(state.selectedSection.id);
+    render();
+  } catch (error) {
+    ErrorHandler.handle(error, 'Removing subject');
+  }
+}
+
+window.openScheduleSlotModal = function (ssId) {
+  const ss = state.sectionSubjects.find(item => item.id === ssId);
+  const qualifiedProfs = state.professors.filter(p =>
+    p.profile?.assigned_subjects?.some(s => s.code === ss.subject_code)
+  );
+
+  const modal = new Modal({
+    title: `Add Schedule Slot: ${ss.subject_code} `,
+    content: `
+    < form id = "add-slot-form" class="space-y-4" >
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Day *</label>
+          <select id="slot-day" required class="form-select">
+            ${DAYS.map(d => `<option value="${d.code}">${d.name}</option>`).join('')}
+          </select>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+              <select id="slot-start" required class="form-select">
+                ${TIME_SLOTS.map(t => `<option value="${t}">${formatTime(t)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+              <select id="slot-end" required class="form-select">
+                ${TIME_SLOTS.map(t => `<option value="${t}">${formatTime(t)}</option>`).join('')}
+              </select>
+            </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Professor (Optional)</label>
+          <select id="slot-prof" class="form-select">
+            <option value="">Use Section Default</option>
+            ${state.professors.map(p => `
+                <option value="${p.id}" ${qualifiedProfs.some(qp => qp.id === p.id) ? 'style="font-weight:bold; color:green"' : ''}>
+                    ${p.full_name} ${qualifiedProfs.some(qp => qp.id === p.id) ? '★' : ''}
+                </option>
+            `).join('')}
+          </select>
+          <p class="text-[10px] text-gray-500 mt-1">★ Denotes professor qualified for this subject</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Room / Venue</label>
+          <select id="slot-room" class="form-select">
+            <option value="">TBA</option>
+            ${ROOMS.map(r => `<option value="${r}">${r}</option>`).join('')}
+          </select>
+        </div>
+
+        <div id="conflict-warning" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+             <!-- Warning messages -->
+        </div>
+      </form >
+    `,
+    size: 'md',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Add Slot',
+        primary: true,
+        onClick: async (m) => {
+          const data = {
+            section_subject: ssId,
+            day: document.getElementById('slot-day').value,
+            start_time: document.getElementById('slot-start').value,
+            end_time: document.getElementById('slot-end').value,
+            room: document.getElementById('slot-room').value,
+            professor: document.getElementById('slot-prof').value || null
+          };
+
+          if (data.end_time <= data.start_time) {
+            Toast.error('End time must be after start time');
+            return;
+          }
+
+          try {
+            await api.post(endpoints.scheduleSlots, data);
+            Toast.success('Schedule slot added');
+            m.close();
+            await loadSectionDetails(state.selectedSection.id);
+            render();
+          } catch (error) {
+            // Handle conflict errors specially if needed
+            ErrorHandler.handle(error, 'Adding schedule');
+          }
+        }
+      }
+    ]
+  });
+  modal.show();
+};
+
+window.deleteScheduleSlot = async function (id) {
+  if (!confirm('Delete this schedule slot?')) return;
+  try {
+    await api.delete(endpoints.scheduleSlot(id));
+    Toast.success('Slot deleted');
+    await loadSectionDetails(state.selectedSection.id);
+    render();
+  } catch (error) {
+    ErrorHandler.handle(error, 'Deleting slot');
+  }
+}
+
+window.switchTab = function (tabId) {
+  state.activeTab = tabId;
+  state.subView = 'list'; // Reset sub-view on tab change
+  state.activeProgram = null;
+  state.selectedSection = null; // Clear selected section
+  updateHash(tabId);
+
+  // Load data for the tab if needed
+  if (tabId === TABS.PROFESSORS) {
+    loadProfessors().then(render);
+  } else if (tabId === TABS.SECTIONS) {
+    Promise.all([loadSemesters(), loadPrograms(), loadSections()]).then(render);
+  } else if (tabId === TABS.CURRICULA) {
+    loadCurricula().then(render);
+  } else if (tabId === TABS.SEMESTERS) {
+    loadSemesters().then(render);
+  } else if (tabId === TABS.PROGRAMS) {
+    loadPrograms().then(render);
+  } else {
+    render();
+  }
+};
+
+window.viewProgramCurricula = async function (programId) {
+  const program = state.programs.find(p => p.id === programId);
+  if (!program) return;
+
+  state.activeProgram = program;
+  state.subView = 'program_curricula';
+  state.activeTab = TABS.PROGRAMS; // Ensure we stick to Programs tab
+
+  // Load curricula specifically for this program
+  await loadCurricula(programId);
+
+  // Re-render
+  render();
+  window.scrollTo(0, 0);
+};
+
+window.returnToProgramList = function () {
+  state.activeProgram = null;
+  state.subView = 'list';
+  render();
+};
+
+
 
 window.openEditProgramModal = async function (programId) {
   try {
@@ -753,6 +2199,103 @@ window.deleteProgram = async function (programId) {
 };
 
 // ============================================================
+// EVENT HANDLERS - PROGRAMS
+// ============================================================
+
+function getProgramForm(program = null) {
+  const isEdit = program !== null;
+  const prefix = isEdit ? 'edit' : 'add';
+
+  return `
+    < form id = "${prefix}-program-form" class="space-y-4" >
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Program Code *</label>
+        <input type="text" id="${prefix}-code" value="${program?.code || ''}" required class="form-input" placeholder="e.g., BSIT, BSCS" pattern="[A-Z]+" title="Must be uppercase letters only">
+        <p class="text-xs text-gray-500 mt-1">Use uppercase letters only (e.g., BSIT, BSCS)</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Program Name *</label>
+        <input type="text" id="${prefix}-name" value="${program?.name || ''}" required class="form-input" placeholder="e.g., Bachelor of Science in Information Technology">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <textarea id="${prefix}-description" rows="3" class="form-input" placeholder="Optional description of the program">${program?.description || ''}</textarea>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Duration (Years) *</label>
+        <select id="${prefix}-duration" required class="form-select">
+          <option value="2" ${program?.duration_years === 2 ? 'selected' : ''}>2 years</option>
+          <option value="3" ${program?.duration_years === 3 ? 'selected' : ''}>3 years</option>
+          <option value="4" ${program?.duration_years === 4 ? 'selected' : '' || !program ? 'selected' : ''}>4 years</option>
+          <option value="5" ${program?.duration_years === 5 ? 'selected' : ''}>5 years</option>
+          <option value="6" ${program?.duration_years === 6 ? 'selected' : ''}>6 years</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="${prefix}-active" ${program?.is_active !== false ? 'checked' : ''} class="rounded border-gray-300">
+        <label for="${prefix}-active" class="text-sm font-medium text-gray-700">Active (currently offered)</label>
+      </div>
+    </form >
+    `;
+}
+
+window.openAddProgramModal = function () {
+  const modal = new Modal({
+    title: 'Add New Program',
+    content: getProgramForm(),
+    size: 'lg',
+    actions: [
+      {
+        label: 'Cancel',
+        onClick: (m) => m.close()
+      },
+      {
+        label: 'Add Program',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('add-program-form');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+
+          const data = {
+            code: document.getElementById('add-code').value.toUpperCase(),
+            name: document.getElementById('add-name').value,
+            description: document.getElementById('add-description').value,
+            duration_years: parseInt(document.getElementById('add-duration').value),
+            is_active: document.getElementById('add-active').checked
+          };
+
+          // Prevent double-submit
+          const submitBtn = m.element.querySelector('[data-action="primary"]');
+          const { setButtonLoading } = await import('../utils.js');
+          setButtonLoading(submitBtn, true, 'Adding...');
+
+          try {
+            await api.post(endpoints.managePrograms, data);
+            Toast.success('Program added successfully');
+            m.close();
+            await loadPrograms();
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, 'Adding program');
+            setButtonLoading(submitBtn, false);
+          }
+        }
+      }
+    ]
+  });
+
+  state.programModal = modal;
+  modal.show();
+};
+
+// ============================================================
 // EVENT HANDLERS - SUBJECTS
 // ============================================================
 
@@ -768,10 +2311,15 @@ window.handleProgramFilterChange = async function (programId) {
 };
 
 window.openAddSubjectModal = function () {
-  if (!state.selectedProgram) {
+  const targetProgram = state.selectedProgram || state.activeProgram;
+
+  if (!targetProgram) {
     Toast.error('Please select a program first');
     return;
   }
+
+  // Ensure state matches for submission
+  state.selectedProgram = targetProgram;
 
   // Reset prerequisite state
   resetPrereqState('add');
@@ -802,7 +2350,7 @@ window.openAddSubjectModal = function () {
             code: document.getElementById('add-sub-code').value.toUpperCase(),
             title: document.getElementById('add-sub-title').value,
             year_level: parseInt(document.getElementById('add-sub-year').value),
-            semester: parseInt(document.getElementById('add-sub-semester').value),
+            semester_number: parseInt(document.getElementById('add-sub-semester').value),
             units: parseInt(document.getElementById('add-sub-units').value),
             program: state.selectedProgram.id,
             prerequisite_ids: state.prereqState.add.selected.map(p => p.id)
@@ -865,7 +2413,7 @@ window.openEditSubjectModal = async function (subjectId) {
               code: document.getElementById('edit-sub-code').value.toUpperCase(),
               title: document.getElementById('edit-sub-title').value,
               year_level: parseInt(document.getElementById('edit-sub-year').value),
-              semester: parseInt(document.getElementById('edit-sub-semester').value),
+              semester_number: parseInt(document.getElementById('edit-sub-semester').value),
               units: parseInt(document.getElementById('edit-sub-units').value),
               prerequisite_ids: state.prereqState.edit.selected.map(p => p.id)
             };
@@ -893,6 +2441,117 @@ window.openEditSubjectModal = async function (subjectId) {
     setTimeout(() => setupPrereqSearchListeners('edit'), 100);
   } catch (error) {
     ErrorHandler.handle(error, 'Loading subject details');
+  }
+};
+
+// ============================================================
+// PREREQUISITE HELPERS
+// ============================================================
+
+window.setupPrereqSearchListeners = function (prefix) {
+  const searchInput = document.getElementById(`${prefix} -prereq - search`);
+  const resultsDropdown = document.getElementById(`${prefix} -prereq - dropdown`);
+
+  if (!searchInput || !resultsDropdown) return;
+
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim().toLowerCase();
+
+    if (query.length < 2) {
+      resultsDropdown.classList.add('hidden');
+      return;
+    }
+
+    // Filter subjects from the same program that are NOT matched already
+    const matches = state.subjects.filter(s => {
+      const alreadySelected = state.prereqState[prefix].selected.some(sel => sel.id === s.id);
+      // Also prevent self-prerequisite if editing (though we don't have easy access to current ID here, handle minimal case)
+      const isSelf = state.editingSubject && state.editingSubject.id === s.id;
+
+      return !alreadySelected && !isSelf && (s.code.toLowerCase().includes(query) || s.title.toLowerCase().includes(query));
+    }).slice(0, 10);
+
+    if (matches.length > 0) {
+      resultsDropdown.innerHTML = matches.map(s => `
+    < div class="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
+  onclick = "addPrerequisite('${prefix}', '${s.id}', '${s.code}')" >
+                    <span class="font-medium text-sm text-gray-800">${s.code}</span>
+                    <span class="text-xs text-gray-500 truncate max-w-[150px]">${s.title}</span>
+                </div >
+    `).join('');
+      resultsDropdown.classList.remove('hidden');
+    } else {
+      resultsDropdown.innerHTML = `< div class="px-3 py-2 text-sm text-gray-500" > No subjects found</div > `;
+      resultsDropdown.classList.remove('hidden');
+    }
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!searchInput.contains(e.target) && !resultsDropdown.contains(e.target)) {
+      resultsDropdown.classList.add('hidden');
+    }
+  });
+};
+
+window.addPrerequisite = function (prefix, id, code) {
+  // Add to state
+  if (!state.prereqState[prefix].selected.find(s => s.id === id)) {
+    state.prereqState[prefix].selected.push({ id, code });
+  }
+
+  // UI Update
+  updatePrereqTags(prefix);
+
+  // Clear search
+  const searchInput = document.getElementById(`${prefix} -prereq - search`);
+  const resultsDropdown = document.getElementById(`${prefix} -prereq - dropdown`);
+  if (searchInput) searchInput.value = '';
+  if (resultsDropdown) resultsDropdown.classList.add('hidden');
+};
+
+window.removePrerequisite = function (prefix, id) {
+  state.prereqState[prefix].selected = state.prereqState[prefix].selected.filter(s => s.id !== id);
+  updatePrereqTags(prefix);
+};
+
+window.updatePrereqTags = function (prefix) {
+  const container = document.getElementById(`${prefix} -selected - prereqs`);
+  if (!container) return;
+
+  const selected = state.prereqState[prefix].selected;
+
+  if (selected.length === 0) {
+    container.innerHTML = '<p class="text-sm text-gray-400">No prerequisites selected</p>';
+    return;
+  }
+
+  container.innerHTML = selected.map(p => `
+    < span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm" >
+            <span class="font-mono font-medium">${p.code}</span>
+            <button type="button" onclick="removePrerequisite('${prefix}', '${p.id}')" class="text-blue-600 hover:text-blue-800 ml-1">
+                &times;
+            </button>
+        </span >
+    `).join('');
+};
+
+window.resetPrereqState = function (prefix) {
+  if (state.prereqState[prefix]) {
+    state.prereqState[prefix].selected = [];
+    state.prereqState[prefix].results = [];
+    state.prereqState[prefix].search = '';
+  }
+};
+
+window.initEditPrerequisites = function (subject) {
+  if (subject && subject.prerequisites) {
+    state.prereqState.edit.selected = subject.prerequisites.map(p => ({
+      id: p.id,
+      code: p.code
+    }));
+  } else {
+    state.prereqState.edit.selected = [];
   }
 };
 
@@ -925,7 +2584,7 @@ function getCurriculumForm(curriculum = null) {
   const prefix = isEdit ? 'edit' : 'add';
 
   return `
-    <form id="${prefix}-curriculum-form" class="space-y-4">
+    < form id = "${prefix}-curriculum-form" class="space-y-4" >
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Code *</label>
         <input type="text" id="${prefix}-curriculum-code" value="${curriculum?.code || ''}" required class="form-input" placeholder="e.g., BSIT-2024">
@@ -959,8 +2618,8 @@ function getCurriculumForm(curriculum = null) {
         <input type="checkbox" id="${prefix}-curriculum-active" ${curriculum?.is_active !== false ? 'checked' : ''} class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
         <label for="${prefix}-curriculum-active" class="text-sm font-medium text-gray-700">Active Curriculum</label>
       </div>
-    </form>
-  `;
+    </form >
+    `;
 }
 
 window.openAddCurriculumModal = async function () {
@@ -1078,7 +2737,7 @@ window.viewCurriculum = async function (curriculumId) {
     const structure = await api.get(endpoints.curriculumStructure(curriculumId));
 
     const modal = new Modal({
-      title: `Curriculum: ${curriculum.code}`,
+      title: `Curriculum: ${curriculum.code} `,
       content: getCurriculumViewContent(curriculum, structure),
       size: 'xl',
       actions: [
@@ -1114,117 +2773,390 @@ function getCurriculumViewContent(curriculum, response) {
     Object.keys(structure[year]).forEach(sem => {
       const subjects = structure[year][sem];
       if (subjects && subjects.length > 0) {
-        const key = `${year}-${sem}`;
+        const key = `${year} -${sem} `;
         subjectsByLevel[key] = subjects;
         totalSubjects += subjects.length;
       }
     });
   });
 
+  state.currentCurriculum = { ...curriculum, structure: subjectsByLevel }; // Store for easy access
+
   return `
-    <!-- Curriculum Info -->
-    <div class="bg-gray-50 rounded-lg p-4 mb-6">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div>
-          <p class="text-sm text-gray-600">Program</p>
-          <p class="font-semibold text-gray-900">${curriculum.program_name || 'Not assigned'}</p>
+    < !--Strong Context Header-- >
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-6">
+       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+           <div>
+               <p class="text-sm text-blue-600 font-semibold mb-1 tracking-wide uppercase">Program</p>
+               <h3 class="text-2xl font-bold text-gray-900">${curriculum.program_name || 'Not assigned'}</h3>
+           </div>
+           
+           <div class="h-px md:h-12 w-full md:w-px bg-blue-200"></div>
+
+           <div>
+              <p class="text-sm text-blue-600 font-semibold mb-1 tracking-wide uppercase">Curriculum</p>
+              <h3 class="text-xl font-semibold text-gray-900">${curriculum.code}</h3>
+           </div>
+
+           <div class="h-px md:h-12 w-full md:w-px bg-blue-200"></div>
+
+           <div>
+              <p class="text-sm text-blue-600 font-semibold mb-1 tracking-wide uppercase">Effective Year</p>
+              <h3 class="text-xl font-semibold text-gray-900">${curriculum.effective_year}</h3>
+           </div>
+
+           <div class="h-px md:h-12 w-full md:w-px bg-blue-200"></div>
+
+            <div>
+              <p class="text-sm text-blue-600 font-semibold mb-1 tracking-wide uppercase">Status</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${curriculum.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}">
+                 ${curriculum.is_active ? 'Active' : 'Inactive'}
+              </span>
+           </div>
+       </div>
+       ${curriculum.description ? `
+        <div class="mt-4 pt-4 border-t border-blue-200">
+           <p class="text-gray-700 text-sm">${curriculum.description}</p>
         </div>
-        <div>
-          <p class="text-sm text-gray-600">Effective Year</p>
-          <p class="font-semibold text-gray-900">${curriculum.effective_year}</p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-600">Total Subjects</p>
-          <p class="font-semibold text-gray-900">${totalSubjects}</p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-600">Status</p>
-          <p class="font-semibold ${curriculum.is_active ? 'text-green-600' : 'text-gray-600'}">
-            ${curriculum.is_active ? 'Active' : 'Inactive'}
-          </p>
-        </div>
-      </div>
-      ${curriculum.description ? `
-        <div class="mt-3 pt-3 border-t border-gray-200">
-          <p class="text-sm text-gray-600">Description</p>
-          <p class="text-gray-900">${curriculum.description}</p>
-        </div>
-      ` : ''}
+       ` : ''}
     </div>
 
-    <!-- Subjects by Year and Semester -->
-    ${totalSubjects === 0 ? `
-      <div class="text-center py-12 bg-gray-50 rounded-lg">
-        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-        </svg>
-        <p class="text-gray-500 text-lg">No subjects assigned to this curriculum yet</p>
-        <p class="text-gray-400 text-sm mt-2">Subjects can be assigned through the curriculum management interface</p>
-      </div>
-    ` : `
-      <div class="space-y-6">
-        ${[1, 2, 3, 4, 5].map(year => {
-    const hasYearSubjects = [1, 2, 3].some(sem => subjectsByLevel[`${year}-${sem}`]?.length > 0);
-    if (!hasYearSubjects) return '';
-
+    <!--Subjects by Year and Semester-- >
+    <div class="space-y-6">
+      ${[1, 2, 3, 4, 5].map(year => {
     return `
-            <div class="border border-gray-200 rounded-lg overflow-hidden">
-              <div class="bg-blue-600 text-white px-4 py-3">
-                <h3 class="font-bold text-lg">Year ${year}</h3>
-              </div>
+            <div class="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                <div class="bg-gray-800 text-white px-4 py-3 flex justify-between items-center">
+                    <h3 class="font-bold text-lg">Year ${year}</h3>
+                </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 bg-gray-50">
                 ${[1, 2, 3].map(semester => {
       const key = `${year}-${semester}`;
       const subjects = subjectsByLevel[key] || [];
-
-      if (subjects.length === 0) return '';
-
       const totalUnits = subjects.reduce((sum, s) => sum + (s.units || 0), 0);
       const semesterName = semester === 3 ? 'Summer' : (semester === 1 ? '1st Semester' : '2nd Semester');
 
       return `
-                    <div class="border border-gray-200 rounded-lg">
-                      <div class="bg-gray-100 px-3 py-2 border-b border-gray-200">
-                        <div class="flex items-center justify-between">
-                          <h4 class="font-semibold text-gray-800">${semesterName}</h4>
-                          <span class="text-sm text-gray-600">${totalUnits} units</span>
+                    <div class="flex flex-col h-full bg-white border border-gray-200 rounded-lg shadow-sm">
+                        <div class="bg-gray-100 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
+                            <h4 class="font-semibold text-gray-800">${semesterName}</h4>
+                            <span class="text-xs font-bold bg-white border border-gray-300 px-2 py-1 rounded text-gray-600">${totalUnits} units</span>
                         </div>
-                      </div>
-                      <div class="p-3 space-y-2">
-                        ${subjects.map(subject => `
-                          <div class="flex items-start justify-between py-2 border-b border-gray-100 last:border-0">
-                            <div class="flex-1">
-                              <p class="font-medium text-gray-900">${subject.code}</p>
-                              <p class="text-sm text-gray-600">${subject.title}</p>
-                              ${subject.prerequisites && subject.prerequisites.length > 0 ? `
-                                <p class="text-xs text-gray-500 mt-1">
-                                  Prereq: ${subject.prerequisites.map(p => p.code).join(', ')}
-                                </p>
-                              ` : ''}
-                            </div>
-                            <div class="ml-3 text-right">
-                              <span class="inline-block px-2 py-1 text-sm font-medium rounded bg-blue-100 text-blue-800">
-                                ${subject.units} ${subject.units === 1 ? 'unit' : 'units'}
-                              </span>
-                              ${subject.type ? `
-                                <p class="text-xs text-gray-500 mt-1">${subject.type}</p>
-                              ` : ''}
-                            </div>
-                          </div>
-                        `).join('')}
-                      </div>
+                        
+                        <div class="p-3 space-y-2 flex-grow">
+                            ${subjects.length === 0 ? `
+                                <div class="text-center py-4 text-gray-400 text-sm italic">
+                                    No subjects assigned
+                                </div>
+                            ` : subjects.map(subject => `
+                                <div class="group flex items-start justify-between py-2 border-b border-gray-100 last:border-0 hover:bg-blue-50 transition-colors rounded px-2 -mx-2">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-mono font-bold text-blue-600">${subject.code}</span>
+                                            <span class="text-xs font-medium bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">${subject.units}u</span>
+                                        </div>
+                                        <p class="text-sm text-gray-700 truncate" title="${subject.title}">${subject.title}</p>
+                                        ${subject.prerequisites && subject.prerequisites.length > 0 ? `
+                                            <div class="text-xs text-gray-500 mt-0.5 flex gap-1 items-center">
+                                                <svg class="w-3 h-3 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                                ${subject.prerequisites.map(p => p.code).join(', ')}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                    <button onclick="removeSubjectFromCurriculum('${curriculum.id}', '${subject.id}')" class="text-gray-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity" title="Remove from curriculum">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="p-2 border-t border-gray-100 bg-gray-50 rounded-b-lg">
+                            <button onclick="openAssignSubjectModal('${curriculum.id}', ${year}, ${semester})" class="w-full py-1.5 text-center text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-dashed border-blue-300 rounded-md transition-colors flex items-center justify-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                Assign Subject
+                            </button>
+                        </div>
                     </div>
-                  `;
+                    `;
     }).join('')}
-              </div>
+                </div>
             </div>
-          `;
+            `;
   }).join('')}
-      </div>
-    `}
+    </div>
   `;
 }
+
+// ============================================================
+// CURRICULUM SUBJECT MANAGEMENT
+// ============================================================
+
+window.openAssignSubjectModal = async function (curriculumId, year, semester) {
+  const curriculum = state.curricula.find(c => c.id === curriculumId) || state.currentCurriculum;
+
+  // Initial State for Modal
+  state.assignModal = {
+    curriculumId,
+    year,
+    semester,
+    activeTab: 'select', // 'select' or 'create'
+    searchQuery: '',
+    searchResults: [],
+    programId: curriculum.program // Ensure we scope to program
+  };
+
+  // Pre-load subjects
+  await loadSubjects(curriculum.program);
+
+  const modal = new Modal({
+    title: `Assign to Year ${year} - ${semester === 3 ? 'Summer' : (semester === 1 ? '1st Sem' : '2nd Sem')} `,
+    content: getAssignSubjectModalContent(),
+    size: 'lg',
+    hideFooter: true // Custom footer per tab
+  });
+
+  state.curriculumModal = modal; // Re-use this state slot or create a new one
+  modal.show();
+
+  // Trigger initial empty search to show all available
+  searchAssignSubjects('');
+};
+
+window.getAssignSubjectModalContent = function () {
+  const { activeTab, curriculumId, year, semester } = state.assignModal;
+
+  return `
+    < div class="flex flex-col h-[500px]" >
+             < !--Tabs -->
+             <div class="flex border-b border-gray-200 mb-4">
+                 <button onclick="selectAssignTab('select')" class="flex-1 py-3 text-sm font-medium border-b-2 ${activeTab === 'select' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                     Select Existing Subject
+                 </button>
+                 <button onclick="selectAssignTab('create')" class="flex-1 py-3 text-sm font-medium border-b-2 ${activeTab === 'create' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                     Create New Subject
+                 </button>
+             </div>
+
+             <!--Content Area-- >
+    <div class="flex-1 overflow-y-auto pr-2">
+      ${activeTab === 'select' ? renderAssignSelectTab() : renderAssignCreateTab()}
+    </div>
+        </div >
+    `;
+};
+
+window.renderAssignSelectTab = function () {
+  return `
+    < div class="space-y-4" >
+            <div class="relative">
+                <input type="text" 
+                       oninput="searchAssignSubjects(this.value)" 
+                       placeholder="Search by code or title..." 
+                       class="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       autofocus>
+                <div class="absolute left-3 top-2.5 text-gray-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+            </div>
+
+            <div id="assign-results" class="space-y-2">
+                <!-- Results populated by JS -->
+                <p class="text-center text-gray-500 py-4">Type to search subjects...</p>
+            </div>
+        </div >
+    `;
+};
+
+window.renderAssignCreateTab = function () {
+  return `
+    < form id = "inline-create-subject-form" class="space-y-4 px-1" onsubmit = "event.preventDefault(); createAndAssignSubject();" >
+            <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
+                <p class="text-sm text-blue-800 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    New subject will be added to <strong>${state.currentCurriculum.program_name}</strong> and assigned to this curriculum immediately.
+                </p>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                   <label class="block text-sm font-medium text-gray-700 mb-1">Subject Code *</label>
+                   <input type="text" id="new-sub-code" required class="form-input uppercase" placeholder="e.g. CS101">
+                </div>
+                <div>
+                   <label class="block text-sm font-medium text-gray-700 mb-1">Units *</label>
+                   <input type="number" id="new-sub-units" required class="form-input" value="3" min="0" max="10">
+                </div>
+            </div>
+
+            <div>
+               <label class="block text-sm font-medium text-gray-700 mb-1">Subject Title *</label>
+               <input type="text" id="new-sub-title" required class="form-input" placeholder="e.g. Introduction to Computing">
+            </div>
+            
+            <div>
+               <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+               <textarea id="new-sub-desc" class="form-input" rows="2"></textarea>
+            </div>
+
+            <div class="pt-4">
+                <button type="submit" class="w-full btn btn-primary flex justify-center items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                    Create & Assign Subject
+                </button>
+            </div>
+        </form >
+    `;
+};
+
+window.selectAssignTab = function (tab) {
+  state.assignModal.activeTab = tab;
+  state.curriculumModal.setContent(getAssignSubjectModalContent());
+  if (tab === 'select') searchAssignSubjects('');
+};
+
+window.searchAssignSubjects = function (query) {
+  const resultsContainer = document.getElementById('assign-results');
+  if (!resultsContainer) return;
+
+  const lowerQ = query.toLowerCase();
+
+  // Filter logic: Must match query AND match Program AND NOT be already in this specific curriculum
+  // To check if already in curriculum, we need to check state.currentCurriculum.structure
+  // But structure is nested {year: {sem: [subjects]}}. Let's flatten IDs first.
+
+  const assignedIds = new Set();
+  Object.values(state.currentCurriculum.structure || {}).forEach(yearObj => {
+    if (yearObj) {
+      Object.values(yearObj).forEach(semArr => {
+        if (Array.isArray(semArr)) {
+          semArr.forEach(s => assignedIds.add(s.id));
+        }
+      });
+    }
+  });
+
+  const results = state.subjects.filter(s => {
+    const matchesQuery = s.code.toLowerCase().includes(lowerQ) || (s.title || s.name).toLowerCase().includes(lowerQ);
+    const matchesProgram = s.program === state.assignModal.programId; // Strict scoping
+    const notAssigned = !assignedIds.has(s.id);
+
+    return matchesQuery && matchesProgram && notAssigned;
+  }).slice(0, 15);
+
+  if (results.length === 0) {
+    resultsContainer.innerHTML = `< div class="p-4 text-center text-gray-500 bg-gray-50 rounded" > No matching subjects found in this program program.</div > `;
+    return;
+  }
+
+  resultsContainer.innerHTML = results.map(s => `
+    < div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" >
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-gray-800">${s.code}</span>
+                    <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${s.units}u</span>
+                </div>
+                <p class="text-sm text-gray-600 truncate max-w-[250px]">${s.title || s.name}</p>
+            </div>
+            <button onclick="assignSubjectToCurriculum('${s.id}')" class="btn btn-sm btn-primary">
+                Assign
+            </button>
+        </div >
+    `).join('');
+};
+
+window.assignSubjectToCurriculum = async function (subjectId) {
+  const { curriculumId, year, semester } = state.assignModal;
+
+  // Mock API call since valid endpoint might be tricky to guess perfectly without full docs,
+  // but assuming standard post endpoint:
+  // Actually we have endpoints.curriculumAssignSubjects in api.js
+
+  try {
+    const payload = {
+      subject_ids: [subjectId],
+      year_level: year,
+      semester_number: semester
+    };
+
+    // Use the endpoint defined in api.js: curriculumAssignSubjects: (id) => `/ academics / curricula / ${ id } /assign_subjects/`
+    await api.post(endpoints.curriculumAssignSubjects(curriculumId), payload);
+
+    Toast.success('Subject assigned successfully');
+    state.curriculumModal.close();
+
+    // Refresh view
+    viewCurriculum(curriculumId);
+
+  } catch (error) {
+    ErrorHandler.handle(error, 'Assigning subject');
+  }
+};
+
+window.createAndAssignSubject = async function () {
+  const code = document.getElementById('new-sub-code').value.toUpperCase();
+  const title = document.getElementById('new-sub-title').value;
+  const units = parseInt(document.getElementById('new-sub-units').value);
+  const desc = document.getElementById('new-sub-desc').value;
+
+  const { programId, curriculumId, year, semester } = state.assignModal;
+
+  try {
+    // 1. Create Subject
+    const subjectData = {
+      code,
+      title,
+      units,
+      description: desc,
+      program: programId,
+      // Defaults as we are inline:
+      year_level: year, // Suggestion
+      semester: semester
+    };
+
+    const newSubject = await api.post(endpoints.manageSubjects, subjectData);
+
+    // 2. Assign to Curriculum
+    if (newSubject && newSubject.id) {
+      const assignPayload = {
+        subject_ids: [newSubject.id],
+        year_level: year,
+        semester_number: semester
+      };
+      await api.post(endpoints.curriculumAssignSubjects(curriculumId), assignPayload);
+
+      Toast.success('Subject created and assigned!');
+      state.curriculumModal.close();
+      viewCurriculum(curriculumId);
+    }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Creating subject');
+  }
+};
+
+
+window.removeSubjectFromCurriculum = async function (curriculumId, subjectId) {
+  const confirmed = await ConfirmModal({
+    title: 'Remove Subject',
+    message: 'Are you sure you want to remove this subject from the curriculum? The subject itself will not be deleted.',
+    confirmLabel: 'Remove',
+    danger: true
+  });
+
+  if (!confirmed) return;
+
+  try {
+    // Assuming endpoint: /academics/curricula/${id}/subjects/${subjectId}/
+    // Using DELETE
+    await api.delete(endpoints.curriculumRemoveSubject(curriculumId, subjectId));
+
+    Toast.success('Subject removed from curriculum');
+    viewCurriculum(curriculumId); // Refresh
+
+  } catch (error) {
+    ErrorHandler.handle(error, 'Removing subject');
+  }
+};
 
 window.deleteCurriculum = async function (curriculumId) {
   const confirmed = await ConfirmModal({
@@ -1247,6 +3179,68 @@ window.deleteCurriculum = async function (curriculumId) {
 };
 
 // ============================================================
+// CURRICULA TAB
+// ============================================================
+
+function renderCurriculaTab() {
+  return `
+    < div class="flex items-center justify-between mb-6" >
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">Curricula</h2>
+        <p class="text-sm text-gray-600 mt-1">Curriculum versions and subject mapping</p>
+      </div>
+      <button onclick="openAddCurriculumModal()" class="btn btn-primary flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+        </svg>
+        Add Curriculum
+      </button>
+    </div >
+
+    ${state.curricula.length === 0 ? `
+      <div class="card text-center py-12">
+        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        <p class="text-gray-500 text-lg">No curricula found</p>
+        <p class="text-gray-400 text-sm mt-2">Click "Add Curriculum" to create your first curriculum</p>
+      </div>
+    ` : `
+      <div class="space-y-4">
+        ${state.curricula.map(curriculum => `
+          <div class="card">
+            <div class="flex items-start justify-between mb-4">
+              <div class="flex-1">
+                <div class="flex items-center gap-3 mb-2">
+                  <h3 class="text-xl font-bold text-gray-800">${curriculum.code}</h3>
+                  ${curriculum.is_active
+      ? '<span class="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">Active</span>'
+      : '<span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">Inactive</span>'
+    }
+                </div>
+                <p class="text-gray-600">Effective Year: ${curriculum.effective_year}</p>
+                <p class="text-sm text-gray-500 mt-1">${curriculum.program_name || 'No program assigned'}</p>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="openEditCurriculumModal('${curriculum.id}')" class="btn btn-secondary text-sm">
+                  Edit
+                </button>
+                <button onclick="viewCurriculum('${curriculum.id}')" class="btn btn-secondary text-sm">
+                  View
+                </button>
+                <button onclick="deleteCurriculum('${curriculum.id}')" class="btn btn-danger text-sm">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `}
+  `;
+}
+
+// ============================================================
 // SEMESTERS TAB
 // ============================================================
 
@@ -1254,7 +3248,7 @@ function renderSemestersTab() {
   const years = getUniqueAcademicYears();
 
   return `
-    <div class="flex items-center justify-between mb-6">
+    < div class="flex items-center justify-between mb-6" >
       <div>
         <h2 class="text-xl font-bold text-gray-800">Semesters</h2>
         <p class="text-sm text-gray-600 mt-1">Manage academic semesters and enrollment periods</p>
@@ -1276,7 +3270,7 @@ function renderSemestersTab() {
           Add Semester
         </button>
       </div>
-    </div>
+    </div >
 
     ${state.filteredSemesters.length === 0 ? `
       <div class="card text-center py-12">
@@ -1346,7 +3340,7 @@ function renderSemestersTab() {
 
 function renderSemesterAddModal() {
   return `
-    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeSemesterAddModal()">
+    < div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick = "closeSemesterAddModal()" >
       <div class="bg-white rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl" onclick="event.stopPropagation()">
         <h3 class="text-xl font-bold text-gray-800 mb-4">Add New Semester</h3>
         <form id="add-semester-form" class="space-y-4">
@@ -1362,7 +3356,7 @@ function renderSemesterAddModal() {
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Academic Year *</label>
             <input type="text" id="add-sem-year" required class="form-input" placeholder="2024-2025" pattern="\\d{4}-\\d{4}">
-            <p class="text-xs text-gray-500 mt-1">Format: YYYY-YYYY (e.g., 2024-2025)</p>
+              <p class="text-xs text-gray-500 mt-1">Format: YYYY-YYYY (e.g., 2024-2025)</p>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
@@ -1392,7 +3386,7 @@ function renderSemesterAddModal() {
 
           <div class="flex items-center gap-2">
             <input type="checkbox" id="add-sem-current" class="rounded border-gray-300">
-            <label for="add-sem-current" class="text-sm text-gray-700">Set as current semester</label>
+              <label for="add-sem-current" class="text-sm text-gray-700">Set as current semester</label>
           </div>
         </form>
 
@@ -1401,8 +3395,8 @@ function renderSemesterAddModal() {
           <button onclick="submitAddSemester()" class="flex-1 btn btn-primary">Create Semester</button>
         </div>
       </div>
-    </div>
-  `;
+    </div >
+    `;
 }
 
 function renderSemesterEditModal() {
@@ -1410,7 +3404,7 @@ function renderSemesterEditModal() {
   if (!sem) return '';
 
   return `
-    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeSemesterEditModal()">
+    < div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick = "closeSemesterEditModal()" >
       <div class="bg-white rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl" onclick="event.stopPropagation()">
         <h3 class="text-xl font-bold text-gray-800 mb-4">Edit Semester</h3>
         <form id="edit-semester-form" class="space-y-4">
@@ -1455,7 +3449,7 @@ function renderSemesterEditModal() {
 
           <div class="flex items-center gap-2">
             <input type="checkbox" id="edit-sem-current" ${sem.is_current ? 'checked' : ''} class="rounded border-gray-300">
-            <label for="edit-sem-current" class="text-sm text-gray-700">Set as current semester</label>
+              <label for="edit-sem-current" class="text-sm text-gray-700">Set as current semester</label>
           </div>
         </form>
 
@@ -1464,8 +3458,8 @@ function renderSemesterEditModal() {
           <button onclick="submitEditSemester()" class="flex-1 btn btn-primary">Save Changes</button>
         </div>
       </div>
-    </div>
-  `;
+    </div >
+    `;
 }
 
 // ============================================================
@@ -1625,7 +3619,7 @@ function initEditPrerequisites(subject) {
 }
 
 function updatePrereqDropdown(mode) {
-  const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-dropdown`);
+  const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -prereq - dropdown`);
   if (!dropdown) return;
 
   if (state.prereqState[mode].results.length === 0) {
@@ -1635,16 +3629,16 @@ function updatePrereqDropdown(mode) {
 
   dropdown.classList.remove('hidden');
   dropdown.innerHTML = state.prereqState[mode].results.map(s => `
-    <button type="button" onclick="addPrerequisite('${mode}', '${s.id}', '${s.code}', '${(s.title || s.name || '').replace(/'/g, "\\'")}')"
-            class="w-full px-4 py-2 text-left hover:bg-gray-100 flex justify-between items-center border-b border-gray-100 last:border-0">
+    < button type = "button" onclick = "addPrerequisite('${mode}', '${s.id}', '${s.code}', '${(s.title || s.name || '').replace(/'/g, "\\'")}') "
+  class="w-full px-4 py-2 text-left hover:bg-gray-100 flex justify-between items-center border-b border-gray-100 last:border-0" >
       <span class="font-mono text-blue-600 font-medium">${s.code}</span>
       <span class="text-gray-600 text-sm truncate ml-2">${s.title || s.name || ''}</span>
-    </button>
-  `).join('');
+    </button >
+    `).join('');
 }
 
 function updateSelectedPrereqs(mode) {
-  const container = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-selected-prereqs`);
+  const container = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -selected - prereqs`);
   if (!container) return;
 
   if (state.prereqState[mode].selected.length === 0) {
@@ -1653,7 +3647,7 @@ function updateSelectedPrereqs(mode) {
   }
 
   container.innerHTML = state.prereqState[mode].selected.map(p => `
-    <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+    < span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm" >
       <span class="font-mono font-medium">${p.code}</span>
       <button type="button" onclick="removePrerequisite('${mode}', '${p.id}')"
               class="hover:text-red-600 ml-1 focus:outline-none">
@@ -1661,12 +3655,12 @@ function updateSelectedPrereqs(mode) {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
-    </span>
-  `).join('');
+    </span >
+    `).join('');
 }
 
 function setupPrereqSearchListeners(mode) {
-  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-search`);
+  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -prereq - search`);
   if (!searchInput) return;
 
   let debounceTimer;
@@ -1686,7 +3680,7 @@ function setupPrereqSearchListeners(mode) {
 
   // Close dropdown when clicking outside
   document.addEventListener('click', (e) => {
-    const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-dropdown`);
+    const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -prereq - dropdown`);
     if (dropdown && !searchInput.contains(e.target) && !dropdown.contains(e.target)) {
       dropdown.classList.add('hidden');
     }
@@ -1724,7 +3718,7 @@ window.addPrerequisite = function (mode, id, code, title) {
   }
 
   // Clear search
-  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-search`);
+  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -prereq - search`);
   if (searchInput) {
     searchInput.value = '';
   }

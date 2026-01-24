@@ -42,13 +42,14 @@ class ProgramSerializer(serializers.ModelSerializer):
     
     total_subjects = serializers.IntegerField(read_only=True)
     total_units = serializers.IntegerField(read_only=True)
+    total_curricula = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = Program
         fields = [
             'id', 'code', 'name', 'description', 
             'duration_years', 'is_active',
-            'total_subjects', 'total_units'
+            'total_subjects', 'total_units', 'total_curricula'
         ]
 
 
@@ -203,12 +204,13 @@ class ScheduleSlotSerializer(serializers.ModelSerializer):
     """Serializer for schedule slots."""
     
     day_display = serializers.CharField(source='get_day_display', read_only=True)
+    professor_name = serializers.CharField(source='professor.get_full_name', read_only=True)
     
     class Meta:
         model = ScheduleSlot
         fields = [
             'id', 'section_subject', 'day', 'day_display',
-            'start_time', 'end_time', 'room'
+            'start_time', 'end_time', 'room', 'professor', 'professor_name'
         ]
         read_only_fields = ['id']
     
@@ -242,7 +244,7 @@ class ScheduleSlotCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ScheduleSlot
         fields = [
-            'section_subject', 'day', 'start_time', 'end_time', 'room',
+            'section_subject', 'day', 'start_time', 'end_time', 'room', 'professor',
             'override_conflict', 'override_reason'
         ]
     
@@ -264,7 +266,9 @@ class ScheduleSlotCreateSerializer(serializers.ModelSerializer):
         day = attrs.get('day')
         room = attrs.get('room')
         semester = section_subject.section.semester
-        professor = section_subject.professor
+        
+        # Priority: explicit slot professor -> section_subject.professor
+        professor = attrs.get('professor') or section_subject.professor
         
         # Check professor conflict
         if professor:
@@ -533,27 +537,98 @@ class CurriculumStructureSerializer(serializers.Serializer):
     structure = serializers.DictField()
 
 
-# Professor Management Serializers
+class ProfessorProfileSerializer(serializers.ModelSerializer):
+    """Serializer for professor profile details."""
+    assigned_subjects = SubjectMinimalSerializer(many=True, read_only=True)
+    assigned_subject_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False
+    )
+
+    class Meta:
+        from apps.accounts.models import ProfessorProfile
+        model = ProfessorProfile
+        fields = [
+            'department', 'office_location', 'specialization',
+            'max_teaching_hours', 'assigned_subjects', 'assigned_subject_ids',
+            'is_active'
+        ]
+
 class ProfessorSerializer(serializers.ModelSerializer):
-    """Basic serializer for professor listing."""
+    """Basic serializer for professor listing and creation."""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
+    profile = ProfessorProfileSerializer(source='professor_profile', required=False)
 
     class Meta:
         from apps.accounts.models import User
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'full_name', 'is_active']
+        fields = ['id', 'email', 'first_name', 'last_name', 'full_name', 'is_active', 'profile']
+
+    def create(self, validated_data):
+        from apps.accounts.models import User, ProfessorProfile
+        profile_data = validated_data.pop('professor_profile', {})
+        assigned_subject_ids = profile_data.pop('assigned_subject_ids', [])
+
+        # Ensure username is set to email to avoid duplicate empty username errors
+        email = validated_data.get('email')
+        if email:
+            validated_data['username'] = email
+
+        # Set default password for new professors
+        user = User.objects.create_user(
+            role=User.Role.PROFESSOR,
+            **validated_data
+        )
+        user.set_unusable_password() # They should reset it via forgot password or admin
+        user.save()
+
+        # Create profile
+        profile = ProfessorProfile.objects.create(user=user, **profile_data)
+        if assigned_subject_ids:
+            profile.assigned_subjects.set(assigned_subject_ids)
+
+        return user
+
+    def update(self, instance, validated_data):
+        from apps.accounts.models import ProfessorProfile
+        profile_data = validated_data.pop('professor_profile', {})
+        assigned_subject_ids = profile_data.pop('assigned_subject_ids', None)
+
+        # Sync username if email changes
+        email = validated_data.get('email')
+        if email:
+            validated_data['username'] = email
+
+        # Update User fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Update or create Profile
+        profile, created = ProfessorProfile.objects.get_or_create(user=instance)
+        for attr, value in profile_data.items():
+            setattr(profile, attr, value)
+        
+        if assigned_subject_ids is not None:
+            profile.assigned_subjects.set(assigned_subject_ids)
+            
+        profile.save()
+
+        return instance
 
 
 class ProfessorDetailSerializer(serializers.ModelSerializer):
     """Detailed serializer for professor with teaching load."""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
+    profile = ProfessorProfileSerializer(source='professor_profile', read_only=True)
     teaching_load = serializers.SerializerMethodField()
 
     class Meta:
         from apps.accounts.models import User
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'full_name',
-                  'is_active', 'teaching_load']
+                  'is_active', 'profile', 'teaching_load']
 
     def get_teaching_load(self, obj):
         from apps.academics.services import ProfessorService

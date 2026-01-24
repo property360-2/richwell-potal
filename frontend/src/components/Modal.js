@@ -279,6 +279,11 @@ export class Modal {
     }
   }
 
+  // Alias for updateContent to match usage in registrar-academic.js
+  setContent(content) {
+    this.updateContent(content);
+  }
+
   updateTitle(title) {
     const modalEl = document.getElementById(this.modalId);
     if (!modalEl) return;

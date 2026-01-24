@@ -312,7 +312,38 @@ class OnlineEnrollmentView(APIView):
             traceback.print_exc()
             return Response({"error": str(e)}, status=500)
 DocumentUploadView = SimplePOSTView
-EnrollmentDetailView = SimpleGETView
+class EnrollmentDetailView(APIView):
+    """
+    Get details of the current user's enrollment.
+    Used by student dashboard to check status.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.enrollment.models import Enrollment
+        
+        # Get latest enrollment
+        enrollment = Enrollment.objects.filter(
+            student=request.user
+        ).select_related('semester').order_by('-created_at').first()
+        
+        if not enrollment:
+            return Response({"success": True, "data": None})
+            
+        return Response({
+            "success": True,
+            "data": {
+                "id": str(enrollment.id),
+                "status": enrollment.status,
+                "semester": {
+                    "id": str(enrollment.semester.id) if enrollment.semester else None,
+                    "term": enrollment.semester.name if enrollment.semester else None,
+                    "year": enrollment.semester.academic_year if enrollment.semester else None
+                } if enrollment.semester else None,
+                "created_at": enrollment.created_at,
+                "monthly_commitment": enrollment.monthly_commitment
+            }
+        })
 # Admission Staff Views
 class ApplicantListView(APIView):
     """
@@ -357,7 +388,58 @@ class ApplicantListView(APIView):
 # Register simple view classes for expected names
 TransfereeCreateView = SimplePOSTView
 TransfereeCreditView = SimpleGETView
-NextStudentNumberView = SimpleGETView
+TransfereeCreateView = SimplePOSTView
+TransfereeCreditView = SimpleGETView
+
+class NextStudentNumberView(APIView):
+    """
+    Generate the next available student number.
+    Format: YYYY-XXXXX (e.g., 2025-00001)
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        from apps.accounts.models import User
+        from django.utils import timezone
+        import re
+        
+        current_year = timezone.now().year
+        prefix = f"{current_year}-"
+        
+        # distinct() is not needed for simple filter but good practice if joins were involved
+        # specific to SQLite/Postgres differences, standard filter is strictly better here
+        latest_student = User.objects.filter(
+            student_number__startswith=prefix
+        ).order_by('-student_number').first()
+        
+        if latest_student and latest_student.student_number:
+            # Extract number part
+            try:
+                # Remove prefix and parse
+                existing_suffix = latest_student.student_number.replace(prefix, '')
+                # Handle cases where suffix might not be purely numeric (though it should be)
+                # We extract the first sequence of digits
+                match = re.search(r'^(\d+)', existing_suffix)
+                if match:
+                    sequence = int(match.group(1)) + 1
+                else:
+                    sequence = 1
+            except ValueError:
+                sequence = 1
+        else:
+            sequence = 1
+            
+        next_number = f"{prefix}{sequence:05d}"
+        
+        # Double check existence (loop just in case, though unlikely with logic above)
+        while User.objects.filter(student_number=next_number).exists():
+            sequence += 1
+            next_number = f"{prefix}{sequence:05d}"
+            
+        return Response({
+            "success": True,
+            "next_student_number": next_number
+        })
 
 class ApplicantUpdateView(APIView):
     """
@@ -423,11 +505,267 @@ class ApplicantUpdateView(APIView):
 
 DocumentVerifyView = SimplePOSTView
 
-RecommendedSubjectsView = SimpleGETView
+class RecommendedSubjectsView(APIView):
+    """
+    Get recommended subjects for the student based on their curriculum and passed subjects.
+    Also handles "No Curriculum" error state.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.enrollment.models import Semester, SubjectEnrollment
+        from apps.academics.models import Curriculum, CurriculumSubject
+
+        user = request.user
+        
+        # 1. Get active semester
+        active_semester = Semester.objects.filter(is_current=True).first()
+        if not active_semester:
+            return Response({"error": "No active semester found"}, status=400)
+
+        # 2. Get student profile & program
+        if not hasattr(user, 'student_profile') or not user.student_profile:
+            return Response({"error": "Student profile not found"}, status=400)
+            
+        profile = user.student_profile
+        program = profile.program
+        
+        if not program:
+            return Response({"error": "No program assigned"}, status=400)
+
+        # 3. Get Student's Assigned Curriculum
+        # Currently Richwell assumes one active curriculum per program for simplicity in this MVP,
+        # or we find the one matching the student's entry year (based on student number).
+        # For now, let's grab the latest active curriculum for their program.
+        curriculum = Curriculum.objects.filter(
+            program=program, 
+            is_active=True
+        ).order_by('-effective_year').first()
+        
+        if not curriculum:
+             return Response({
+                "success": False, 
+                "error": "No curriculum found for your program. Please contact the Registrar.",
+                "recommended_subjects": [],
+                "current_units": 0,
+                "max_units": 0
+            })
+
+        # 4. Get Passed Subjects (to filter out)
+        passed_subject_ids = SubjectEnrollment.objects.filter(
+            enrollment__student=user,
+            status='COMPLETED',
+            grade__isnull=False
+        ).values_list('subject_id', flat=True)
+
+        # 5. Get Subjects for Current Year/Sem from Curriculum
+        # We try to recommend subjects for the user's current standing (e.g. 1st Year, 1st Sem)
+        # But a better approach is to show ALL subjects they CAN take (prereqs met, not passed).
+        # For this specific view "Recommended", let's stick to the user's current Year Level & Active Sem.
+        
+        # Filter by query params if present, else default to student's current year/sem
+        target_year = request.query_params.get('year_level')
+        target_sem = request.query_params.get('semester_number')
+        
+        # If no filter, use active semester's term (e.g., if active sem is "1st Semester", show Sem 1 subjects)
+        # We need to map Semester string to integer (1, 2, 3)
+        if not target_sem:
+            if "1st" in active_semester.name: target_sem = 1
+            elif "2nd" in active_semester.name: target_sem = 2
+            elif "Summer" in active_semester.name: target_sem = 3
+            else: target_sem = 1
+
+        # If no filter for year, use student's current year level
+        if not target_year:
+             target_year = profile.year_level
+
+        curriculum_subjects = CurriculumSubject.objects.filter(
+            curriculum=curriculum,
+            year_level=target_year,
+            semester_number=target_sem
+        ).select_related('subject')
+
+        recommended = []
+        
+        for cs in curriculum_subjects:
+            subject = cs.subject
+            
+            # Skip if already passed
+            if subject.id in passed_subject_ids:
+                continue
+
+            # Check prerequisites
+            prereqs = subject.prerequisites.all()
+            missing_prereqs = []
+            for p in prereqs:
+                if p.id not in passed_subject_ids:
+                    missing_prereqs.append(p.code)
+            
+            can_enroll = len(missing_prereqs) == 0
+            
+            # Find available sections for this subject in the active semester
+            sections = []
+            from apps.academics.models import SectionSubject
+            section_subjects = SectionSubject.objects.filter(
+                subject=subject,
+                section__semester=active_semester
+            ).select_related('section', 'professor')
+            
+            for ss in section_subjects:
+                sections.append({
+                    'section_id': str(ss.section.id),
+                    'section_name': ss.section.name,
+                    'available_slots': ss.section.available_slots,
+                    'schedule': [
+                        {
+                            'day': slot.get_day_display(),
+                            'start_time': slot.start_time.strftime("%H:%M"),
+                            'end_time': slot.end_time.strftime("%H:%M") 
+                        } for slot in ss.schedule_slots.all()
+                    ]
+                })
+
+            recommended.append({
+                'id': str(subject.id),
+                'code': subject.code,
+                'title': subject.title,
+                'units': subject.units,
+                'year_level': cs.year_level,
+                'semester': cs.semester_number,
+                'can_enroll': can_enroll,
+                'missing_prerequisites': missing_prereqs,
+                'available_sections': sections
+            })
+
+        return Response({
+            "success": True,
+            "data": {
+                "recommended_subjects": recommended,
+                "current_units": 0, # TODO: Calc currently enrolled units
+                "max_units": 24 # Standard max units
+            }
+        })
 AvailableSubjectsView = SimpleGETView
 MySubjectEnrollmentsView = SimpleGETView
+class StudentCurriculumView(APIView):
+    """
+    Get student's curriculum and grades structure.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.enrollment.models import SubjectEnrollment
+        from apps.academics.models import Curriculum, CurriculumSubject
+        from apps.academics.serializers import CurriculumSerializer
+
+        user = request.user
+        
+        # 1. Get student profile & program
+        if not hasattr(user, 'student_profile') or not user.student_profile:
+            return Response({"error": "Student profile not found"}, status=400)
+            
+        profile = user.student_profile
+        program = profile.program
+        
+        if not program:
+            return Response({"error": "No program assigned"}, status=400)
+
+        # 2. Get Curriculum
+        curriculum = Curriculum.objects.filter(
+            program=program, 
+            is_active=True
+        ).order_by('-effective_year').first()
+        
+        if not curriculum:
+             return Response({
+                "success": False, 
+                "error": "No curriculum found for your program.",
+            }, status=400)
+
+        # 3. Get All Passed/Enrolled Subjects
+        enrollments = SubjectEnrollment.objects.filter(
+            enrollment__student=user
+        ).select_related('subject', 'enrollment__semester')
+
+        grades_map = {}
+        for e in enrollments:
+            grades_map[str(e.subject.id)] = {
+                'grade': e.grade,
+                'status': e.status,
+                'semester': e.enrollment.semester.name if e.enrollment.semester else 'N/A',
+                'academic_year': e.enrollment.semester.academic_year if e.enrollment.semester else 'N/A'
+            }
+
+        # 4. Build Structure
+        # Group by Year > Semester
+        curriculum_subjects = CurriculumSubject.objects.filter(
+            curriculum=curriculum
+        ).select_related('subject', 'subject__program').order_by('year_level', 'semester_number', 'subject__code')
+
+        structure = {}
+        total_subjects = 0
+        passed_subjects = 0
+        total_units = 0
+        earned_units = 0
+
+        for cs in curriculum_subjects:
+            year = str(cs.year_level)
+            sem = str(cs.semester_number)
+            
+            if year not in structure: structure[year] = {}
+            if sem not in structure[year]: structure[year][sem] = []
+
+            # Check if student has grade
+            grade_info = grades_map.get(str(cs.subject.id))
+            
+            total_subjects += 1
+            total_units += cs.subject.units
+
+            if grade_info and (grade_info['status'] == 'COMPLETED' or grade_info['grade'] not in [None, '', 'INC', 'DRP', '5.00']):
+                 passed_subjects += 1
+                 earned_units += cs.subject.units
+
+            structure[year][sem].append({
+                'id': str(cs.subject.id),
+                'code': cs.subject.code,
+                'title': cs.subject.title,
+                'units': cs.subject.units,
+                'is_major': cs.subject.is_major,
+                'grade': grade_info['grade'] if grade_info else None,
+                'status': grade_info['status'] if grade_info else 'NOT_TAKEN',
+                'semester_taken': grade_info['semester'] if grade_info else None,
+                'year_taken': grade_info['academic_year'] if grade_info else None,
+            })
+
+        # Calculate GPA (simple average of numeric grades for now)
+        numeric_grades = [
+            float(e.grade) for e in enrollments 
+            if e.grade and e.grade.replace('.', '', 1).isdigit() and e.status == 'COMPLETED'
+        ]
+        gpa = sum(numeric_grades) / len(numeric_grades) if numeric_grades else 0.00
+
+        return Response({
+            "success": True,
+            "data": {
+                "curriculum": CurriculumSerializer(curriculum).data,
+                "student": {
+                    "name": user.get_full_name(),
+                    "student_number": user.student_number,
+                    "program_code": program.code,
+                    "current_year_level": profile.year_level
+                },
+                "structure": structure,
+                "statistics": {
+                    "gpa": round(gpa, 2),
+                    "total_subjects": total_subjects,
+                    "passed_subjects": passed_subjects,
+                    "total_units": total_units,
+                    "earned_units": earned_units
+                }
+            }
+        })
+
 MyScheduleView = SimpleGETView
-StudentCurriculumView = SimpleGETView
 
 EnrollSubjectView = SimplePOSTView
 DropSubjectView = SimplePOSTView
@@ -438,7 +776,56 @@ PaymentRecordView = SimplePOSTView
 PaymentAdjustmentView = SimplePOSTView
 PaymentTransactionListView = SimpleGETView
 StudentPaymentHistoryView = SimpleGETView
-CashierStudentSearchView = SimpleGETView
+class CashierStudentSearchView(APIView):
+    """
+    Search for students for cashier/registrar.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.accounts.models import User
+        from django.db.models import Q
+        
+        query = request.query_params.get('q', '')
+        
+        # Filter students
+        students = User.objects.filter(role='STUDENT')
+        
+        if query:
+            students = students.filter(
+                Q(student_number__icontains=query) |
+                Q(first_name__icontains=query) |
+                Q(last_name__icontains=query) |
+                Q(email__icontains=query)
+            )
+            
+        # Limit results
+        students = students[:50]
+        
+        data = []
+        for s in students:
+            # Get latest enrollment
+            latest_enrollment = s.enrollments.order_by('-created_at').first()
+            
+            # Get program code safely
+            program_code = 'N/A'
+            if hasattr(s, 'student_profile') and s.student_profile and s.student_profile.program:
+                program_code = s.student_profile.program.code
+                
+            data.append({
+                'id': str(s.id),
+                'student_number': s.student_number,
+                'first_name': s.first_name,
+                'last_name': s.last_name,
+                'email': s.email,
+                'program_code': program_code,
+                'year_level': s.student_profile.year_level if hasattr(s, 'student_profile') and s.student_profile else 1,
+                'enrollment_id': str(latest_enrollment.id) if latest_enrollment else None,
+                'student_name': s.get_full_name(),
+                'balance': '0.00'
+            })
+            
+        return Response(data)
 CashierPendingPaymentsView = SimpleGETView
 CashierTodayTransactionsView = SimpleGETView
 MyPaymentsView = SimpleGETView

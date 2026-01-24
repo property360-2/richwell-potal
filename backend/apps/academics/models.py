@@ -55,6 +55,10 @@ class Program(BaseModel):
             total=models.Sum('units')
         )['total'] or 0
 
+    @property
+    def total_curricula(self):
+        return self.curricula.count()
+
 
 class Subject(BaseModel):
     """
@@ -331,6 +335,14 @@ class ScheduleSlot(BaseModel):
         SectionSubject,
         on_delete=models.CASCADE,
         related_name='schedule_slots'
+    )
+    professor = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='schedule_slots',
+        limit_choices_to={'role': 'PROFESSOR'}
     )
     day = models.CharField(
         max_length=3,

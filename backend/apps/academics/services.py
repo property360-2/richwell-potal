@@ -319,12 +319,23 @@ class SchedulingService:
             is_deleted=False
         ).values_list('section_subject_id', flat=True)
 
-        # Get all slots for the assigned section_subjects on this day
+        # Query slots where this professor is explicitly assigned
+        q1 = Q(professor=professor)
+        
+        # Query slots where no specific professor is assigned, but this professor
+        # is the main professor for the section subject
+        q2 = Q(professor__isnull=True, section_subject__professor=professor)
+        
+        # Query slots where no specific professor is assigned, but this professor
+        # is among the professors in the junction table
+        q3 = Q(professor__isnull=True, section_subject__id__in=assigned_section_subjects)
+
         slots = ScheduleSlot.objects.filter(
-            section_subject_id__in=assigned_section_subjects,
+            q1 | q2 | q3,
+            section_subject__section__semester=semester,
             day=day,
             is_deleted=False
-        )
+        ).distinct()
 
         if exclude_slot_id:
             slots = slots.exclude(id=exclude_slot_id)
@@ -426,8 +437,13 @@ class SchedulingService:
         """
         from apps.academics.models import ScheduleSlot
         
+        # Slots where professor is explicitly assigned
+        q1 = Q(professor=professor)
+        # Slots where no professor is assigned, fallback to section_subject.professor
+        q2 = Q(professor__isnull=True, section_subject__professor=professor)
+        
         slots = ScheduleSlot.objects.filter(
-            section_subject__professor=professor,
+            q1 | q2,
             section_subject__section__semester=semester,
             is_deleted=False
         ).select_related(
@@ -476,13 +492,37 @@ class ProfessorService:
         total_hours = 0
         sections_detail = []
 
-        for assignment in assignments:
-            ss = assignment.section_subject
+        # This is trickier if professors are assigned per slot.
+        # We need to find all slots for this professor in this semester.
+        q1 = Q(professor=professor)
+        q2 = Q(professor__isnull=True, section_subject__professor=professor)
+        
+        # Also include slots from SectionSubjectProfessor junction if slot.professor is null
+        assigned_ss_ids = SectionSubjectProfessor.objects.filter(
+            professor=professor,
+            is_deleted=False
+        ).values_list('section_subject_id', flat=True)
+        q3 = Q(professor__isnull=True, section_subject_id__in=assigned_ss_ids)
+
+        all_slots = ScheduleSlot.objects.filter(
+            (q1 | q2 | q3),
+            section_subject__section__semester=semester,
+            is_deleted=False
+        ).select_related('section_subject__subject', 'section_subject__section')
+
+        # Group slots by SectionSubject to build detail
+        ss_slots = {}
+        for slot in all_slots:
+            ss_id = slot.section_subject_id
+            if ss_id not in ss_slots:
+                ss_slots[ss_id] = []
+            ss_slots[ss_id].append(slot)
+
+        for ss_id, slots in ss_slots.items():
+            ss = slots[0].section_subject
             sections.add(ss.section.id)
             subjects.add(ss.subject.id)
 
-            # Calculate hours from schedule slots
-            slots = ScheduleSlot.objects.filter(section_subject=ss, is_deleted=False)
             section_hours = sum([
                 (slot.end_time.hour * 60 + slot.end_time.minute -
                  slot.start_time.hour * 60 - slot.start_time.minute) / 60
@@ -494,8 +534,7 @@ class ProfessorService:
                 'section': ss.section.name,
                 'subject_code': ss.subject.code,
                 'subject_title': ss.subject.title,
-                'hours_per_week': section_hours,
-                'is_primary': assignment.is_primary
+                'hours_per_week': round(section_hours, 2)
             })
 
         max_hours = getattr(professor.professor_profile, 'max_teaching_hours', 24) \

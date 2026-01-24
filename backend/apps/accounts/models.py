@@ -321,6 +321,12 @@ class ProfessorProfile(BaseModel):
         default=24,
         help_text='Maximum teaching hours per week before overload'
     )
+    assigned_subjects = models.ManyToManyField(
+        'academics.Subject',
+        related_name='qualified_professors',
+        blank=True,
+        help_text='Subjects this professor is qualified/assigned to teach'
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:

@@ -3,6 +3,8 @@ Academics views - Program, Subject, Section, and Scheduling endpoints.
 EPIC 2: Curriculum, Subjects & Section Scheduling
 """
 
+from django.db import models
+from django.db.models import Q
 from rest_framework import generics, viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -202,6 +204,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
     """
     queryset = Subject.objects.filter(is_deleted=False)
     permission_classes = [IsRegistrarOrAdmin]
+    pagination_class = None
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -211,9 +214,23 @@ class SubjectViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         program_id = self.request.query_params.get('program')
+        search_query = self.request.query_params.get('search')
+
         if program_id:
             # Filter by subjects that include this program (multi-program support)
-            queryset = queryset.filter(programs__id=program_id).distinct()
+            # OR subjects that are assigned to a curriculum of this program
+            queryset = queryset.filter(
+                Q(program_id=program_id) |
+                Q(programs__id=program_id) | 
+                Q(curriculum_assignments__curriculum__program_id=program_id)
+            ).distinct()
+        
+        if search_query:
+            queryset = queryset.filter(
+                Q(code__icontains=search_query) |
+                Q(title__icontains=search_query)
+            )
+
         return queryset.select_related('program').prefetch_related('programs', 'prerequisites')
     
     def perform_destroy(self, instance):

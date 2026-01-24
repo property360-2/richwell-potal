@@ -56,7 +56,7 @@ async function loadStudents() {
   try {
     // Fetch enrolled students using cashier search endpoint
     const response = await api.get(endpoints.cashierStudentSearch);
-    const students = response?.results || response || [];
+    const students = response?.results || response?.data || response || [];
 
     console.log('Dashboard students response:', students);
 
