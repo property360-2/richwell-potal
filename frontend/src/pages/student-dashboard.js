@@ -166,7 +166,7 @@ function render() {
               </svg>
             </div>
             <div>
-              <h2 class="text-xl font-bold">💳 Payment Pending</h2>
+              <h2 class="text-xl font-bold">Payment Pending</h2>
               <p class="mt-1 text-blue-100">You can enroll in subjects now! Your enrollments will be marked as pending until ${month1Label} payment is received.</p>
               <p class="mt-2 text-sm text-blue-200">Please pay ${month1Label} (${formatCurrency(state.monthlyCommitment)}) at the Cashier's Office to activate your subject enrollments.</p>
             </div>
