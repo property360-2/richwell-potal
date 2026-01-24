@@ -244,7 +244,7 @@ function render() {
           
           <!-- Exam Permit Status -->
           <div class="card">
-            <h3 class="font-bold text-gray-800 mb-4">Exam Permit Status</h3>
+            <h3 class="font-bold text-gray-800 mb-4">Permit Status</h3>
             <div class="space-y-2">
               ${renderExamPermitStatus('Prelims', 1)}
               ${renderExamPermitStatus('Midterms', 2)}
