@@ -33,6 +33,13 @@ const state = {
   subjectModal: null,
   editingSubject: null,
   prereqModal: null,
+  // Subject filters for scalable sorting
+  subjectFilters: {
+    yearLevel: 'all',     // 'all', 1, 2, 3, 4
+    semester: 'all',      // 'all', 1, 2, 3 (3 = summer)
+    sortBy: 'year_semester', // 'year_semester', 'code', 'title'
+    sortOrder: 'asc'      // 'asc', 'desc'
+  },
 
   // Prerequisite selection state
   prereqState: {
@@ -125,6 +132,75 @@ async function loadSubjects(programId = null) {
   }
 }
 
+/**
+ * Get filtered and sorted subjects - efficient client-side operation
+ * Filters are applied in memory to avoid API calls for better performance
+ * @returns {Array} Filtered and sorted subjects array
+ */
+function getFilteredSubjects() {
+  const { yearLevel, semester, sortBy, sortOrder } = state.subjectFilters;
+
+  // Start with all subjects - use slice() for immutability
+  let filtered = state.subjects.slice();
+
+  // Apply year level filter
+  if (yearLevel !== 'all') {
+    const yearNum = parseInt(yearLevel, 10);
+    filtered = filtered.filter(s => s.year_level === yearNum);
+  }
+
+  // Apply semester filter
+  if (semester !== 'all') {
+    const semNum = parseInt(semester, 10);
+    filtered = filtered.filter(s => s.semester === semNum);
+  }
+
+  // Sort based on selected criteria
+  filtered.sort((a, b) => {
+    let comparison = 0;
+
+    switch (sortBy) {
+      case 'year_semester':
+        // Primary: year level, Secondary: semester, Tertiary: code
+        comparison = a.year_level - b.year_level;
+        if (comparison === 0) {
+          comparison = a.semester - b.semester;
+        }
+        if (comparison === 0) {
+          comparison = (a.code || '').localeCompare(b.code || '');
+        }
+        break;
+      case 'code':
+        comparison = (a.code || '').localeCompare(b.code || '');
+        break;
+      case 'title':
+        comparison = (a.title || a.name || '').localeCompare(b.title || b.name || '');
+        break;
+      default:
+        comparison = a.year_level - b.year_level;
+    }
+
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  return filtered;
+}
+
+/**
+ * Get subject count summary by year/semester for quick stats display
+ * @returns {Object} Counts grouped by year level
+ */
+function getSubjectCountsByYear() {
+  const counts = { 1: 0, 2: 0, 3: 0, 4: 0, total: state.subjects.length };
+  state.subjects.forEach(s => {
+    if (counts[s.year_level] !== undefined) {
+      counts[s.year_level]++;
+    }
+  });
+  return counts;
+}
+
+
 async function loadCurricula(programId = null) {
   try {
     const url = programId
@@ -186,10 +262,10 @@ function render() {
 
   app.innerHTML = `
     ${createHeader({
-      role: 'REGISTRAR',
-      activePage: 'registrar-academic',
-      user: state.user
-    })}
+    role: 'REGISTRAR',
+    activePage: 'registrar-academic',
+    user: state.user
+  })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Header -->
@@ -200,15 +276,15 @@ function render() {
 
       <!-- Tabs -->
       ${createTabs({
-        tabs: [
-          { id: TABS.PROGRAMS, label: 'Programs' },
-          { id: TABS.SUBJECTS, label: 'Subjects' },
-          { id: TABS.CURRICULA, label: 'Curricula' },
-          { id: TABS.SEMESTERS, label: 'Semesters' }
-        ],
-        activeTab: state.activeTab,
-        onTabChange: 'switchTab'
-      })}
+    tabs: [
+      { id: TABS.PROGRAMS, label: 'Programs' },
+      { id: TABS.SUBJECTS, label: 'Subjects' },
+      { id: TABS.CURRICULA, label: 'Curricula' },
+      { id: TABS.SEMESTERS, label: 'Semesters' }
+    ],
+    activeTab: state.activeTab,
+    onTabChange: 'switchTab'
+  })}
 
       <!-- Tab Content -->
       <div class="tab-content">
@@ -268,9 +344,9 @@ function renderProgramsTab() {
               <div class="flex items-center gap-2 mb-2">
                 <h3 class="text-xl font-bold text-gray-800">${program.code}</h3>
                 ${program.is_active
-                  ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Active</span>'
-                  : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>'
-                }
+      ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Active</span>'
+      : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>'
+    }
               </div>
               <p class="text-gray-900 font-medium">${program.name}</p>
             </div>
@@ -351,6 +427,22 @@ function getProgramForm(program = null) {
 // ============================================================
 
 function renderSubjectsTab() {
+  const filteredSubjects = getFilteredSubjects();
+  const counts = getSubjectCountsByYear();
+  const { yearLevel, semester, sortBy, sortOrder } = state.subjectFilters;
+
+  // Helper to format year level display
+  const formatYear = (y) => {
+    const suffixes = { 1: 'st', 2: 'nd', 3: 'rd', 4: 'th' };
+    return `${y}${suffixes[y] || 'th'} Year`;
+  };
+
+  // Helper to format semester display
+  const formatSemester = (s) => {
+    if (s === 3) return 'Summer';
+    return s === 1 ? '1st Semester' : '2nd Semester';
+  };
+
   return `
     <div class="mb-6">
       <div class="flex items-center justify-between mb-4">
@@ -369,7 +461,7 @@ function renderSubjectsTab() {
       </div>
 
       <!-- Program Filter -->
-      <div class="card mb-6">
+      <div class="card mb-4">
         <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Program</label>
         <select onchange="handleProgramFilterChange(this.value)" class="form-select">
           <option value="">Select a program...</option>
@@ -378,6 +470,77 @@ function renderSubjectsTab() {
           `).join('')}
         </select>
       </div>
+
+      ${state.selectedProgram && state.subjects.length > 0 ? `
+        <!-- Quick Filter Badges (Year Level Stats) -->
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button onclick="handleSubjectYearFilter('all')" 
+                  class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${yearLevel === 'all'
+        ? 'bg-blue-600 text-white'
+        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+            All (${counts.total})
+          </button>
+          ${[1, 2, 3, 4].map(y => `
+            <button onclick="handleSubjectYearFilter(${y})" 
+                    class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${yearLevel === y
+            ? 'bg-blue-600 text-white'
+            : counts[y] > 0
+              ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              : 'bg-gray-50 text-gray-400 cursor-not-allowed'}"
+                    ${counts[y] === 0 ? 'disabled' : ''}>
+              ${formatYear(y)} (${counts[y]})
+            </button>
+          `).join('')}
+        </div>
+
+        <!-- Advanced Filters -->
+        <div class="card mb-4 bg-gray-50">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <!-- Semester Filter -->
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Semester</label>
+              <select onchange="handleSubjectSemesterFilter(this.value)" class="form-select text-sm">
+                <option value="all" ${semester === 'all' ? 'selected' : ''}>All Semesters</option>
+                <option value="1" ${semester === '1' || semester === 1 ? 'selected' : ''}>1st Semester</option>
+                <option value="2" ${semester === '2' || semester === 2 ? 'selected' : ''}>2nd Semester</option>
+                <option value="3" ${semester === '3' || semester === 3 ? 'selected' : ''}>Summer</option>
+              </select>
+            </div>
+            
+            <!-- Sort By -->
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Sort By</label>
+              <select onchange="handleSubjectSortChange(this.value)" class="form-select text-sm">
+                <option value="year_semester" ${sortBy === 'year_semester' ? 'selected' : ''}>Year & Semester</option>
+                <option value="code" ${sortBy === 'code' ? 'selected' : ''}>Subject Code</option>
+                <option value="title" ${sortBy === 'title' ? 'selected' : ''}>Subject Title</option>
+              </select>
+            </div>
+            
+            <!-- Sort Order -->
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Order</label>
+              <select onchange="handleSubjectOrderChange(this.value)" class="form-select text-sm">
+                <option value="asc" ${sortOrder === 'asc' ? 'selected' : ''}>Ascending ↑</option>
+                <option value="desc" ${sortOrder === 'desc' ? 'selected' : ''}>Descending ↓</option>
+              </select>
+            </div>
+          </div>
+          
+          ${(yearLevel !== 'all' || semester !== 'all') ? `
+            <div class="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
+              <span class="text-sm text-gray-600">
+                Showing <strong>${filteredSubjects.length}</strong> of ${counts.total} subjects
+                ${yearLevel !== 'all' ? ` in <strong>${formatYear(parseInt(yearLevel))}</strong>` : ''}
+                ${semester !== 'all' ? ` - <strong>${formatSemester(parseInt(semester))}</strong>` : ''}
+              </span>
+              <button onclick="clearSubjectFilters()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                Clear Filters
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
     </div>
 
     ${!state.selectedProgram ? `
@@ -395,21 +558,30 @@ function renderSubjectsTab() {
         <p class="text-gray-500 text-lg">No subjects found</p>
         <p class="text-gray-400 text-sm mt-2">Click "Add Subject" to create your first subject</p>
       </div>
+    ` : filteredSubjects.length === 0 ? `
+      <div class="card text-center py-12">
+        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <p class="text-gray-500 text-lg">No subjects match your filters</p>
+        <button onclick="clearSubjectFilters()" class="mt-4 text-blue-600 hover:text-blue-800 font-medium">
+          Clear Filters
+        </button>
+      </div>
     ` : `
       <div class="space-y-3">
-        ${state.subjects.map(subject => `
-          <div class="card">
+        ${filteredSubjects.map(subject => `
+          <div class="card hover:shadow-md transition-shadow">
             <div class="flex items-start justify-between">
               <div class="flex-1">
                 <div class="flex items-center gap-3 mb-2">
                   <h3 class="text-lg font-bold text-blue-600 font-mono">${subject.code}</h3>
-                  <span class="px-2 py-1 text-xs font-medium rounded ${
-                    subject.year_level === 1 ? 'bg-green-100 text-green-800' :
-                    subject.year_level === 2 ? 'bg-blue-100 text-blue-800' :
+                  <span class="px-2 py-1 text-xs font-medium rounded ${subject.year_level === 1 ? 'bg-green-100 text-green-800' :
+                  subject.year_level === 2 ? 'bg-blue-100 text-blue-800' :
                     subject.year_level === 3 ? 'bg-purple-100 text-purple-800' :
-                    'bg-orange-100 text-orange-800'
-                  }">
-                    Year ${subject.year_level} - ${subject.semester === 1 ? '1st' : '2nd'} Semester
+                      'bg-orange-100 text-orange-800'
+                }">
+                    Year ${subject.year_level} - ${subject.semester === 1 ? '1st' : subject.semester === 2 ? '2nd' : 'Summer'} Sem
                   </span>
                   <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">
                     ${subject.units} ${subject.units === 1 ? 'unit' : 'units'}
@@ -444,6 +616,7 @@ function renderSubjectsTab() {
     `}
   `;
 }
+
 
 function getSubjectForm(subject = null) {
   const isEdit = subject !== null;
@@ -568,9 +741,9 @@ function renderCurriculaTab() {
                 <div class="flex items-center gap-3 mb-2">
                   <h3 class="text-xl font-bold text-gray-800">${curriculum.code}</h3>
                   ${curriculum.is_active
-                    ? '<span class="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">Active</span>'
-                    : '<span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">Inactive</span>'
-                  }
+      ? '<span class="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">Active</span>'
+      : '<span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">Inactive</span>'
+    }
                 </div>
                 <p class="text-gray-600">Effective Year: ${curriculum.effective_year}</p>
                 <p class="text-sm text-gray-500 mt-1">${curriculum.program_name || 'No program assigned'}</p>
@@ -598,7 +771,7 @@ function renderCurriculaTab() {
 // EVENT HANDLERS - TAB SWITCHING
 // ============================================================
 
-window.switchTab = function(tabId) {
+window.switchTab = function (tabId) {
   state.activeTab = tabId;
   updateHash(tabId);
 
@@ -618,7 +791,7 @@ window.switchTab = function(tabId) {
 // EVENT HANDLERS - PROGRAMS
 // ============================================================
 
-window.openAddProgramModal = function() {
+window.openAddProgramModal = function () {
   const modal = new Modal({
     title: 'Add New Program',
     content: getProgramForm(),
@@ -664,7 +837,7 @@ window.openAddProgramModal = function() {
   modal.show();
 };
 
-window.openEditProgramModal = async function(programId) {
+window.openEditProgramModal = async function (programId) {
   try {
     const response = await api.get(endpoints.manageProgram(programId));
     state.editingProgram = response;
@@ -721,7 +894,7 @@ window.openEditProgramModal = async function(programId) {
   }
 };
 
-window.deleteProgram = async function(programId) {
+window.deleteProgram = async function (programId) {
   const confirmed = await ConfirmModal({
     title: 'Delete Program',
     message: 'Are you sure you want to delete this program? This action cannot be undone.',
@@ -745,7 +918,7 @@ window.deleteProgram = async function(programId) {
 // EVENT HANDLERS - SUBJECTS
 // ============================================================
 
-window.handleProgramFilterChange = async function(programId) {
+window.handleProgramFilterChange = async function (programId) {
   if (!programId) {
     state.selectedProgram = null;
     state.subjects = [];
@@ -753,10 +926,49 @@ window.handleProgramFilterChange = async function(programId) {
     state.selectedProgram = state.programs.find(p => p.id === programId);
     await loadSubjects(programId);
   }
+  // Reset filters when program changes
+  state.subjectFilters = {
+    yearLevel: 'all',
+    semester: 'all',
+    sortBy: 'year_semester',
+    sortOrder: 'asc'
+  };
   render();
 };
 
-window.openAddSubjectModal = function() {
+// Subject filter handlers - efficient client-side filtering (no API calls)
+window.handleSubjectYearFilter = function (year) {
+  state.subjectFilters.yearLevel = year;
+  render();
+};
+
+window.handleSubjectSemesterFilter = function (semester) {
+  state.subjectFilters.semester = semester;
+  render();
+};
+
+window.handleSubjectSortChange = function (sortBy) {
+  state.subjectFilters.sortBy = sortBy;
+  render();
+};
+
+window.handleSubjectOrderChange = function (order) {
+  state.subjectFilters.sortOrder = order;
+  render();
+};
+
+window.clearSubjectFilters = function () {
+  state.subjectFilters = {
+    yearLevel: 'all',
+    semester: 'all',
+    sortBy: 'year_semester',
+    sortOrder: 'asc'
+  };
+  render();
+};
+
+
+window.openAddSubjectModal = function () {
   if (!state.selectedProgram) {
     Toast.error('Please select a program first');
     return;
@@ -819,7 +1031,7 @@ window.openAddSubjectModal = function() {
   setTimeout(() => setupPrereqSearchListeners('add'), 100);
 };
 
-window.openEditSubjectModal = async function(subjectId) {
+window.openEditSubjectModal = async function (subjectId) {
   try {
     const response = await api.get(endpoints.manageSubject(subjectId));
     state.editingSubject = response;
@@ -885,7 +1097,7 @@ window.openEditSubjectModal = async function(subjectId) {
   }
 };
 
-window.deleteSubject = async function(subjectId) {
+window.deleteSubject = async function (subjectId) {
   const confirmed = await ConfirmModal({
     title: 'Delete Subject',
     message: 'Are you sure you want to delete this subject? This action cannot be undone.',
@@ -952,7 +1164,7 @@ function getCurriculumForm(curriculum = null) {
   `;
 }
 
-window.openAddCurriculumModal = async function() {
+window.openAddCurriculumModal = async function () {
   // Ensure programs are loaded
   if (state.programs.length === 0) {
     await loadPrograms();
@@ -1003,7 +1215,7 @@ window.openAddCurriculumModal = async function() {
   modal.show();
 };
 
-window.openEditCurriculumModal = async function(curriculumId) {
+window.openEditCurriculumModal = async function (curriculumId) {
   // Ensure programs are loaded
   if (state.programs.length === 0) {
     await loadPrograms();
@@ -1060,7 +1272,7 @@ window.openEditCurriculumModal = async function(curriculumId) {
   }
 };
 
-window.viewCurriculum = async function(curriculumId) {
+window.viewCurriculum = async function (curriculumId) {
   try {
     // Fetch curriculum details and structure
     const curriculum = await api.get(endpoints.curriculumDetail(curriculumId));
@@ -1150,10 +1362,10 @@ function getCurriculumViewContent(curriculum, structure) {
     ` : `
       <div class="space-y-6">
         ${[1, 2, 3, 4, 5].map(year => {
-          const hasYearSubjects = [1, 2].some(sem => subjectsByLevel[`${year}-${sem}`]?.length > 0);
-          if (!hasYearSubjects) return '';
+    const hasYearSubjects = [1, 2].some(sem => subjectsByLevel[`${year}-${sem}`]?.length > 0);
+    if (!hasYearSubjects) return '';
 
-          return `
+    return `
             <div class="border border-gray-200 rounded-lg overflow-hidden">
               <div class="bg-blue-600 text-white px-4 py-3">
                 <h3 class="font-bold text-lg">Year ${year}</h3>
@@ -1161,14 +1373,14 @@ function getCurriculumViewContent(curriculum, structure) {
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
                 ${[1, 2].map(semester => {
-                  const key = `${year}-${semester}`;
-                  const subjects = subjectsByLevel[key] || [];
+      const key = `${year}-${semester}`;
+      const subjects = subjectsByLevel[key] || [];
 
-                  if (subjects.length === 0) return '';
+      if (subjects.length === 0) return '';
 
-                  const totalUnits = subjects.reduce((sum, s) => sum + (s.units || 0), 0);
+      const totalUnits = subjects.reduce((sum, s) => sum + (s.units || 0), 0);
 
-                  return `
+      return `
                     <div class="border border-gray-200 rounded-lg">
                       <div class="bg-gray-100 px-3 py-2 border-b border-gray-200">
                         <div class="flex items-center justify-between">
@@ -1201,17 +1413,17 @@ function getCurriculumViewContent(curriculum, structure) {
                       </div>
                     </div>
                   `;
-                }).join('')}
+    }).join('')}
               </div>
             </div>
           `;
-        }).join('')}
+  }).join('')}
       </div>
     `}
   `;
 }
 
-window.deleteCurriculum = async function(curriculumId) {
+window.deleteCurriculum = async function (curriculumId) {
   const confirmed = await ConfirmModal({
     title: 'Delete Curriculum',
     message: 'Are you sure you want to delete this curriculum? This action cannot be undone.',
@@ -1301,14 +1513,14 @@ function renderSemestersTab() {
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="text-sm text-gray-600">
                     ${semester.enrollment_start_date && semester.enrollment_end_date
-                      ? `${formatSemesterDate(semester.enrollment_start_date)} - ${formatSemesterDate(semester.enrollment_end_date)}`
-                      : '<span class="text-gray-400">Not set</span>'}
+      ? `${formatSemesterDate(semester.enrollment_start_date)} - ${formatSemesterDate(semester.enrollment_end_date)}`
+      : '<span class="text-gray-400">Not set</span>'}
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   ${semester.is_current
-                    ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Current</span>'
-                    : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">Inactive</span>'}
+      ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Current</span>'
+      : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">Inactive</span>'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                   <button onclick="openEditSemesterModal('${semester.id}')" class="text-blue-600 hover:text-blue-900">Edit</button>
@@ -1457,23 +1669,23 @@ function renderSemesterEditModal() {
 // EVENT HANDLERS - SEMESTERS
 // ============================================================
 
-window.handleSemesterFilterChange = function(year) {
+window.handleSemesterFilterChange = function (year) {
   state.semesterFilterYear = year;
   filterSemesters();
   render();
 };
 
-window.openAddSemesterModal = function() {
+window.openAddSemesterModal = function () {
   state.showSemesterAddModal = true;
   render();
 };
 
-window.closeSemesterAddModal = function() {
+window.closeSemesterAddModal = function () {
   state.showSemesterAddModal = false;
   render();
 };
 
-window.openEditSemesterModal = async function(semesterId) {
+window.openEditSemesterModal = async function (semesterId) {
   const semester = state.semesters.find(s => s.id === semesterId);
   if (semester) {
     state.editingSemester = semester;
@@ -1482,13 +1694,13 @@ window.openEditSemesterModal = async function(semesterId) {
   }
 };
 
-window.closeSemesterEditModal = function() {
+window.closeSemesterEditModal = function () {
   state.showSemesterEditModal = false;
   state.editingSemester = null;
   render();
 };
 
-window.submitAddSemester = async function() {
+window.submitAddSemester = async function () {
   const form = document.getElementById('add-semester-form');
   if (!form.checkValidity()) {
     form.reportValidity();
@@ -1520,7 +1732,7 @@ window.submitAddSemester = async function() {
   }
 };
 
-window.submitEditSemester = async function() {
+window.submitEditSemester = async function () {
   const form = document.getElementById('edit-semester-form');
   if (!form.checkValidity()) {
     form.reportValidity();
@@ -1553,7 +1765,7 @@ window.submitEditSemester = async function() {
   }
 };
 
-window.setCurrentSemester = async function(semesterId) {
+window.setCurrentSemester = async function (semesterId) {
   const confirmed = await ConfirmModal({
     title: 'Set as Current Semester',
     message: 'Are you sure you want to set this semester as the current semester?',
@@ -1573,7 +1785,7 @@ window.setCurrentSemester = async function(semesterId) {
   }
 };
 
-window.deleteSemester = async function(semesterId) {
+window.deleteSemester = async function (semesterId) {
   const confirmed = await ConfirmModal({
     title: 'Delete Semester',
     message: 'Are you sure you want to delete this semester? This action cannot be undone.',
@@ -1693,7 +1905,7 @@ function searchPrerequisites(mode, query) {
   // Filter from loaded subjects
   const results = state.subjects.filter(s =>
     (s.code.toLowerCase().includes(lowerQuery) ||
-     (s.title || s.name || '').toLowerCase().includes(lowerQuery)) &&
+      (s.title || s.name || '').toLowerCase().includes(lowerQuery)) &&
     !state.prereqState[mode].selected.find(p => p.id === s.id) &&
     s.id !== editingId  // Can't be prerequisite of itself
   ).slice(0, 10);
@@ -1702,7 +1914,7 @@ function searchPrerequisites(mode, query) {
   updatePrereqDropdown(mode);
 }
 
-window.addPrerequisite = function(mode, id, code, title) {
+window.addPrerequisite = function (mode, id, code, title) {
   if (!state.prereqState[mode].selected.find(p => p.id === id)) {
     state.prereqState[mode].selected.push({ id, code, title });
     updateSelectedPrereqs(mode);
@@ -1717,7 +1929,7 @@ window.addPrerequisite = function(mode, id, code, title) {
   updatePrereqDropdown(mode);
 };
 
-window.removePrerequisite = function(mode, id) {
+window.removePrerequisite = function (mode, id) {
   state.prereqState[mode].selected = state.prereqState[mode].selected.filter(p => p.id !== id);
   updateSelectedPrereqs(mode);
 };
@@ -1726,7 +1938,7 @@ window.removePrerequisite = function(mode, id) {
 // GLOBAL HANDLERS
 // ============================================================
 
-window.logout = function() {
+window.logout = function () {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');
   setTimeout(() => {

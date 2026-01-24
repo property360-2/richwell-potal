@@ -291,5 +291,28 @@ export const endpoints = {
     auditLogs: '/audit/logs/',
     auditLogFilters: '/audit/logs/filters/',
     auditLogDetail: (id) => `/audit/logs/${id}/`,
+
+    // ============================================================
+    // Grading (EPIC 5)
+    // ============================================================
+
+    // Professor grading endpoints
+    professorMySections: '/admissions/grades/my-sections/',
+    sectionStudents: (sectionId, subjectId) => `/admissions/grades/section/${sectionId}/subject/${subjectId}/students/`,
+    submitGrade: '/admissions/grades/submit/',
+    gradeHistory: (subjectEnrollmentId) => `/admissions/grades/history/${subjectEnrollmentId}/`,
+
+    // Grade finalization (Registrar)
+    sectionsForFinalization: '/admissions/grades/sections/',
+    finalizeSection: (sectionId) => `/admissions/grades/section/${sectionId}/finalize/`,
+    overrideGrade: '/admissions/grades/override/',
+
+    // INC Management
+    incReport: '/admissions/grades/inc-report/',
+    processExpiredINCs: '/admissions/grades/process-expired-incs/',
+
+    // Student grades
+    myGrades: '/admissions/my-enrollment/grades/',
+    myTranscript: '/admissions/my-enrollment/transcript/',
 };
 

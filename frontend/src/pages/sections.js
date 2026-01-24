@@ -63,16 +63,29 @@ async function loadInitialData() {
   // Load semesters
   try {
     const response = await api.get(endpoints.semesters);
-    state.semesters = response?.results || response || [];
-    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0] || null;
-
-    if (state.semesters.length === 0) {
-      Toast.warning('No semesters found. Please create a semester first.');
+    // Handle all possible response formats
+    if (response?.semesters && Array.isArray(response.semesters)) {
+      state.semesters = response.semesters;
+    } else if (response?.results && Array.isArray(response.results)) {
+      state.semesters = response.results;
+    } else if (Array.isArray(response)) {
+      state.semesters = response;
+    } else {
+      state.semesters = [];
     }
   } catch (error) {
     ErrorHandler.handle(error, 'Loading semesters');
     state.semesters = [];
-    state.activeSemester = null;
+  }
+
+  // Ensure semesters is always an array before using .find()
+  if (!Array.isArray(state.semesters)) {
+    state.semesters = [];
+  }
+  state.activeSemester = state.semesters.find(s => s.is_active || s.is_current) || state.semesters[0] || null;
+
+  if (state.semesters.length === 0) {
+    Toast.warning('No semesters found. Please create a semester first.');
   }
 
   // Load professors
@@ -131,16 +144,44 @@ async function loadSectionDetails(sectionId) {
     }
   }
 
-  // Load available subjects for the program
+  // Load available subjects for the program, filtered by year level and semester
   try {
-    const programId = state.selectedSection?.program?.id;
+    const programId = state.selectedSection?.program?.id || state.selectedSection?.program_id || state.selectedSection?.program;
+    const yearLevel = state.selectedSection?.year_level;
+    const semesterNumber = state.activeSemester?.semester_number || state.activeSemester?.semester;
+
+    console.log('Loading subjects for:', { programId, yearLevel, semesterNumber });
+
     if (programId) {
-      const response = await api.get(`${endpoints.manageSubjects}?program=${programId}`);
-      state.subjects = response?.results || response || [];
+      // Build URL with program filter (API may or may not support year/sem filters)
+      const url = `${endpoints.manageSubjects}?program=${programId}`;
+      console.log('Fetching subjects from:', url);
+      const response = await api.get(url);
+
+      // Handle different response formats
+      let subjects = [];
+      if (Array.isArray(response)) {
+        subjects = response;
+      } else if (response?.results && Array.isArray(response.results)) {
+        subjects = response.results;
+      }
+
+      // Client-side filtering by year level and semester
+      if (yearLevel) {
+        subjects = subjects.filter(s => s.year_level === yearLevel || s.year_level === parseInt(yearLevel));
+      }
+      if (semesterNumber) {
+        subjects = subjects.filter(s => s.semester === semesterNumber || s.semester === parseInt(semesterNumber));
+      }
+
+      state.subjects = subjects;
+      console.log('Filtered subjects:', state.subjects.length, 'for Year', yearLevel, 'Sem', semesterNumber);
     } else {
+      console.warn('No program ID found for section');
       state.subjects = [];
     }
   } catch (error) {
+    console.error('Error loading subjects:', error);
     ErrorHandler.handle(error, 'Loading available subjects');
     state.subjects = [];
   }
@@ -167,10 +208,10 @@ function render() {
 
   app.innerHTML = `
     ${createHeader({
-      role: 'REGISTRAR',
-      activePage: 'sections',
-      user: state.user
-    })}
+    role: 'REGISTRAR',
+    activePage: 'sections',
+    user: state.user
+  })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Header -->
@@ -403,13 +444,13 @@ function renderSectionDetails() {
                   <p class="font-semibold text-gray-800">${ss.subject?.code} - ${ss.subject?.title}</p>
                   <div class="text-sm text-gray-500 space-y-1">
                     ${ss.professors && ss.professors.length > 0 ?
-                      ss.professors.map(prof => `
+      ss.professors.map(prof => `
                         <div class="flex items-center gap-2">
                           <span>${prof.name || prof.full_name || 'Unknown Professor'}</span>
                           ${prof.is_primary ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Primary</span>' : ''}
                         </div>
                       `).join('')
-                      : ss.is_tba ? '<span class="text-yellow-600">TBA</span>' : '<span class="text-orange-600">No professors assigned</span>'}
+      : ss.is_tba ? '<span class="text-yellow-600">TBA</span>' : '<span class="text-orange-600">No professors assigned</span>'}
                     ${ss.schedule_slots && ss.schedule_slots.length > 0 ? `
                       <div class="mt-2 space-y-1">
                         ${ss.schedule_slots.map(slot => `
