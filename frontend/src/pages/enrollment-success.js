@@ -97,7 +97,7 @@ function init() {
               </li>
               <li class="flex items-start gap-2">
                 <span class="w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
-                Pay Month 1 fee at the Cashier to unlock subject enrollment
+                Pay the first month at the Cashier to unlock subject enrollment
               </li>
             </ul>
           </div>

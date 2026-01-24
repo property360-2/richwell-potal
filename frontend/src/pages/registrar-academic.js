@@ -1093,19 +1093,22 @@ window.viewCurriculum = async function(curriculumId) {
   }
 };
 
-function getCurriculumViewContent(curriculum, structure) {
-  // Group subjects by year level and semester
+function getCurriculumViewContent(curriculum, response) {
+  // Parse backend structure format: { "year": { "sem": [subjects...] } }
+  const structure = response.structure || {};
   const subjectsByLevel = {};
+  let totalSubjects = 0;
 
-  if (structure && structure.subjects && structure.subjects.length > 0) {
-    structure.subjects.forEach(subject => {
-      const key = `${subject.year_level}-${subject.semester}`;
-      if (!subjectsByLevel[key]) {
-        subjectsByLevel[key] = [];
+  Object.keys(structure).forEach(year => {
+    Object.keys(structure[year]).forEach(sem => {
+      const subjects = structure[year][sem];
+      if (subjects && subjects.length > 0) {
+        const key = `${year}-${sem}`;
+        subjectsByLevel[key] = subjects;
+        totalSubjects += subjects.length;
       }
-      subjectsByLevel[key].push(subject);
     });
-  }
+  });
 
   return `
     <!-- Curriculum Info -->
@@ -1121,7 +1124,7 @@ function getCurriculumViewContent(curriculum, structure) {
         </div>
         <div>
           <p class="text-sm text-gray-600">Total Subjects</p>
-          <p class="font-semibold text-gray-900">${structure?.subjects?.length || 0}</p>
+          <p class="font-semibold text-gray-900">${totalSubjects}</p>
         </div>
         <div>
           <p class="text-sm text-gray-600">Status</p>
@@ -1139,7 +1142,7 @@ function getCurriculumViewContent(curriculum, structure) {
     </div>
 
     <!-- Subjects by Year and Semester -->
-    ${!structure || !structure.subjects || structure.subjects.length === 0 ? `
+    ${totalSubjects === 0 ? `
       <div class="text-center py-12 bg-gray-50 rounded-lg">
         <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
@@ -1150,7 +1153,7 @@ function getCurriculumViewContent(curriculum, structure) {
     ` : `
       <div class="space-y-6">
         ${[1, 2, 3, 4, 5].map(year => {
-          const hasYearSubjects = [1, 2].some(sem => subjectsByLevel[`${year}-${sem}`]?.length > 0);
+          const hasYearSubjects = [1, 2, 3].some(sem => subjectsByLevel[`${year}-${sem}`]?.length > 0);
           if (!hasYearSubjects) return '';
 
           return `
@@ -1160,19 +1163,20 @@ function getCurriculumViewContent(curriculum, structure) {
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-                ${[1, 2].map(semester => {
+                ${[1, 2, 3].map(semester => {
                   const key = `${year}-${semester}`;
                   const subjects = subjectsByLevel[key] || [];
 
                   if (subjects.length === 0) return '';
 
                   const totalUnits = subjects.reduce((sum, s) => sum + (s.units || 0), 0);
+                  const semesterName = semester === 3 ? 'Summer' : (semester === 1 ? '1st Semester' : '2nd Semester');
 
                   return `
                     <div class="border border-gray-200 rounded-lg">
                       <div class="bg-gray-100 px-3 py-2 border-b border-gray-200">
                         <div class="flex items-center justify-between">
-                          <h4 class="font-semibold text-gray-800">${semester === 1 ? '1st' : '2nd'} Semester</h4>
+                          <h4 class="font-semibold text-gray-800">${semesterName}</h4>
                           <span class="text-sm text-gray-600">${totalUnits} units</span>
                         </div>
                       </div>
@@ -1184,7 +1188,7 @@ function getCurriculumViewContent(curriculum, structure) {
                               <p class="text-sm text-gray-600">${subject.title}</p>
                               ${subject.prerequisites && subject.prerequisites.length > 0 ? `
                                 <p class="text-xs text-gray-500 mt-1">
-                                  Prereq: ${subject.prerequisites.join(', ')}
+                                  Prereq: ${subject.prerequisites.map(p => p.code).join(', ')}
                                 </p>
                               ` : ''}
                             </div>

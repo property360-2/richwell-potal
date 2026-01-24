@@ -11,6 +11,7 @@ import { ConfirmModal, AlertModal } from '../components/Modal.js';
 const state = {
   user: null,
   loading: true,
+  fetchingSubjects: false, // For filter loading state
   recommendedSubjects: [],
   availableSubjects: [],
   enrolledSubjects: [],
@@ -103,7 +104,12 @@ async function init() {
   // Load saved cart from localStorage
   loadCartFromStorage();
 
+  state.loading = true;
+  render();
+  
   await loadData();
+  
+  state.loading = false;
   render();
   attachEventListeners();
 }
@@ -131,7 +137,6 @@ async function loadData() {
       (state.enrollmentStatus === 'ACTIVE' || state.enrollmentStatus === 'ENROLLED');
 
     if (!isApproved) {
-      state.loading = false;
       return; // Stop loading, will show admission pending message in render
     }
 
@@ -286,7 +291,6 @@ async function loadData() {
     state.enrolledSubjects = [];
     Toast.error('Failed to load data. Please refresh.');
   }
-  state.loading = false;
 }
 
 /**
@@ -384,8 +388,10 @@ function renderCategorizedSubjects(grouped, isRecommended, sectionId) {
       <div class="border border-gray-200 rounded-lg mb-3 overflow-hidden">
         <!-- Year Header (Clickable) -->
         <button
-          onclick="toggleAccordion('${yearId}')"
-          class="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors"
+          onclick="toggleAccordion('${yearId}', this)"
+          aria-expanded="true"
+          aria-controls="${yearId}"
+          class="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
         >
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
@@ -412,8 +418,10 @@ function renderCategorizedSubjects(grouped, isRecommended, sectionId) {
               <div class="border-t border-gray-200">
                 <!-- Semester Header -->
                 <button
-                  onclick="toggleAccordion('${semId}')"
-                  class="w-full flex items-center justify-between p-3 pl-12 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  onclick="toggleAccordion('${semId}', this)"
+                  aria-expanded="true"
+                  aria-controls="${semId}"
+                  class="w-full flex items-center justify-between p-3 pl-12 bg-gray-50 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
                 >
                   <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -540,24 +548,32 @@ function render() {
           </div>
         </div>
 
-        <!-- Enrolled Subjects - Table Format -->
+        <!-- Enrolled Subjects - Responsive List -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Code</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Title</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              ${state.enrolledSubjects.map(enrollment => renderEnrolledSubjectRow(enrollment)).join('')}
-            </tbody>
-          </table>
+          <!-- Desktop Table View -->
+          <div class="hidden md:block overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Code</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Title</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${state.enrolledSubjects.map(enrollment => renderEnrolledSubjectRow(enrollment)).join('')}
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- Mobile Card View -->
+          <div class="md:hidden divide-y divide-gray-200">
+            ${state.enrolledSubjects.map(enrollment => renderEnrolledSubjectCardMobile(enrollment)).join('')}
+          </div>
         </div>
       </main>
 
@@ -604,7 +620,17 @@ function render() {
         ` : ''}
 
         <!-- Main Content -->
-        <div class="space-y-6">
+        <div class="relative min-h-[200px]">
+          ${state.fetchingSubjects ? `
+            <div class="absolute inset-0 z-10 bg-white/60 backdrop-blur-sm flex items-center justify-center rounded-xl transition-all duration-300">
+              <div class="flex flex-col items-center p-6 bg-white rounded-2xl shadow-xl border border-gray-100">
+                <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-100 border-t-blue-600"></div>
+                <p class="mt-3 text-gray-600 font-medium text-sm">Updating list...</p>
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="space-y-6 transition-opacity duration-300 ${state.fetchingSubjects ? 'opacity-40 pointer-events-none' : ''}">
             <!-- Recommended Subjects -->
             <div class="card">
               <div class="flex items-center justify-between mb-6">
@@ -792,7 +818,7 @@ function renderSubjectCard(subject, isRecommended) {
           <div class="flex items-center gap-2 mb-1">
             <span class="font-mono text-sm font-bold text-blue-600">${subject.code}</span>
             ${isRecommended ? '<span class="badge badge-success text-xs">Recommended</span>' : ''}
-            ${isInCart ? '<span class="badge badge-warning text-xs">Added to Cart</span>' : ''}
+            ${isInCart ? '<span class="badge badge-warning text-xs">Added to selected Subjects</span>' : ''}
             ${isEnrolled ? '<span class="badge badge-info text-xs">Enrolled</span>' : ''}
             ${hasIncPrerequisite ? '<span class="badge badge-error text-xs">INC Blocked</span>' : ''}
             ${hasPrerequisiteIssue && !hasIncPrerequisite ? '<span class="badge badge-warning text-xs">Prereq Missing</span>' : ''}
@@ -906,6 +932,76 @@ function renderEnrolledSubjectRow(enrollment) {
         ` : '<span class="text-gray-400 text-xs">No actions</span>'}
       </td>
     </tr>
+  `;
+}
+
+function renderEnrolledSubjectCardMobile(enrollment) {
+  // Get dual approval status
+  const paymentApproved = enrollment.payment_approved || false;
+  const headApproved = enrollment.head_approved || false;
+  const isFullyEnrolled = paymentApproved && headApproved && enrollment.status === 'ENROLLED';
+
+  // Determine background class
+  let bgClass = 'bg-white';
+  if (isFullyEnrolled) {
+    bgClass = 'bg-green-50';
+  } else if (paymentApproved || headApproved) {
+    bgClass = 'bg-yellow-50';
+  }
+
+  // Render status badges
+  const statusBadges = `
+    <div class="flex flex-wrap gap-2 mt-3">
+      ${isFullyEnrolled 
+        ? '<span class="inline-flex items-center px-2 py-1 text-xs font-bold text-green-800 bg-green-200 rounded-full">ENROLLED</span>'
+        : `
+          ${paymentApproved 
+            ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">✓ Payment</span>'
+            : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full">⏳ Payment</span>'}
+          ${headApproved 
+            ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">✓ Head</span>'
+            : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full">⏳ Head</span>'}
+        `
+      }
+    </div>
+  `;
+
+  return `
+    <div class="p-4 ${bgClass}">
+      <div class="flex justify-between items-start">
+        <div class="flex-1 mr-2">
+          <div class="text-sm font-bold text-gray-900">${enrollment.subject_code || enrollment.subject?.code}</div>
+          <div class="text-sm text-gray-800 mt-0.5">${enrollment.subject_title || enrollment.subject?.name}</div>
+        </div>
+        <div class="text-sm font-medium text-gray-500 whitespace-nowrap">${enrollment.units} units</div>
+      </div>
+      
+      <div class="mt-3 grid grid-cols-2 gap-3 text-sm text-gray-600">
+        <div>
+           <span class="text-gray-400 text-xs uppercase tracking-wider font-semibold">Section</span>
+           <div class="font-medium text-gray-900">${enrollment.section_name || 'N/A'}</div>
+        </div>
+        <div>
+           <span class="text-gray-400 text-xs uppercase tracking-wider font-semibold">Schedule</span>
+           <div class="font-medium text-gray-900">${enrollment.schedule || 'TBA'}</div>
+        </div>
+      </div>
+
+      ${statusBadges}
+      ${enrollment.approval_status_display ? `<p class="text-xs text-gray-500 mt-2 italic">${enrollment.approval_status_display}</p>` : ''}
+
+      ${!headApproved ? `
+        <div class="mt-4 pt-3 border-t border-gray-200">
+          <button onclick="openEditModal('${enrollment.id}')"
+                  class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+            </svg>
+            Edit Subject/Section
+          </button>
+        </div>
+      ` : ''}
+    </div>
   `;
 }
 
@@ -1403,8 +1499,9 @@ function attachEventListeners() {
 /**
  * Toggle accordion open/closed state
  * @param {String} accordionId - ID of accordion content div
+ * @param {HTMLElement} [buttonElement] - The button element that triggered the toggle
  */
-window.toggleAccordion = function (accordionId) {
+window.toggleAccordion = function (accordionId, buttonElement) {
   const content = document.getElementById(accordionId);
   const chevron = document.getElementById(`${accordionId}-chevron`);
 
@@ -1413,9 +1510,11 @@ window.toggleAccordion = function (accordionId) {
   if (content.style.display === 'none') {
     content.style.display = 'block';
     if (chevron) chevron.style.transform = 'rotate(0deg)';
+    if (buttonElement) buttonElement.setAttribute('aria-expanded', 'true');
   } else {
     content.style.display = 'none';
     if (chevron) chevron.style.transform = 'rotate(-90deg)';
+    if (buttonElement) buttonElement.setAttribute('aria-expanded', 'false');
   }
 };
 
@@ -1677,29 +1776,29 @@ window.closeSchedulePreview = function () {
 // Filter handlers
 window.handleYearFilterChange = async function (value) {
   state.filters.yearLevel = value ? parseInt(value) : null;
-  state.loading = true;
+  state.fetchingSubjects = true;
   render();
   await loadData();
-  state.loading = false;
+  state.fetchingSubjects = false;
   render();
 };
 
 window.handleSemesterFilterChange = async function (value) {
   state.filters.semester = value ? parseInt(value) : null;
-  state.loading = true;
+  state.fetchingSubjects = true;
   render();
   await loadData();
-  state.loading = false;
+  state.fetchingSubjects = false;
   render();
 };
 
 window.clearFilters = async function () {
   state.filters.yearLevel = null;
   state.filters.semester = null;
-  state.loading = true;
+  state.fetchingSubjects = true;
   render();
   await loadData();
-  state.loading = false;
+  state.fetchingSubjects = false;
   render();
 };
 
