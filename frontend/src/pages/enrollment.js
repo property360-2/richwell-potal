@@ -1,5 +1,5 @@
 import '../style.css';
-import { api, endpoints } from '../api.js';
+import { api, endpoints, TokenManager } from '../api.js';
 import { validateEmail, validatePhone, validateRequired } from '../utils.js';
 import { Toast } from '../components/Toast.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -216,7 +216,8 @@ function renderStep1() {
         </div>
         <div>
           <label class="form-label">Contact Number <span class="text-red-500">*</span></label>
-          <input type="tel" id="contact_number" class="form-input" placeholder="09171234567" value="${state.formData.contact_number}" maxlength="11" required>
+          <input type="tel" id="contact_number" class="form-input" placeholder="09171234567" value="${state.formData.contact_number}" maxlength="11" required onblur="checkPhoneLengthWarning()">
+          <p id="phone-status" class="text-sm mt-1"></p>
         </div>
       </div>
       
@@ -561,7 +562,7 @@ async function checkEmailAvailability(email) {
 }
 
 // Automatic email availability check on blur
-window.checkEmailAvailabilityAuto = async function() {
+window.checkEmailAvailabilityAuto = async function () {
   const email = state.formData.email;
   const statusEl = document.getElementById('email-status');
 
@@ -589,6 +590,34 @@ window.checkEmailAvailabilityAuto = async function() {
   } else {
     statusEl.className = 'text-sm mt-1 text-red-600';
     statusEl.textContent = '✗ ' + result.message;
+  }
+};
+
+// Phone length validation warning on blur
+window.checkPhoneLengthWarning = function () {
+  const phone = state.formData.contact_number || '';
+  const statusEl = document.getElementById('phone-status');
+
+  if (!statusEl) return;
+
+  if (!phone) {
+    statusEl.className = 'text-sm mt-1';
+    statusEl.textContent = '';
+    return;
+  }
+
+  // Remove non-digits for length check
+  const digitsOnly = phone.replace(/[^0-9]/g, '');
+
+  if (digitsOnly.length < 11) {
+    statusEl.className = 'text-sm mt-1 text-yellow-600';
+    statusEl.textContent = '⚠ Phone number should be 11 digits (currently ' + digitsOnly.length + ')';
+  } else if (digitsOnly.length === 11) {
+    statusEl.className = 'text-sm mt-1 text-green-600';
+    statusEl.textContent = '✓ Valid phone number';
+  } else {
+    statusEl.className = 'text-sm mt-1 text-red-600';
+    statusEl.textContent = '✗ Phone number too long';
   }
 };
 
@@ -701,6 +730,10 @@ window.submitEnrollment = async function () {
       const data = await response.json();
       Toast.success('Enrollment submitted successfully!');
 
+      // Save tokens for auto-login
+      if (data.tokens) {
+        TokenManager.setTokens(data.tokens.access, data.tokens.refresh);
+      }
 
       // Redirect to success page with credentials from server
       setTimeout(() => {
