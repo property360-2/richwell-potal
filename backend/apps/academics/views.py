@@ -340,6 +340,64 @@ class SectionViewSet(viewsets.ModelViewSet):
         """Soft delete."""
         instance.is_deleted = True
         instance.save()
+    
+    @action(detail=True, methods=['get'], url_path='enrolled-students')
+    @extend_schema(
+        summary="Get Enrolled Students",
+        description="Get list of students enrolled in this section",
+        tags=["Section Management"]
+    )
+    def enrolled_students(self, request, pk=None):
+        """Get students enrolled in this section."""
+        from apps.enrollment.models import SubjectEnrollment
+        
+        section = self.get_object()
+        
+        # Get all SubjectEnrollments for this section
+        enrollments = SubjectEnrollment.objects.filter(
+            section=section,
+            is_deleted=False,
+            status__in=['ENROLLED', 'PASSED', 'FAILED', 'INC']
+        ).select_related(
+            'enrollment__student',
+            'subject'
+        ).order_by('enrollment__student__last_name', 'enrollment__student__first_name')
+        
+        # Build unique student list (a student may have multiple subjects)
+        students_dict = {}
+        for se in enrollments:
+            student = se.enrollment.student
+            if student.id not in students_dict:
+                students_dict[student.id] = {
+                    'id': str(student.id),
+                    'student_number': student.student_number or 'N/A',
+                    'name': student.get_full_name(),
+                    'first_name': student.first_name,
+                    'last_name': student.last_name,
+                    'email': student.email,
+                    'year_level': getattr(student, 'year_level', None),
+                    'subjects': []
+                }
+            
+            students_dict[student.id]['subjects'].append({
+                'code': se.subject.code,
+                'title': se.subject.title,
+                'status': se.status,
+                'grade': float(se.grade) if se.grade else None
+            })
+        
+        students_list = list(students_dict.values())
+        
+        return Response({
+            'success': True,
+            'section': {
+                'id': str(section.id),
+                'name': section.name,
+                'capacity': section.capacity
+            },
+            'enrolled_count': len(students_list),
+            'students': students_list
+        })
 
 
 # ============================================================

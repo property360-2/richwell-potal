@@ -26,6 +26,13 @@ const state = {
   programs: [],
   programModal: null,
   editingProgram: null,
+  programFilters: {
+    search: '',
+    status: 'all', // 'all', 'active', 'inactive'
+    duration: 'all', // 'all', 2, 3, 4, etc.
+    sortBy: 'code', // 'code', 'name', 'duration'
+    sortOrder: 'asc'
+  },
 
   // Subjects state
   subjects: [],
@@ -115,8 +122,56 @@ async function loadPrograms() {
     state.programs = response?.results || response || [];
   } catch (error) {
     ErrorHandler.handle(error, 'Loading programs');
-    state.programs = [];
   }
+}
+
+function getFilteredPrograms() {
+  const { search, status, duration, sortBy, sortOrder } = state.programFilters;
+
+  let filtered = state.programs.slice();
+
+  // Search
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = filtered.filter(p =>
+      (p.code || '').toLowerCase().includes(q) ||
+      (p.name || '').toLowerCase().includes(q)
+    );
+  }
+
+  // Status
+  filtered = filtered.filter(p => {
+    if (status === 'active') return p.is_active;
+    if (status === 'inactive') return !p.is_active;
+    return true;
+  });
+
+  // Duration
+  if (duration !== 'all') {
+    const d = parseInt(duration);
+    filtered = filtered.filter(p => p.duration_years === d);
+  }
+
+  // Sort
+  filtered.sort((a, b) => {
+    let comparison = 0;
+    switch (sortBy) {
+      case 'code':
+        comparison = (a.code || '').localeCompare(b.code || '');
+        break;
+      case 'name':
+        comparison = (a.name || '').localeCompare(b.name || '');
+        break;
+      case 'duration':
+        comparison = (a.duration_years || 0) - (b.duration_years || 0);
+        break;
+      default:
+        comparison = (a.code || '').localeCompare(b.code || '');
+    }
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  return filtered;
 }
 
 async function loadSubjects(programId = null) {
@@ -314,30 +369,77 @@ function renderTabContent() {
 // ============================================================
 
 function renderProgramsTab() {
+  const filteredPrograms = getFilteredPrograms();
+  const { search, status, duration, sortBy, sortOrder } = state.programFilters;
+
   return `
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h2 class="text-xl font-bold text-gray-800">Programs</h2>
-        <p class="text-sm text-gray-600 mt-1">Academic programs and curriculum tracks</p>
+    <div class="mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-xl font-bold text-gray-800">Programs</h2>
+          <p class="text-sm text-gray-600 mt-1">Academic programs and curriculum tracks</p>
+        </div>
+        <button onclick="openAddProgramModal()" class="btn btn-primary flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          Add Program
+        </button>
       </div>
-      <button onclick="openAddProgramModal()" class="btn btn-primary flex items-center gap-2">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        Add Program
-      </button>
+
+      <!-- Filters -->
+      <div class="card mb-6 bg-gray-50">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div class="md:col-span-1">
+                <div class="relative">
+                    <input type="text" value="${search}" oninput="handleProgramSearch(this.value)" placeholder="Search programs..." class="form-input pl-10" />
+                    <svg class="w-5 h-5 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div>
+                <select onchange="handleProgramStatus(this.value)" class="form-select">
+                    <option value="all" ${status === 'all' ? 'selected' : ''}>All Status</option>
+                    <option value="active" ${status === 'active' ? 'selected' : ''}>Active</option>
+                    <option value="inactive" ${status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                </select>
+            </div>
+            <div>
+                <select onchange="handleProgramDuration(this.value)" class="form-select">
+                    <option value="all" ${duration === 'all' ? 'selected' : ''}>All Durations</option>
+                    <option value="2" ${duration === '2' ? 'selected' : ''}>2 Years</option>
+                    <option value="3" ${duration === '3' ? 'selected' : ''}>3 Years</option>
+                    <option value="4" ${duration === '4' ? 'selected' : ''}>4 Years</option>
+                    <option value="5" ${duration === '5' ? 'selected' : ''}>5 Years</option>
+                </select>
+            </div>
+            <div>
+                <select onchange="handleProgramSort(this.value)" class="form-select">
+                    <option value="code" ${sortBy === 'code' ? 'selected' : ''}>Sort by Code</option>
+                    <option value="name" ${sortBy === 'name' ? 'selected' : ''}>Sort by Name</option>
+                    <option value="duration" ${sortBy === 'duration' ? 'selected' : ''}>Sort by Duration</option>
+                </select>
+            </div>
+             <div>
+                <select onchange="handleProgramSortOrder(this.value)" class="form-select">
+                    <option value="asc" ${sortOrder === 'asc' ? 'selected' : ''}>Ascending</option>
+                    <option value="desc" ${sortOrder === 'desc' ? 'selected' : ''}>Descending</option>
+                </select>
+            </div>
+        </div>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      ${state.programs.length === 0 ? `
+      ${filteredPrograms.length === 0 ? `
         <div class="col-span-full card text-center py-12">
           <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
           </svg>
-          <p class="text-gray-500 text-lg">No programs found</p>
-          <p class="text-gray-400 text-sm mt-2">Click "Add Program" to create your first program</p>
+          <p class="text-gray-500 text-lg">No programs found matching filters</p>
         </div>
-      ` : state.programs.map(program => `
+      ` : filteredPrograms.map(program => `
         <div class="card hover:shadow-lg transition-shadow">
           <div class="flex items-start justify-between mb-4">
             <div class="flex-1">
@@ -1932,6 +2034,35 @@ window.addPrerequisite = function (mode, id, code, title) {
 window.removePrerequisite = function (mode, id) {
   state.prereqState[mode].selected = state.prereqState[mode].selected.filter(p => p.id !== id);
   updateSelectedPrereqs(mode);
+};
+
+// ============================================================
+// PROGRAMS FILTER HANDLERS
+// ============================================================
+
+window.handleProgramSearch = function (value) {
+  state.programFilters.search = value;
+  render();
+};
+
+window.handleProgramStatus = function (value) {
+  state.programFilters.status = value;
+  render();
+};
+
+window.handleProgramSort = function (value) {
+  state.programFilters.sortBy = value;
+  render();
+};
+
+window.handleProgramDuration = function (value) {
+  state.programFilters.duration = value;
+  render();
+};
+
+window.handleProgramSortOrder = function (value) {
+  state.programFilters.sortOrder = value;
+  render();
 };
 
 // ============================================================

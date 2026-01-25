@@ -11,6 +11,7 @@ import { createTabs, updateHash } from '../components/tabs.js';
 // Tab constants
 const TABS = {
   SECTIONS: 'sections',
+  SECTIONS: 'sections',
   SCHEDULE: 'schedule'
 };
 
@@ -55,6 +56,7 @@ const state = {
   user: null,
   loading: true,
   activeTab: TABS.SECTIONS,
+  sectionDetailTab: 'subjects',
 
   // Sections state
   sections: [],
@@ -64,6 +66,12 @@ const state = {
   selectedSection: null,
   sectionSubjects: [],
   sectionSchedule: [],
+  enrolledStudents: [],
+
+  // All students for Students tab
+  allStudents: [],
+  loadingStudents: false,
+  studentsError: false,
 
   // Section filters for scalable filtering
   sectionFilters: {
@@ -262,6 +270,39 @@ async function loadProfessors() {
   }
 }
 
+async function loadAllStudents() {
+  if (state.allStudents.length > 0 || state.studentsError) return; // Prevent retry if error or loaded
+
+  state.loadingStudents = true;
+  state.studentsError = false;
+  render();
+
+  try {
+    // Fetch all enrollments
+    const response = await api.get(endpoints.registrarAllStudents);
+    const enrollments = response?.results || response || [];
+
+    state.allStudents = enrollments.map(e => ({
+      id: e.id,
+      student_number: e.student_number || 'N/A',
+      name: e.student_name || 'Unknown',
+      email: e.student_email,
+      program: e.program_code || 'N/A',
+      year_level: '?', // Not returned by serializer
+      status: e.status,
+      date: e.created_at
+    }));
+  } catch (error) {
+    console.warn('Error loading students:', error);
+    state.studentsError = true;
+    state.allStudents = [];
+    Toast.error('Failed to load student list');
+  } finally {
+    state.loadingStudents = false;
+    render();
+  }
+}
+
 async function loadSectionDetails(sectionId) {
   try {
     const response = await api.get(endpoints.section(sectionId));
@@ -291,6 +332,19 @@ async function loadSectionDetails(sectionId) {
         });
       }
     });
+
+    // Load enrolled students
+    try {
+      const enrollmentResponse = await api.get(endpoints.sectionEnrolledStudents(sectionId));
+      state.enrolledStudents = enrollmentResponse?.students || [];
+      // Update enrolled count if available
+      if (state.selectedSection && enrollmentResponse?.enrolled_count !== undefined) {
+        state.selectedSection.enrolled_count = enrollmentResponse.enrolled_count;
+      }
+    } catch (e) {
+      console.warn('Failed to load enrolled students:', e);
+      state.enrolledStudents = [];
+    }
 
   } catch (error) {
     ErrorHandler.handle(error, 'Loading section details');
@@ -546,6 +600,99 @@ function renderSectionsTab() {
   `;
 }
 
+function renderStudentsTab() {
+  if (state.studentsError) {
+    return `
+      <div class="text-center py-16 text-gray-500">
+        <p class="text-red-500 mb-2">Failed to load students.</p>
+        <button onclick="loadAllStudents()" class="text-blue-600 hover:text-blue-800 underline">Try again</button>
+      </div>
+    `;
+  }
+
+  // Trigger load if empty and not loading
+  if (state.allStudents.length === 0 && !state.loadingStudents) {
+    loadAllStudents();
+    return `
+      <div class="flex flex-col items-center justify-center py-16">
+        <div class="spinner border-4 border-blue-500 border-t-transparent rounded-full w-12 h-12 animate-spin"></div>
+        <p class="mt-4 text-gray-500">Loading enrolled students...</p>
+      </div>
+    `;
+  }
+
+  if (state.loadingStudents) {
+    return `
+      <div class="flex flex-col items-center justify-center py-16">
+        <div class="spinner border-4 border-blue-500 border-t-transparent rounded-full w-12 h-12 animate-spin"></div>
+        <p class="mt-4 text-gray-500">Loading enrolled students...</p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="card mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">All Enrolled Students <span class="text-sm font-normal text-gray-500">(${state.allStudents.length})</span></h2>
+        <div class="flex gap-2">
+           <button class="text-sm text-blue-600 hover:text-blue-800 font-medium">Export List</button>
+        </div>
+      </div>
+      
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="bg-gray-50 text-gray-600 font-medium border-b">
+            <tr>
+              <th class="py-3 px-4">Student Name</th>
+              <th class="py-3 px-4">ID Number</th>
+              <th class="py-3 px-4">Program</th>
+              <th class="py-3 px-4">Year</th>
+              <th class="py-3 px-4">Enrolled Date</th>
+              <th class="py-3 px-4">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y">
+            ${state.allStudents.map(student => {
+    // Safe initials logic
+    const names = (student.name || '').trim().split(' ');
+    const initials = names.length > 1
+      ? `${names[0][0]}${names[names.length - 1][0]}`
+      : (student.name || '?').substring(0, 2).toUpperCase();
+
+    const status = String(student.status || '').toUpperCase();
+
+    return `
+              <tr class="hover:bg-gray-50">
+                <td class="py-3 px-4 font-medium text-gray-800">
+                  <div class="flex items-center">
+                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-bold text-xs mr-3">
+                      ${initials}
+                    </div>
+                    ${student.name}
+                  </div>
+                </td>
+                <td class="py-3 px-4 text-gray-600">${student.student_number}</td>
+                <td class="py-3 px-4 text-gray-600">${student.program}</td>
+                <td class="py-3 px-4 text-gray-600">${student.year_level !== '?' ? 'Year ' + student.year_level : '-'}</td>
+                <td class="py-3 px-4 text-gray-600">${new Date(student.date).toLocaleDateString()}</td>
+                <td class="py-3 px-4">
+                  <span class="inline-flex px-2 py-1 rounded text-xs font-semibold ${status === 'ENROLLED' || status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+        status === 'PENDING' ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'
+      }">
+                    ${student.status}
+                  </span>
+                </td>
+              </tr>
+            `}).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+
+
 
 // ============================================================
 // SECTION DETAIL VIEW
@@ -553,6 +700,7 @@ function renderSectionsTab() {
 
 function renderSectionDetail() {
   const section = state.selectedSection;
+  const activeTab = state.sectionDetailTab || 'subjects';
 
   return `
     <!-- Back Button -->
@@ -582,11 +730,24 @@ function renderSectionDetail() {
       </div>
     </div>
 
-    <!-- Section Subjects & Schedule -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Sub Navigation -->
+    <div class="flex border-b border-gray-200 mb-6">
+      <button onclick="switchSectionDetailTab('subjects')" class="px-6 py-3 font-medium text-sm transition-colors ${activeTab === 'subjects' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}">
+        Subjects
+      </button>
+      <button onclick="switchSectionDetailTab('students')" class="px-6 py-3 font-medium text-sm transition-colors ${activeTab === 'students' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}">
+        Enrolled Students (${state.enrolledStudents.length})
+      </button>
+    </div>
+
+    ${activeTab === 'subjects' ? renderSectionSubjectsList() : renderSectionStudentsList()}
+  `;
+}
+
+function renderSectionSubjectsList() {
+  return `
       <!-- Assigned Subjects -->
-      <div class="lg:col-span-1">
-        <div class="card">
+      <div class="card bg-white">
           <h3 class="text-lg font-bold text-gray-800 mb-4">Assigned Subjects</h3>
           ${state.sectionSubjects.length === 0 ? `
             <p class="text-gray-500 text-center py-8">No subjects assigned yet</p>
@@ -647,19 +808,83 @@ function renderSectionDetail() {
   }).join('')}
             </div>
           `}
-        </div>
+      </div>
+    `;
+}
+
+function renderSectionStudentsList() {
+  return `
+    <div class="mt-6 card">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-gray-800">
+          Enrolled Students 
+          <span class="text-sm font-normal text-gray-500 ml-2">(${state.enrolledStudents.length} students)</span>
+        </h3>
+        <button class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+          Export List
+        </button>
       </div>
 
-      <!-- Weekly Schedule Grid -->
-      <div class="lg:col-span-2">
-        <div class="card overflow-hidden">
-          <h3 class="text-lg font-bold text-gray-800 mb-4">Weekly Schedule</h3>
-          ${renderSectionScheduleGrid()}
+      ${state.enrolledStudents.length === 0 ? `
+        <div class="text-center py-8 text-gray-500">
+          <p>No students enrolled yet.</p>
         </div>
-      </div>
+      ` : `
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subjects</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              ${state.enrolledStudents.map(student => `
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                      <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-bold text-xs mr-3">
+                        ${(student.first_name || '?')[0]}${(student.last_name || '?')[0]}
+                      </div>
+                      <div>
+                        <div class="text-sm font-medium text-gray-900">${student.last_name}, ${student.first_name}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${student.student_number}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${student.email}
+                  </td>
+                  <td class="px-6 py-4 text-sm text-gray-500">
+                    <div class="flex flex-wrap gap-1">
+                      ${(student.subjects || []).map(subj => `
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${subj.status === 'PASSED' ? 'bg-green-100 text-green-800' :
+      subj.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+        'bg-gray-100 text-gray-800'
+    }" title="${subj.title}">
+                          ${subj.code}
+                        </span>
+                      `).join('')}
+                    </div>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
     </div>
-  `;
+    `;
 }
+
+window.switchSectionDetailTab = function (tab) {
+  state.sectionDetailTab = tab;
+  render();
+};
 
 function renderSectionScheduleGrid() {
   if (state.sectionSchedule.length === 0) {
@@ -738,24 +963,37 @@ function renderScheduleTab() {
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-xl font-bold text-gray-800">Schedule Grid</h2>
-          <p class="text-sm text-gray-600 mt-1">View all section schedules</p>
+          <p class="text-sm text-gray-600 mt-1">View section schedules</p>
         </div>
-        <select id="section-filter" onchange="filterScheduleBySection(this.value)" class="form-select">
-          <option value="">All Sections</option>
-          ${state.sections.map(s => `
-            <option value="${s.id}">${s.name}</option>
-          `).join('')}
-        </select>
+        <div class="flex gap-2">
+          ${state.selectedSection ? `
+            <button onclick="viewSection('${state.selectedSection.id}')" class="btn btn-secondary">
+              View Section Details
+            </button>
+          ` : ''}
+          <select id="section-filter" onchange="filterScheduleBySection(this.value)" class="form-select">
+            <option value="">Select Section...</option>
+            ${state.sections.map(s => `
+              <option value="${s.id}" ${state.selectedSection?.id === s.id ? 'selected' : ''}>${s.name}</option>
+            `).join('')}
+          </select>
+        </div>
       </div>
     </div>
 
-    <div class="card text-center py-12">
-      <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-      </svg>
-      <p class="text-gray-500 text-lg">Select a section to view its schedule</p>
-      <p class="text-gray-400 text-sm mt-2">Or click on a section card in the Sections tab</p>
-    </div>
+    ${state.selectedSection ? `
+      <div class="card overflow-hidden">
+        ${renderSectionScheduleGrid()}
+      </div>
+    ` : `
+      <div class="card text-center py-12">
+        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+        </svg>
+        <p class="text-gray-500 text-lg">Select a section to view its schedule</p>
+        <p class="text-gray-400 text-sm mt-2">Or click on a section card in the Sections tab</p>
+      </div>
+    `}
   `;
 }
 
@@ -1059,7 +1297,7 @@ window.openEditProfessorModal = function (sectionSubjectId) {
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
           <p class="text-blue-800 text-sm">
             <strong>Subject:</strong> ${subject.code || sectionSubject.subject_code} - ${subject.title || sectionSubject.subject_name || ''}<br>
-            <strong>Current:</strong> ${currentProfessor ? `Prof. ${currentProfessor.first_name} ${currentProfessor.last_name}` : 'Not assigned'}
+            <strong>Current:</strong> ${currentProfessor ? (currentProfessor.name || `Prof. ${currentProfessor.first_name} ${currentProfessor.last_name}`) : 'Not assigned'}
           </p>
         </div>
         

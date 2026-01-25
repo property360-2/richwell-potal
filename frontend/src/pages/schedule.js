@@ -9,191 +9,191 @@ import { ConfirmModal } from '../components/Modal.js';
 
 // State
 const state = {
-    user: null,
-    sections: [],
-    selectedSection: null,
-    sectionSubjects: [],
-    scheduleSlots: [],
-    loading: true,
-    showSlotModal: false,
-    showConflictModal: false,
-    editingSlot: null,
-    conflict: null,
-    pendingSlotData: null
+  user: null,
+  sections: [],
+  selectedSection: null,
+  sectionSubjects: [],
+  scheduleSlots: [],
+  loading: true,
+  showSlotModal: false,
+  showConflictModal: false,
+  editingSlot: null,
+  conflict: null,
+  pendingSlotData: null
 };
 
 // Constants
 const DAYS = [
-    { code: 'MON', name: 'Monday' },
-    { code: 'TUE', name: 'Tuesday' },
-    { code: 'WED', name: 'Wednesday' },
-    { code: 'THU', name: 'Thursday' },
-    { code: 'FRI', name: 'Friday' },
-    { code: 'SAT', name: 'Saturday' }
+  { code: 'MON', name: 'Monday' },
+  { code: 'TUE', name: 'Tuesday' },
+  { code: 'WED', name: 'Wednesday' },
+  { code: 'THU', name: 'Thursday' },
+  { code: 'FRI', name: 'Friday' },
+  { code: 'SAT', name: 'Saturday' }
 ];
 
 const TIME_SLOTS = [];
 for (let hour = 7; hour <= 21; hour++) {
-    TIME_SLOTS.push(`${hour.toString().padStart(2, '0')}:00`);
+  TIME_SLOTS.push(`${hour.toString().padStart(2, '0')}:00`);
 }
 
 // No more mock data - all data comes from real API
 
 // Color palette for subjects
 const COLORS = [
-    'bg-blue-100 border-blue-300 text-blue-800',
-    'bg-green-100 border-green-300 text-green-800',
-    'bg-purple-100 border-purple-300 text-purple-800',
-    'bg-orange-100 border-orange-300 text-orange-800',
-    'bg-pink-100 border-pink-300 text-pink-800',
-    'bg-teal-100 border-teal-300 text-teal-800',
-    'bg-indigo-100 border-indigo-300 text-indigo-800',
-    'bg-red-100 border-red-300 text-red-800'
+  'bg-blue-100 border-blue-300 text-blue-800',
+  'bg-green-100 border-green-300 text-green-800',
+  'bg-purple-100 border-purple-300 text-purple-800',
+  'bg-orange-100 border-orange-300 text-orange-800',
+  'bg-pink-100 border-pink-300 text-pink-800',
+  'bg-teal-100 border-teal-300 text-teal-800',
+  'bg-indigo-100 border-indigo-300 text-indigo-800',
+  'bg-red-100 border-red-300 text-red-800'
 ];
 
 function getSubjectColor(index) {
-    return COLORS[index % COLORS.length];
+  return COLORS[index % COLORS.length];
 }
 
 async function init() {
-    if (!requireAuth()) return;
+  if (!requireAuth()) return;
 
-    await loadUserProfile();
-    await loadSections();
+  await loadUserProfile();
+  await loadSections();
 
-    // Check for section param in URL
-    const sectionId = getQueryParam('section');
-    if (sectionId) {
-        await selectSection(sectionId);
-    }
+  // Check for section param in URL
+  const sectionId = getQueryParam('section');
+  if (sectionId) {
+    await selectSection(sectionId);
+  }
 
-    state.loading = false;
-    render();
+  state.loading = false;
+  render();
 }
 
 async function loadUserProfile() {
-    try {
-        const response = await api.get(endpoints.me);
-        if (response) {
-            state.user = response;
-            TokenManager.setUser(response);
-        }
-    } catch (error) {
-        const savedUser = TokenManager.getUser();
-        if (savedUser) state.user = savedUser;
+  try {
+    const response = await api.get(endpoints.me);
+    if (response) {
+      state.user = response;
+      TokenManager.setUser(response);
     }
+  } catch (error) {
+    const savedUser = TokenManager.getUser();
+    if (savedUser) state.user = savedUser;
+  }
 }
 
 async function loadSections() {
-    try {
-        const response = await api.get(endpoints.sections);
-        const sections = response?.results || response;
-        if (sections && Array.isArray(sections)) {
-            state.sections = sections;
-            console.log(`Loaded ${sections.length} sections from API`);
-        } else {
-            state.sections = [];
-            console.warn('No sections returned from API');
-        }
-    } catch (error) {
-        ErrorHandler.handle(error, 'Loading sections');
-        state.sections = [];
+  try {
+    const response = await api.get(endpoints.sections);
+    const sections = response?.results || response;
+    if (sections && Array.isArray(sections)) {
+      state.sections = sections;
+      console.log(`Loaded ${sections.length} sections from API`);
+    } else {
+      state.sections = [];
+      console.warn('No sections returned from API');
     }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading sections');
+    state.sections = [];
+  }
 }
 
 async function selectSection(id) {
-    state.selectedSection = state.sections.find(s => s.id === id);
+  state.selectedSection = state.sections.find(s => s.id === id);
 
-    if (!state.selectedSection) {
-        ErrorHandler.handle(new Error(`Section not found: ${id}`), 'Selecting section');
-        return;
+  if (!state.selectedSection) {
+    ErrorHandler.handle(new Error(`Section not found: ${id}`), 'Selecting section');
+    return;
+  }
+
+  // Load section subjects
+  try {
+    const response = await api.get(`${endpoints.sectionSubjects}?section=${id}`);
+    const subjects = response?.results || response;
+    if (subjects && Array.isArray(subjects)) {
+      state.sectionSubjects = subjects;
+      console.log(`Loaded ${subjects.length} section subjects`);
+    } else {
+      state.sectionSubjects = [];
+      console.warn('No section subjects returned');
     }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading section subjects');
+    state.sectionSubjects = [];
+  }
 
-    // Load section subjects
-    try {
-        const response = await api.get(`${endpoints.sectionSubjects}?section=${id}`);
-        const subjects = response?.results || response;
-        if (subjects && Array.isArray(subjects)) {
-            state.sectionSubjects = subjects;
-            console.log(`Loaded ${subjects.length} section subjects`);
-        } else {
-            state.sectionSubjects = [];
-            console.warn('No section subjects returned');
-        }
-    } catch (error) {
-        ErrorHandler.handle(error, 'Loading section subjects');
-        state.sectionSubjects = [];
+  // Load schedule slots
+  try {
+    if (state.sectionSubjects.length === 0) {
+      state.scheduleSlots = [];
+      console.log('No section subjects, skipping schedule slots');
+    } else {
+      const subjectIds = state.sectionSubjects.map(ss => ss.id);
+      let allSlots = [];
+      for (const ssId of subjectIds) {
+        const response = await api.get(`${endpoints.scheduleSlots}?section_subject=${ssId}`);
+        const slots = response?.results || response || [];
+        allSlots = allSlots.concat(slots);
+      }
+      state.scheduleSlots = allSlots;
+      console.log(`Loaded ${allSlots.length} schedule slots`);
     }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading schedule slots');
+    state.scheduleSlots = [];
+  }
 
-    // Load schedule slots
-    try {
-        if (state.sectionSubjects.length === 0) {
-            state.scheduleSlots = [];
-            console.log('No section subjects, skipping schedule slots');
-        } else {
-            const subjectIds = state.sectionSubjects.map(ss => ss.id);
-            let allSlots = [];
-            for (const ssId of subjectIds) {
-                const response = await api.get(`${endpoints.scheduleSlots}?section_subject=${ssId}`);
-                const slots = response?.results || response || [];
-                allSlots = allSlots.concat(slots);
-            }
-            state.scheduleSlots = allSlots;
-            console.log(`Loaded ${allSlots.length} schedule slots`);
-        }
-    } catch (error) {
-        ErrorHandler.handle(error, 'Loading schedule slots');
-        state.scheduleSlots = [];
-    }
-
-    render();
+  render();
 }
 
 function formatRole(role) {
-    const roleNames = { 'ADMIN': 'Administrator', 'REGISTRAR': 'Registrar', 'HEAD_REGISTRAR': 'Head Registrar' };
-    return roleNames[role] || role;
+  const roleNames = { 'ADMIN': 'Administrator', 'REGISTRAR': 'Registrar', 'HEAD_REGISTRAR': 'Head Registrar' };
+  return roleNames[role] || role;
 }
 
 function formatTime(time) {
-    if (!time) return 'N/A';
-    const parts = time.split(':');
-    if (parts.length < 2) return time;
-    const [hour, minute] = parts;
-    const h = parseInt(hour);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hour12 = h % 12 || 12;
-    return `${hour12}:${minute} ${ampm}`;
+  if (!time) return 'N/A';
+  const parts = time.split(':');
+  if (parts.length < 2) return time;
+  const [hour, minute] = parts;
+  const h = parseInt(hour);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+  return `${hour12}:${minute} ${ampm}`;
 }
 
 function getSlotPosition(startTime) {
-    const [hour] = startTime.split(':').map(Number);
-    return hour - 7; // 7am is row 0
+  const [hour] = startTime.split(':').map(Number);
+  return hour - 7; // 7am is row 0
 }
 
 function getSlotDuration(startTime, endTime) {
-    if (!startTime || !endTime) return 1; // Default to 1 hour
-    const [startHour, startMin] = startTime.split(':').map(Number);
-    const [endHour, endMin] = endTime.split(':').map(Number);
-    const start = startHour * 60 + startMin;
-    const end = endHour * 60 + endMin;
-    const duration = (end - start) / 60; // Duration in hours
-    return duration > 0 ? duration : 1; // Ensure positive duration
+  if (!startTime || !endTime) return 1; // Default to 1 hour
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+  const start = startHour * 60 + startMin;
+  const end = endHour * 60 + endMin;
+  const duration = (end - start) / 60; // Duration in hours
+  return duration > 0 ? duration : 1; // Ensure positive duration
 }
 
 function render() {
-    const app = document.getElementById('app');
+  const app = document.getElementById('app');
 
-    if (state.loading) {
-        app.innerHTML = LoadingOverlay('Loading schedule...');
-        return;
-    }
+  if (state.loading) {
+    app.innerHTML = LoadingOverlay('Loading schedule...');
+    return;
+  }
 
-    app.innerHTML = `
+  app.innerHTML = `
     ${createHeader({
-      role: 'REGISTRAR',
-      activePage: 'schedule',
-      user: state.user
-    })}
+    role: 'REGISTRAR',
+    activePage: 'schedule',
+    user: state.user
+  })}
     
     <main class="max-w-full mx-auto px-4 py-8">
       <!-- Page Header -->
@@ -223,7 +223,7 @@ function render() {
 }
 
 function renderSelectSectionPrompt() {
-    return `
+  return `
     <div class="card text-center py-20 max-w-lg mx-auto">
       <svg class="w-20 h-20 mx-auto text-gray-300 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
@@ -235,7 +235,7 @@ function renderSelectSectionPrompt() {
 }
 
 function renderScheduleGrid() {
-    return `
+  return `
     <div class="space-y-6">
       <!-- Section Info & Legend -->
       <div class="flex flex-wrap items-start justify-between gap-4">
@@ -270,21 +270,21 @@ function renderScheduleGrid() {
             <div class="grid grid-cols-7 border-b border-gray-100">
               <div class="p-2 text-sm text-gray-500 text-center border-r border-gray-100">${formatTime(time)}</div>
               ${DAYS.map(day => {
-        const slot = state.scheduleSlots.find(s =>
-            s.day === day.code &&
-            s.start_time === time
-        );
-        if (slot) {
-            const ss = state.sectionSubjects.find(ss => ss.id === slot.section_subject);
-            const colorIndex = state.sectionSubjects.findIndex(ss => ss.id === slot.section_subject);
-            const duration = getSlotDuration(slot.start_time, slot.end_time);
+    const slot = state.scheduleSlots.find(s =>
+      s.day === day.code &&
+      (s.start_time === time || s.start_time.startsWith(time) || s.start_time.substring(0, 5) === time.substring(0, 5))
+    );
+    if (slot) {
+      const ss = state.sectionSubjects.find(ss => ss.id === slot.section_subject);
+      const colorIndex = state.sectionSubjects.findIndex(ss => ss.id === slot.section_subject);
+      const duration = getSlotDuration(slot.start_time, slot.end_time);
 
-            // Debug logging
-            if (!slot.end_time) {
-                console.warn('Slot missing end_time:', slot);
-            }
+      // Debug logging
+      if (!slot.end_time) {
+        console.warn('Slot missing end_time:', slot);
+      }
 
-            return `
+      return `
                     <div class="p-1 relative" style="grid-row: span ${Math.ceil(duration)}">
                       <div onclick="editSlot('${slot.id}')" class="p-2 rounded-lg border cursor-pointer hover:shadow-md transition-shadow h-full ${getSubjectColor(colorIndex)}" style="min-height: ${duration * 48}px">
                         <p class="font-semibold text-xs">${ss?.subject_code || ss?.subject?.code || 'N/A'}</p>
@@ -293,26 +293,26 @@ function renderScheduleGrid() {
                       </div>
                     </div>
                   `;
-        }
-        // Check if this cell is covered by a multi-hour slot
-        const coveringSlot = state.scheduleSlots.find(s => {
-            if (s.day !== day.code) return false;
-            const slotStart = parseInt(s.start_time.split(':')[0]);
-            const slotEnd = parseInt(s.end_time.split(':')[0]);
-            const currentHour = parseInt(time.split(':')[0]);
-            return currentHour > slotStart && currentHour < slotEnd;
-        });
-        if (coveringSlot) {
-            return `<div class="p-1"></div>`; // Empty but covered cell
-        }
-        return `
+    }
+    // Check if this cell is covered by a multi-hour slot
+    const coveringSlot = state.scheduleSlots.find(s => {
+      if (s.day !== day.code) return false;
+      const slotStart = parseInt(s.start_time.split(':')[0]);
+      const slotEnd = parseInt(s.end_time.split(':')[0]);
+      const currentHour = parseInt(time.split(':')[0]);
+      return currentHour > slotStart && currentHour < slotEnd;
+    });
+    if (coveringSlot) {
+      return `<div class="p-1"></div>`; // Empty but covered cell
+    }
+    return `
                   <div class="p-1 border-r border-gray-50">
                     <div onclick="openSlotModal('${day.code}', '${time}')" class="h-12 rounded-lg border-2 border-dashed border-transparent hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-center">
                       <span class="text-gray-300 text-xl opacity-0 hover:opacity-100">+</span>
                     </div>
                   </div>
                 `;
-    }).join('')}
+  }).join('')}
             </div>
           `).join('')}
         </div>
@@ -332,10 +332,10 @@ function renderScheduleGrid() {
 }
 
 function renderSlotModal() {
-    const isEdit = !!state.editingSlot;
-    const slot = isEdit ? state.scheduleSlots.find(s => s.id === state.editingSlot) : {};
+  const isEdit = !!state.editingSlot;
+  const slot = isEdit ? state.scheduleSlots.find(s => s.id === state.editingSlot) : {};
 
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeSlotModal()">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b flex items-center justify-between">
@@ -395,7 +395,7 @@ function renderSlotModal() {
 }
 
 function renderConflictModal() {
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeConflictModal()">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b bg-red-50 rounded-t-2xl">
@@ -432,156 +432,176 @@ function renderConflictModal() {
 
 // Event Handlers
 window.handleSectionChange = async function () {
-    const sectionId = document.getElementById('section-select').value;
-    if (sectionId) {
-        await selectSection(sectionId);
-    } else {
-        state.selectedSection = null;
-        state.sectionSubjects = [];
-        state.scheduleSlots = [];
-        render();
-    }
+  const sectionId = document.getElementById('section-select').value;
+  if (sectionId) {
+    await selectSection(sectionId);
+  } else {
+    state.selectedSection = null;
+    state.sectionSubjects = [];
+    state.scheduleSlots = [];
+    render();
+  }
 };
 
 window.openSlotModal = function (day = null, time = null) {
-    state.editingSlot = null;
-    state.showSlotModal = true;
-    render();
+  state.editingSlot = null;
+  state.showSlotModal = true;
+  render();
 
-    // Pre-fill day and time if provided
-    if (day) {
-        setTimeout(() => {
-            const daySelect = document.getElementById('slot-day');
-            if (daySelect) daySelect.value = day;
-        }, 0);
-    }
-    if (time) {
-        setTimeout(() => {
-            const startSelect = document.getElementById('slot-start');
-            if (startSelect) startSelect.value = time;
-        }, 0);
-    }
+  // Pre-fill day and time if provided
+  if (day) {
+    setTimeout(() => {
+      const daySelect = document.getElementById('slot-day');
+      if (daySelect) daySelect.value = day;
+    }, 0);
+  }
+  if (time) {
+    setTimeout(() => {
+      const startSelect = document.getElementById('slot-start');
+      if (startSelect) startSelect.value = time;
+    }, 0);
+  }
 };
 
 window.closeSlotModal = function () {
-    state.showSlotModal = false;
-    state.editingSlot = null;
-    render();
+  state.showSlotModal = false;
+  state.editingSlot = null;
+  render();
 };
 
 window.editSlot = function (id) {
-    state.editingSlot = id;
-    state.showSlotModal = true;
-    render();
+  state.editingSlot = id;
+  state.showSlotModal = true;
+  render();
 };
 
 window.saveSlot = async function (e) {
-    e.preventDefault();
+  e.preventDefault();
 
-    const data = {
-        section_subject: document.getElementById('slot-subject').value,
-        day: document.getElementById('slot-day').value,
-        start_time: document.getElementById('slot-start').value,
-        end_time: document.getElementById('slot-end').value,
-        room: document.getElementById('slot-room').value,
-        override_conflict: false
-    };
+  // Get time values and add seconds if not present
+  let startTime = document.getElementById('slot-start').value;
+  let endTime = document.getElementById('slot-end').value;
 
-    // Validate time
-    if (data.start_time >= data.end_time) {
-        Toast.error('End time must be after start time');
-        return;
+  // Ensure time has seconds (HH:MM:SS format)
+  if (startTime && startTime.split(':').length === 2) {
+    startTime += ':00';
+  }
+  if (endTime && endTime.split(':').length === 2) {
+    endTime += ':00';
+  }
+
+  const data = {
+    section_subject: document.getElementById('slot-subject').value,
+    day: document.getElementById('slot-day').value,
+    start_time: startTime,
+    end_time: endTime,
+    room: document.getElementById('slot-room').value
+  };
+
+  // Validate time
+  if (data.start_time >= data.end_time) {
+    Toast.error('End time must be after start time');
+    return;
+  }
+
+  // Debug logging
+  console.log('Saving slot with data:', data);
+
+  state.pendingSlotData = data;
+
+  try {
+    let response;
+    if (state.editingSlot) {
+      // Update existing slot
+      response = await api.patch(endpoints.scheduleSlot(state.editingSlot), data);
+      console.log('Update response:', response);
+    } else {
+      // Create new slot
+      response = await api.post(endpoints.scheduleSlots, data);
+      console.log('Create response:', response);
     }
 
-    // Debug logging
-    console.log('Saving slot with data:', data);
-
-    state.pendingSlotData = data;
-
-    try {
-        if (state.editingSlot) {
-            // Update existing slot
-            const response = await api.patch(endpoints.scheduleSlot(state.editingSlot), data);
-            if (response && (response.ok || response.id)) {
-                Toast.success('Schedule slot updated!');
-                closeSlotModal();
-                await selectSection(state.selectedSection.id);
-                return;
-            }
-        } else {
-            // Create new slot
-            const response = await api.post(endpoints.scheduleSlots, data);
-            if (response && (response.ok || response.id)) {
-                Toast.success('Schedule slot added!');
-                closeSlotModal();
-                await selectSection(state.selectedSection.id);
-                return;
-            }
-        }
-    } catch (error) {
-        ErrorHandler.handle(error, 'Saving schedule slot');
+    // Check if response indicates success (has id or is a valid object)
+    if (response && (response.id || typeof response === 'object')) {
+      Toast.success(state.editingSlot ? 'Schedule slot updated!' : 'Schedule slot added!');
+      closeSlotModal();
+      await selectSection(state.selectedSection.id);
+    } else {
+      console.error('Unexpected response:', response);
+      Toast.error('Failed to save schedule slot');
     }
+  } catch (error) {
+    console.error('Error saving slot:', error);
+    // Check if it's a conflict error
+    if (error.message && error.message.includes('conflict')) {
+      state.conflict = error.message;
+      state.showConflictModal = true;
+      render();
+    } else {
+      ErrorHandler.handle(error, 'Saving schedule slot');
+    }
+  }
 };
 
 window.deleteSlot = async function (id) {
-    ConfirmModal({
-        title: 'Delete Schedule Slot',
-        message: 'Are you sure you want to delete this schedule slot?',
-        confirmText: 'Delete',
-        onConfirm: async () => {
-            try {
-                const response = await api.delete(endpoints.scheduleSlot(id));
-                if (response && response.ok) {
-                    Toast.success('Schedule slot deleted!');
-                    closeSlotModal();
-                    await selectSection(state.selectedSection.id);
-                } else {
-                    const error = await response?.json();
-                    Toast.error(error?.detail || 'Failed to delete schedule slot');
-                }
-            } catch (error) {
-                ErrorHandler.handle(error, 'Deleting schedule slot');
-            }
+  ConfirmModal({
+    title: 'Delete Schedule Slot',
+    message: 'Are you sure you want to delete this schedule slot?',
+    confirmText: 'Delete',
+    onConfirm: async () => {
+      try {
+        const response = await api.delete(endpoints.scheduleSlot(id));
+        if (response && response.ok) {
+          Toast.success('Schedule slot deleted!');
+          closeSlotModal();
+          await selectSection(state.selectedSection.id);
+        } else {
+          const error = await response?.json();
+          Toast.error(error?.detail || 'Failed to delete schedule slot');
         }
-    });
+      } catch (error) {
+        ErrorHandler.handle(error, 'Deleting schedule slot');
+      }
+    }
+  });
 };
 
 window.closeConflictModal = function () {
-    state.showConflictModal = false;
-    state.conflict = null;
-    state.pendingSlotData = null;
-    render();
+  state.showConflictModal = false;
+  state.conflict = null;
+  state.pendingSlotData = null;
+  render();
 };
 
 window.overrideConflict = async function () {
-    const reason = document.getElementById('override-reason').value;
-    if (!reason.trim()) {
-        Toast.error('Please enter a reason for the override');
-        return;
-    }
+  const reason = document.getElementById('override-reason').value;
+  if (!reason.trim()) {
+    Toast.error('Please enter a reason for the override');
+    return;
+  }
 
-    const data = { ...state.pendingSlotData, override_conflict: true, override_reason: reason };
+  const data = { ...state.pendingSlotData, override_conflict: true, override_reason: reason };
 
-    try {
-        const response = await api.post(endpoints.scheduleSlots, data);
-        if (response && response.ok) {
-            Toast.success('Schedule slot added with override!');
-            closeConflictModal();
-            closeSlotModal();
-            await selectSection(state.selectedSection.id);
-        } else {
-            const error = await response?.json();
-            Toast.error(error?.detail || 'Failed to override conflict');
-        }
-    } catch (error) {
-        ErrorHandler.handle(error, 'Overriding schedule conflict');
+  try {
+    const response = await api.post(endpoints.scheduleSlots, data);
+    if (response && response.ok) {
+      Toast.success('Schedule slot added with override!');
+      closeConflictModal();
+      closeSlotModal();
+      await selectSection(state.selectedSection.id);
+    } else {
+      const error = await response?.json();
+      Toast.error(error?.detail || 'Failed to override conflict');
     }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Overriding schedule conflict');
+  }
 };
 
 window.logout = function () {
-    TokenManager.clearTokens();
-    Toast.success('Logged out successfully');
-    setTimeout(() => window.location.href = '/login.html', 1000);
+  TokenManager.clearTokens();
+  Toast.success('Logged out successfully');
+  setTimeout(() => window.location.href = '/login.html', 1000);
 };
 
 document.addEventListener('DOMContentLoaded', init);

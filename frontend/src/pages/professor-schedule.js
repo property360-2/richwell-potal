@@ -102,8 +102,9 @@ async function loadUserProfile() {
   try {
     const response = await api.get(endpoints.me);
     if (response) {
-      state.user = response;
-      TokenManager.setUser(response);
+      // API may return { success, data: {...} } or just the user object directly
+      state.user = response.data || response;
+      TokenManager.setUser(state.user);
     }
   } catch (error) {
     const savedUser = TokenManager.getUser();
@@ -132,7 +133,8 @@ async function loadSchedule() {
 
   try {
     const response = await api.get(endpoints.professorSchedule(state.user.id, state.activeSemester.id));
-    state.schedule = response?.results || response || [];
+    // The API returns { professor, semester, schedule: [...] }
+    state.schedule = response?.schedule || response?.results || (Array.isArray(response) ? response : []);
   } catch (error) {
     ErrorHandler.handle(error, 'Loading schedule');
     state.schedule = [];
@@ -142,9 +144,11 @@ async function loadSchedule() {
 async function loadMySections() {
   try {
     const response = await api.get(endpoints.professorMySections);
-    // Ensure we always get an array
+    // Ensure we always get an array - check multiple possible response formats
     if (Array.isArray(response)) {
       state.mySections = response;
+    } else if (response?.data && Array.isArray(response.data)) {
+      state.mySections = response.data;
     } else if (response?.results && Array.isArray(response.results)) {
       state.mySections = response.results;
     } else if (response?.sections && Array.isArray(response.sections)) {
@@ -374,13 +378,38 @@ function renderGradingTab() {
     return renderStudentGradingView();
   }
 
+  // Flatten sections - create one item per (section, subject) pair
+  const flattenedItems = [];
+  for (const section of sections) {
+    const subjects = section.subjects || [];
+    if (subjects.length === 0) {
+      // Section with no subjects - show it anyway
+      flattenedItems.push({
+        ...section,
+        subject_id: null,
+        subject_code: 'N/A',
+        subject_title: ''
+      });
+    } else {
+      for (const subj of subjects) {
+        flattenedItems.push({
+          ...section,
+          subject_id: subj.subject_id,
+          subject_code: subj.subject_code,
+          subject_title: subj.subject_title,
+          units: subj.units
+        });
+      }
+    }
+  }
+
   return `
     <div class="mb-6">
       <h2 class="text-xl font-bold text-gray-800">Select Section to Grade</h2>
       <p class="text-sm text-gray-600 mt-1">Choose a section and subject to view students and submit grades</p>
     </div>
 
-    ${sections.length === 0 ? `
+    ${flattenedItems.length === 0 ? `
       <div class="card text-center py-12">
         <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
@@ -391,24 +420,24 @@ function renderGradingTab() {
       </div>
     ` : `
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        ${sections.map(section => `
+        ${flattenedItems.map(item => `
           <div class="card hover:shadow-lg transition-all">
             <div class="flex items-start justify-between mb-3">
               <div>
-                <h3 class="text-lg font-bold text-gray-800">${section.section_name || section.name || 'Section'}</h3>
-                <p class="text-sm text-gray-500">${section.program_code || 'Program'}</p>
+                <h3 class="text-lg font-bold text-gray-800">${item.section_name || item.name || 'Section'}</h3>
+                <p class="text-sm text-gray-500">${item.program_code || 'Program'}</p>
               </div>
               <span class="px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">
-                Year ${section.year_level || 'N/A'}
+                Year ${item.year_level || 'N/A'}
               </span>
             </div>
             
             <div class="text-sm text-gray-600 mb-3">
-              <p><strong>Subject:</strong> ${section.subject_code || 'N/A'} - ${section.subject_title || ''}</p>
-              <p><strong>Students:</strong> ${section.student_count || 0}</p>
+              <p><strong>Subject:</strong> ${item.subject_code || 'N/A'} - ${item.subject_title || ''}</p>
+              <p><strong>Students:</strong> ${item.student_count || 0}</p>
             </div>
             
-            <button onclick="selectSectionForGrading('${section.section_id || section.id}', '${section.subject_id}')" 
+            <button onclick="selectSectionForGrading('${item.section_id || item.id}', '${item.subject_id}')" 
                     class="btn btn-primary w-full">
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>

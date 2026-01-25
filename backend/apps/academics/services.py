@@ -422,35 +422,55 @@ class SchedulingService:
         Get a professor's full schedule for a semester.
         
         Returns:
-            list: List of schedule slots grouped by day
+            list: List of schedule slots
         """
-        from apps.academics.models import ScheduleSlot
+        from apps.academics.models import ScheduleSlot, SectionSubjectProfessor, SectionSubject
+        from django.db.models import Q
+        
+        # Get section subjects assigned to professor via junction table OR legacy field
+        assigned_ss_ids = SectionSubjectProfessor.objects.filter(
+            professor=professor,
+            section_subject__section__semester=semester,
+            is_deleted=False
+        ).values_list('section_subject_id', flat=True)
+        
+        # Legacy check
+        direct_ss_ids = SectionSubject.objects.filter(
+            professor=professor,
+            section__semester=semester,
+            is_deleted=False
+        ).values_list('id', flat=True)
+        
+        all_ss_ids = set(assigned_ss_ids) | set(direct_ss_ids)
         
         slots = ScheduleSlot.objects.filter(
-            section_subject__professor=professor,
-            section_subject__section__semester=semester,
+            section_subject_id__in=all_ss_ids,
             is_deleted=False
         ).select_related(
             'section_subject__subject',
             'section_subject__section'
         ).order_by('day', 'start_time')
         
-        schedule = {}
+        # Return flat list instead of grouped dict, as frontend expects array
+        schedule_list = []
         for slot in slots:
-            day = slot.day
-            if day not in schedule:
-                schedule[day] = []
-            
-            schedule[day].append({
+            schedule_list.append({
                 'id': str(slot.id),
-                'subject': slot.section_subject.subject.code,
-                'section': slot.section_subject.section.name,
+                'day': slot.day,
+                'subject': {
+                    'code': slot.section_subject.subject.code,
+                    'title': slot.section_subject.subject.title
+                },
+                'section': {
+                    'name': slot.section_subject.section.name,
+                    'id': str(slot.section_subject.section.id)
+                },
                 'start_time': slot.start_time.strftime('%H:%M'),
                 'end_time': slot.end_time.strftime('%H:%M'),
                 'room': slot.room
             })
 
-        return schedule
+        return schedule_list
 
 
 class ProfessorService:

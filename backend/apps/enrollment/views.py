@@ -1974,12 +1974,26 @@ class ProfessorSectionsView(APIView):
         tags=["Grades"]
     )
     def get(self, request):
-        from apps.academics.models import SectionSubject, Section
+        from apps.academics.models import SectionSubject, Section, SectionSubjectProfessor
         
-        # Get sections where professor is assigned
-        section_subjects = SectionSubject.objects.filter(
+        # Get section subjects where professor is assigned (via junction table)
+        # We start from SectionSubjectProfessor to support multiple professors
+        assigned_section_subjects_ids = SectionSubjectProfessor.objects.filter(
             professor=request.user,
             is_deleted=False
+        ).values_list('section_subject_id', flat=True)
+        
+        # Also check the direct professor field for backward compatibility or if junction table not used yet
+        direct_assigned_ids = SectionSubject.objects.filter(
+            professor=request.user,
+            is_deleted=False
+        ).values_list('id', flat=True)
+        
+        # Combine IDs
+        all_ids = set(assigned_section_subjects_ids) | set(direct_assigned_ids)
+        
+        section_subjects = SectionSubject.objects.filter(
+            id__in=all_ids
         ).select_related('section', 'subject', 'section__semester')
         
         # Group by section
@@ -3499,8 +3513,17 @@ class SemesterViewSet(viewsets.ModelViewSet):
     - POST /semesters/{id}/set_current/ - Set semester as current
     """
 
-    permission_classes = [IsAuthenticated, IsRegistrar]
+    permission_classes = [IsAuthenticated]
     queryset = Semester.objects.filter(is_deleted=False)
+
+    def get_permissions(self):
+        """
+        Allow authenticated users to list/retrieve semesters.
+        Restrict create/update/delete to Registrars only.
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'set_current']:
+            return [IsAuthenticated(), IsRegistrar()]
+        return [IsAuthenticated()]
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:

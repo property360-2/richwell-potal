@@ -212,6 +212,7 @@ export const endpoints = {
     // Epic 2: Academics - Sections
     sections: '/academics/sections/',
     section: (id) => `/academics/sections/${id}/`,
+    sectionEnrolledStudents: (id) => `/academics/sections/${id}/enrolled-students/`,
     sectionSubjects: '/academics/section-subjects/',
     sectionSubject: (id) => `/academics/section-subjects/${id}/`,
 
