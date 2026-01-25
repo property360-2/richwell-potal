@@ -1,6 +1,6 @@
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { requireAuth, formatDate } from '../utils.js';
+import { requireAuth, formatDate, setButtonLoading } from '../utils.js';
 import { createHeader } from '../components/header.js';
 import { Toast } from '../components/Toast.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -1861,7 +1861,7 @@ function renderSectionDetail() {
         </div>
         
         <div class="flex gap-3">
-          <button onclick="openAssignSubjectModal()" class="btn btn-primary flex items-center gap-2">
+          <button onclick="openAssignSectionSubjectModal()" class="btn btn-primary flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
             </svg>
@@ -1987,7 +1987,7 @@ function renderSectionScheduleGrid() {
           </tr>
         `).join('')}
       </tbody>
-    </table >
+    </table>
     `;
 }
 
@@ -2001,7 +2001,7 @@ function renderScheduleCell(day, timeSlot) {
   });
 
   if (matchingSlots.length === 0) {
-    return `< td class="border-r border-gray-100 p-0.5" ></td > `;
+    return `<td class="border-r border-gray-100 p-0.5"></td>`;
   }
 
   const slot = matchingSlots[0];
@@ -2023,7 +2023,7 @@ function renderScheduleCell(day, timeSlot) {
   const colorClass = getSubjectColor(slot.subject_code);
 
   return `
-    < td class="border-r border-gray-100 p-1 align-top" rowspan = "${duration}" >
+    <td class="border-r border-gray-100 p-1 align-top" rowspan="${duration}">
       <div class="h-full rounded-lg border-l-4 shadow-sm p-2 flex flex-col justify-between ${colorClass} transition-transform hover:scale-[1.02] cursor-default">
         <div>
           <p class="text-[10px] font-bold uppercase tracking-tight opacity-75">${slot.subject_code}</p>
@@ -2034,7 +2034,7 @@ function renderScheduleCell(day, timeSlot) {
           ${slot.professor_name ? `<span class="text-[9px] truncate font-medium max-w-[60px] text-right" title="${slot.professor_name}">${slot.professor_name.split(' ').pop()}</span>` : ''}
         </div>
       </div>
-        </td >
+    </td>
     `;
 }
 
@@ -2077,7 +2077,7 @@ window.openAddSectionModal = function () {
   const modal = new Modal({
     title: 'Create New Section',
     content: `
-    < form id = "add-section-form" class="space-y-4" >
+    <form id="add-section-form" class="space-y-4">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="md:col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">Section Name *</label>
@@ -2095,7 +2095,7 @@ window.openAddSectionModal = function () {
 
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
-          <select id="sec-year" required class="form-select">
+          <select id="sec-year" required class="form-select bg-white">
             <option value="1">1st Year</option>
             <option value="2">2nd Year</option>
             <option value="3">3rd Year</option>
@@ -2113,7 +2113,7 @@ window.openAddSectionModal = function () {
           <div class="form-input bg-gray-50 text-gray-500 flex items-center h-[38px]">${state.activeSemester?.name || 'Current'}</div>
         </div>
       </div>
-      </form >
+      </form>
     `,
     size: 'lg',
     actions: [
@@ -2157,7 +2157,7 @@ window.openEditSectionModal = function () {
   const modal = new Modal({
     title: 'Edit Section',
     content: `
-    < form id = "edit-section-form" class="space-y-4" >
+    <form id="edit-section-form" class="space-y-4">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="md:col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">Section Name *</label>
@@ -2184,7 +2184,7 @@ window.openEditSectionModal = function () {
           <input type="number" id="edit-sec-capacity" value="${section.capacity}" required class="form-input" min="1" max="100">
         </div>
       </div>
-      </form >
+      </form>
     `,
     size: 'lg',
     actions: [
@@ -2242,83 +2242,239 @@ window.deleteSection = async function (id) {
   }
 };
 
-window.openAssignSubjectModal = async function () {
+window.openAssignSectionSubjectModal = async function () {
+  // 1. Load subjects for this program (if not loaded)
   const section = state.selectedSection;
-
-  // Load curricula for this program to find appropriate subjects
-  const curricula = await api.get(`${endpoints.curricula}?program = ${section.program.id}& is_active=true`);
-  const activeCurriculum = curricula.results?.[0] || curricula[0];
-
-  if (!activeCurriculum) {
-    Toast.error('No active curriculum found for this program. Create one first.');
-    return;
+  if (section && section.program) {
+    await loadSubjects(section.program);
   }
-
-  // Load subjects for the matched year/semester (optional filtering) or just all from curriculum
-  const subjectsRes = await api.get(`${endpoints.curriculum(activeCurriculum.id)} `);
-  const availableSubjects = subjectsRes.subjects || [];
-
-  // Filter out already assigned
-  const assignedCodes = new Set(state.sectionSubjects.map(ss => ss.subject_code));
-  const unassignedSubjects = availableSubjects.filter(s => !assignedCodes.has(s.subject_code));
+  // 2. Load professors (if not loaded)
+  if (state.professors.length === 0) {
+    await loadProfessors();
+  }
 
   const modal = new Modal({
     title: 'Assign Subject to Section',
-    content: `
-    < div class="space-y-4" >
-        <p class="text-sm text-gray-600">Selecting subjects from <span class="font-bold">${activeCurriculum.name}</span></p>
-        
-        <div class="max-h-[400px] overflow-y-auto border border-gray-100 rounded-lg">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-4 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Subject</th>
-                        <th class="px-4 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Year/Sem</th>
-                        <th class="px-4 py-2 text-right text-[10px] font-bold text-gray-400 uppercase">Action</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                    ${unassignedSubjects.length === 0 ? `
-                        <tr><td colspan="3" class="px-4 py-8 text-center text-gray-400">No more subjects to assign.</td></tr>
-                    ` : unassignedSubjects.map(s => `
-                        <tr class="hover:bg-gray-50 transition-colors">
-                            <td class="px-4 py-3">
-                                <div class="font-bold text-blue-600 text-sm">${s.subject_code}</div>
-                                <div class="text-xs text-gray-600 line-clamp-1">${s.subject_title}</div>
-                            </td>
-                            <td class="px-4 py-3 text-xs text-gray-500">
-                                Y${s.year_level} S${s.semester_number}
-                            </td>
-                            <td class="px-4 py-3 text-right">
-                                <button onclick="assignSubjectToSection('${s.subject}')" class="text-blue-600 hover:text-blue-800 font-bold text-xs uppercase tracking-wider">Assign</button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-      </div >
-    `,
+    content: getAssignSectionSubjectForm(),
     size: 'lg',
-    actions: [{ label: 'Close', onClick: (m) => m.close() }]
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Assign',
+        primary: true,
+        onClick: async (m, e) => {
+          await submitSectionAssignment(m, e.target);
+        }
+      }
+    ]
+  });
+  modal.show();
+};
+
+function getAssignSectionSubjectForm() {
+  // Generate Time Slots Options (7am to 9pm)
+  const timeOptions = TIME_SLOTS.map(t => `<option value="${t}">${formatTime(t)}</option>`).join('');
+  // Day Options
+  const dayOptions = DAYS.map(d => `<option value="${d.code}">${d.name}</option>`).join('');
+  // Room Options
+  const roomOptions = ROOMS.map(r => `<option value="${r}">${r}</option>`).join('');
+  // Subject Options
+  const subjectOptions = state.subjects.map(s => `<option value="${s.id}">${s.code} - ${s.title}</option>`).join('');
+  // Professor Options
+  const profOptions = state.professors.map(p => `<option value="${p.id}">${p.full_name || p.user?.first_name + ' ' + p.user?.last_name}</option>`).join('');
+
+  return `
+        <form id="assign-section-subject-form" class="space-y-4">
+            <div id="conflict-warning" class="hidden bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-800 flex items-start gap-2">
+                <svg class="w-5 h-5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <span id="conflict-message">Warning message here</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
+                    <select id="assign-subject" required class="form-select w-full">
+                        <option value="">Select Subject</option>
+                        ${subjectOptions}
+                    </select>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Professor</label>
+                    <select id="assign-professor" class="form-select w-full">
+                        <option value="">TBA</option>
+                        ${profOptions}
+                    </select>
+                </div>
+                
+                <div>
+                     <label class="block text-sm font-medium text-gray-700 mb-1">Day *</label>
+                     <select id="assign-day" required class="form-select w-full" onchange="checkConflictsAsync()">
+                        ${dayOptions}
+                     </select>
+                </div>
+
+                 <div>
+                     <label class="block text-sm font-medium text-gray-700 mb-1">Room</label>
+                     <select id="assign-room" class="form-select w-full" onchange="checkConflictsAsync()">
+                        <option value="">TBA</option>
+                        ${roomOptions}
+                     </select>
+                </div>
+
+                <div>
+                     <label class="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                     <select id="assign-start" required class="form-select w-full" onchange="checkConflictsAsync()">
+                        ${timeOptions}
+                     </select>
+                </div>
+
+                <div>
+                     <label class="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+                     <select id="assign-end" required class="form-select w-full" onchange="checkConflictsAsync()">
+                        ${timeOptions}
+                     </select>
+                </div>
+            </div>
+        </form>
+    `;
+}
+
+window.checkConflictsAsync = async function () {
+  const day = document.getElementById('assign-day').value;
+  const room = document.getElementById('assign-room').value;
+  const start = document.getElementById('assign-start').value;
+  const end = document.getElementById('assign-end').value;
+  const professor = document.getElementById('assign-professor').value;
+  const warningEl = document.getElementById('conflict-warning');
+  const msgEl = document.getElementById('conflict-message');
+
+  // Reset UI
+  warningEl.classList.add('hidden');
+  msgEl.textContent = '';
+
+  if (!day || !start || !end) return false;
+
+  // Basic validation
+  if (start >= end) {
+    msgEl.textContent = 'End time must be after start time.';
+    warningEl.classList.remove('hidden');
+    return true;
+  }
+
+  // 1. Local Section Conflict Check
+  const startTime = parseInt(start.replace(':', ''));
+  const endTime = parseInt(end.replace(':', ''));
+
+  const sectionConflict = state.sectionSchedule.find(s => {
+    if (s.day !== day) return false;
+    const sStart = parseInt(s.start_time.substring(0, 5).replace(':', ''));
+    const sEnd = parseInt(s.end_time.substring(0, 5).replace(':', ''));
+    return (startTime < sEnd && endTime > sStart);
   });
 
-  window.assignSubjectToSection = async (subjectId) => {
-    try {
-      await api.post(endpoints.sectionSubjects, {
-        section: section.id,
-        subject: subjectId
-      });
-      Toast.success('Subject assigned');
-      modal.close();
-      await loadSectionDetails(section.id);
-      render();
-    } catch (error) {
-      ErrorHandler.handle(error, 'Assigning subject');
+  if (sectionConflict) {
+    msgEl.innerHTML = `<strong>Schedule Conflict:</strong> This section already has <strong>${sectionConflict.subject_code}</strong> at this time.`;
+    warningEl.classList.remove('hidden');
+    return true;
+  }
+
+  // 2. Server-side Conflict Check
+  const semesterId = state.selectedSection.semester || state.activeSemester?.id;
+
+  try {
+    if (room && room !== 'TBA') {
+      const roomResp = await api.get(`${endpoints.checkRoomConflict}?room=${encodeURIComponent(room)}&day=${day}&start_time=${start}&end_time=${end}&semester=${semesterId}`);
+      if (roomResp && roomResp.conflict) {
+        msgEl.innerHTML = `<strong>Room Conflict:</strong> ${roomResp.message || 'Room is occupied.'}`;
+        warningEl.classList.remove('hidden');
+        return true;
+      }
     }
+
+    if (professor) {
+      const profResp = await api.get(`${endpoints.checkProfessorConflict}?professor=${professor}&day=${day}&start_time=${start}&end_time=${end}&semester=${semesterId}`);
+      if (profResp && profResp.conflict) {
+        msgEl.innerHTML = `<strong>Professor Conflict:</strong> ${profResp.message || 'Professor has another class.'}`;
+        warningEl.classList.remove('hidden');
+        return true;
+      }
+    }
+  } catch (error) {
+    console.warn('Conflict check failed', error);
+  }
+
+  return false;
+};
+
+window.submitSectionAssignment = async function (modal, btn) {
+  const form = document.getElementById('assign-section-subject-form');
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
+
+  const modalEl = document.getElementById(modal.modalId);
+  const submitBtn = btn || modalEl.querySelector('[data-primary="true"]');
+  setButtonLoading(submitBtn, true, 'Assigning...');
+
+  if (await checkConflictsAsync()) {
+    setButtonLoading(submitBtn, false);
+    return;
+  }
+
+  const data = {
+    section: state.selectedSection.id,
+    subject: document.getElementById('assign-subject').value,
+    professor: document.getElementById('assign-professor').value || null,
+    day: document.getElementById('assign-day').value,
+    room: document.getElementById('assign-room').value || null,
+    start_time: document.getElementById('assign-start').value,
+    end_time: document.getElementById('assign-end').value
   };
 
-  modal.show();
+
+
+  try {
+    // 1. Assign Subject
+    const assignmentPayload = {
+      section: state.selectedSection.id,
+      subject: document.getElementById('assign-subject').value,
+      professor: document.getElementById('assign-professor').value || null
+    };
+
+    const assignment = await api.post(endpoints.sectionSubjects, assignmentPayload);
+
+    // 2. Create Schedule Slot (if successful)
+    if (assignment && assignment.id) {
+      const schedulePayload = {
+        section_subject: assignment.id,
+        day: document.getElementById('assign-day').value,
+        room: document.getElementById('assign-room').value || null,
+        start_time: document.getElementById('assign-start').value,
+        end_time: document.getElementById('assign-end').value,
+        professor: assignmentPayload.professor
+      };
+
+      await api.post(endpoints.scheduleSlots, schedulePayload);
+    }
+
+    Toast.success('Subject assigned and scheduled successfully');
+    modal.close();
+    await loadSectionDetails(state.selectedSection.id);
+    render();
+  } catch (error) {
+    if (error && error.status === 400) {
+      const warningEl = document.getElementById('conflict-warning');
+      const msgEl = document.getElementById('conflict-message');
+      msgEl.textContent = error.response?.data?.non_field_errors?.[0] || 'Conflict detected.';
+      warningEl.classList.remove('hidden');
+    } else {
+      ErrorHandler.handle(error, 'Assigning subject');
+    }
+  } finally {
+    setButtonLoading(submitBtn, false);
+  }
 };
 
 window.removeSubjectFromSection = async function (ssId) {
@@ -2348,7 +2504,7 @@ window.openScheduleSlotModal = function (ssId) {
   const modal = new Modal({
     title: `Add Schedule Slot: ${ss.subject_code} `,
     content: `
-    < form id = "add-slot-form" class="space-y-4" >
+    <form id="add-slot-form" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Day *</label>
           <select id="slot-day" required class="form-select">
@@ -2395,7 +2551,7 @@ window.openScheduleSlotModal = function (ssId) {
         <div id="conflict-warning" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
              <!-- Warning messages -->
         </div>
-      </form >
+      </form>
     `,
     size: 'md',
     actions: [
@@ -2403,7 +2559,10 @@ window.openScheduleSlotModal = function (ssId) {
       {
         label: 'Add Slot',
         primary: true,
-        onClick: async (m) => {
+        onClick: async (m, e) => {
+          const btn = e.target;
+          const { setButtonLoading } = await import('../utils.js');
+
           const data = {
             section_subject: ssId,
             day: document.getElementById('slot-day').value,
@@ -2418,6 +2577,8 @@ window.openScheduleSlotModal = function (ssId) {
             return;
           }
 
+          setButtonLoading(btn, true, 'Adding...');
+
           try {
             await api.post(endpoints.scheduleSlots, data);
             Toast.success('Schedule slot added');
@@ -2425,8 +2586,9 @@ window.openScheduleSlotModal = function (ssId) {
             await loadSectionDetails(state.selectedSection.id);
             render();
           } catch (error) {
-            // Handle conflict errors specially if needed
             ErrorHandler.handle(error, 'Adding schedule');
+          } finally {
+            setButtonLoading(btn, false);
           }
         }
       }
@@ -2586,7 +2748,7 @@ function getProgramForm(program = null) {
   const prefix = isEdit ? 'edit' : 'add';
 
   return `
-    < form id = "${prefix}-program-form" class="space-y-4" >
+    <form id="${prefix}-program-form" class="space-y-4">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Program Code *</label>
         <input type="text" id="${prefix}-code" value="${program?.code || ''}" required class="form-input" placeholder="e.g., BSIT, BSCS" pattern="[A-Z]+" title="Must be uppercase letters only">
@@ -2618,7 +2780,7 @@ function getProgramForm(program = null) {
         <input type="checkbox" id="${prefix}-active" ${program?.is_active !== false ? 'checked' : ''} class="rounded border-gray-300">
         <label for="${prefix}-active" class="text-sm font-medium text-gray-700">Active (currently offered)</label>
       </div>
-    </form >
+    </form>
     `;
 }
 
@@ -2852,15 +3014,15 @@ window.setupPrereqSearchListeners = function (prefix) {
 
     if (matches.length > 0) {
       resultsDropdown.innerHTML = matches.map(s => `
-    < div class="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
+      <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
   onclick = "addPrerequisite('${prefix}', '${s.id}', '${s.code}')" >
                     <span class="font-medium text-sm text-gray-800">${s.code}</span>
                     <span class="text-xs text-gray-500 truncate max-w-[150px]">${s.title}</span>
-                </div >
+      </div>
     `).join('');
       resultsDropdown.classList.remove('hidden');
     } else {
-      resultsDropdown.innerHTML = `< div class="px-3 py-2 text-sm text-gray-500" > No subjects found</div > `;
+      resultsDropdown.innerHTML = `<div class="px-3 py-2 text-sm text-gray-500">No subjects found</div>`;
       resultsDropdown.classList.remove('hidden');
     }
   });
@@ -2963,7 +3125,7 @@ function getCurriculumForm(curriculum = null) {
   const prefix = isEdit ? 'edit' : 'add';
 
   return `
-    < form id = "${prefix}-curriculum-form" class="space-y-4" >
+    <form id="${prefix}-curriculum-form" class="space-y-4">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Code *</label>
         <input type="text" id="${prefix}-curriculum-code" value="${curriculum?.code || ''}" required class="form-input" placeholder="e.g., BSIT-2024">
@@ -2997,7 +3159,7 @@ function getCurriculumForm(curriculum = null) {
         <input type="checkbox" id="${prefix}-curriculum-active" ${curriculum?.is_active !== false ? 'checked' : ''} class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
         <label for="${prefix}-curriculum-active" class="text-sm font-medium text-gray-700">Active Curriculum</label>
       </div>
-    </form >
+    </form>
     `;
 }
 
@@ -3162,7 +3324,7 @@ function getCurriculumViewContent(curriculum, response) {
   state.currentCurriculum = { ...curriculum, structure: subjectsByLevel }; // Store for easy access
 
   return `
-    < !--Strong Context Header-- >
+    <!--Strong Context Header-->
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-6">
        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
            <div>
@@ -3200,7 +3362,7 @@ function getCurriculumViewContent(curriculum, response) {
        ` : ''}
     </div>
 
-    <!--Subjects by Year and Semester-- >
+    <!--Subjects by Year and Semester-->
     <div class="space-y-6">
       ${[1, 2, 3, 4, 5].map(year => {
     return `
@@ -3306,7 +3468,7 @@ window.getAssignSubjectModalContent = function () {
   const { activeTab, curriculumId, year, semester } = state.assignModal;
 
   return `
-    < div class="flex flex-col h-[500px]" >
+    <div class="flex flex-col h-[500px]">
              < !--Tabs -->
              <div class="flex border-b border-gray-200 mb-4">
                  <button onclick="selectAssignTab('select')" class="flex-1 py-3 text-sm font-medium border-b-2 ${activeTab === 'select' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
@@ -3321,13 +3483,13 @@ window.getAssignSubjectModalContent = function () {
     <div class="flex-1 overflow-y-auto pr-2">
       ${activeTab === 'select' ? renderAssignSelectTab() : renderAssignCreateTab()}
     </div>
-        </div >
+        </div>
     `;
 };
 
 window.renderAssignSelectTab = function () {
   return `
-    < div class="space-y-4" >
+    <div class="space-y-4">
             <div class="relative">
                 <input type="text" 
                        oninput="searchAssignSubjects(this.value)" 
@@ -3343,13 +3505,13 @@ window.renderAssignSelectTab = function () {
                 <!-- Results populated by JS -->
                 <p class="text-center text-gray-500 py-4">Type to search subjects...</p>
             </div>
-        </div >
+        </div>
     `;
 };
 
 window.renderAssignCreateTab = function () {
   return `
-    < form id = "inline-create-subject-form" class="space-y-4 px-1" onsubmit = "event.preventDefault(); createAndAssignSubject();" >
+    <form id="inline-create-subject-form" class="space-y-4 px-1" onsubmit="event.preventDefault(); createAndAssignSubject();">
             <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
                 <p class="text-sm text-blue-800 flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -3384,7 +3546,7 @@ window.renderAssignCreateTab = function () {
                     Create & Assign Subject
                 </button>
             </div>
-        </form >
+        </form>
     `;
 };
 
@@ -3424,12 +3586,12 @@ window.searchAssignSubjects = function (query) {
   }).slice(0, 15);
 
   if (results.length === 0) {
-    resultsContainer.innerHTML = `< div class="p-4 text-center text-gray-500 bg-gray-50 rounded" > No matching subjects found in this program program.</div > `;
+    resultsContainer.innerHTML = `<div class="p-4 text-center text-gray-500 bg-gray-50 rounded">No matching subjects found in this program.</div>`;
     return;
   }
 
   resultsContainer.innerHTML = results.map(s => `
-    < div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" >
+    <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
             <div>
                 <div class="flex items-center gap-2">
                     <span class="font-bold text-gray-800">${s.code}</span>
@@ -3440,7 +3602,7 @@ window.searchAssignSubjects = function (query) {
             <button onclick="assignSubjectToCurriculum('${s.id}')" class="btn btn-sm btn-primary">
                 Assign
             </button>
-        </div >
+        </div>
     `).join('');
 };
 
@@ -3563,7 +3725,7 @@ window.deleteCurriculum = async function (curriculumId) {
 
 function renderCurriculaTab() {
   return `
-    < div class="flex items-center justify-between mb-6" >
+    <div class="flex items-center justify-between mb-6">
       <div>
         <h2 class="text-xl font-bold text-gray-800">Curricula</h2>
         <p class="text-sm text-gray-600 mt-1">Curriculum versions and subject mapping</p>
@@ -3574,7 +3736,7 @@ function renderCurriculaTab() {
         </svg>
         Add Curriculum
       </button>
-    </div >
+    </div>
 
     ${state.curricula.length === 0 ? `
       <div class="card text-center py-12">
@@ -3627,7 +3789,7 @@ function renderSemestersTab() {
   const years = getUniqueAcademicYears();
 
   return `
-    < div class="flex items-center justify-between mb-6" >
+    <div class="flex items-center justify-between mb-6">
       <div>
         <h2 class="text-xl font-bold text-gray-800">Semesters</h2>
         <p class="text-sm text-gray-600 mt-1">Manage academic semesters and enrollment periods</p>
@@ -3649,7 +3811,7 @@ function renderSemestersTab() {
           Add Semester
         </button>
       </div>
-    </div >
+    </div>
 
     ${state.filteredSemesters.length === 0 ? `
       <div class="card text-center py-12">
@@ -3719,7 +3881,7 @@ function renderSemestersTab() {
 
 function renderSemesterAddModal() {
   return `
-    < div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick = "closeSemesterAddModal()" >
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeSemesterAddModal()">
       <div class="bg-white rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl" onclick="event.stopPropagation()">
         <h3 class="text-xl font-bold text-gray-800 mb-4">Add New Semester</h3>
         <form id="add-semester-form" class="space-y-4">
@@ -3774,7 +3936,7 @@ function renderSemesterAddModal() {
           <button onclick="submitAddSemester()" class="flex-1 btn btn-primary">Create Semester</button>
         </div>
       </div>
-    </div >
+    </div>
     `;
 }
 
@@ -3783,7 +3945,7 @@ function renderSemesterEditModal() {
   if (!sem) return '';
 
   return `
-    < div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick = "closeSemesterEditModal()" >
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeSemesterEditModal()">
       <div class="bg-white rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl" onclick="event.stopPropagation()">
         <h3 class="text-xl font-bold text-gray-800 mb-4">Edit Semester</h3>
         <form id="edit-semester-form" class="space-y-4">
@@ -3837,7 +3999,7 @@ function renderSemesterEditModal() {
           <button onclick="submitEditSemester()" class="flex-1 btn btn-primary">Save Changes</button>
         </div>
       </div>
-    </div >
+    </div>
     `;
 }
 
@@ -3998,7 +4160,7 @@ function initEditPrerequisites(subject) {
 }
 
 function updatePrereqDropdown(mode) {
-  const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -prereq - dropdown`);
+  const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-dropdown`);
   if (!dropdown) return;
 
   if (state.prereqState[mode].results.length === 0) {
@@ -4008,16 +4170,16 @@ function updatePrereqDropdown(mode) {
 
   dropdown.classList.remove('hidden');
   dropdown.innerHTML = state.prereqState[mode].results.map(s => `
-    < button type = "button" onclick = "addPrerequisite('${mode}', '${s.id}', '${s.code}', '${(s.title || s.name || '').replace(/'/g, "\\'")}') "
-  class="w-full px-4 py-2 text-left hover:bg-gray-100 flex justify-between items-center border-b border-gray-100 last:border-0" >
+    <button type="button" onclick="addPrerequisite('${mode}', '${s.id}', '${s.code}', '${(s.title || s.name || '').replace(/'/g, "\\'")}')"
+  class="w-full px-4 py-2 text-left hover:bg-gray-100 flex justify-between items-center border-b border-gray-100 last:border-0">
       <span class="font-mono text-blue-600 font-medium">${s.code}</span>
       <span class="text-gray-600 text-sm truncate ml-2">${s.title || s.name || ''}</span>
-    </button >
+    </button>
     `).join('');
 }
 
 function updateSelectedPrereqs(mode) {
-  const container = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -selected - prereqs`);
+  const container = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-selected-prereqs`);
   if (!container) return;
 
   if (state.prereqState[mode].selected.length === 0) {
@@ -4026,7 +4188,7 @@ function updateSelectedPrereqs(mode) {
   }
 
   container.innerHTML = state.prereqState[mode].selected.map(p => `
-    < span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm" >
+    <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
       <span class="font-mono font-medium">${p.code}</span>
       <button type="button" onclick="removePrerequisite('${mode}', '${p.id}')"
               class="hover:text-red-600 ml-1 focus:outline-none">
@@ -4034,12 +4196,12 @@ function updateSelectedPrereqs(mode) {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
-    </span >
+    </span>
     `).join('');
 }
 
 function setupPrereqSearchListeners(mode) {
-  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -prereq - search`);
+  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-search`);
   if (!searchInput) return;
 
   let debounceTimer;
@@ -4059,7 +4221,7 @@ function setupPrereqSearchListeners(mode) {
 
   // Close dropdown when clicking outside
   document.addEventListener('click', (e) => {
-    const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -prereq - dropdown`);
+    const dropdown = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-dropdown`);
     if (dropdown && !searchInput.contains(e.target) && !dropdown.contains(e.target)) {
       dropdown.classList.add('hidden');
     }
@@ -4097,7 +4259,7 @@ window.addPrerequisite = function (mode, id, code, title) {
   }
 
   // Clear search
-  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'} -prereq - search`);
+  const searchInput = document.getElementById(`${mode === 'edit' ? 'edit' : 'add'}-prereq-search`);
   if (searchInput) {
     searchInput.value = '';
   }
@@ -4109,6 +4271,11 @@ window.removePrerequisite = function (mode, id) {
   state.prereqState[mode].selected = state.prereqState[mode].selected.filter(p => p.id !== id);
   updateSelectedPrereqs(mode);
 };
+
+// ============================================================
+// SECTIONS TAB & LOGIC
+// ============================================================
+
 
 // ============================================================
 // GLOBAL HANDLERS

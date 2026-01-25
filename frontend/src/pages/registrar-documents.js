@@ -7,7 +7,7 @@ import { ErrorHandler } from '../utils/errorHandler.js';
 import { LoadingOverlay } from '../components/Spinner.js';
 import { Modal } from '../components/Modal.js';
 import { createSearchInput } from '../components/SearchInput.js';
-import { createEmptyState, EmptyStateIcons } from '../components/EmptyState.js';
+import { EmptyState, EmptyStateIcons } from '../components/EmptyState.js';
 
 // State
 const state = {
@@ -22,11 +22,17 @@ const state = {
 };
 
 async function init() {
-  if (!requireAuth()) return;
-  await loadUserProfile();
-  await loadAllStudents();
-  state.loading = false;
-  render();
+  try {
+    if (!requireAuth()) return;
+    await loadUserProfile();
+    await loadAllStudents();
+  } catch (error) {
+    console.error('Init failed:', error);
+    ErrorHandler.handle(error, 'Initializing page');
+  } finally {
+    state.loading = false;
+    render();
+  }
 }
 
 async function loadUserProfile() {
@@ -116,7 +122,7 @@ function render() {
         <!-- Students Table -->
         ${state.loadingStudents ? `
           <div class="text-center py-8">
-            <svg class="w-8 h-8 animate-spin text-blue-600 mx-auto" viewBox="0 0 24 24" fill="none">
+            <svg class="w-8 h-8 animate-spin text-blue-600 mx-auto" width="32" height="32" viewBox="0 0 24 24" fill="none">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -163,19 +169,19 @@ function renderStudentsList() {
     : state.allStudents;
 
   if (displayStudents.length === 0) {
-    return createEmptyState({
-      icon: state.searchQuery ? EmptyStateIcons.search : EmptyStateIcons.users,
-      title: state.searchQuery ? 'No students found' : 'No students enrolled',
-      description: state.searchQuery
-        ? 'Try adjusting your search criteria or check the student number.'
-        : 'There are no enrolled students in the system yet.',
-      actionText: state.searchQuery ? 'Clear Search' : null,
-      onAction: state.searchQuery ? () => {
-        state.searchQuery = '';
-        state.searchResults = [];
-        render();
-      } : null
-    }).outerHTML;
+    if (displayStudents.length === 0) {
+      return EmptyState({
+        icon: state.searchQuery ? EmptyStateIcons.search : EmptyStateIcons.users,
+        title: state.searchQuery ? 'No students found' : 'No students enrolled',
+        description: state.searchQuery
+          ? 'Try adjusting your search criteria or check the student number.'
+          : 'There are no enrolled students in the system yet.',
+        action: state.searchQuery ? {
+          label: 'Clear Search',
+          onClick: 'handleClearSearch()'
+        } : null
+      });
+    }
   }
 
   return `
@@ -412,6 +418,12 @@ window.logout = function () {
   setTimeout(() => {
     window.location.href = '/login.html';
   }, 1000);
+};
+
+window.handleClearSearch = function () {
+  state.searchQuery = '';
+  state.searchResults = [];
+  render();
 };
 
 document.addEventListener('DOMContentLoaded', init);

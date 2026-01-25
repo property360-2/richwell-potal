@@ -129,6 +129,7 @@ export class Modal {
           type="button"
           class="${baseClasses} ${variantClasses} modal-action"
           data-action-index="${index}"
+          data-primary="${!!action.primary}"
           ${action.disabled ? 'disabled' : ''}
         >
           ${action.label}
@@ -165,10 +166,10 @@ export class Modal {
     const actionButtons = modalEl.querySelectorAll('.modal-action');
     actionButtons.forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const index = parseInt(e.target.dataset.actionIndex);
+        const index = parseInt(e.currentTarget.dataset.actionIndex);
         const action = this.options.actions[index];
         if (action && action.onClick) {
-          action.onClick(this);
+          action.onClick(this, e);
         }
       });
     });
@@ -248,6 +249,11 @@ export class Modal {
       // Call onClose callback
       if (this.options.onClose) {
         this.options.onClose(this);
+      }
+
+      // Auto-destroy if enabled (defaulting to true for safety in this app pattern)
+      if (this.options.destroyOnClose !== false) {
+        this.destroy();
       }
     }, 300);
   }
