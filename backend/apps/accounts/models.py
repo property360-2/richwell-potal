@@ -207,6 +207,11 @@ class StudentProfile(BaseModel):
         LOA = 'LOA', 'Leave of Absence'
         WITHDRAWN = 'WITHDRAWN', 'Withdrawn'
         GRADUATED = 'GRADUATED', 'Graduated'
+
+    class AcademicStatus(models.TextChoices):
+        REGULAR = 'REGULAR', 'Regular'
+        PROBATION = 'PROBATION', 'Probation'
+        DISMISSED = 'DISMISSED', 'Dismissed'
     
     # Link to User
     user = models.OneToOneField(
@@ -235,10 +240,43 @@ class StudentProfile(BaseModel):
         default=1,
         help_text='Current year level (1-5)'
     )
+    
+    # Section Assignment
+    home_section = models.ForeignKey(
+        'academics.Section', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='home_students',
+        help_text='Administrative home section for regular students'
+    )
+    
+    # Status Flags
+    is_irregular = models.BooleanField(
+        default=False,
+        help_text='Whether the student is an irregular student'
+    )
+    overload_approved = models.BooleanField(
+        default=False,
+        help_text='Whether overload is approved by registrar'
+    )
+    max_units_override = models.PositiveIntegerField(
+        null=True, 
+        blank=True,
+        help_text='Override for maximum units (default is 24)'
+    )
+    
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
-        default=Status.ACTIVE
+        default=Status.ACTIVE,
+        help_text='Enrollment status (Active, LOA, etc.)'
+    )
+    academic_status = models.CharField(
+        max_length=20,
+        choices=AcademicStatus.choices,
+        default=AcademicStatus.REGULAR,
+        help_text='Academic standing'
     )
     
     # Personal information

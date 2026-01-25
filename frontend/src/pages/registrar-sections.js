@@ -222,10 +222,10 @@ function render() {
 
   app.innerHTML = `
     ${createHeader({
-      role: 'REGISTRAR',
-      activePage: 'registrar-sections',
-      user: state.user
-    })}
+    role: 'REGISTRAR',
+    activePage: 'registrar-sections',
+    user: state.user
+  })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Header -->
@@ -248,13 +248,13 @@ function render() {
 
       <!-- Tabs -->
       ${createTabs({
-        tabs: [
-          { id: TABS.SECTIONS, label: 'Sections' },
-          { id: TABS.SCHEDULE, label: 'Schedule Grid' }
-        ],
-        activeTab: state.activeTab,
-        onTabChange: 'switchTab'
-      })}
+    tabs: [
+      { id: TABS.SECTIONS, label: 'Sections' },
+      { id: TABS.SCHEDULE, label: 'Schedule Grid' }
+    ],
+    activeTab: state.activeTab,
+    onTabChange: 'switchTab'
+  })}
 
       <!-- Tab Content -->
       <div class="tab-content">
@@ -313,12 +313,11 @@ function renderSectionsTab() {
                 <h3 class="text-lg font-bold text-blue-600">${section.name}</h3>
                 <p class="text-sm text-gray-600">${section.program_code || section.program?.code || 'N/A'}</p>
               </div>
-              <span class="px-2 py-1 text-xs font-medium rounded ${
-                section.year_level === 1 ? 'bg-green-100 text-green-800' :
-                section.year_level === 2 ? 'bg-blue-100 text-blue-800' :
-                section.year_level === 3 ? 'bg-purple-100 text-purple-800' :
-                'bg-orange-100 text-orange-800'
-              }">
+              <span class="px-2 py-1 text-xs font-medium rounded ${section.year_level === 1 ? 'bg-green-100 text-green-800' :
+      section.year_level === 2 ? 'bg-blue-100 text-blue-800' :
+        section.year_level === 3 ? 'bg-purple-100 text-purple-800' :
+          'bg-orange-100 text-orange-800'
+    }">
                 Year ${section.year_level || 'N/A'}
               </span>
             </div>
@@ -361,8 +360,14 @@ function renderSectionDetail() {
           <button onclick="openAssignSubjectModal()" class="btn btn-primary">
             Assign Subject
           </button>
-          <button onclick="openEditSectionModal()" class="btn btn-secondary">
-            Edit Section
+          <button onclick="openEditSectionModal()" class="btn btn-gray">
+            Edit
+          </button>
+          <button onclick="openMergeSectionModal()" class="btn btn-warning text-white">
+            Merge
+          </button>
+          <button onclick="dissolveSection()" class="btn btn-danger text-white">
+            Dissolve
           </button>
         </div>
       </div>
@@ -379,9 +384,9 @@ function renderSectionDetail() {
           ` : `
             <div class="space-y-3">
               ${state.sectionSubjects.map(ss => {
-                const subject = ss.subject || {};
-                const professor = ss.professors?.[0] || ss.professor;
-                return `
+    const subject = ss.subject || {};
+    const professor = ss.professors?.[0] || ss.professor;
+    return `
                   <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div class="flex items-start justify-between">
                       <div>
@@ -409,7 +414,7 @@ function renderSectionDetail() {
                     ` : ''}
                   </div>
                 `;
-              }).join('')}
+  }).join('')}
             </div>
           `}
         </div>
@@ -547,13 +552,13 @@ function calculateDuration(startTime, endTime) {
 // EVENT HANDLERS - TAB SWITCHING
 // ============================================================
 
-window.switchTab = function(tabId) {
+window.switchTab = function (tabId) {
   state.activeTab = tabId;
   updateHash(tabId);
   render();
 };
 
-window.changeSemester = async function(semesterId) {
+window.changeSemester = async function (semesterId) {
   state.activeSemester = state.semesters.find(s => s.id === semesterId);
   state.selectedSection = null;
   await loadSections();
@@ -564,19 +569,19 @@ window.changeSemester = async function(semesterId) {
 // EVENT HANDLERS - SECTIONS
 // ============================================================
 
-window.viewSection = async function(sectionId) {
+window.viewSection = async function (sectionId) {
   await loadSectionDetails(sectionId);
   render();
 };
 
-window.backToSections = function() {
+window.backToSections = function () {
   state.selectedSection = null;
   state.sectionSubjects = [];
   state.sectionSchedule = [];
   render();
 };
 
-window.openAddSectionModal = function() {
+window.openAddSectionModal = function () {
   const modal = new Modal({
     title: 'Add New Section',
     content: `
@@ -648,11 +653,11 @@ window.openAddSectionModal = function() {
   modal.show();
 };
 
-window.openAssignSubjectModal = function() {
+window.openAssignSubjectModal = function () {
   Toast.info('Subject assignment modal - select from program subjects');
 };
 
-window.openScheduleSlotModal = function(sectionSubjectId) {
+window.openScheduleSlotModal = function (sectionSubjectId) {
   const modal = new Modal({
     title: 'Add Schedule Slot',
     content: `
@@ -723,7 +728,7 @@ window.openScheduleSlotModal = function(sectionSubjectId) {
   modal.show();
 };
 
-window.deleteSection = async function(sectionId) {
+window.deleteSection = async function (sectionId) {
   const confirmed = await ConfirmModal({
     title: 'Delete Section',
     message: 'Are you sure you want to delete this section? This action cannot be undone.',
@@ -744,7 +749,7 @@ window.deleteSection = async function(sectionId) {
   }
 };
 
-window.filterScheduleBySection = async function(sectionId) {
+window.filterScheduleBySection = async function (sectionId) {
   if (!sectionId) {
     state.sectionSchedule = [];
     render();
@@ -754,11 +759,99 @@ window.filterScheduleBySection = async function(sectionId) {
   render();
 };
 
+window.openMergeSectionModal = function () {
+  if (!state.selectedSection) return;
+
+  // Filter sections: Same program, same semester, same year level, not itself
+  const potentialTargets = state.sections.filter(s =>
+    s.id !== state.selectedSection.id &&
+    (s.program?.id === state.selectedSection.program?.id || s.program === state.selectedSection.program) &&
+    s.year_level === state.selectedSection.year_level
+  );
+
+  const modal = new Modal({
+    title: 'Merge Section',
+    content: `
+      <div class="p-4 bg-yellow-50 text-yellow-800 rounded mb-4 text-sm">
+        <p class="font-bold mb-1">Warning: Irreversible Action</p>
+        <p>Merging <strong>${state.selectedSection.name}</strong> will:</p>
+        <ul class="list-disc ml-5 mt-1">
+          <li>Move all ${state.selectedSection.enrolled_count || 0} students to the target section</li>
+          <li>Mark this section as DISSOLVED</li>
+          <li>Set the target section as the Parent Section</li>
+        </ul>
+      </div>
+      <form id="merge-section-form">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Target Section *</label>
+        <select id="target-section" required class="form-select">
+          <option value="">Select Target Section</option>
+          ${potentialTargets.map(s => `<option value="${s.id}">${s.name} (${s.enrolled_count}/${s.capacity})</option>`).join('')}
+        </select>
+        ${potentialTargets.length === 0 ? '<p class="text-xs text-red-500 mt-1">No eligible sections found (must match Program and Year Level)</p>' : ''}
+      </form>
+    `,
+    size: 'md',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Merge Sections',
+        primary: true,
+        danger: true,
+        onClick: async (m) => {
+          const targetId = document.getElementById('target-section').value;
+          if (!targetId) {
+            Toast.error('Please select a target section');
+            return;
+          }
+          try {
+            await api.post(`${endpoints.sections}${state.selectedSection.id}/merge/`, {
+              target_section_id: targetId
+            });
+            Toast.success('Section merged successfully');
+            m.close();
+            backToSections();
+            await loadSections();
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, 'Merging section');
+          }
+        }
+      }
+    ]
+  });
+  modal.show();
+};
+
+window.dissolveSection = async function () {
+  if (!state.selectedSection) return;
+
+  const confirmed = await ConfirmModal({
+    title: 'Dissolve Section',
+    message: `Are you sure you want to dissolve <span class="font-bold">${state.selectedSection.name}</span>? 
+                  <br/><br/>
+                  <span class="text-red-500">Students will be unassigned from their home section (Regular -> Irregular).</span>`,
+    confirmLabel: 'Yes, Dissolve Section',
+    danger: true
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await api.post(`${endpoints.sections}${state.selectedSection.id}/dissolve/`);
+    Toast.success('Section dissolved');
+    backToSections();
+    await loadSections();
+    render();
+  } catch (error) {
+    ErrorHandler.handle(error, 'Dissolving section');
+  }
+};
+
 // ============================================================
 // GLOBAL HANDLERS
 // ============================================================
 
-window.logout = function() {
+window.logout = function () {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');
   setTimeout(() => {

@@ -287,6 +287,11 @@ class SubjectEnrollment(BaseModel):
     Handles credits (CREDITED status for transferees), regular enrollment, and grades.
     """
     
+    class EnrollmentType(models.TextChoices):
+        HOME = 'HOME', 'Home Section [H]'
+        RETAKE = 'RETAKE', 'Retake/Irregular [R]'
+        OVERLOAD = 'OVERLOAD', 'Overload [O]'
+
     class Status(models.TextChoices):
         ENROLLED = 'ENROLLED', 'Currently Enrolled'
         PASSED = 'PASSED', 'Passed'
@@ -316,6 +321,14 @@ class SubjectEnrollment(BaseModel):
         related_name='student_enrollments',
         help_text='Section for regular enrollment (null for credited subjects)'
     )
+    
+    enrollment_type = models.CharField(
+        max_length=10, 
+        choices=EnrollmentType.choices,
+        default=EnrollmentType.HOME,
+        help_text='Classification of this subject enrollment'
+    )
+    
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
@@ -390,6 +403,10 @@ class SubjectEnrollment(BaseModel):
         default=False,
         help_text='Whether department head approval is complete'
     )
+    registrar_approved = models.BooleanField(
+        default=False,
+        help_text='Whether registrar approval is complete (required for overload)'
+    )
 
     class Meta:
         verbose_name = 'Subject Enrollment'
@@ -417,11 +434,14 @@ class SubjectEnrollment(BaseModel):
     @property
     def is_fully_enrolled(self):
         """Subject is fully enrolled when both approvals are satisfied."""
+        # For overload, also check registrar_approved
+        if self.enrollment_type == self.EnrollmentType.OVERLOAD:
+             return self.payment_approved and self.head_approved and self.registrar_approved and self.status == self.Status.ENROLLED
         return self.payment_approved and self.head_approved and self.status == self.Status.ENROLLED
 
     def get_approval_status_display(self):
         """Get human-readable approval status for UI."""
-        if self.payment_approved and self.head_approved:
+        if self.is_fully_enrolled:
             return "Enrolled"
         elif self.payment_approved and not self.head_approved:
             return "Payment Complete - Awaiting Head Approval"
@@ -429,6 +449,78 @@ class SubjectEnrollment(BaseModel):
             return "Head Approved - Payment Pending"
         else:
             return "Pending Approval"
+
+
+class EnrollmentApproval(BaseModel):
+    """
+    Audit trail for enrollment approval actions (Head/Registrar).
+    """
+    
+    class Role(models.TextChoices):
+        HEAD = 'HEAD', 'Department Head'
+        REGISTRAR = 'REGISTRAR', 'Registrar'
+        ADMIN = 'ADMIN', 'Administrator'
+    
+    class Action(models.TextChoices):
+        APPROVE = 'APPROVE', 'Data Approved'
+        REJECT = 'REJECT', 'Rejected'
+        OVERRIDE = 'OVERRIDE', 'Manual Override'
+    
+    subject_enrollment = models.ForeignKey(
+        SubjectEnrollment,
+        on_delete=models.CASCADE,
+        related_name='approvals'
+    )
+    approver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='enrollment_approvals'
+    )
+    role = models.CharField(max_length=20, choices=Role.choices)
+    action = models.CharField(max_length=20, choices=Action.choices)
+    comment = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+
+
+class OverloadRequest(BaseModel):
+    """
+    Request to exceed maximum unit limit.
+    """
+    
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+        
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='overload_requests'
+    )
+    semester = models.ForeignKey(
+        Semester,
+        on_delete=models.CASCADE
+    )
+    requested_units = models.PositiveIntegerField()
+    reason = models.TextField()
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_overloads'
+    )
+    rejection_reason = models.TextField(blank=True)
+    
+    class Meta:
+        unique_together = ['student', 'semester']
 
 
 class CreditSource(BaseModel):

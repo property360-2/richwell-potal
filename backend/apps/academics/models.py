@@ -222,6 +222,18 @@ class Section(BaseModel):
         default=40,
         help_text='Maximum number of students in this section'
     )
+    is_dissolved = models.BooleanField(
+        default=False,
+        help_text='Whether this section has been dissolved/merged'
+    )
+    parent_section = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='merged_sections',
+        help_text='Parent section if this section was merged into another'
+    )
     
     class Meta:
         verbose_name = 'Section'
@@ -271,6 +283,11 @@ class SectionSubject(BaseModel):
         related_name='teaching_assignments',
         limit_choices_to={'role': 'PROFESSOR'}
     )
+    capacity = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Subject capacity (defaults to section capacity if null)'
+    )
     is_tba = models.BooleanField(
         default=True,
         help_text='Schedule is To Be Announced'
@@ -283,6 +300,24 @@ class SectionSubject(BaseModel):
     
     def __str__(self):
         return f"{self.section.name} - {self.subject.code}"
+
+    @property
+    def enrolled_count(self):
+        """Number of students enrolled in this specific subject offering."""
+        from apps.enrollment.models import SubjectEnrollment
+        return SubjectEnrollment.objects.filter(
+            section_subject=self,
+            status__in=['ENROLLED', 'PENDING']
+        ).count()
+
+    @property
+    def effective_capacity(self):
+        """Use specific capacity or fallback to section capacity."""
+        return self.capacity if self.capacity is not None else self.section.capacity
+    
+    @property
+    def remaining_slots(self):
+        return max(0, self.effective_capacity - self.enrolled_count)
 
 
 class SectionSubjectProfessor(BaseModel):

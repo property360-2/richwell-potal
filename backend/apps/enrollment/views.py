@@ -515,6 +515,7 @@ class RecommendedSubjectsView(APIView):
     def get(self, request, *args, **kwargs):
         from apps.enrollment.models import Semester, SubjectEnrollment
         from apps.academics.models import Curriculum, CurriculumSubject
+        from django.db.models import Q, Sum
 
         user = request.user
         
@@ -534,9 +535,6 @@ class RecommendedSubjectsView(APIView):
             return Response({"error": "No program assigned"}, status=400)
 
         # 3. Get Student's Assigned Curriculum
-        # Currently Richwell assumes one active curriculum per program for simplicity in this MVP,
-        # or we find the one matching the student's entry year (based on student number).
-        # For now, let's grab the latest active curriculum for their program.
         curriculum = Curriculum.objects.filter(
             program=program, 
             is_active=True
@@ -558,32 +556,35 @@ class RecommendedSubjectsView(APIView):
             grade__isnull=False
         ).values_list('subject_id', flat=True)
 
-        # 5. Get Subjects for Current Year/Sem from Curriculum
-        # We try to recommend subjects for the user's current standing (e.g. 1st Year, 1st Sem)
-        # But a better approach is to show ALL subjects they CAN take (prereqs met, not passed).
-        # For this specific view "Recommended", let's stick to the user's current Year Level & Active Sem.
+        # 5. Get Subjects for Recommendation
+        # Logic: Current Year/Sem + Back Subjects (Lower Years, Same Sem)
         
-        # Filter by query params if present, else default to student's current year/sem
         target_year = request.query_params.get('year_level')
         target_sem = request.query_params.get('semester_number')
         
-        # If no filter, use active semester's term (e.g., if active sem is "1st Semester", show Sem 1 subjects)
-        # We need to map Semester string to integer (1, 2, 3)
+        # Determine target semester type (1, 2, or 3)
         if not target_sem:
             if "1st" in active_semester.name: target_sem = 1
             elif "2nd" in active_semester.name: target_sem = 2
             elif "Summer" in active_semester.name: target_sem = 3
             else: target_sem = 1
 
-        # If no filter for year, use student's current year level
-        if not target_year:
-             target_year = profile.year_level
+        # Build Query
+        query = Q(curriculum=curriculum)
+        
+        # Always filter by semester type (unless we want to show all? No, enrollment is usually sem-based)
+        if target_sem:
+            query &= Q(semester_number=target_sem)
+            
+        # Filter by year level
+        if target_year:
+            # User specifically requested a year level (Strict)
+            query &= Q(year_level=target_year)
+        else:
+            # Default: Current year and below (Back subjects)
+            query &= Q(year_level__lte=profile.year_level)
 
-        curriculum_subjects = CurriculumSubject.objects.filter(
-            curriculum=curriculum,
-            year_level=target_year,
-            semester_number=target_sem
-        ).select_related('subject')
+        curriculum_subjects = CurriculumSubject.objects.filter(query).select_related('subject')
 
         recommended = []
         
@@ -608,8 +609,9 @@ class RecommendedSubjectsView(APIView):
             from apps.academics.models import SectionSubject
             section_subjects = SectionSubject.objects.filter(
                 subject=subject,
-                section__semester=active_semester
-            ).select_related('section', 'professor')
+                section__semester=active_semester,
+                is_deleted=False
+            ).select_related('section', 'professor').prefetch_related('schedule_slots')
             
             for ss in section_subjects:
                 sections.append({
@@ -619,9 +621,9 @@ class RecommendedSubjectsView(APIView):
                     'schedule': [
                         {
                             'day': slot.get_day_display(),
-                            'start_time': slot.start_time.strftime("%H:%M"),
-                            'end_time': slot.end_time.strftime("%H:%M") 
-                        } for slot in ss.schedule_slots.all()
+                            'start_time': slot.start_time.strftime("%I:%M %p"),
+                            'end_time': slot.end_time.strftime("%I:%M %p") 
+                        } for slot in ss.schedule_slots.filter(is_deleted=False)
                     ]
                 })
 
@@ -637,12 +639,20 @@ class RecommendedSubjectsView(APIView):
                 'available_sections': sections
             })
 
+        # Calculate currently enrolled units
+        current_units = SubjectEnrollment.objects.filter(
+            enrollment__student=user,
+            enrollment__semester=active_semester,
+            status__in=['ENROLLED', 'PENDING'],
+            is_deleted=False
+        ).aggregate(total=Sum('subject__units'))['total'] or 0
+
         return Response({
             "success": True,
             "data": {
                 "recommended_subjects": recommended,
-                "current_units": 0, # TODO: Calc currently enrolled units
-                "max_units": 24 # Standard max units
+                "current_units": current_units,
+                "max_units": 26 # Typically 24-26, hardcoded for now or fetch from config
             }
         })
 AvailableSubjectsView = SimpleGETView

@@ -360,7 +360,7 @@ class SectionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'program', 'program_code', 'semester', 'semester_display',
             'year_level', 'capacity', 'enrolled_count', 'available_slots',
-            'section_subjects'
+            'section_subjects', 'is_dissolved', 'parent_section'
         ]
         read_only_fields = ['id', 'enrolled_count', 'available_slots']
 

@@ -106,9 +106,9 @@ async function init() {
 
   state.loading = true;
   render();
-  
+
   await loadData();
-  
+
   state.loading = false;
   render();
   attachEventListeners();
@@ -952,17 +952,17 @@ function renderEnrolledSubjectCardMobile(enrollment) {
   // Render status badges
   const statusBadges = `
     <div class="flex flex-wrap gap-2 mt-3">
-      ${isFullyEnrolled 
-        ? '<span class="inline-flex items-center px-2 py-1 text-xs font-bold text-green-800 bg-green-200 rounded-full">ENROLLED</span>'
-        : `
-          ${paymentApproved 
-            ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">✓ Payment</span>'
-            : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full">⏳ Payment</span>'}
-          ${headApproved 
-            ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">✓ Head</span>'
-            : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full">⏳ Head</span>'}
+      ${isFullyEnrolled
+      ? '<span class="inline-flex items-center px-2 py-1 text-xs font-bold text-green-800 bg-green-200 rounded-full">ENROLLED</span>'
+      : `
+          ${paymentApproved
+        ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">✓ Payment</span>'
+        : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full">⏳ Payment</span>'}
+          ${headApproved
+        ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">✓ Head</span>'
+        : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full">⏳ Head</span>'}
         `
-      }
+    }
     </div>
   `;
 
@@ -1193,7 +1193,7 @@ function renderCartModal() {
           <!-- Action Buttons -->
           <div class="flex gap-3">
             <button onclick="closeCartModal()" class="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
-              Continue Shopping
+              Continue selecting subjects
             </button>
             <button onclick="showConfirmAllModal()" class="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

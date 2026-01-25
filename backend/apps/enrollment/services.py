@@ -747,6 +747,7 @@ class SubjectEnrollmentService:
     def check_unit_cap(self, student, semester, new_units: int) -> tuple[bool, int, int]:
         """
         Check if enrolling in a subject would exceed the unit cap.
+        Respects Overload overrides.
         
         Args:
             student: User object
@@ -759,7 +760,23 @@ class SubjectEnrollmentService:
         current_units = self.get_current_enrolled_units(student, semester)
         total_after = current_units + new_units
         
-        return total_after <= self.max_units, current_units, self.max_units
+        # Check for override
+        try:
+            profile = student.student_profile
+            max_limit = profile.max_units_override if profile.max_units_override else self.max_units
+        except StudentProfile.DoesNotExist:
+            max_limit = self.max_units
+            
+        return total_after <= max_limit, current_units, max_limit
+
+    def check_capacity(self, section_subject) -> tuple[bool, int, int]:
+        """
+        Check if section subject has available slots.
+        
+        Returns:
+            tuple: (has_slots: bool, remaining: int, capacity: int)
+        """
+        return section_subject.remaining_slots > 0, section_subject.remaining_slots, section_subject.effective_capacity
     
     def check_payment_status(self, enrollment) -> bool:
         """
@@ -774,44 +791,49 @@ class SubjectEnrollmentService:
         month1 = enrollment.payment_buckets.filter(month_number=1).first()
         return month1 is not None and month1.is_fully_paid
     
-    def check_schedule_conflict(self, student, section, semester):
+    def check_schedule_conflict(self, student, section_subject, semester):
         """
-        Check if enrolling in a section would cause schedule conflicts.
+        Check if enrolling in a subject (SectionSubject) would cause schedule conflicts.
         
         Args:
             student: User object
-            section: Section object
+            section_subject: SectionSubject object
             semester: Semester object
             
         Returns:
             tuple: (has_conflict: bool, conflicting_slot_info: dict or None)
         """
-        from apps.academics.services import SchedulingService
+        # Note: Ensure import matches actual location. Assuming apps.academics.services exists.
         from apps.academics.models import ScheduleSlot
+        from apps.enrollment.models import SubjectEnrollment
         
-        # Get all schedule slots for this section's subjects
-        section_slots = ScheduleSlot.objects.filter(
-            section_subject__section=section,
-            is_deleted=False
+        new_slots = section_subject.schedule_slots.all()
+        
+        # Get existing enrolled schedule slots
+        existing_enrollments = SubjectEnrollment.objects.filter(
+            enrollment__student=student,
+            enrollment__semester=semester,
+            status__in=[SubjectEnrollment.Status.ENROLLED, SubjectEnrollment.Status.PENDING_HEAD, SubjectEnrollment.Status.PENDING_PAYMENT]
         )
         
-        for slot in section_slots:
-            has_conflict, conflicting_slot = SchedulingService.check_student_conflict(
-                student=student,
-                day=slot.day,
-                start_time=slot.start_time,
-                end_time=slot.end_time,
-                semester=semester
-            )
-            
-            if has_conflict:
-                return True, {
-                    'day': slot.get_day_display(),
-                    'time': f"{slot.start_time.strftime('%H:%M')}-{slot.end_time.strftime('%H:%M')}",
-                    'conflicting_subject': conflicting_slot.section_subject.subject.code
-                }
-        
+        for new_slot in new_slots:
+            # Check against each existing subject's slots
+            for enrollment in existing_enrollments:
+                existing_slots = enrollment.section_subject.schedule_slots.all()
+                for existing_slot in existing_slots:
+                    if new_slot.day == existing_slot.day:
+                        # Check overlap
+                        # Overlap if (StartA < EndB) and (EndA > StartB)
+                        if (new_slot.start_time < existing_slot.end_time and 
+                            new_slot.end_time > existing_slot.start_time):
+                            return True, {
+                                'subject': enrollment.section_subject.subject.code,
+                                'day': new_slot.day,
+                                'time': f"{existing_slot.start_time}-{existing_slot.end_time}"
+                            }
+                            
         return False, None
+
     
     @transaction.atomic
     def enroll_in_subject(self, student, enrollment, subject, section) -> 'SubjectEnrollment':
@@ -879,15 +901,29 @@ class SubjectEnrollmentService:
         # REMOVED: Check payment status - students can now enroll without payment
         # Payment status will determine if enrollment is PENDING or ENROLLED
 
-        # Check schedule conflicts
-        has_conflict, conflict_info = self.check_schedule_conflict(
-            student, section, enrollment.semester
-        )
-        if has_conflict:
-            raise ScheduleConflictError(
-                f"Schedule conflict on {conflict_info['day']} {conflict_info['time']} "
-                f"with {conflict_info['conflicting_subject']}"
+        # Fetch SectionSubject for schedule/capacity check
+        from apps.academics.models import SectionSubject
+        target_section_subject = SectionSubject.objects.filter(
+            section=section, 
+            subject=subject,
+            is_deleted=False
+        ).first()
+
+        if target_section_subject:
+            # Check capacity
+            has_space, remaining, cap = self.check_capacity(target_section_subject)
+            if not has_space:
+                 raise UnitCapExceededError(f"Section {section.name} is full for this subject ({cap}/{cap})")
+
+            # Check schedule conflicts
+            has_conflict, conflict_info = self.check_schedule_conflict(
+                student, target_section_subject, enrollment.semester
             )
+            if has_conflict:
+                raise ScheduleConflictError(
+                    f"Schedule conflict on {conflict_info['day']} {conflict_info['time']} "
+                    f"with {conflict_info['subject']}"
+                )
 
         # EPIC 7: Curriculum validation and irregular determination
         profile = student.student_profile
@@ -1182,6 +1218,37 @@ class SubjectEnrollmentService:
         elif 'summer' in semester.name.lower():
             return 3
         return 1
+
+
+    @transaction.atomic
+    def enroll_student_in_section_subjects(self, student, section):
+        """Enroll student in all subjects of the section."""
+        # Get all section subjects
+        from apps.academics.models import SectionSubject
+        from .models import Enrollment
+        from apps.core.exceptions import UnitCapExceededError, ConflictError
+
+        section_subjects = SectionSubject.objects.filter(section=section, is_deleted=False)
+        
+        # Get or create Enrollment for this semester
+        enrollment, _ = Enrollment.objects.get_or_create(
+             student=student,
+             semester=section.semester,
+             defaults={'status': Enrollment.Status.PENDING, 'created_via': Enrollment.CreatedVia.ONLINE}
+        )
+        
+        results = []
+        for ss in section_subjects:
+            try:
+                # Use enroll_in_subject - pass Section model
+                self.enroll_in_subject(student, enrollment, ss.subject, section)
+                results.append(f"Enrolled in {ss.subject.code}")
+            except (UnitCapExceededError, ConflictError) as e:
+                 results.append(f"Failed {ss.subject.code}: {str(e)}")
+            except Exception as e:
+                results.append(f"Error {ss.subject.code}: {str(e)}")
+        
+        return results
 
 
 # ============================================================

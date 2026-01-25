@@ -1,3 +1,4 @@
+// frontend\src\pages\registrar-academic.js
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
 import { requireAuth, formatDate, setButtonLoading } from '../utils.js';
@@ -723,16 +724,35 @@ function renderProgramDetailsView() {
 }
 
 // Helper for filtering/sorting
+// Helper for filtering/sorting
 function getFilteredAndSortedSubjects() {
   let filtered = [...state.subjects];
 
-  // Filter
+  // Search Filter
   if (state.subjectSearchQuery) {
     const q = state.subjectSearchQuery.toLowerCase();
     filtered = filtered.filter(s =>
       s.code.toLowerCase().includes(q) ||
       s.title.toLowerCase().includes(q)
     );
+  }
+
+  // Category Filter
+  if (state.subjectFilterCategory && state.subjectFilterValue) {
+    const category = state.subjectFilterCategory;
+    const value = state.subjectFilterValue;
+
+    if (category === 'year_level') {
+      filtered = filtered.filter(s => String(s.year_level) === value);
+    } else if (category === 'semester') {
+      filtered = filtered.filter(s => String(s.semester_number) === value);
+    } else if (category === 'grade_school') {
+      // Example custom category if needed, effectively "Program" based on our structure
+      // But since this is inside a Program View, "By Program" doesn't make sense unless it's a global subject list.
+      // The request says "By Program" but we are in "Program Details > Subjects".
+      // I will implement generic "By Type" if subject has type field.
+      // For now, Year/Sem are relevant.
+    }
   }
 
   // Sort
@@ -756,22 +776,30 @@ function getFilteredAndSortedSubjects() {
 // Event Handlers
 window.handleProgramSubjectSearch = function (query) {
   state.subjectSearchQuery = query;
-  render(); // Re-render to update table
-
-  // Maintain focus on search input after re-render (naive approach)
-  setTimeout(() => {
-    const input = document.getElementById('prog-subject-search');
-    if (input) {
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
-    }
-  }, 0);
+  render();
+  restoreFocus('prog-subject-search');
 };
 
 window.handleProgramSubjectSort = function (order) {
   state.subjectSortOrder = order;
   render();
 };
+
+window.handleProgramSubjectFilter = function (category, value) {
+  state.subjectFilterCategory = category;
+  state.subjectFilterValue = value;
+  render();
+};
+
+function restoreFocus(id) {
+  setTimeout(() => {
+    const input = document.getElementById(id);
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }, 0);
+}
 
 function renderProgramSubjectsTable() {
   const subjects = getFilteredAndSortedSubjects();
@@ -780,13 +808,13 @@ function renderProgramSubjectsTable() {
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
              <h3 class="text-lg font-medium text-gray-900">Program Subjects Masterlist</h3>
              
-             <div class="flex items-center gap-2">
+             <div class="flex flex-wrap items-center gap-2">
                 <!-- Search -->
                 <div class="relative">
                     <input type="text" 
                         id="prog-subject-search" 
                         placeholder="Search subjects..." 
-                        class="form-input text-sm pl-8 py-1.5 w-64"
+                        class="form-input text-sm pl-8 py-1.5 w-48 lg:w-64"
                         value="${state.subjectSearchQuery || ''}"
                         oninput="handleProgramSubjectSearch(this.value)">
                     <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -794,8 +822,24 @@ function renderProgramSubjectsTable() {
                     </svg>
                 </div>
 
+                <!-- Filter -->
+                <select onchange="const [c,v] = this.value.split(':'); handleProgramSubjectFilter(c,v)" class="form-select text-sm py-1.5 w-40">
+                    <option value="">All Categories</option>
+                    <optgroup label="Year Level">
+                        <option value="year_level:1" ${state.subjectFilterValue === '1' ? 'selected' : ''}>Year 1</option>
+                        <option value="year_level:2" ${state.subjectFilterValue === '2' ? 'selected' : ''}>Year 2</option>
+                        <option value="year_level:3" ${state.subjectFilterValue === '3' ? 'selected' : ''}>Year 3</option>
+                        <option value="year_level:4" ${state.subjectFilterValue === '4' ? 'selected' : ''}>Year 4</option>
+                    </optgroup>
+                    <optgroup label="Semester">
+                        <option value="semester:1" ${state.subjectFilterValue === '1' && state.subjectFilterCategory === 'semester' ? 'selected' : ''}>1st Semester</option>
+                        <option value="semester:2" ${state.subjectFilterValue === '2' && state.subjectFilterCategory === 'semester' ? 'selected' : ''}>2nd Semester</option>
+                        <option value="semester:3" ${state.subjectFilterValue === '3' && state.subjectFilterCategory === 'semester' ? 'selected' : ''}>Summer</option>
+                    </optgroup>
+                </select>
+
                 <!-- Sort -->
-                <select onchange="handleProgramSubjectSort(this.value)" class="form-select text-sm py-1.5 w-48">
+                <select onchange="handleProgramSubjectSort(this.value)" class="form-select text-sm py-1.5 w-40">
                     <option value="level_asc" ${state.subjectSortOrder === 'level_asc' ? 'selected' : ''}>Year Level (Asc)</option>
                     <option value="code_asc" ${state.subjectSortOrder === 'code_asc' ? 'selected' : ''}>Code (A-Z)</option>
                     <option value="code_desc" ${state.subjectSortOrder === 'code_desc' ? 'selected' : ''}>Code (Z-A)</option>
@@ -803,13 +847,14 @@ function renderProgramSubjectsTable() {
                     <option value="units_desc" ${state.subjectSortOrder === 'units_desc' ? 'selected' : ''}>Units (High-Low)</option>
                 </select>
 
-                <button onclick="openAddSubjectModal()" class="btn btn-primary text-sm whitespace-nowrap">
-                    + Add Subject
+                <button onclick="openAddSubjectModal()" class="btn btn-primary text-sm whitespace-nowrap px-3">
+                    + Add
                 </button>
              </div>
         </div>
 
         <div class="bg-white shadow overflow-hidden rounded-lg border border-gray-200">
+            <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -817,6 +862,7 @@ function renderProgramSubjectsTable() {
                          <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Code</th>
                          <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Title</th>
                          <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Units</th>
+                         <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Curricula</th>
                          <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prerequisites</th>
                          <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -824,34 +870,50 @@ function renderProgramSubjectsTable() {
                 <tbody class="bg-white divide-y divide-gray-200">
                     ${subjects.length === 0 ? `
                         <tr>
-                            <td colspan="6" class="px-6 py-12 text-center text-gray-500">
-                                No subjects found.
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                                No subjects found matching your filters.
                             </td>
                         </tr>
                     ` : subjects.map(s => `
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50 group">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                ${s.year_level ? `<span class="px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">Year ${s.year_level} ${s.semester_number ? `- ${s.semester_number === 3 ? 'Summer' : (s.semester_number === 1 ? '1st' : '2nd')}` : ''}</span>` : '-'}
+                                ${s.year_level ? `<span class="px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-medium text-xs">Y${s.year_level} ${s.semester_number === 3 ? 'Sum' : 'S' + s.semester_number}</span>` : '-'}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">${s.code}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 font-mono">${s.code}</td>
                             <td class="px-6 py-4 text-sm text-gray-900">
-                                ${s.title}
-                                ${s.description ? `<p class="text-xs text-gray-500 truncate max-w-[300px] mt-0.5">${s.description}</p>` : ''}
+                                <div class="font-medium">${s.title}</div>
+                                ${s.description ? `<p class="text-xs text-gray-400 truncate max-w-[200px]">${s.description}</p>` : ''}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">${s.units}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900 font-medium">${s.units}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <div class="flex flex-wrap gap-1 max-w-[200px]">
+                                    ${s.curricula && s.curricula.length > 0
+      ? s.curricula.map(c => `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-100" title="${c.name || c}">${c.code || c}</span>`).join('')
+      : '<span class="text-xs text-gray-300 italic">None</span>'}
+                                </div>
+                            </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
+                                <div class="flex flex-wrap gap-1">
                                 ${s.prerequisites && s.prerequisites.length > 0
-      ? s.prerequisites.map(p => `<code class="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">${p.code}</code>`).join(' ')
+      ? s.prerequisites.map(p => `<code class="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100">${p.code}</code>`).join('')
       : '<span class="text-gray-300">-</span>'}
+                                </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button onclick="openEditSubjectModal('${s.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
-                                <button onclick="deleteSubject('${s.id}')" class="text-red-600 hover:text-red-900">Delete</button>
+                                <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onclick="openEditSubjectModal('${s.id}')" class="text-indigo-600 hover:text-indigo-900 bg-indigo-50 p-1.5 rounded hover:bg-indigo-100" title="Edit">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                    </button>
+                                    <button onclick="deleteSubject('${s.id}')" class="text-red-600 hover:text-red-900 bg-red-50 p-1.5 rounded hover:bg-red-100" title="Delete">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     `).join('')}
                 </tbody>
             </table>
+            </div>
         </div>
     `;
 }

@@ -358,6 +358,95 @@ class SectionViewSet(viewsets.ModelViewSet):
         instance.is_deleted = True
         instance.save()
 
+    @action(detail=True, methods=['post'], url_path='merge')
+    @extend_schema(summary="Merge Section", tags=["Section Management"])
+    def merge(self, request, pk=None):
+        """Merge this section into a target section."""
+        section = self.get_object()
+        target_id = request.data.get('target_section_id')
+        
+        if not target_id:
+            return Response({'error': 'Target section ID required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            target = Section.objects.get(id=target_id)
+        except Section.DoesNotExist:
+            return Response({'error': 'Target section not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+        if section.semester != target.semester or section.program != target.program:
+             return Response({'error': 'Sections must match semester and program'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Move students
+        from apps.accounts.models import StudentProfile
+        students = StudentProfile.objects.filter(home_section=section)
+        count = students.count()
+        students.update(home_section=target)
+        
+        # Mark dissolved
+        section.is_dissolved = True
+        section.parent_section = target
+        section.save()
+        
+        AuditLog.log(
+            action=AuditLog.Action.SECTION_UPDATED,
+            target_model='Section',
+            target_id=section.id,
+            payload={'action': 'merged', 'target': target.name, 'students_moved': count}
+        )
+        
+        return Response({'message': f'Merged into {target.name}. {count} students moved.'})
+
+    @action(detail=True, methods=['post'], url_path='dissolve')
+    @extend_schema(summary="Dissolve Section", tags=["Section Management"])
+    def dissolve(self, request, pk=None):
+        section = self.get_object()
+        section.is_dissolved = True
+        section.save()
+        
+        # Unassign students
+        from apps.accounts.models import StudentProfile
+        StudentProfile.objects.filter(home_section=section).update(home_section=None)
+        
+        AuditLog.log(
+            action=AuditLog.Action.SECTION_UPDATED, 
+            target_model='Section',
+            target_id=section.id,
+            payload={'action': 'dissolved'}
+        )
+        
+        return Response({'message': 'Section dissolved and students unassigned.'})
+        
+    @action(detail=True, methods=['post'], url_path='assign-students')
+    @extend_schema(summary="Assign Students", tags=["Section Management"])
+    def assign_students(self, request, pk=None):
+        section = self.get_object()
+        student_ids = request.data.get('student_ids', [])
+        
+        if not student_ids:
+             return Response({'error': 'No student IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.accounts.models import StudentProfile
+        profiles = StudentProfile.objects.filter(user_id__in=student_ids)
+        updated = profiles.update(home_section=section)
+        
+        # Auto-enroll in section subjects
+        # This mirrors the "Regular Student" flow where assignment = enrollment
+        from apps.enrollment.services import SubjectEnrollmentService
+        service = SubjectEnrollmentService()
+        
+        enroll_errors = []
+        for profile in profiles:
+            try:
+                service.enroll_student_in_section_subjects(profile.user, section)
+            except Exception as e:
+                enroll_errors.append(f"Student {profile.user.email}: {str(e)}")
+        
+        msg = f'{updated} students assigned to {section.name}.'
+        if enroll_errors:
+            msg += f" {len(enroll_errors)} enrollment errors."
+        
+        return Response({'message': msg, 'errors': enroll_errors})
+
 
 # ============================================================
 # EPIC 2 - Section Subject Management
