@@ -133,7 +133,7 @@ export function redirectByRole(role) {
         HEAD_REGISTRAR: '/registrar-dashboard.html',
         DEPARTMENT_HEAD: '/head-dashboard.html',
         CASHIER: '/cashier-dashboard.html',
-        PROFESSOR: '/professor-schedule.html'
+        PROFESSOR: '/professor-dashboard.html'
     };
 
     const route = routes[role] || '/student-dashboard.html';

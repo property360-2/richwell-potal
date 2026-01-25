@@ -582,10 +582,42 @@ class ProfessorScheduleView(APIView):
         
         schedule = SchedulingService.get_professor_schedule(professor, semester)
         
+        # Also fetch all assigned sections (including TBA)
+        from .models import SectionSubject
+        assigned_subjects = SectionSubject.objects.filter(
+            professor=professor,
+            section__semester=semester,
+            is_deleted=False
+        ).select_related('section', 'subject').prefetch_related('schedule_slots')
+        
+        assigned_sections = []
+        for assignment in assigned_subjects:
+            # Format schedule string
+            slots = assignment.schedule_slots.filter(is_deleted=False)
+            schedule_text = "TBA"
+            if slots.exists():
+                schedule_parts = []
+                for slot in slots:
+                    time_str = f"{slot.start_time.strftime('%I:%M %p').lstrip('0')} - {slot.end_time.strftime('%I:%M %p').lstrip('0')}"
+                    schedule_parts.append(f"{slot.get_day_display()} {time_str} ({slot.room or 'TBA'})")
+                schedule_text = "; ".join(schedule_parts)
+            elif not assignment.is_tba:
+                schedule_text = "No schedule set"
+
+            assigned_sections.append({
+                'id': str(assignment.id),
+                'section_name': assignment.section.name,
+                'subject_code': assignment.subject.code,
+                'subject_title': assignment.subject.title,
+                'schedule': schedule_text,
+                'is_tba': assignment.is_tba
+            })
+
         return Response({
             'professor': professor.get_full_name(),
             'semester': str(semester),
-            'schedule': schedule
+            'schedule': schedule,
+            'assigned_sections': assigned_sections
         })
 
 
@@ -985,6 +1017,31 @@ class ProfessorViewSet(viewsets.ModelViewSet):
         if self.action == 'retrieve':
             return ProfessorDetailSerializer
         return ProfessorSerializer
+
+    @action(detail=False, methods=['get'], url_path='check-duplicate')
+    def check_duplicate(self, request):
+        """Check if a professor with the given name already exists."""
+        first_name = request.query_params.get('first_name', '').strip()
+        last_name = request.query_params.get('last_name', '').strip()
+        
+        email = request.query_params.get('email', '').strip()
+
+        from apps.accounts.models import User
+
+        if email:
+            exists = User.objects.filter(email__iexact=email).exists()
+            return Response({'duplicate': exists, 'type': 'email'})
+
+        if not first_name or not last_name:
+            return Response({'error': 'First name and last name, or email are required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        exists = User.objects.filter(
+            role='PROFESSOR',
+            first_name__iexact=first_name,
+            last_name__iexact=last_name
+        ).exists()
+        
+        return Response({'duplicate': exists, 'type': 'name'})
 
     @action(detail=True, methods=['get'], url_path='workload')
     def workload(self, request, pk=None):

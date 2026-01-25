@@ -560,10 +560,18 @@ class ProfessorSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     profile = ProfessorProfileSerializer(source='professor_profile', required=False)
 
+    temp_password = serializers.CharField(read_only=True)
+
+    first_name = serializers.CharField(required=True)
+    last_name = serializers.CharField(required=True)
+
     class Meta:
         from apps.accounts.models import User
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'full_name', 'is_active', 'profile']
+        fields = ['id', 'email', 'first_name', 'last_name', 'full_name', 'is_active', 'profile', 'temp_password', 'password']
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False}
+        }
 
     def create(self, validated_data):
         from apps.accounts.models import User, ProfessorProfile
@@ -575,20 +583,50 @@ class ProfessorSerializer(serializers.ModelSerializer):
         if email:
             validated_data['username'] = email
 
-        # Set default password for new professors
+        # Password logic
+        password = validated_data.pop('password', None)
+        is_generated = False
+        
+        if not password:
+            from django.utils.crypto import get_random_string
+            password = get_random_string(length=12)
+            is_generated = True
+
+        # Create user
         user = User.objects.create_user(
             role=User.Role.PROFESSOR,
+            password=password,
             **validated_data
         )
-        user.set_unusable_password() # They should reset it via forgot password or admin
-        user.save()
-
+        
         # Create profile
         profile = ProfessorProfile.objects.create(user=user, **profile_data)
         if assigned_subject_ids:
             profile.assigned_subjects.set(assigned_subject_ids)
 
+        # Attach temp_password so it's included in the response ONLY if generated
+        if is_generated:
+            user.temp_password = password
+
         return user
+
+    def validate(self, attrs):
+        """Check for duplicate professor by name."""
+        first_name = attrs.get('first_name', '').strip()
+        last_name = attrs.get('last_name', '').strip()
+        
+        # Only check on create (when instance is None)
+        if hasattr(self, 'instance') and self.instance is None: 
+            from apps.accounts.models import User
+            if User.objects.filter(
+                role='PROFESSOR',
+                first_name__iexact=first_name,
+                last_name__iexact=last_name
+            ).exists():
+                raise serializers.ValidationError(
+                    "A professor with this name already exists."
+                )
+        return attrs
 
     def update(self, instance, validated_data):
         from apps.accounts.models import ProfessorProfile

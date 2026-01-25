@@ -67,16 +67,35 @@ class StudentProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'status', 'is_transferee']
 
 
+
+class ProfessorProfileSerializer(serializers.ModelSerializer):
+    """Serializer for ProfessorProfile."""
+    
+    assigned_subjects = serializers.SerializerMethodField()
+    
+    class Meta:
+        from .models import ProfessorProfile
+        model = ProfessorProfile
+        fields = [
+            'department', 'specialization', 'office_location', 
+            'max_teaching_hours', 'assigned_subjects', 'is_active'
+        ]
+
+    def get_assigned_subjects(self, obj):
+        return [{'id': str(s.id), 'code': s.code, 'title': s.title} for s in obj.assigned_subjects.all()]
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     """Serializer for User profile."""
     
     student_profile = StudentProfileSerializer(read_only=True)
+    professor_profile = ProfessorProfileSerializer(read_only=True)
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'role',
-            'student_number', 'student_profile', 'created_at'
+            'student_number', 'student_profile', 'professor_profile', 'created_at'
         ]
         read_only_fields = ['id', 'email', 'role', 'student_number', 'created_at']
 

@@ -452,75 +452,172 @@ function renderTabContent() {
 // PROGRAMS TAB & NAVIGATION
 // ============================================================
 
+function getFilteredAndSortedPrograms() {
+  let filtered = [...state.programs];
+
+  // Filter
+  if (state.programSearchQuery) {
+    const q = state.programSearchQuery.toLowerCase();
+    filtered = filtered.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.code.toLowerCase().includes(q) ||
+      (p.department && p.department.toLowerCase().includes(q))
+    );
+  }
+
+  // Sort
+  const sortKey = state.programSortKey || 'name_asc';
+  filtered.sort((a, b) => {
+    switch (sortKey) {
+      case 'name_asc': return a.name.localeCompare(b.name);
+      case 'name_desc': return b.name.localeCompare(a.name);
+      case 'dept_asc': return (a.department || '').localeCompare(b.department || '');
+      case 'dept_desc': return (b.department || '').localeCompare(a.department || '');
+      case 'curr_asc': return (a.total_curricula || 0) - (b.total_curricula || 0);
+      case 'curr_desc': return (b.total_curricula || 0) - (a.total_curricula || 0);
+      default: return a.name.localeCompare(b.name);
+    }
+  });
+
+  return filtered;
+}
+
+window.handleProgramSearch = function (query) {
+  state.programSearchQuery = query;
+  render();
+  // Restore focus
+  setTimeout(() => {
+    const el = document.getElementById('prog-search');
+    if (el) {
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
+  }, 0);
+};
+
+window.handleProgramSort = function (key) {
+  state.programSortKey = key;
+  render();
+};
+
 function renderProgramsTab() {
+  const programs = getFilteredAndSortedPrograms();
+  const sortKey = state.programSortKey || 'name_asc';
+
+  const getSortIcon = (colKey) => {
+    if (sortKey === `${colKey}_asc`) return '▲';
+    if (sortKey === `${colKey}_desc`) return '▼';
+    return '<span class="text-gray-300">↕</span>';
+  };
+
+  const nextSort = (colKey) => {
+    // Toggle logic
+    if (sortKey === `${colKey}_asc`) return `${colKey}_desc`;
+    return `${colKey}_asc`;
+  };
+
   return `
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div>
         <h2 class="text-xl font-bold text-gray-800">Programs</h2>
         <p class="text-sm text-gray-600 mt-1">Academic programs and curriculum tracks</p>
       </div>
-      <button onclick="openAddProgramModal()" class="btn btn-primary flex items-center gap-2">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        Add Program
-      </button>
+      <div class="flex items-center gap-2">
+         <div class="relative">
+            <input type="text" 
+                   id="prog-search"
+                   placeholder="Search programs..." 
+                   class="form-input text-sm pl-8 w-64"
+                   value="${state.programSearchQuery || ''}"
+                   oninput="handleProgramSearch(this.value)">
+            <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+         </div>
+         <button onclick="openAddProgramModal()" class="btn btn-primary flex items-center gap-2 whitespace-nowrap">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            Add Program
+         </button>
+      </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      ${state.programs.length === 0 ? `
-        <div class="col-span-full card text-center py-12">
-          <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-          </svg>
-          <p class="text-gray-500 text-lg">No programs found</p>
-          <p class="text-gray-400 text-sm mt-2">Click "Add Program" to create your first program</p>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th onclick="handleProgramSort('${nextSort('name')}')" class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none group">
+                            <div class="flex items-center gap-1">
+                                Program Name ${getSortIcon('name')}
+                            </div>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                            Code
+                        </th>
+                        <th onclick="handleProgramSort('${nextSort('dept')}')" class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none">
+                            <div class="flex items-center gap-1">
+                                Department ${getSortIcon('dept')}
+                            </div>
+                        </th>
+                         <th onclick="handleProgramSort('${nextSort('curr')}')" class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none">
+                            <div class="flex items-center justify-center gap-1">
+                                Curricula ${getSortIcon('curr')}
+                            </div>
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    ${programs.length === 0 ? `
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center">
+                                <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                                </svg>
+                                <p class="text-gray-500 font-medium">No programs found.</p>
+                                <p class="text-sm text-gray-400 mt-1">Try adjusting your search or add a new program.</p>
+                            </td>
+                        </tr>
+                    ` : programs.map(program => `
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4">
+                                <div class="text-sm font-bold text-gray-900">${program.name}</div>
+                                ${program.description ? `<div class="text-xs text-gray-500 truncate max-w-[250px]">${program.description}</div>` : ''}
+                                ${!program.is_active ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-800 mt-1">Inactive</span>' : ''}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 rounded bg-blue-50 text-blue-700 font-mono text-xs font-bold border border-blue-100">
+                                    ${program.code}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                ${program.department || '-'}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${program.total_curricula > 0 ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}">
+                                    ${program.total_curricula || 0}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <div class="flex items-center justify-end gap-2">
+                                    <button onclick="viewProgramDetails('${program.id}')" class="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors text-xs">
+                                        View Curricula
+                                    </button>
+                                    <button onclick="openEditProgramModal('${program.id}')" class="text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 p-1.5 rounded transition-colors" title="Edit">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                    </button>
+                                    <button onclick="deleteProgram('${program.id}')" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded transition-colors" title="Delete">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>
-      ` : state.programs.map(program => `
-        <div onclick="viewProgramDetails('${program.id}')" class="card hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-1 relative group">
-          <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-              <span class="text-blue-600 text-sm font-medium flex items-center gap-1">
-                  View Details <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-              </span>
-          </div>
-
-          <div class="flex items-start justify-between mb-4">
-            <div class="flex-1">
-              <div class="flex items-center gap-2 mb-2">
-                <h3 class="text-xl font-bold text-gray-800 group-hover:text-blue-600 transition-colors">${program.code}</h3>
-                ${program.is_active
-      ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Active</span>'
-      : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>'
-    }
-              </div>
-              <p class="text-gray-900 font-medium">${program.name}</p>
-            </div>
-          </div>
-
-          ${program.description ? `
-            <p class="text-sm text-gray-600 mb-6 line-clamp-2">${program.description}</p>
-          ` : ''}
-
-          <div class="grid grid-cols-2 gap-4">
-            <div class="bg-blue-50 rounded-lg p-3 group-hover:bg-blue-100 transition-colors">
-              <p class="text-xs text-gray-600 mb-1">Duration</p>
-              <p class="text-lg font-bold text-blue-600">${program.duration_years} ${program.duration_years === 1 ? 'year' : 'years'}</p>
-            </div>
-            
-            <div class="bg-purple-50 rounded-lg p-3 group-hover:bg-purple-100 transition-colors">
-              <div class="flex justify-between items-start">
-                  <div>
-                      <p class="text-xs text-gray-600 mb-1">Curricula</p>
-                      <p class="text-lg font-bold text-purple-600">${program.total_curricula || 0}</p>
-                  </div>
-                  <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                  </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-      `).join('')}
     </div>
   `;
 }
@@ -959,18 +1056,49 @@ function getProfessorForm(professor = null) {
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-          <input type="text" id="prof-first-name" value="${professor?.first_name || ''}" required class="form-input">
+          <input type="text" id="prof-first-name" value="${professor?.first_name || ''}" required class="form-input transition-colors">
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-          <input type="text" id="prof-last-name" value="${professor?.last_name || ''}" required class="form-input">
+          <input type="text" id="prof-last-name" value="${professor?.last_name || ''}" required class="form-input transition-colors">
         </div>
+      </div>
+      
+      <div id="prof-name-loader" class="hidden flex items-center gap-2 text-xs text-blue-600 mt-[-10px] mb-2">
+        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Checking name availability...</span>
+      </div>
+
+      <div id="prof-name-error" class="hidden flex items-center gap-2 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-100 mt-[-10px] mb-2 animate-pulse">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        <span>A professor with this name already exists.</span>
+      </div>
+      
+      <div id="prof-check-fail" class="hidden flex items-center gap-2 text-sm text-orange-600 bg-orange-50 p-2 rounded border border-orange-100 mt-[-10px] mb-2">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span>Could not verify name uniqueness. Try again.</span>
       </div>
 
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
         <input type="email" id="prof-email" value="${professor?.email || ''}" required class="form-input" ${isEdit ? 'readonly' : ''}>
         ${isEdit ? '<p class="text-xs text-gray-500 mt-1">Email cannot be changed after creation.</p>' : ''}
+      </div>
+
+      <div id="prof-email-loader" class="hidden flex items-center gap-2 text-xs text-blue-600 mt-[-10px] mb-2">
+        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Checking email availability...</span>
+      </div>
+
+      <div id="prof-email-error" class="hidden flex items-center gap-2 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-100 mt-[-10px] mb-2 animate-pulse">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        <span>This email has already exist in the system</span>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -981,6 +1109,21 @@ function getProfessorForm(professor = null) {
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Specialization</label>
           <input type="text" id="prof-specialization" value="${profile.specialization || ''}" class="form-input" placeholder="e.g. Web Development">
+        </div>
+      </div>
+
+      <div class="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
+        <label class="flex items-center gap-2 cursor-pointer mb-2">
+            <input type="checkbox" id="prof-auto-password" checked class="form-checkbox text-blue-600 rounded" onchange="toggleProfPassword(this.checked)">
+            <div>
+                <span class="text-sm font-medium text-blue-900">Auto-generate initial password</span>
+                <p class="text-xs text-blue-700">If unchecked, you can manually set the password.</p>
+            </div>
+        </label>
+        
+        <div id="prof-password-container" class="hidden mt-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input type="password" id="prof-password" class="form-input bg-white" placeholder="Enter custom password">
         </div>
       </div>
 
@@ -1013,6 +1156,18 @@ function getProfessorForm(professor = null) {
   `;
 }
 
+// Helper to toggle password field visibility
+window.toggleProfPassword = function (checked) {
+  const container = document.getElementById('prof-password-container');
+  const input = document.getElementById('prof-password');
+  if (checked) {
+    container.classList.add('hidden');
+    input.value = ''; // Clear if re-enabled
+  } else {
+    container.classList.remove('hidden');
+  }
+};
+
 window.openAddProfessorModal = function () {
   state.editingProfessor = null;
   state.profSubjectState.selected = [];
@@ -1030,10 +1185,38 @@ window.openAddProfessorModal = function () {
         primary: true,
         onClick: async (m) => {
           const form = document.getElementById('professor-form');
+          const errorDiv = document.getElementById('prof-name-error');
+          const loaderDiv = document.getElementById('prof-name-loader');
+          const errorEmailDiv = document.getElementById('prof-email-error');
+          const loaderEmailDiv = document.getElementById('prof-email-loader');
+
+          // Prevent submit if duplicate error is visible or check is in progress
+          if ((errorDiv && !errorDiv.classList.contains('hidden')) ||
+            (loaderDiv && !loaderDiv.classList.contains('hidden')) ||
+            (errorEmailDiv && !errorEmailDiv.classList.contains('hidden')) ||
+            (loaderEmailDiv && !loaderEmailDiv.classList.contains('hidden'))) {
+            return;
+          }
+
           if (!form.checkValidity()) {
             form.reportValidity();
             return;
           }
+
+          // Custom password validation
+          const autoPass = document.getElementById('prof-auto-password').checked;
+          const manualPass = document.getElementById('prof-password').value;
+
+          if (!autoPass && !manualPass) {
+            Toast.error('Please enter a password or enable auto-generation');
+            return;
+          }
+
+          // Find the submit button via modal ID since m.element is undefined
+          const modalEl = document.getElementById(m.modalId);
+          const submitBtn = modalEl ? modalEl.querySelector('button.bg-blue-600.modal-action') : null;
+
+          if (submitBtn && submitBtn.disabled) return;
 
           const data = {
             first_name: document.getElementById('prof-first-name').value,
@@ -1046,10 +1229,68 @@ window.openAddProfessorModal = function () {
             }
           };
 
+          if (!autoPass && manualPass) {
+            data.password = manualPass;
+          }
+
           try {
-            await api.post(endpoints.professors, data);
-            Toast.success('Professor added successfully');
+            const response = await api.post(endpoints.professors, data);
             m.close();
+
+            if (response.temp_password) {
+              const credModal = new Modal({
+                title: 'Professor Account Created',
+                content: `
+                        <div class="text-center">
+                            <div class="mb-4">
+                                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                </div>
+                                <h3 class="text-lg font-bold text-gray-900">Account Successfully Created</h3>
+                                <p class="text-sm text-gray-500">Please share these credentials with the professor.</p>
+                            </div>
+                            
+                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 text-left mb-6">
+                                <div class="mb-3">
+                                    <label class="block text-xs text-gray-500 uppercase font-bold tracking-wider">Email (Username)</label>
+                                    <div class="flex items-center gap-2">
+                                        <code class="text-lg font-mono font-bold text-gray-800 select-all">${response.email}</code>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 uppercase font-bold tracking-wider">Initial Password</label>
+                                    <div class="flex items-center justify-between gap-2">
+                                        <code class="text-lg font-mono font-bold text-blue-600 select-all">${response.temp_password}</code>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="text-xs text-gray-500 italic">
+                                The professor can change this password in their profile settings.
+                            </p>
+                        </div>
+                    `,
+                actions: [{ label: 'Done', primary: true, onClick: (cm) => cm.close() }]
+              });
+              credModal.show();
+            } else {
+              // Manual password case
+              const okModal = new Modal({
+                title: 'Professor Account Created',
+                content: `
+                   <div class="text-center py-4">
+                      <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                      </div>
+                      <h3 class="text-lg font-bold text-gray-900 mb-2">Success</h3>
+                      <p class="text-gray-600">Professor account created with the manually set password.</p>
+                   </div>
+                 `,
+                actions: [{ label: 'Close', primary: true, onClick: (cm) => cm.close() }]
+              });
+              okModal.show();
+            }
+
             await loadProfessors();
             render();
           } catch (error) {
@@ -1062,7 +1303,145 @@ window.openAddProfessorModal = function () {
 
   state.professorModal = modal;
   modal.show();
-  setTimeout(() => setupProfessorSubjectSearch(), 100);
+
+  // Setup real-time duplicate check
+  setTimeout(() => {
+    setupProfessorSubjectSearch();
+    setupDuplicateCheck(modal);
+  }, 100);
+};
+
+// New helper for duplicate checking (Name & Email)
+window.setupDuplicateCheck = function (modal) {
+  const fnInput = document.getElementById('prof-first-name');
+  const lnInput = document.getElementById('prof-last-name');
+  const emailInput = document.getElementById('prof-email');
+
+  const errorNameDiv = document.getElementById('prof-name-error');
+  const loaderNameDiv = document.getElementById('prof-name-loader');
+  const failDiv = document.getElementById('prof-check-fail');
+
+  const errorEmailDiv = document.getElementById('prof-email-error');
+  const loaderEmailDiv = document.getElementById('prof-email-loader');
+
+  // Find the modal element using the ID generated by the Modal class
+  const modalElement = document.getElementById(modal.modalId);
+  const submitBtn = modalElement ? modalElement.querySelector('button.bg-blue-600.modal-action') : null;
+
+  if (!fnInput || !lnInput || !errorNameDiv) return;
+
+  // --- NAME CHECK LOGIC ---
+  let nameDebounceTimer;
+  const checkNameDuplicate = async () => {
+    const fn = fnInput.value.trim();
+    const ln = lnInput.value.trim();
+
+    // Reset UI
+    errorNameDiv.classList.add('hidden');
+    if (failDiv) failDiv.classList.add('hidden');
+    if (loaderNameDiv) loaderNameDiv.classList.add('hidden');
+
+    if (!fn || !ln) {
+      fnInput.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+      lnInput.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+      checkButtonState();
+      return;
+    }
+
+    if (loaderNameDiv) loaderNameDiv.classList.remove('hidden');
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+      const response = await api.get(`${endpoints.professors}check-duplicate/?first_name=${encodeURIComponent(fn)}&last_name=${encodeURIComponent(ln)}`);
+
+      if (loaderNameDiv) loaderNameDiv.classList.add('hidden');
+
+      if (response.duplicate) {
+        errorNameDiv.classList.remove('hidden');
+        fnInput.classList.add('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+        lnInput.classList.add('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+      } else {
+        fnInput.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+        lnInput.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+      }
+      checkButtonState();
+    } catch (e) {
+      if (loaderNameDiv) loaderNameDiv.classList.add('hidden');
+      if (failDiv) failDiv.classList.remove('hidden');
+      checkButtonState(); // or keep disabled
+    }
+  };
+
+  const handleNameInput = () => {
+    clearTimeout(nameDebounceTimer);
+    nameDebounceTimer = setTimeout(checkNameDuplicate, 300);
+  };
+
+  fnInput.addEventListener('input', handleNameInput);
+  lnInput.addEventListener('input', handleNameInput);
+
+
+  // --- EMAIL CHECK LOGIC ---
+  let emailDebounceTimer;
+  const checkEmailDuplicate = async () => {
+    const email = emailInput.value.trim();
+
+    errorEmailDiv.classList.add('hidden');
+    if (loaderEmailDiv) loaderEmailDiv.classList.add('hidden');
+
+    // Basic regex or just length check before calling api
+    if (!email || !email.includes('@')) {
+      emailInput.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+      checkButtonState();
+      return;
+    }
+
+    if (loaderEmailDiv) loaderEmailDiv.classList.remove('hidden');
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+      const response = await api.get(`${endpoints.professors}check-duplicate/?email=${encodeURIComponent(email)}`);
+
+      if (loaderEmailDiv) loaderEmailDiv.classList.add('hidden');
+
+      if (response.duplicate) {
+        errorEmailDiv.classList.remove('hidden');
+        emailInput.classList.add('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+      } else {
+        emailInput.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+      }
+      checkButtonState();
+    } catch (e) {
+      if (loaderEmailDiv) loaderEmailDiv.classList.add('hidden');
+      // could show failDiv too or separate one
+      checkButtonState();
+    }
+  };
+
+  const handleEmailInput = () => {
+    clearTimeout(emailDebounceTimer);
+    emailDebounceTimer = setTimeout(checkEmailDuplicate, 300);
+  };
+
+  if (emailInput && !emailInput.hasAttribute('readonly')) {
+    emailInput.addEventListener('input', handleEmailInput);
+  }
+
+  // --- GLOBAL BUTTON STATE ---
+  const checkButtonState = () => {
+    if (!submitBtn) return;
+
+    const isNameLoading = loaderNameDiv && !loaderNameDiv.classList.contains('hidden');
+    const isEmailLoading = loaderEmailDiv && !loaderEmailDiv.classList.contains('hidden');
+    const hasNameError = errorNameDiv && !errorNameDiv.classList.contains('hidden');
+    const hasEmailError = errorEmailDiv && !errorEmailDiv.classList.contains('hidden');
+
+    if (isNameLoading || isEmailLoading || hasNameError || hasEmailError) {
+      submitBtn.disabled = true;
+    } else {
+      submitBtn.disabled = false;
+    }
+  };
 };
 
 window.openEditProfessorModal = async function (professorId) {
@@ -1170,9 +1549,9 @@ window.setupProfessorSubjectSearch = function () {
         const response = await api.get(`${endpoints.manageSubjects}?search=${encodeURIComponent(query)}`);
         const subjects = response?.results || response || [];
 
-        // Filter out already selected
+        // Filter out already selected (robust ID check)
         const matches = subjects.filter(s => {
-          return !state.profSubjectState.selected.some(sel => sel.id === s.id);
+          return !state.profSubjectState.selected.some(sel => String(sel.id) === String(s.id));
         }).slice(0, 10);
 
         if (matches.length > 0) {
