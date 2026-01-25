@@ -161,8 +161,105 @@ class UserPermissionDetailSerializer(serializers.Serializer):
 
 class PermissionCategoryDetailSerializer(serializers.Serializer):
     """Serializer for permission category with user's permission status."""
-
+    
     code = serializers.CharField()
     name = serializers.CharField()
     icon = serializers.CharField()
     permissions = UserPermissionDetailSerializer(many=True)
+
+
+class RegistrarStudentSerializer(serializers.ModelSerializer):
+    """Flattened serializer for Registrar Student Table."""
+    user_id = serializers.UUIDField(source='user.id', read_only=True)
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+    student_number = serializers.CharField(source='user.student_number', read_only=True)
+    
+    program_code = serializers.CharField(source='program.code', read_only=True)
+    curriculum_code = serializers.CharField(source='curriculum.code', read_only=True, allow_null=True)
+    home_section_name = serializers.CharField(source='home_section.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = StudentProfile
+        fields = [
+            'id', 'user_id', 'student_number', 'first_name', 'last_name', 'email',
+            'program_code', 'curriculum_code', 'year_level', 'status', 
+            'academic_status', 'home_section_name', 'is_transferee'
+        ]
+
+class CreditSubjectSerializer(serializers.Serializer):
+    subject_id = serializers.UUIDField()
+    grade = serializers.DecimalField(max_digits=3, decimal_places=2, required=False)
+
+class StudentManualCreateSerializer(serializers.ModelSerializer):
+    """Serializer for Manual Student Creation."""
+    email = serializers.EmailField(write_only=True)
+    first_name = serializers.CharField(write_only=True)
+    last_name = serializers.CharField(write_only=True)
+    birthdate = serializers.DateField(write_only=True)
+    address = serializers.CharField(required=False, allow_blank=True)
+    contact_number = serializers.CharField(required=False, allow_blank=True)
+    
+    credited_subjects = CreditSubjectSerializer(many=True, required=False)
+    
+    class Meta:
+        model = StudentProfile
+        fields = [
+            'email', 'first_name', 'last_name', 'birthdate', 'address', 'contact_number',
+            'program', 'curriculum', 'year_level', 'is_transferee',
+            'previous_school', 'credited_subjects'
+        ]
+
+class StudentDetailSerializer(RegistrarStudentSerializer):
+    """Detailed view for Modal including academic history."""
+    birthdate = serializers.DateField(read_only=True)
+    address = serializers.CharField(read_only=True)
+    contact_number = serializers.CharField(read_only=True)
+    previous_school = serializers.CharField(read_only=True)
+    
+    academic_history = serializers.SerializerMethodField()
+    current_enrollment = serializers.SerializerMethodField()
+    
+    class Meta(RegistrarStudentSerializer.Meta):
+        fields = RegistrarStudentSerializer.Meta.fields + [
+            'birthdate', 'address', 'contact_number', 'previous_school',
+            'academic_history', 'current_enrollment'
+        ]
+        
+    def get_academic_history(self, obj):
+        from apps.enrollment.models import SubjectEnrollment
+        # Filter for completed or credited subjects
+        enrollments = SubjectEnrollment.objects.filter(
+            enrollment__student=obj.user
+        ).select_related('subject', 'enrollment__semester').order_by('enrollment__semester__start_date')
+        
+        history = []
+        for se in enrollments:
+             history.append({
+                 'subject_code': se.subject.code,
+                 'subject_title': se.subject.title,
+                 'grade': se.final_grade,
+                 'status': se.status,
+                 'units': se.subject.units,
+                 'semester': se.enrollment.semester.name
+             })
+        return history
+
+    def get_current_enrollment(self, obj):
+         from apps.enrollment.models import SubjectEnrollment, Semester
+         current_sem = Semester.objects.filter(is_current=True).first()
+         if not current_sem: return []
+         
+         enrollments = SubjectEnrollment.objects.filter(
+            enrollment__student=obj.user,
+            enrollment__semester=current_sem
+         ).select_related('subject', 'section')
+         
+         return [{
+             'subject_code': e.subject.code,
+             'subject_title': e.subject.title,
+             'section': e.section.name if e.section else 'TBA',
+             'status': e.status,
+             'units': e.subject.units
+         } for e in enrollments]

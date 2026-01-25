@@ -368,9 +368,15 @@ class SectionSerializer(serializers.ModelSerializer):
 class SectionCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating sections."""
     
+    subject_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        write_only=True
+    )
+
     class Meta:
         model = Section
-        fields = ['name', 'program', 'semester', 'year_level', 'capacity']
+        fields = ['name', 'program', 'semester', 'year_level', 'capacity', 'subject_ids']
 
 
 # ============================================================

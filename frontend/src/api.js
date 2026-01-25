@@ -305,6 +305,10 @@ export const endpoints = {
     registrarStudentSearch: '/admissions/cashier/students/search/',  // Reuse cashier search
     registrarAllStudents: '/admissions/applicants/',  // Get all enrolled students
 
+    // Registrar Student Management (EPIC 7)
+    registrarStudents: '/accounts/students/',
+    registrarStudentDetail: (id) => `/accounts/students/${id}/`,
+
     // Head/Department Head endpoints
     headPendingEnrollments: '/admissions/head/pending-enrollments/',
     headApprove: (id) => `/admissions/head/approve/${id}/`,

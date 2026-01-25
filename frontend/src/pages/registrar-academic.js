@@ -1922,12 +1922,18 @@ function renderSectionDetail() {
           </div>
         </div>
         
-        <div class="flex gap-3">
-          <button onclick="openAssignSectionSubjectModal()" class="btn btn-primary flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-            </svg>
-            Assign Subject
+        <div class="flex gap-2">
+          <button onclick="openAssignStudentsModal()" class="btn btn-primary flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+            Assign Students
+          </button>
+          <button onclick="openAssignSectionSubjectModal()" class="btn btn-secondary flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            Assign Schedule
+          </button>
+          <button onclick="openViewStudentsModal()" class="btn btn-secondary flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+            View Students
           </button>
         </div>
       </div>
@@ -2144,12 +2150,12 @@ window.openAddSectionModal = function () {
         <div class="md:col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">Section Name *</label>
           <input type="text" id="sec-name" required class="form-input" placeholder="e.g. BSIT-1A">
-            <p class="text-[11px] text-gray-500 mt-1">Recommended format: [Program]-[Year][Letter]</p>
+          <p class="text-[11px] text-gray-500 mt-1">Recommended format: [Program]-[Year][Letter]</p>
         </div>
 
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Academic Program *</label>
-          <select id="sec-program" required class="form-select">
+          <select id="sec-program" required class="form-select" onchange="updateAddSectionCurricula(this.value)">
             <option value="">Select Program</option>
             ${state.programs.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('')}
           </select>
@@ -2157,12 +2163,26 @@ window.openAddSectionModal = function () {
 
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
-          <select id="sec-year" required class="form-select bg-white">
+          <select id="sec-year" required class="form-select bg-white" onchange="updateAddSectionSubjects()">
             <option value="1">1st Year</option>
             <option value="2">2nd Year</option>
             <option value="3">3rd Year</option>
             <option value="4">4th Year</option>
           </select>
+        </div>
+
+        <div class="md:col-span-2">
+           <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum (Auto-populate subjects)</label>
+           <select id="sec-curriculum" class="form-select" onchange="updateAddSectionSubjects()">
+               <option value="">Select Program First</option>
+           </select>
+        </div>
+
+        <div class="md:col-span-2 hidden" id="sec-subjects-wrapper">
+             <label class="block text-sm font-medium text-gray-700 mb-2">Subjects to Assign</label>
+             <div id="sec-subjects-list" class="border border-gray-200 rounded-md p-3 max-h-48 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2 bg-gray-50">
+                <p class="text-xs text-gray-400 text-center col-span-2">Select a curriculum to view subjects</p>
+             </div>
         </div>
 
         <div>
@@ -2190,12 +2210,16 @@ window.openAddSectionModal = function () {
             return;
           }
 
+          const subjectCheckboxes = document.querySelectorAll('input[name="sec_subjects"]:checked');
+          const subjectIds = Array.from(subjectCheckboxes).map(cb => cb.value);
+
           const data = {
             name: document.getElementById('sec-name').value,
             program: document.getElementById('sec-program').value,
             semester: state.activeSemester?.id,
             year_level: parseInt(document.getElementById('sec-year').value),
-            capacity: parseInt(document.getElementById('sec-capacity').value)
+            capacity: parseInt(document.getElementById('sec-capacity').value),
+            subject_ids: subjectIds
           };
 
           try {
@@ -2446,18 +2470,30 @@ window.checkConflictsAsync = async function () {
 
   try {
     if (room && room !== 'TBA') {
-      const roomResp = await api.get(`${endpoints.checkRoomConflict}?room=${encodeURIComponent(room)}&day=${day}&start_time=${start}&end_time=${end}&semester=${semesterId}`);
-      if (roomResp && roomResp.conflict) {
-        msgEl.innerHTML = `<strong>Room Conflict:</strong> ${roomResp.message || 'Room is occupied.'}`;
+      const roomResp = await api.post(endpoints.checkRoomConflict, {
+        room,
+        day,
+        start_time: start,
+        end_time: end,
+        semester_id: semesterId
+      });
+      if (roomResp && roomResp.has_conflict) {
+        msgEl.innerHTML = `<strong>Room Conflict:</strong> ${roomResp.conflict || 'Room is occupied.'}`;
         warningEl.classList.remove('hidden');
         return true;
       }
     }
 
     if (professor) {
-      const profResp = await api.get(`${endpoints.checkProfessorConflict}?professor=${professor}&day=${day}&start_time=${start}&end_time=${end}&semester=${semesterId}`);
-      if (profResp && profResp.conflict) {
-        msgEl.innerHTML = `<strong>Professor Conflict:</strong> ${profResp.message || 'Professor has another class.'}`;
+      const profResp = await api.post(endpoints.checkProfessorConflict, {
+        professor_id: professor,
+        day,
+        start_time: start,
+        end_time: end,
+        semester_id: semesterId
+      });
+      if (profResp && profResp.has_conflict) {
+        msgEl.innerHTML = `<strong>Professor Conflict:</strong> ${profResp.conflict || 'Professor has another class.'}`;
         warningEl.classList.remove('hidden');
         return true;
       }
@@ -4353,3 +4389,424 @@ window.logout = function () {
 
 document.addEventListener('DOMContentLoaded', init);
 if (document.readyState !== 'loading') init();
+// ====================
+// SECTION MODALS (New)
+// ====================
+
+window.openAssignStudentsModal = async function () {
+  const section = state.selectedSection;
+  if (!section) return;
+
+  // UI Loading
+  const modal = new Modal({
+    title: 'Assign Students',
+    content: '<div class="p-8 text-center text-gray-500">Loading recommendations...</div>'
+  });
+  modal.show();
+
+  try {
+    const recommendations = await api.get(endpoints.section(section.id) + 'recommend-students/');
+
+    // Update modal content
+    const content = `
+            <div class="space-y-4">
+                <div class="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
+                    <svg class="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div>
+                        <h4 class="font-bold text-blue-800 text-sm">System Recommendations</h4>
+                        <p class="text-xs text-blue-600">Showing students in ${section.program_code} - Year ${section.year_level} who are not assigned to any section.</p>
+                    </div>
+                </div>
+                
+                <div class="max-h-[400px] overflow-y-auto border border-gray-200 rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-2 w-10">
+                                    <input type="checkbox" onchange="toggleSelectAllStudents(this)" class="rounded border-gray-300">
+                                </th>
+                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Student No.</th>
+                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Name</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200" id="recommend-list">
+                            ${recommendations.map(s => `
+                                <tr>
+                                    <td class="px-4 py-2 text-center">
+                                        <input type="checkbox" name="assign_student" value="${s.user_id}" class="rounded border-gray-300 cursor-pointer">
+                                    </td>
+                                    <td class="px-4 py-2 text-sm font-mono">${s.student_number}</td>
+                                    <td class="px-4 py-2 text-sm font-bold">${s.last_name}, ${s.first_name}</td>
+                                </tr>
+                            `).join('')}
+                             ${recommendations.length === 0 ? '<tr><td colspan="3" class="px-4 py-8 text-center text-gray-400">No matching students found.</td></tr>' : ''}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+    modal.close();
+
+    new Modal({
+      title: `Assign Students to ${section.name}`,
+      content: content,
+      actions: [
+        { label: 'Cancel', onClick: m => m.close() },
+        {
+          label: `Assign Selected`,
+          primary: true,
+          onClick: async (m) => {
+            const selected = [...document.querySelectorAll('input[name="assign_student"]:checked')].map(cb => cb.value);
+            if (selected.length === 0) {
+              Toast.error('Please select students to assign');
+              return;
+            }
+
+            try {
+              setButtonLoading(m.element.querySelector('button.btn-primary'), true);
+              await api.post(endpoints.section(section.id) + 'assign-students/', { student_ids: selected });
+              Toast.success(`Assigned ${selected.length} students`);
+              m.close();
+              await viewSection(section.id);
+            } catch (e) {
+              ErrorHandler.handle(e, 'Assigning students');
+              setButtonLoading(m.element.querySelector('button.btn-primary'), false);
+            }
+          }
+        }
+      ],
+      size: 'lg'
+    }).show();
+
+  } catch (e) {
+    modal.close();
+    ErrorHandler.handle(e, 'Loading recommendations');
+  }
+};
+
+window.toggleSelectAllStudents = function (source) {
+  document.querySelectorAll('input[name="assign_student"]').forEach(cb => cb.checked = source.checked);
+};
+
+window.openViewStudentsModal = async function () {
+  const section = state.selectedSection;
+  if (!section) return;
+
+  // UI Loading
+  const modal = new Modal({
+    title: `Students in ${section.name}`,
+    content: '<div class="p-8 text-center text-gray-500">Loading students...</div>'
+  });
+  modal.show();
+
+  try {
+    const students = await api.get(endpoints.section(section.id) + 'students/');
+    const content = `
+                <div class="mb-2 text-sm text-gray-500 text-right">Total: ${students.length} students</div>
+                <div class="max-h-[500px] overflow-y-auto border border-gray-200 rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Student No.</th>
+                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Name</th>
+                                <th class="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            ${students.map(s => `
+                                <tr>
+                                    <td class="px-4 py-2 text-sm font-mono">${s.student_number}</td>
+                                    <td class="px-4 py-2 text-sm font-bold">${s.last_name}, ${s.first_name}</td>
+                                    <td class="px-4 py-2 text-right">
+                                        <button onclick="removeStudentFromSection('${s.user_id}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 rounded hover:bg-red-50 transition-colors">
+                                            Remove
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                             ${students.length === 0 ? '<tr><td colspan="3" class="px-4 py-8 text-center text-gray-400">No students assigned.</td></tr>' : ''}
+                        </tbody>
+                    </table>
+                </div>
+        `;
+    modal.close();
+    new Modal({
+      title: `Students in ${section.name}`,
+      content: content,
+      actions: [{ label: 'Close', onClick: m => m.close() }],
+      size: 'lg'
+    }).show();
+  } catch (e) {
+    modal.close();
+    ErrorHandler.handle(e, 'Loading students');
+  }
+};
+
+window.removeStudentFromSection = async function (studentId) {
+  if (!confirm('Are you sure you want to remove this student from the section?')) return;
+  try {
+    const section = state.selectedSection;
+    await api.post(endpoints.section(section.id) + 'remove-student/', { student_id: studentId });
+    Toast.success('Student removed');
+
+    // Refresh by reloading same modal - a bit recursive. 
+    // Better: Close all modals and re-open ViewStudents? 
+    // Or manually remove row?
+    document.querySelector(`button[onclick="removeStudentFromSection('${studentId}')"]`).closest('tr').remove();
+
+    // Also refresh the section details in background
+    await loadSectionDetails(section.id);
+    render(); // Updating counts
+
+  } catch (e) {
+    ErrorHandler.handle(e, 'Removing student');
+  }
+};
+
+// ====================
+// SECTION MODALS (New)
+// ====================
+
+window.openAssignStudentsModal = async function () {
+  const section = state.selectedSection;
+  if (!section) return;
+
+  // UI Loading
+  const modal = new Modal({
+    title: 'Assign Students',
+    content: '<div class="p-8 text-center text-gray-500">Loading recommendations...</div>'
+  });
+  modal.show();
+
+  try {
+    const recommendations = await api.get(endpoints.section(section.id) + 'recommend-students/');
+
+    // Update modal content
+    const content = `
+            <div class="space-y-4">
+                <div class="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
+                    <svg class="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div>
+                        <h4 class="font-bold text-blue-800 text-sm">System Recommendations</h4>
+                        <p class="text-xs text-blue-600">Showing students in ${section.program_code} - Year ${section.year_level} who are not assigned to any section.</p>
+                    </div>
+                </div>
+                
+                <div class="max-h-[400px] overflow-y-auto border border-gray-200 rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-2 w-10">
+                                    <input type="checkbox" onchange="toggleSelectAllStudents(this)" class="rounded border-gray-300">
+                                </th>
+                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Student No.</th>
+                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Name</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200" id="recommend-list">
+                            ${recommendations.map(s => `
+                                <tr>
+                                    <td class="px-4 py-2 text-center">
+                                        <input type="checkbox" name="assign_student" value="${s.user_id}" class="rounded border-gray-300 cursor-pointer">
+                                    </td>
+                                    <td class="px-4 py-2 text-sm font-mono">${s.student_number}</td>
+                                    <td class="px-4 py-2 text-sm font-bold">${s.last_name}, ${s.first_name}</td>
+                                </tr>
+                            `).join('')}
+                             ${recommendations.length === 0 ? '<tr><td colspan="3" class="px-4 py-8 text-center text-gray-400">No matching students found.</td></tr>' : ''}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+    modal.close();
+
+    new Modal({
+      title: `Assign Students to ${section.name}`,
+      content: content,
+      actions: [
+        { label: 'Cancel', onClick: m => m.close() },
+        {
+          label: `Assign Selected`,
+          primary: true,
+          onClick: async (m) => {
+            const selected = [...document.querySelectorAll('input[name="assign_student"]:checked')].map(cb => cb.value);
+            if (selected.length === 0) {
+              Toast.error('Please select students to assign');
+              return;
+            }
+
+            try {
+              setButtonLoading(m.element.querySelector('button.btn-primary'), true);
+              await api.post(endpoints.section(section.id) + 'assign-students/', { student_ids: selected });
+              Toast.success(`Assigned ${selected.length} students`);
+              m.close();
+              await viewSection(section.id);
+            } catch (e) {
+              ErrorHandler.handle(e, 'Assigning students');
+              setButtonLoading(m.element.querySelector('button.btn-primary'), false);
+            }
+          }
+        }
+      ],
+      size: 'lg'
+    }).show();
+
+  } catch (e) {
+    modal.close();
+    ErrorHandler.handle(e, 'Loading recommendations');
+  }
+};
+
+window.toggleSelectAllStudents = function (source) {
+  document.querySelectorAll('input[name="assign_student"]').forEach(cb => cb.checked = source.checked);
+};
+
+window.openViewStudentsModal = async function () {
+  const section = state.selectedSection;
+  if (!section) return;
+
+  // UI Loading
+  const modal = new Modal({
+    title: `Students in ${section.name}`,
+    content: '<div class="p-8 text-center text-gray-500">Loading students...</div>'
+  });
+  modal.show();
+
+  try {
+    const students = await api.get(endpoints.section(section.id) + 'students/');
+    const content = `
+                <div class="mb-2 text-sm text-gray-500 text-right">Total: ${students.length} students</div>
+                <div class="max-h-[500px] overflow-y-auto border border-gray-200 rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Student No.</th>
+                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Name</th>
+                                <th class="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            ${students.map(s => `
+                                <tr>
+                                    <td class="px-4 py-2 text-sm font-mono">${s.student_number}</td>
+                                    <td class="px-4 py-2 text-sm font-bold">${s.last_name}, ${s.first_name}</td>
+                                    <td class="px-4 py-2 text-right">
+                                        <button onclick="removeStudentFromSection('${s.user_id}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 rounded hover:bg-red-50 transition-colors">
+                                            Remove
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                             ${students.length === 0 ? '<tr><td colspan="3" class="px-4 py-8 text-center text-gray-400">No students assigned.</td></tr>' : ''}
+                        </tbody>
+                    </table>
+                </div>
+        `;
+    modal.close();
+    new Modal({
+      title: `Students in ${section.name}`,
+      content: content,
+      actions: [{ label: 'Close', onClick: m => m.close() }],
+      size: 'lg'
+    }).show();
+  } catch (e) {
+    modal.close();
+    ErrorHandler.handle(e, 'Loading students');
+  }
+};
+
+window.removeStudentFromSection = async function (studentId) {
+  if (!confirm('Are you sure you want to remove this student from the section?')) return;
+  try {
+    const section = state.selectedSection;
+    await api.post(endpoints.section(section.id) + 'remove-student/', { student_id: studentId });
+    Toast.success('Student removed');
+
+    // Refresh by reloading same modal - a bit recursive. 
+    // Better: Close all modals and re-open ViewStudents? 
+    // Or manually remove row?
+    document.querySelector(`button[onclick="removeStudentFromSection('${studentId}')"]`).closest('tr').remove();
+
+    // Also refresh the section details in background
+    await loadSectionDetails(section.id);
+    render(); // Updating counts
+
+  } catch (e) {
+    ErrorHandler.handle(e, 'Removing student');
+  }
+};
+
+window.updateAddSectionCurricula = async function (programId) {
+  const currSelect = document.getElementById('sec-curriculum');
+  if (!currSelect) return;
+
+  if (!programId) {
+    currSelect.innerHTML = '<option value="">Select Program First</option>';
+    return;
+  }
+
+  // Fetch curricula
+  try {
+    const curricula = await api.get(endpoints.curricula + `?program=${programId}`);
+    const activeFirst = curricula.sort((a, b) => (b.is_active - a.is_active));
+
+    currSelect.innerHTML = '<option value="">Select Curriculum to load subjects...</option>' +
+      activeFirst.map(c => `<option value="${c.id}">${c.code} ${c.is_active ? '(Active)' : ''}</option>`).join('');
+
+    // Reset subjects
+    document.getElementById('sec-subjects-list').innerHTML = '<p class="text-xs text-gray-400 text-center col-span-2">Select a curriculum to view subjects</p>';
+    document.getElementById('sec-subjects-wrapper').classList.add('hidden');
+  } catch (e) {
+    console.error(e);
+    currSelect.innerHTML = '<option value="">Error loading curricula</option>';
+  }
+};
+
+window.updateAddSectionSubjects = async function () {
+  const currId = document.getElementById('sec-curriculum').value;
+  const yearLevel = parseInt(document.getElementById('sec-year').value);
+
+  if (!currId) {
+    document.getElementById('sec-subjects-wrapper').classList.add('hidden');
+    return;
+  }
+
+  document.getElementById('sec-subjects-wrapper').classList.remove('hidden');
+  const container = document.getElementById('sec-subjects-list');
+  container.innerHTML = '<p class="text-xs text-gray-500 col-span-2">Loading subjects...</p>';
+
+  try {
+    const structure = await api.get(endpoints.curriculumStructure(currId));
+
+    let subjects = [];
+    const blocks = Array.isArray(structure) ? structure : (structure.year_levels || []);
+
+    blocks.forEach(yearBlock => {
+      if (yearBlock.year_level === yearLevel) {
+        subjects = subjects.concat(yearBlock.subjects || []);
+      }
+    });
+
+    if (subjects.length === 0) {
+      container.innerHTML = '<p class="text-sm text-gray-500 col-span-2">No subjects found for Year ' + yearLevel + '.</p>';
+      return;
+    }
+
+    container.innerHTML = subjects.map(s => `
+            <div class="flex items-start gap-2 bg-white p-2 rounded border border-gray-100">
+                <input type="checkbox" name="sec_subjects" value="${s.id}" checked class="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                <div class="text-sm">
+                    <span class="font-bold text-gray-700 block">${s.code}</span>
+                    <span class="text-gray-500 text-[10px] block leading-tight">${s.title}</span>
+                </div>
+            </div>
+        `).join('');
+
+  } catch (e) {
+    container.innerHTML = '<p class="text-xs text-red-500 col-span-2">Error loading subjects</p>';
+    console.error(e);
+  }
+};

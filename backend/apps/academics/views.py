@@ -345,7 +345,18 @@ class SectionViewSet(viewsets.ModelViewSet):
         )
     
     def perform_create(self, serializer):
+        subject_ids = serializer.validated_data.pop('subject_ids', [])
         section = serializer.save()
+        
+        if subject_ids:
+            from apps.academics.models import SectionSubject, Subject
+            subjects = Subject.objects.filter(id__in=subject_ids)
+            records = [
+                SectionSubject(section=section, subject=s, is_tba=True)
+                for s in subjects
+            ]
+            SectionSubject.objects.bulk_create(records)
+
         AuditLog.log(
             action=AuditLog.Action.SECTION_CREATED,
             target_model='Section',
@@ -446,6 +457,56 @@ class SectionViewSet(viewsets.ModelViewSet):
             msg += f" {len(enroll_errors)} enrollment errors."
         
         return Response({'message': msg, 'errors': enroll_errors})
+
+    @action(detail=True, methods=['get'])
+    def students(self, request, pk=None):
+        """Get list of students assigned to section."""
+        section = self.get_object()
+        from apps.accounts.models import StudentProfile
+        from apps.accounts.serializers import RegistrarStudentSerializer
+        students = StudentProfile.objects.filter(home_section=section).select_related('user', 'program')
+        serializer = RegistrarStudentSerializer(students, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='recommend-students')
+    def recommend_students(self, request, pk=None):
+        """Get recommended students for section (same program/year, no section)."""
+        section = self.get_object()
+        from apps.accounts.models import StudentProfile
+        from apps.accounts.serializers import RegistrarStudentSerializer
+        
+        students = StudentProfile.objects.filter(
+            program=section.program,
+            year_level=section.year_level,
+            home_section__isnull=True,
+            user__is_active=True
+        ).select_related('user', 'program')
+        
+        serializer = RegistrarStudentSerializer(students, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='remove-student')
+    def remove_student(self, request, pk=None):
+        """Remove a student from the section."""
+        section = self.get_object()
+        student_id = request.data.get('student_id')
+        
+        if not student_id:
+             return Response({'error': 'Student ID required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from apps.accounts.models import StudentProfile
+            profile = StudentProfile.objects.get(user_id=student_id, home_section=section)
+            profile.home_section = None
+            profile.save()
+            
+            # Note: We don't automatically drop subjects as they might have been enrolled manually?
+            # Requirement says "remove them from the section". 
+            # Usually strict sectioning implies dropping section subjects too, but let's keep it safe.
+            
+            return Response({'message': 'Student removed from section.'})
+        except StudentProfile.DoesNotExist:
+             return Response({'error': 'Student not found in this section'}, status=status.HTTP_404_NOT_FOUND)
 
 
 # ============================================================

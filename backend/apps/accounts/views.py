@@ -11,16 +11,24 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema
 
 from django.db.models import Q
-from .models import User, PermissionCategory, Permission, UserPermission
+from .models import User, StudentProfile, PermissionCategory, Permission, UserPermission
 from .serializers import (
     LoginSerializer,
     UserProfileSerializer,
     UserProfileUpdateSerializer,
     UserWithPermissionsSerializer,
     PermissionCategoryDetailSerializer,
-    PermissionCategorySerializer
+    PermissionCategorySerializer,
+    RegistrarStudentSerializer, 
+    StudentManualCreateSerializer,
+    StudentDetailSerializer
 )
 from apps.audit.models import AuditLog
+from apps.core.permissions import IsRegistrarOrAdmin
+from apps.enrollment.models import SubjectEnrollment, Enrollment, Semester
+from apps.academics.models import Subject
+from django import db
+from rest_framework import viewsets
 from apps.core.decorators import ratelimit_method
 from .validators import PasswordValidator
 
@@ -475,3 +483,110 @@ class PermissionCategoryListView(APIView):
             "success": True,
             "categories": serializer.data
         })
+
+
+class StudentViewSet(viewsets.ModelViewSet):
+    """
+    Registrar Student Management.
+    """
+    queryset = StudentProfile.objects.all()
+    permission_classes = [IsRegistrarOrAdmin]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return StudentManualCreateSerializer
+        if self.action == 'retrieve':
+            return StudentDetailSerializer
+        return RegistrarStudentSerializer
+        
+    def get_queryset(self):
+        # We need to filter StudentProfile, but ensure we select relations
+        qs = StudentProfile.objects.filter(user__is_active=True).select_related(
+            'user', 'program', 'curriculum', 'home_section'
+        )
+        
+        program = self.request.query_params.get('program')
+        curriculum = self.request.query_params.get('curriculum')
+        search = self.request.query_params.get('search')
+        
+        if program:
+            qs = qs.filter(program_id=program)
+        if curriculum:
+            qs = qs.filter(curriculum_id=curriculum)
+        if search:
+            qs = qs.filter(
+                Q(user__last_name__icontains=search) | 
+                Q(user__first_name__icontains=search) | 
+                Q(user__student_number__icontains=search)
+            )
+            
+        return qs.order_by('user__last_name')
+
+    @db.transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        data = serializer.validated_data
+        
+        from apps.enrollment.services import EnrollmentService
+        service = EnrollmentService()
+        
+        email = data['email']
+        if User.objects.filter(email=email).exists():
+             return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate credentials
+        school_email = service._generate_school_email(data['first_name'], data['last_name'])
+        student_number = service.generate_student_number()
+        password = service._generate_password()
+        
+        user = User.objects.create_user(
+            email=email,
+            password=password,
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            role=User.Role.STUDENT,
+            student_number=student_number,
+            username=school_email
+        )
+        
+        profile = StudentProfile.objects.create(
+            user=user,
+            program=data['program'],
+            curriculum=data.get('curriculum'),
+            year_level=data['year_level'],
+            is_transferee=data.get('is_transferee', False),
+            previous_school=data.get('previous_school', ''),
+            birthdate=data['birthdate'],
+            address=data.get('address', ''),
+            contact_number=data.get('contact_number', ''),
+            status='ACTIVE'
+        )
+        
+        credited_subjects = data.get('credited_subjects', [])
+        if credited_subjects:
+            semester = Semester.objects.filter(is_current=True).first()
+            if not semester:
+                from datetime import date
+                semester = Semester.objects.create(
+                    name="Default", academic_year="2025", 
+                    start_date=date.today(), end_date=date.today(), is_current=True
+                )
+                
+            enrollment = Enrollment.objects.create(
+                student=user,
+                semester=semester,
+                status=Enrollment.Status.ENROLLED,
+                created_via=Enrollment.CreatedVia.TRANSFEREE
+            )
+            
+            for credit in credited_subjects:
+                 SubjectEnrollment.objects.create(
+                     enrollment=enrollment,
+                     subject_id=credit['subject_id'],
+                     status=SubjectEnrollment.Status.CREDITED,
+                     final_grade=credit.get('grade')
+                 )
+        
+        return Response(RegistrarStudentSerializer(profile).data, status=status.HTTP_201_CREATED)

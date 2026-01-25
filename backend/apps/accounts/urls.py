@@ -1,5 +1,6 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework.routers import DefaultRouter
 
 from . import views
 from . import password_reset_views
@@ -28,3 +29,7 @@ urlpatterns = [
     path('users/<uuid:user_id>/permissions/bulk/', views.BulkUpdateUserPermissionsView.as_view(), name='bulk-update-permissions'),
     path('permissions/categories/', views.PermissionCategoryListView.as_view(), name='permission-categories'),
 ]
+
+router = DefaultRouter()
+router.register(r'students', views.StudentViewSet, basename='student')
+urlpatterns += router.urls
