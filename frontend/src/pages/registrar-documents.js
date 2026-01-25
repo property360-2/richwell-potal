@@ -80,10 +80,10 @@ function render() {
 
   app.innerHTML = `
     ${createHeader({
-      role: 'REGISTRAR',
-      activePage: 'registrar-documents',
-      user: state.user
-    })}
+    role: 'REGISTRAR',
+    activePage: 'registrar-documents',
+    user: state.user
+  })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Title -->
@@ -251,6 +251,16 @@ function getReleaseForm(student, enrollmentStatus) {
             </div>
           </details>
         ` : ''}
+        ${canReleaseCOR ? `
+            <div class="mt-3 pt-3 border-t border-blue-200">
+               <button type="button" onclick="printCOR('${student.student_id}')" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-blue-300 text-blue-700 rounded-md hover:bg-blue-50 font-medium transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                  </svg>
+                  Print Certificate of Registration (COR)
+               </button>
+            </div>
+        ` : ''}
       </div>
     ` : ''}
 
@@ -295,7 +305,7 @@ function getReleaseForm(student, enrollmentStatus) {
 }
 
 // Handle document type change to show warning for COR
-window.handleDocTypeChange = function(docType, canReleaseCOR) {
+window.handleDocTypeChange = function (docType, canReleaseCOR) {
   if (docType === 'COR' && !canReleaseCOR) {
     Toast.warning('COR cannot be released: Student has no enrolled subjects');
     // Reset selection
@@ -304,7 +314,7 @@ window.handleDocTypeChange = function(docType, canReleaseCOR) {
 };
 
 // Event handlers
-window.handleSearch = function(event) {
+window.handleSearch = function (event) {
   const query = event.target.value.toLowerCase().trim();
   state.searchQuery = query;
 
@@ -324,13 +334,13 @@ window.handleSearch = function(event) {
   render();
 };
 
-window.refreshStudents = async function() {
+window.refreshStudents = async function () {
   await loadAllStudents();
   render();
   Toast.success('Student list refreshed');
 };
 
-window.openReleaseModal = async function(studentId) {
+window.openReleaseModal = async function (studentId) {
   const student = state.allStudents.find(s => s.student_id === studentId);
   if (!student) return;
 
@@ -400,7 +410,7 @@ window.openReleaseModal = async function(studentId) {
 };
 
 
-window.logout = function() {
+window.logout = function () {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');
   setTimeout(() => {
@@ -408,5 +418,216 @@ window.logout = function() {
   }, 1000);
 };
 
+
+// ============================================================
+// PRINTING UTILITIES
+// ============================================================
+
+window.printCOR = async function (studentId) {
+  // Find student and fetch full enrollment data
+  const student = state.allStudents.find(s => s.student_id === studentId);
+  if (!student) return;
+
+  try {
+    // Show loading state
+    const originalText = document.activeElement ? document.activeElement.innerText : '';
+    if (document.activeElement) document.activeElement.innerText = 'Generating...';
+
+    const enrollmentData = await api.get(endpoints.studentEnrollmentStatus(studentId));
+
+    if (!enrollmentData.enrolled_subjects || enrollmentData.enrolled_subjects.length === 0) {
+      Toast.error('Cannot print COR: No enrolled subjects found');
+      if (document.activeElement) document.activeElement.innerText = originalText;
+      return;
+    }
+
+    const template = generateCORTemplate(student, enrollmentData);
+
+    // Open in new window
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(template);
+      printWindow.document.close();
+      // printWindow.print(); // Auto-print is in the template body onload
+    } else {
+      Toast.error('Pop-up blocked. Please allow pop-ups for this site.');
+    }
+
+    if (document.activeElement) document.activeElement.innerText = originalText;
+
+  } catch (error) {
+    console.error(error);
+    Toast.error('Failed to generate COR');
+  }
+};
+
+function generateCORTemplate(student, enrollmentData) {
+  const subjects = enrollmentData.enrolled_subjects || [];
+  const totalUnits = subjects.reduce((sum, sub) => sum + (parseFloat(sub.units) || 0), 0);
+  const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  // Use data from API or fallbacks to match the image format
+  const address = student.address || "0632, PUROK 4, SIPAT, PLARIDEL, BULACAN";
+  const gender = student.gender || "FEMALE";
+  const birthday = student.birthday || "10/3/2004";
+  const section = enrollmentData.section || student.section || "BSIS4-4";
+  const semester = enrollmentData.semester || "First Semester S.Y. 2025-2026";
+
+  return `
+    <html>
+    <head>
+      <title>Certificate of Registration - ${student.full_name}</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; padding: 20px; }
+        .header { text-align: center; margin-bottom: 15px; }
+        .school-name { font-weight: bold; font-size: 16px; color: #581c1c; text-transform: uppercase; }
+        .address { font-size: 10px; margin-top: 2px; }
+        .title { font-weight: bold; font-size: 20px; margin: 10px 0; letter-spacing: 3px; color: #4a4a4a; text-transform: uppercase; }
+        .semester { font-weight: bold; font-size: 11px; margin-bottom: 5px; }
+        
+        .section-header { 
+          background-color: #7e3a5d; /* Maroon/Purple */
+          color: white; 
+          padding: 3px 5px; 
+          font-weight: bold; 
+          text-align: center;
+          font-size: 10px;
+          border: 1px solid #000;
+          text-transform: uppercase;
+        }
+        
+        .info-grid {
+          display: grid;
+          grid-template-columns: 1.2fr 1fr;
+          border: 1px solid #000;
+          border-top: none;
+          padding: 5px;
+          margin-bottom: 0;
+          font-size: 10px;
+        }
+        
+        .info-col { padding: 0 5px; }
+        .info-row { display: flex; margin-bottom: 2px; }
+        .label { font-weight: bold; width: 80px; }
+        .value { font-weight: bold; text-transform: uppercase; }
+        
+        table { width: 100%; border-collapse: collapse; border: 1px solid #000; font-size: 10px; margin-top: -1px; }
+        th { 
+          background-color: #7e3a5d; 
+          color: white; 
+          border: 1px solid #000; 
+          padding: 3px; 
+          text-align: center;
+          text-transform: uppercase;
+        }
+        td { border: 1px solid #000; padding: 3px 5px; }
+        .text-center { text-align: center; }
+        
+        .total-row { background-color: #7e3a5d; color: white; font-weight: bold; }
+        .total-row td { border: 1px solid #000; }
+
+        .footer { margin-top: 40px; text-align: right; margin-right: 20px; }
+        .signature-line { border-top: 1px solid #000; display: inline-block; width: 220px; text-align: center; padding-top: 2px; }
+        .registrar-name { font-weight: bold; font-size: 12px; text-transform: uppercase; }
+        .date-gen { font-size: 10px; margin-top: 5px; }
+      </style>
+    </head>
+    <body onload="window.print()">
+      <div class="header">
+        <div class="school-name">RICHWELL COLLEGES, INCORPORATED</div>
+        <div class="address">General Alejo Santos Road, San Jose, Plaridel, Bulacan</div>
+        <div class="title">CERTIFICATE OF REGISTRATION</div>
+        <div class="semester">${semester}</div>
+      </div>
+
+      <div class="section-header">STUDENT GENERAL INFORMATION</div>
+      <div class="info-grid">
+        <div class="info-col">
+          <div class="info-row"><span class="label">Student No:</span> <span class="value">${student.student_number}</span></div>
+          <div class="info-row"><span class="label">Name:</span> <span class="value">${student.last_name}, ${student.first_name}</span></div>
+          <div class="info-row"><span class="label">Gender:</span> <span class="value">${gender}</span></div>
+          <div class="info-row"><span class="label">Age:</span> <span class="value">21</span></div>
+          <div class="info-row"><span class="label">Address:</span> <span class="value">${address}</span></div>
+        </div>
+        <div class="info-col">
+           <div class="info-row"><span class="label">Course:</span> <span class="value">${student.program.name || student.program.code}</span></div>
+           <div class="info-row"><span class="label">Major:</span> <span class="value">-</span></div>
+           <div class="info-row"><span class="label">Year Level:</span> <span class="value">${student.year_level}</span></div>
+           <div class="info-row"><span class="label">Birthday:</span> <span class="value">${birthday}</span></div>
+           <div class="info-row" style="margin-top: 5px;"><span class="label">Section:</span> <span class="value" style="margin-left: auto;">${section}</span></div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 10%">CODE</th>
+            <th style="width: 40%">DESCRIPTIVE TITLE</th>
+            <th style="width: 5%">UNITS</th>
+            <th style="width: 15%">TIME</th>
+            <th style="width: 5%">DAYS</th>
+            <th style="width: 5%">ROOM</th>
+            <th style="width: 20%">FACULTY SIGNATURE</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${subjects.map(sub => `
+            <tr>
+              <td>${sub.code}</td>
+              <td style="text-transform: uppercase;">${sub.title}</td>
+              <td class="text-center">${sub.units}</td>
+              <td class="text-center">${sub.start_time ? (formatTime(sub.start_time) + ' - ' + formatTime(sub.end_time)) : 'TBA'}</td>
+              <td class="text-center">${sub.days || 'TBA'}</td>
+              <td class="text-center">${sub.room || '-'}</td>
+              <td></td>
+            </tr>
+          `).join('')}
+          ${Array(Math.max(0, 8 - subjects.length)).fill(0).map(() => `
+            <tr>
+              <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>
+            </tr>
+          `).join('')} 
+        </tbody>
+        <tfoot>
+           <tr class="total-row">
+             <td colspan="2" style="text-align: right; padding-right: 10px;">Total Units:</td>
+             <td class="text-center">${totalUnits}</td>
+             <td colspan="4" style="background-color: white; border-left: none;"></td>
+           </tr>
+        </tfoot>
+      </table>
+
+      <div class="footer">
+        <div class="registrar-name">MRS. ELIZABETH E. HIPOLITO</div>
+        <div class="signature-line">School Registrar</div>
+        <div class="date-gen">Date Generated: ${date}</div>
+      </div>
+      
+      <script>
+      function formatTime(time) {
+        if (!time) return '';
+        const [hour, minute] = time.split(':');
+        const h = parseInt(hour);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const hour12 = h % 12 || 12;
+        return hour12 + ':' + (minute || '00') + ' ' + ampm;
+      }
+      </script>
+    </body>
+    </html>
+  `;
+}
+
+// Helper for time format in template
+function formatTime(time) {
+  if (!time) return '';
+  const [hour, minute] = time.split(':');
+  const h = parseInt(hour);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+  return `${hour12}:${minute || '00'} ${ampm}`;
+}
+
 document.addEventListener('DOMContentLoaded', init);
 if (document.readyState !== 'loading') init();
+
