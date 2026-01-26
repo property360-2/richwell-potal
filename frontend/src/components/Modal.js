@@ -48,6 +48,7 @@ export class Modal {
     modalEl.setAttribute('aria-modal', 'true');
     modalEl.innerHTML = this.getModalContent();
     document.body.appendChild(modalEl);
+    this.element = modalEl;
 
     // Attach event listeners
     this.attachEventListeners();

@@ -5,10 +5,10 @@ Academic models - Programs and Subjects with prerequisites.
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 
-from apps.core.models import BaseModel
+from apps.core.models import BaseModel, BaseModelWithActiveManager
 
 
-class Program(BaseModel):
+class Program(BaseModelWithActiveManager):
     """
     Academic program (e.g., BSIT, BSCS, BSBA).
     Students enroll in one program at a time.
@@ -60,7 +60,43 @@ class Program(BaseModel):
         return self.curricula.count()
 
 
-class Subject(BaseModel):
+class Room(BaseModel):
+    """
+    Physical room or laboratory where classes are held.
+    """
+    name = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text='Room name or number (e.g., Room 101, Lab 1)'
+    )
+    capacity = models.PositiveIntegerField(
+        default=40,
+        help_text='Maximum student capacity'
+    )
+    room_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('LECTURE', 'Lecture Room'),
+            ('LABORATORY', 'Laboratory'),
+            ('FUNCTION', 'Function Room'),
+            ('OTHER', 'Other')
+        ],
+        default='LECTURE'
+    )
+    is_active = models.BooleanField(
+        default=True
+    )
+
+    class Meta:
+        verbose_name = 'Room'
+        verbose_name_plural = 'Rooms'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class Subject(BaseModelWithActiveManager):
     """
     Academic subject/course within a program.
     Includes prerequisite relationships.
@@ -194,7 +230,7 @@ class Subject(BaseModel):
         return 6 if self.is_major else 12
 
 
-class Section(BaseModel):
+class Section(BaseModelWithActiveManager):
     """
     A section groups students for a semester (e.g., BSIT-1A).
     Contains multiple SectionSubject entries linking subjects to professors.
@@ -266,7 +302,7 @@ class Section(BaseModel):
         return max(0, self.capacity - self.enrolled_count)
 
 
-class SectionSubject(BaseModel):
+class SectionSubject(BaseModelWithActiveManager):
     """
     Links a subject to a section with professor assignment.
     One professor per subject in a section.
@@ -358,7 +394,7 @@ class SectionSubjectProfessor(BaseModel):
         return f"{self.section_subject} - {self.professor.get_full_name()}"
 
 
-class ScheduleSlot(BaseModel):
+class ScheduleSlot(BaseModelWithActiveManager):
     """
     Schedule slot for a section subject.
     Defines day, time, and room.

@@ -777,7 +777,7 @@ function renderFilters() {
 function renderSubjectCard(subject, isRecommended) {
   const isInCart = state.cart.some(item => item.subject.id === subject.id);
   const isEnrolled = state.enrolledSubjects.some(e => (e.subject?.code || e.subject_code || e.code) === subject.code);
-  const hasPrerequisiteIssue = subject.prerequisite_met === false;
+  const hasPrerequisiteIssue = subject.prerequisite_met === false; // Explicit check for false
   const hasIncPrerequisite = subject.has_inc_prerequisite === true;
   const canAdd = !hasPrerequisiteIssue && !hasIncPrerequisite && !isInCart && !isEnrolled;
   const wouldExceedLimit = (state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits;
@@ -786,12 +786,15 @@ function renderSubjectCard(subject, isRecommended) {
   let blockReason = '';
   let blockClass = '';
   if (isEnrolled) {
-    blockReason = '✓ Already enrolled in this subject';
-    blockClass = 'bg-blue-50 text-blue-700 border-blue-200';
+    blockReason = 'Already enrolled';
+    blockClass = 'bg-blue-50 text-blue-700 border-blue-100';
+  } else if (isInCart) {
+    blockReason = 'Added to selection';
+    blockClass = 'bg-green-50 text-green-700 border-green-100';
   } else if (hasIncPrerequisite) {
-    const incCode = subject.inc_prerequisite_code || subject.inc_prerequisite || subject.prerequisite || '';
-    blockReason = `⚠️ Cannot enroll: You have INC in prerequisite <strong>${incCode}</strong>. Complete it first.`;
-    blockClass = 'bg-red-50 text-red-700 border-red-200';
+    const incCode = subject.inc_prerequisite_code || subject.inc_prerequisite || '';
+    blockReason = `Prerequisite ${incCode} has INC status`;
+    blockClass = 'bg-red-50 text-red-700 border-red-100';
   } else if (hasPrerequisiteIssue) {
     // Format missing prerequisites nicely
     let missingPrereqs = '';
@@ -799,66 +802,108 @@ function renderSubjectCard(subject, isRecommended) {
       missingPrereqs = subject.missing_prerequisites.join(', ');
     } else if (subject.missing_prerequisites && typeof subject.missing_prerequisites === 'string') {
       missingPrereqs = subject.missing_prerequisites;
-    } else if (subject.prerequisite) {
-      missingPrereqs = subject.prerequisite;
     } else {
-      missingPrereqs = 'Required subject(s)';
+      missingPrereqs = 'Unmet prerequisites';
     }
-    blockReason = `🔒 Missing prerequisite: You must pass <strong>${missingPrereqs}</strong> first`;
-    blockClass = 'bg-yellow-50 text-yellow-700 border-yellow-200';
-  } else if (wouldExceedLimit) {
-    blockReason = `⚠️ Adding this subject would exceed the ${state.maxUnits} unit limit`;
-    blockClass = 'bg-orange-50 text-orange-700 border-orange-200';
+    blockReason = `Missing prerequisites: ${missingPrereqs}`;
+    blockClass = 'bg-amber-50 text-amber-700 border-amber-100';
   }
 
-  return `
-    <div class="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors ${!canAdd ? 'opacity-75' : ''}">
-      <div class="flex items-start justify-between">
-        <div class="flex-1">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="font-mono text-sm font-bold text-blue-600">${subject.code}</span>
-            ${isRecommended ? '<span class="badge badge-success text-xs">Recommended</span>' : ''}
-            ${isInCart ? '<span class="badge badge-warning text-xs">Added to selected Subjects</span>' : ''}
-            ${isEnrolled ? '<span class="badge badge-info text-xs">Enrolled</span>' : ''}
-            ${hasIncPrerequisite ? '<span class="badge badge-error text-xs">INC Blocked</span>' : ''}
-            ${hasPrerequisiteIssue && !hasIncPrerequisite ? '<span class="badge badge-warning text-xs">Prereq Missing</span>' : ''}
-          </div>
-          <p class="font-medium text-gray-800">${subject.name}</p>
-          <p class="text-sm text-gray-500">${subject.units} units</p>
-          
-          <!-- Block Reason Message -->
-          ${blockReason ? `
-            <div class="mt-2 p-2 rounded-lg border text-xs ${blockClass}">
-              ${blockReason}
-            </div>
-          ` : ''}
-          
-          <!-- Sections -->
-          <div class="mt-3 space-y-2">
-            ${subject.sections?.map(section => {
-    const cartItem = state.cart.find(item => item.subject.id === subject.id);
-    const isThisSectionInCart = cartItem && cartItem.section.id === section.id;
+  // If subject has no sections, it cannot be added
+  const hasSections = subject.sections && subject.sections.length > 0;
+  if (!hasSections && canAdd) {
+    blockReason = 'No sections available';
+    blockClass = 'bg-gray-50 text-gray-600 border-gray-200';
+  }
 
-    return `
-              <div class="flex items-center justify-between text-sm p-2 bg-white rounded-lg">
-                <div class="flex items-center gap-2">
-                  <span class="font-medium">Section ${section.name}</span>
-                  <span class="text-gray-400">|</span>
-                  <span class="text-gray-600">${section.schedule || 'TBA'}</span>
+  // Card Status Border & Bg
+  let cardBorderClass = 'border-gray-200 hover:border-blue-300';
+  if (isEnrolled) cardBorderClass = 'border-blue-200 bg-blue-50/30';
+  else if (isInCart) cardBorderClass = 'border-green-300 bg-green-50/30 shadow-sm';
+  else if (hasPrerequisiteIssue || hasIncPrerequisite) cardBorderClass = 'border-gray-200 bg-gray-50 opacity-90';
+
+  return `
+    <div class="relative bg-white border ${cardBorderClass} rounded-xl p-5 transition-all duration-200 hover:shadow-md group">
+      <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        
+        <!-- Left: Subject Info -->
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-3 mb-1">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-bold bg-gray-100 text-gray-800 font-mono">
+                    ${subject.code}
+                </span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                    ${subject.units} Units
+                </span>
+                ${subject.is_major ? `
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">
+                        Major
+                    </span>` : ''}
+            </div>
+            
+            <h3 class="text-lg font-bold text-gray-900 leading-tight mb-2">${subject.title || subject.name}</h3>
+            
+            <!-- Prerequisites (visible if relevant) -->
+            ${(subject.prerequisites && subject.prerequisites.length > 0 && !hasPrerequisiteIssue) ? `
+                <div class="flex flex-wrap gap-1 mt-2 text-xs text-gray-500">
+                    <span class="mr-1">Prereqs:</span>
+                    ${subject.prerequisites.map(p => `
+                        <span class="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-mono">${p.code}</span>
+                    `).join('')}
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-gray-500">${section.enrolled || 0}/${section.slots || 40}</span>
-                  ${canAdd && !wouldExceedLimit ? `
-                    <button onclick="enrollSubject('${subject.id}', '${section.id}')"
-                            class="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
-                      Add
-                    </button>
-                  ` : ''}
+            ` : ''}
+
+            <!-- Status Message (for blocked/enrolled/cart items) -->
+            ${blockReason ? `
+                <div class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${blockClass}">
+                    ${isEnrolled ? `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>` : ''}
+                    ${hasPrerequisiteIssue || hasIncPrerequisite ? `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>` : ''}
+                    ${blockReason}
                 </div>
-              </div>
-            `}).join('') || ''}
-          </div>
+            ` : ''}
         </div>
+
+        <!-- Right: Actions -->
+        ${(canAdd && hasSections && !isInCart) ? `
+            <div class="flex-shrink-0 w-full md:w-72 mt-2 md:mt-0">
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Available Sections</label>
+                    <div class="space-y-2">
+                        <select id="section-select-${subject.id}" class="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 py-1.5 pl-2 pr-8">
+                            ${subject.sections.map((sec, idx) => `
+                                <option value="${sec.id}">
+                                    ${sec.name} (${sec.slots - sec.enrolled} slots)
+                                </option>
+                            `).join('')}
+                        </select>
+                        <button 
+                            onclick="addToCart('${subject.id}')"
+                            ${wouldExceedLimit ? 'disabled' : ''}
+                            class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        >
+                            ${wouldExceedLimit ? `
+                                <span>Unit Limit Reached</span>
+                            ` : `
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                </svg>
+                                <span>Add Subject</span>
+                            `}
+                        </button>
+                        ${wouldExceedLimit ? '<p class="text-xs text-red-500 text-center mt-1">Exceeds semester unit cap</p>' : ''}
+                    </div>
+                </div>
+            </div>
+        ` : ''}
+
+        ${isInCart ? `
+             <div class="flex-shrink-0 flex items-center">
+                <button onclick="removeFromCart('${subject.id}')" class="text-red-600 hover:text-red-700 font-medium text-sm flex items-center gap-1 px-3 py-1.5 hover:bg-red-50 rounded-lg transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    Remove
+                </button>
+             </div>
+        ` : ''}
       </div>
     </div>
   `;

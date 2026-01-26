@@ -20,6 +20,7 @@ router.register(r'schedule-slots', views.ScheduleSlotViewSet, basename='schedule
 router.register(r'curricula', views.CurriculumViewSet, basename='curriculum')
 router.register(r'semesters', SemesterViewSet, basename='semester')
 router.register(r'professors', views.ProfessorViewSet, basename='professor')
+router.register(r'rooms', views.RoomViewSet, basename='room')
 router.register(r'archives', views.ArchiveViewSet, basename='archive')
 
 urlpatterns = [
@@ -35,6 +36,8 @@ urlpatterns = [
     # EPIC 2 - Conflict checking
     path('check-professor-conflict/', views.ProfessorConflictCheckView.as_view(), name='check-professor-conflict'),
     path('check-room-conflict/', views.RoomConflictCheckView.as_view(), name='check-room-conflict'),
+    path('check-section-conflict/', views.SectionConflictCheckView.as_view(), name='check-section-conflict'),
+    path('availability/', views.AvailabilityView.as_view(), name='availability'),
     
     # EPIC 2 - Professor schedule
     path('professor/<uuid:professor_id>/schedule/<uuid:semester_id>/', 

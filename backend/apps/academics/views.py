@@ -15,7 +15,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
 from apps.core.permissions import IsRegistrar, IsAdmin, IsRegistrarOrAdmin
 from apps.audit.models import AuditLog
 
-from .models import Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion, Curriculum, CurriculumSubject
+from .models import Room, Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion, Curriculum, CurriculumSubject
 from .serializers import (
     ProgramSerializer, ProgramCreateSerializer, ProgramWithSubjectsSerializer,
     SubjectSerializer, SubjectCreateSerializer, PrerequisiteSerializer,
@@ -25,7 +25,7 @@ from .serializers import (
     CurriculumVersionSerializer, CurriculumVersionCreateSerializer,
     CurriculumSerializer, CurriculumCreateSerializer, CurriculumSubjectSerializer,
     AssignSubjectsSerializer, CurriculumStructureSerializer,
-    ProfessorSerializer, ProfessorDetailSerializer
+    ProfessorSerializer, ProfessorDetailSerializer, RoomSerializer
 )
 from .services import CurriculumService, SchedulingService, ProfessorService
 
@@ -301,6 +301,81 @@ class SubjectViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 
+class RoomViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for rooms.
+    """
+    queryset = Room.objects.filter(is_active=True)
+    serializer_class = RoomSerializer
+    permission_classes = [IsRegistrarOrAdmin]
+
+    def get_queryset(self):
+        queryset = Room.objects.all()
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset
+
+    @action(detail=False, methods=['get'])
+    def availability(self, request):
+        """
+        Check availability of all rooms for a specific time and day.
+        """
+        from datetime import time
+        
+        day = request.query_params.get('day')
+        start_time_str = request.query_params.get('start_time')
+        end_time_str = request.query_params.get('end_time')
+        semester_id = request.query_params.get('semester_id')
+
+        if not all([day, start_time_str, end_time_str, semester_id]):
+            return Response({'error': 'Missing parameters'}, status=400)
+
+        try:
+            # Handle formats like "HH:MM" or "HH:MM:SS"
+            if len(start_time_str) > 5: start_time_str = start_time_str[:5]
+            if len(end_time_str) > 5: end_time_str = end_time_str[:5]
+            
+            start = time.fromisoformat(start_time_str)
+            end = time.fromisoformat(end_time_str)
+        except ValueError:
+            return Response({'error': 'Invalid time format. Use HH:MM'}, status=400)
+
+        # Get busy rooms for this specific time slot
+        # Map room names to their current occupant for better UI feedback
+        occupied_slots = ScheduleSlot.objects.filter(
+            section_subject__section__semester_id=semester_id,
+            day=day,
+            is_deleted=False,
+            # OVERLAP LOGIC: StartA < EndB AND EndA > StartB
+            start_time__lt=end,
+            end_time__gt=start
+        ).select_related('section_subject__section', 'section_subject__subject')
+        
+        occupancy_map = {}
+        for slot in occupied_slots:
+            if slot.room:
+                key = slot.room.strip().lower()
+                occupancy_map[key] = f"{slot.section_subject.subject.code} ({slot.section_subject.section.name})"
+
+        rooms = Room.objects.filter(is_active=True, is_deleted=False)
+        data = []
+        for room in rooms:
+            current_name = room.name.strip().lower()
+            occupant = occupancy_map.get(current_name)
+            
+            data.append({
+                'id': str(room.id),
+                'name': room.name,
+                'capacity': room.capacity,
+                'room_type': room.room_type,
+                'is_available': occupant is None,
+                'occupied_by': occupant
+            })
+
+        return Response(data)
+
+
 # ============================================================
 # EPIC 2 - Section Management
 # ============================================================
@@ -548,6 +623,21 @@ class SectionViewSet(viewsets.ModelViewSet):
                 'specialization': p.specialization
             } for p in qualified_professors]
             
+            assigned_professors = []
+            if assigned_ss:
+                if assigned_ss.professor_assignments.exists():
+                    assigned_professors = [{
+                        'id': str(pa.professor.id),
+                        'name': pa.professor.get_full_name(),
+                        'is_primary': pa.is_primary
+                    } for pa in assigned_ss.professor_assignments.all()]
+                elif assigned_ss.professor:
+                    assigned_professors = [{
+                        'id': str(assigned_ss.professor.id),
+                        'name': assigned_ss.professor.get_full_name(),
+                        'is_primary': True
+                    }]
+            
             item = {
                 'subject_id': str(subj.id),
                 'code': subj.code,
@@ -556,11 +646,7 @@ class SectionViewSet(viewsets.ModelViewSet):
                 'semester_tag': f"{semester_number}{'st' if semester_number==1 else 'nd' if semester_number==2 else 'rd'} Sem",
                 'is_assigned': assigned_ss is not None,
                 'section_subject_id': str(assigned_ss.id) if assigned_ss else None,
-                'assigned_professors': [{
-                    'id': str(pa.professor.id),
-                    'name': pa.professor.get_full_name(),
-                    'is_primary': pa.is_primary
-                } for pa in assigned_ss.professor_assignments.all()] if assigned_ss else [],
+                'assigned_professors': assigned_professors,
                 'qualified_professors': prof_list
             }
             subject_data.append(item)
@@ -871,6 +957,7 @@ class ProfessorConflictCheckView(APIView):
         day = request.data.get('day')
         start_time = request.data.get('start_time')
         end_time = request.data.get('end_time')
+        exclude_slot = request.data.get('exclude_slot')
         
         if not all([professor_id, semester_id, day, start_time, end_time]):
             return Response(
@@ -888,11 +975,11 @@ class ProfessorConflictCheckView(APIView):
             )
         
         from datetime import time
-        start = time.fromisoformat(start_time)
-        end = time.fromisoformat(end_time)
+        start = time.fromisoformat(start_time[:5])
+        end = time.fromisoformat(end_time[:5])
         
         has_conflict, conflict = SchedulingService.check_professor_conflict(
-            professor, day, start, end, semester
+            professor, day, start, end, semester, exclude_slot_id=exclude_slot
         )
         
         return Response({
@@ -918,6 +1005,7 @@ class RoomConflictCheckView(APIView):
         day = request.data.get('day')
         start_time = request.data.get('start_time')
         end_time = request.data.get('end_time')
+        exclude_slot = request.data.get('exclude_slot')
         
         if not all([room, semester_id, day, start_time, end_time]):
             return Response(
@@ -934,11 +1022,11 @@ class RoomConflictCheckView(APIView):
             )
         
         from datetime import time
-        start = time.fromisoformat(start_time)
-        end = time.fromisoformat(end_time)
+        start = time.fromisoformat(start_time[:5])
+        end = time.fromisoformat(end_time[:5])
         
         has_conflict, conflict = SchedulingService.check_room_conflict(
-            room, day, start, end, semester
+            room, day, start, end, semester, exclude_slot_id=exclude_slot
         )
         
         return Response({
@@ -946,6 +1034,108 @@ class RoomConflictCheckView(APIView):
             'conflict': str(conflict) if conflict else None,
             'is_warning': True  # Room conflicts are warnings, not hard blocks
         })
+
+
+class SectionConflictCheckView(APIView):
+    """Check if a section has overlapping subjects."""
+    permission_classes = [IsRegistrarOrAdmin]
+    
+    @extend_schema(
+        summary="Check Section Conflict",
+        description="Check if a section has overlapping subjects",
+        tags=["Scheduling"]
+    )
+    def post(self, request):
+        section_id = request.data.get('section_id')
+        day = request.data.get('day')
+        start_time = request.data.get('start_time')
+        end_time = request.data.get('end_time')
+        exclude_slot = request.data.get('exclude_slot')
+        
+        if not all([section_id, day, start_time, end_time]):
+            return Response(
+                {'error': 'Missing required fields'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        from datetime import time
+        start = time.fromisoformat(start_time[:5])
+        end = time.fromisoformat(end_time[:5])
+        
+        has_conflict, conflict = SchedulingService.check_section_conflict(
+            section_id, day, start, end, exclude_slot_id=exclude_slot
+        )
+        
+        return Response({
+            'has_conflict': has_conflict,
+            'conflict': str(conflict) if conflict else None
+        })
+
+
+class AvailabilityView(APIView):
+    """Check availability of rooms and times."""
+    permission_classes = [IsRegistrarOrAdmin]
+    
+    @extend_schema(
+        summary="Check Availability",
+        description="Check available rooms for a time or busy times for a room",
+        tags=["Scheduling"]
+    )
+    def get(self, request):
+        from apps.enrollment.models import Semester
+        from datetime import time
+        
+        check_type = request.query_params.get('type') # 'rooms' or 'times'
+        semester_id = request.query_params.get('semester_id')
+        day = request.query_params.get('day')
+        
+        if not all([check_type, semester_id, day]):
+            return Response({'error': 'Missing type, semester_id, or day'}, status=400)
+            
+        try:
+            semester = Semester.objects.get(id=semester_id)
+        except Semester.DoesNotExist:
+            return Response({'error': 'Semester not found'}, status=404)
+            
+        if check_type == 'rooms':
+            start_time = request.query_params.get('start_time')
+            end_time = request.query_params.get('end_time')
+            if not all([start_time, end_time]):
+                return Response({'error': 'Missing start_time or end_time'}, status=400)
+                
+            start = time.fromisoformat(start_time)
+            end = time.fromisoformat(end_time)
+            
+            # Optional: list of all possible rooms to check against
+            # If not provided, it will use all rooms currently in DB
+            all_rooms = request.query_params.getlist('rooms[]')
+            if not all_rooms:
+                all_rooms = request.query_params.getlist('rooms')
+            
+            available_rooms = SchedulingService.get_available_rooms(
+                day, start, end, semester, all_rooms if all_rooms else None
+            )
+            return Response({'available_rooms': available_rooms})
+            
+        elif check_type == 'times':
+            room = request.query_params.get('room')
+            if not room:
+                return Response({'error': 'Missing room'}, status=400)
+                
+            busy_slots = SchedulingService.get_room_busy_slots(room, day, semester)
+            
+            # Format times for easier frontend use
+            formatted_busy = []
+            for slot in busy_slots:
+                formatted_busy.append({
+                    'start_time': slot['start_time'].strftime('%H:%M'),
+                    'end_time': slot['end_time'].strftime('%H:%M'),
+                    'label': f"{slot['section_subject__subject__code']} ({slot['section_subject__section__name']})"
+                })
+                
+            return Response({'busy_slots': formatted_busy})
+            
+        return Response({'error': 'Invalid check type'}, status=400)
 
 
 class ProfessorScheduleView(APIView):

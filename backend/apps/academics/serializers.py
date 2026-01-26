@@ -4,7 +4,7 @@ Academics serializers.
 
 from rest_framework import serializers
 
-from .models import Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion, Curriculum, CurriculumSubject
+from .models import Room, Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion, Curriculum, CurriculumSubject
 
 
 class SubjectMinimalSerializer(serializers.ModelSerializer):
@@ -64,6 +64,14 @@ class ProgramWithSubjectsSerializer(serializers.ModelSerializer):
             'id', 'code', 'name', 'description', 
             'duration_years', 'is_active', 'subjects'
         ]
+
+
+class RoomSerializer(serializers.ModelSerializer):
+    """Serializer for rooms."""
+    
+    class Meta:
+        model = Room
+        fields = ['id', 'name', 'capacity', 'room_type', 'is_active']
 
 
 # ============================================================

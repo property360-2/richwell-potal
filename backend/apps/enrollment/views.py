@@ -579,8 +579,7 @@ class RecommendedSubjectsView(APIView):
         # 4. Get Passed Subjects (to filter out)
         passed_subject_ids = SubjectEnrollment.objects.filter(
             enrollment__student=user,
-            status='COMPLETED',
-            grade__isnull=False
+            status__in=['PASSED', 'CREDITED']
         ).values_list('subject_id', flat=True)
 
         # 5. Get Subjects for Recommendation
@@ -589,27 +588,15 @@ class RecommendedSubjectsView(APIView):
         target_year = request.query_params.get('year_level')
         target_sem = request.query_params.get('semester_number')
         
-        # Determine target semester type (1, 2, or 3)
-        if not target_sem:
-            if "1st" in active_semester.name: target_sem = 1
-            elif "2nd" in active_semester.name: target_sem = 2
-            elif "Summer" in active_semester.name: target_sem = 3
-            else: target_sem = 1
-
         # Build Query
         query = Q(curriculum=curriculum)
         
-        # Always filter by semester type (unless we want to show all? No, enrollment is usually sem-based)
+        # Only filter if parameters are explicitly provided
         if target_sem:
             query &= Q(semester_number=target_sem)
             
-        # Filter by year level
         if target_year:
-            # User specifically requested a year level (Strict)
             query &= Q(year_level=target_year)
-        else:
-            # Default: Current year and below (Back subjects)
-            query &= Q(year_level__lte=profile.year_level)
 
         curriculum_subjects = CurriculumSubject.objects.filter(query).select_related('subject')
 
@@ -632,15 +619,61 @@ class RecommendedSubjectsView(APIView):
             can_enroll = len(missing_prereqs) == 0
             
             # Find available sections for this subject in the active semester
-            sections = []
             from apps.academics.models import SectionSubject
             section_subjects = SectionSubject.objects.filter(
                 subject=subject,
                 section__semester=active_semester,
                 is_deleted=False
             ).select_related('section', 'professor').prefetch_related('schedule_slots')
+
+            # =========================================================
+            # Apply Enrollment Rules (Regular vs Irregular vs Overload)
+            # =========================================================
+            home_section = profile.home_section
+            is_irregular = profile.is_irregular
+            is_overloaded = profile.overload_approved
             
+            # Check if this is a retake subject (Failed, Dropped, or 5.00)
+            is_retake = False
+            if subject.id in passed_subject_ids: # Should be caught above, but double check
+                pass
+            else:
+                 # Check history for failures
+                 is_retake = SubjectEnrollment.objects.filter(
+                    enrollment__student=user,
+                    subject=subject,
+                    status__in=['FAILED', 'DROPPED', 'RETAKE'] # 5.0 grades are usually marked as FAILED in status
+                 ).exists()
+
+            valid_sections = []
             for ss in section_subjects:
+                allowed = False
+                
+                # Rule 3: Overloaded (Overvolumed)
+                # Can enroll in subjects from ANY section
+                if is_overloaded:
+                     allowed = True
+                
+                # Rule 2: Irregular
+                # - Subjects from Home Section
+                # - Retake subjects from OTHER sections
+                elif is_irregular:
+                    if ss.section == home_section:
+                        allowed = True
+                    elif is_retake:
+                        allowed = True
+                
+                # Rule 1: Regular
+                # - ONLY enroll in subjects offered by their Home Section
+                else:
+                    if ss.section == home_section:
+                        allowed = True
+                
+                if allowed:
+                    valid_sections.append(ss)
+
+            sections = []
+            for ss in valid_sections:
                 sections.append({
                     'section_id': str(ss.section.id),
                     'section_name': ss.section.name,
@@ -662,6 +695,7 @@ class RecommendedSubjectsView(APIView):
                 'year_level': cs.year_level,
                 'semester': cs.semester_number,
                 'can_enroll': can_enroll,
+                'is_retake': is_retake,  # Helpful for UI
                 'missing_prerequisites': missing_prereqs,
                 'available_sections': sections
             })
@@ -682,8 +716,161 @@ class RecommendedSubjectsView(APIView):
                 "max_units": 26 # Typically 24-26, hardcoded for now or fetch from config
             }
         })
-AvailableSubjectsView = SimpleGETView
-MySubjectEnrollmentsView = SimpleGETView
+class AvailableSubjectsView(APIView):
+    """
+    Get all subjects that are available for enrollment (have sections in active semester).
+    This is broader than RecommendedSubjectsView as it ignores the student's specific curriculum year level.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.enrollment.models import Semester, SubjectEnrollment
+        from apps.academics.models import Section, Subject
+        from django.db.models import Q
+
+        user = request.user
+        
+        # 1. Get active semester
+        active_semester = Semester.objects.filter(is_current=True).first()
+        if not active_semester:
+            return Response({"error": "No active semester found"}, status=400)
+
+        # 2. Get subjects that have sections offered this semester
+        # Optimization: distinct() on subject
+        offered_subjects = Subject.objects.filter(
+            section_subjects__section__semester=active_semester,
+            section_subjects__section__is_deleted=False,
+            section_subjects__is_deleted=False,
+            is_deleted=False
+        ).distinct().prefetch_related('prerequisites')
+
+        # 3. Get Student status
+        passed_subjects = set(SubjectEnrollment.objects.filter(
+            enrollment__student=user,
+            status__in=['PASSED', 'CREDITED']
+        ).values_list('subject_id', flat=True))
+
+        current_subjects = set(SubjectEnrollment.objects.filter(
+            enrollment__student=user,
+            enrollment__semester=active_semester,
+            status__in=['ENROLLED', 'PENDING']
+        ).values_list('subject_id', flat=True))
+
+        # 4. Filter and Format
+        # We can implement search here if needed
+        search = request.query_params.get('search', '').lower()
+
+        data = []
+        for subject in offered_subjects:
+            if search and (search not in subject.code.lower() and search not in subject.title.lower()):
+                continue
+
+            # Check prerequisites
+            prereqs_met = True
+            missing_prereqs = []
+            for p in subject.prerequisites.all():
+                if p.id not in passed_subjects:
+                    prereqs_met = False
+                    missing_prereqs.append(p.code)
+
+            # Get sections
+            from apps.academics.models import SectionSubject
+            sections = SectionSubject.objects.filter(
+                subject=subject,
+                section__semester=active_semester,
+                is_deleted=False
+            ).select_related('section')
+
+            available_sections = []
+            for ss in sections:
+                available_sections.append({
+                    'id': str(ss.section.id),
+                    'name': ss.section.name,
+                    'slots': ss.section.available_slots,
+                    'enrolled': ss.section.enrolled_count, # Estimate
+                    'schedule': [
+                        {
+                            'day': slot.get_day_display(),
+                            'start_time': slot.start_time.strftime("%H:%M"),
+                            'end_time': slot.end_time.strftime("%H:%M") 
+                        } for slot in ss.schedule_slots.filter(is_deleted=False)
+                    ]
+                })
+
+            data.append({
+                'id': str(subject.id),
+                'code': subject.code,
+                'title': subject.title,
+                'units': subject.units,
+                'prerequisites_met': prereqs_met,
+                'missing_prerequisites': missing_prereqs,
+                'is_enrolled': subject.id in current_subjects,
+                'is_passed': subject.id in passed_subjects,
+                'sections': available_sections
+            })
+
+        return Response({
+            "success": True,
+            "data": {
+                "available_subjects": data
+            }
+        })
+
+class MySubjectEnrollmentsView(APIView):
+    """
+    Get current semester enrollments for the student.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.enrollment.models import Semester, SubjectEnrollment
+        from django.db.models import Sum
+
+        user = request.user
+        active_semester = Semester.objects.filter(is_current=True).first()
+        
+        if not active_semester:
+             return Response({"success": True, "subject_enrollments": [], "enrolled_units": 0})
+
+        enrollments = SubjectEnrollment.objects.filter(
+            enrollment__student=user,
+            enrollment__semester=active_semester,
+            is_deleted=False
+        ).select_related('subject', 'section')
+
+        data = []
+        total_units = 0
+        for se in enrollments:
+            total_units += se.subject.units
+            
+            # Formatting schedule
+            # Assuming simplified schedule retrieval for now
+            schedule_str = "TBA"
+            # In real app, fetch slots
+            
+            data.append({
+                'id': str(se.id),
+                'subject_id': str(se.subject.id),
+                'subject_code': se.subject.code,
+                'subject_title': se.subject.title,
+                'units': se.subject.units,
+                'section_id': str(se.section.id) if se.section else None,
+                'section_name': se.section.name if se.section else 'TBA',
+                'status': se.status,
+                'payment_approved': se.payment_approved,
+                'head_approved': se.head_approved,
+                'approval_status_display': 'Enrolled' if se.status == 'ENROLLED' else 'Pending Head' if not se.head_approved else 'Pending Payment',
+                'is_fully_enrolled': se.status == 'ENROLLED',
+                'schedule': schedule_str # Placeholder
+            })
+
+        return Response({
+            "success": True,
+            "data": {
+                "subject_enrollments": data,
+                "enrolled_units": total_units
+            }
+        })
 class StudentCurriculumView(APIView):
     """
     Get student's curriculum and grades structure.
@@ -804,7 +991,174 @@ class StudentCurriculumView(APIView):
 
 MyScheduleView = SimpleGETView
 
-EnrollSubjectView = SimplePOSTView
+class EnrollSubjectView(APIView):
+    """
+    Enroll a student in a specific subject section.
+    Enforces rules for Regular, Irregular, and Overloaded students.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        from apps.enrollment.models import Enrollment, SubjectEnrollment, Semester
+        from apps.academics.models import Subject, Section, SectionSubject
+        from apps.enrollment.serializers import EnrollSubjectRequestSerializer
+        from django.db import transaction
+        from django.db.models import Sum
+
+        user = request.user
+        
+        # 1. Validate Input
+        serializer = EnrollSubjectRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({"error": serializer.errors}, status=400)
+            
+        subject_id = serializer.validated_data['subject_id']
+        section_id = serializer.validated_data['section_id']
+
+        try:
+            with transaction.atomic():
+                # 2. Get Student Profile & Status
+                if not hasattr(user, 'student_profile'):
+                    return Response({"error": "Student profile not found"}, status=400)
+                profile = user.student_profile
+                
+                # 3. Get Active Semester
+                semester = Semester.objects.filter(is_current=True).first()
+                if not semester:
+                    return Response({"error": "No active semester"}, status=400)
+
+                # 4. Get/Create Enrollment Header
+                enrollment, created = Enrollment.objects.get_or_create(
+                    student=user,
+                    semester=semester,
+                    defaults={
+                        'status': 'PENDING',
+                        'monthly_commitment': 0 # Should be set elsewhere or default
+                    }
+                )
+                
+                # 5. Check if already enrolled in this subject
+                if SubjectEnrollment.objects.filter(
+                    enrollment=enrollment, 
+                    subject_id=subject_id,
+                    status__in=['ENROLLED', 'PENDING', 'COMPLETED', 'PASSED']
+                ).exists():
+                     return Response({"error": "Already enrolled in this subject"}, status=400)
+
+                # 6. Fetch Subject & Section
+                try:
+                    section_subject = SectionSubject.objects.get(
+                        subject_id=subject_id,
+                        section_id=section_id,
+                        section__semester=semester
+                    )
+                except SectionSubject.DoesNotExist:
+                     return Response({"error": "Subject not offered in this section for this semester"}, status=400)
+                
+                subject = section_subject.subject
+                section = section_subject.section
+
+                # 7. ENFORCE RULES (Regular/Irregular/Overload)
+                home_section = profile.home_section
+                is_irregular = profile.is_irregular
+                is_overloaded = profile.overload_approved
+                
+                allowed = False
+                
+                # Check for Retake Status
+                is_retake = SubjectEnrollment.objects.filter(
+                    enrollment__student=user,
+                    subject=subject,
+                    status__in=['FAILED', 'DROPPED', 'RETAKE']
+                ).exists()
+
+                if is_overloaded:
+                    allowed = True
+                elif is_irregular:
+                    # Irregular: Home Section OR Retake (Any)
+                    if section == home_section:
+                        allowed = True
+                    elif is_retake:
+                        allowed = True
+                    else:
+                         return Response({"error": "Irregular students can only take new subjects from their Home Section"}, status=403)
+                else:
+                    # Regular: Home Section ONLY
+                    if not home_section:
+                        return Response({"error": "You do not have an assigned Home Section"}, status=400)
+                    
+                    if section == home_section:
+                        allowed = True
+                    else:
+                        return Response({"error": "Regular students must enroll in their Home Section"}, status=403)
+                
+                if not allowed:
+                     return Response({"error": "Enrollment not allowed due to section restrictions"}, status=403)
+
+                # 8. Check Prerequisites (Double protect)
+                # ... (Available via RecommendedSubjectsView, but good to check)
+                # For brevity, implementing basic check:
+                if subject.prerequisites.exists():
+                    passed_ids = SubjectEnrollment.objects.filter(
+                        enrollment__student=user,
+                        status__in=['PASSED', 'CREDITED', 'COMPLETED']
+                    ).values_list('subject_id', flat=True)
+                    
+                    for prereq in subject.prerequisites.all():
+                        if prereq.id not in passed_ids:
+                             return Response({"error": f"Missing prerequisite: {prereq.code}"}, status=400)
+
+                # 9. Check Max Units
+                current_units = SubjectEnrollment.objects.filter(
+                    enrollment=enrollment,
+                    status__in=['ENROLLED', 'PENDING']
+                ).aggregate(total=Sum('subject__units'))['total'] or 0
+                
+                max_units = 30 # Default cap (overload approved students might have higher, logic to be refined)
+                # If overloaded, maybe ignore? Or use profile.max_units_override
+                if profile.max_units_override:
+                    max_units = profile.max_units_override
+                elif is_overloaded:
+                    max_units = 33 # Example boost
+                
+                if (current_units + subject.units) > max_units:
+                     return Response({"error": f"Maximum unit limit ({max_units}) exceeded"}, status=400)
+
+                # 10. Check Section Capacity
+                if section_subject.remaining_slots <= 0:
+                     return Response({"error": "Section is full"}, status=400)
+                
+                # 11. Create Subject Enrollment
+                enrollment_type = 'HOME'
+                if is_overloaded and (current_units + subject.units) > 24: # Assuming 24 is normal
+                    enrollment_type = 'OVERLOAD'
+                elif is_retake:
+                    enrollment_type = 'RETAKE'
+                
+                SubjectEnrollment.objects.create(
+                    enrollment=enrollment,
+                    subject=subject,
+                    section=section,
+                    status='ENROLLED', # Immediately enrolled? Or Pending? "Prevent invalid... at backend"
+                    enrollment_type=enrollment_type,
+                    is_retake=is_retake,
+                    # We link the originally failed enrollment if found?
+                    # original_enrollment=... (Optional refinement)
+                )
+
+                return Response({
+                    "success": True, 
+                    "message": "Enrolled successfully",
+                    "data": {
+                        "subject": subject.code,
+                        "section": section.name
+                    }
+                })
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"error": str(e)}, status=500)
 DropSubjectView = SimplePOSTView
 EditSubjectEnrollmentView = SimplePOSTView
 RegistrarOverrideEnrollmentView = SimplePOSTView

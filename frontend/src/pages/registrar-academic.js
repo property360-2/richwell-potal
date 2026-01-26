@@ -13,6 +13,7 @@ import { createTabs, initHashNavigation, updateHash } from '../components/tabs.j
 const TABS = {
   PROGRAMS: 'programs',
   PROFESSORS: 'professors',
+  ROOMS: 'rooms',
   SECTIONS: 'sections',
   CURRICULA: 'curricula',
   SEMESTERS: 'semesters'
@@ -34,11 +35,7 @@ for (let hour = 7; hour <= 21; hour++) {
   TIME_SLOTS.push(`${hour.toString().padStart(2, '0')}:00`);
 }
 
-const ROOMS = [
-  'Room 101', 'Room 102', 'Room 103', 'Room 104', 'Room 105',
-  'Room 201', 'Room 202', 'Room 203', 'Room 204', 'Room 205',
-  'Lab 1', 'Lab 2', 'Lab 3', 'Lab 4', 'Lab 5'
-];
+// Room constants will be fetched from API instead of static list
 
 const COLORS = [
   'bg-blue-100 border-blue-400 text-blue-800',
@@ -108,9 +105,20 @@ const state = {
   selectedSection: null,
   sectionSubjects: [],
   sectionSchedule: [],
+  pendingSlots: [],
+  activeConfirmSlot: null,
+  editingSlot: null,
+  viewingSlotId: null,
+  slotMenuId: null,
   sectionSearch: '',
   sectionFilterProgram: 'all',
-  sectionFilterYear: 'all'
+  sectionFilterYear: 'all',
+
+  // Rooms state
+  rooms: [],
+  roomModal: null,
+  editingRoom: null,
+  roomSearch: ''
 };
 
 async function init() {
@@ -194,6 +202,16 @@ async function loadCurricula(programId = null) {
   } catch (error) {
     ErrorHandler.handle(error, 'Loading curricula');
     state.curricula = [];
+  }
+}
+
+async function loadRooms() {
+  try {
+    const response = await api.get(endpoints.rooms);
+    state.rooms = response?.results || response || [];
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading rooms');
+    state.rooms = [];
   }
 }
 
@@ -315,10 +333,12 @@ function getFilteredSections() {
   return filtered;
 }
 
-function getSubjectColor(subjectCode) {
-  const codes = [...new Set(state.sectionSchedule.map(s => s.subject_code))];
-  const index = codes.indexOf(subjectCode);
-  return COLORS[index % COLORS.length];
+function getSubjectColor(subjectCode, slotId = null) {
+  if (slotId && state.colorOverrides && state.colorOverrides[slotId]) {
+    return state.colorOverrides[slotId];
+  }
+  const hash = subjectCode.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return COLORS[hash % COLORS.length];
 }
 
 function formatTime(time24) {
@@ -367,6 +387,7 @@ function render() {
     tabs: [
       { id: TABS.PROGRAMS, label: 'Programs' },
       { id: TABS.PROFESSORS, label: 'Professors' },
+      { id: TABS.ROOMS, label: 'Rooms' },
       { id: TABS.SECTIONS, label: 'Sections' },
       { id: TABS.SEMESTERS, label: 'Semesters' }
     ],
@@ -380,6 +401,9 @@ function render() {
       </div>
     </main>
   `;
+
+  renderEditDrawer();
+  renderViewPlaceholder();
 }
 
 function renderBreadcrumbs() {
@@ -398,6 +422,8 @@ function renderBreadcrumbs() {
     }
   } else if (state.activeTab === TABS.PROFESSORS) {
     parts.push(`<span class="text-gray-900">Professors</span>`);
+  } else if (state.activeTab === TABS.ROOMS) {
+    parts.push(`<span class="text-gray-900">Rooms</span>`);
   } else if (state.activeTab === TABS.SECTIONS) {
     parts.push(`<a href="#" onclick="event.preventDefault(); switchTab('${TABS.SECTIONS}')" class="text-blue-600 hover:text-blue-800">Sections</a>`);
     if (state.selectedSection) {
@@ -439,6 +465,8 @@ function renderTabContent() {
       return renderProgramsTab();
     case TABS.PROFESSORS:
       return renderProfessorsTab();
+    case TABS.ROOMS:
+      return renderRoomsTab();
     case TABS.SECTIONS:
       return state.selectedSection ? renderSectionDetail() : renderSectionsTab();
     case TABS.CURRICULA:
@@ -1107,6 +1135,250 @@ window.handleProfessorSearch = function (query) {
     if (start !== undefined && end !== undefined) {
       newInput.setSelectionRange(start, end);
     }
+  }
+};
+
+// ============================================================
+// ROOMS TAB
+// ============================================================
+
+function renderRoomsTab() {
+  const filteredRooms = state.rooms.filter(r =>
+    r.name.toLowerCase().includes(state.roomSearch.toLowerCase())
+  );
+
+  return `
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div class="relative flex-1">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </span>
+            <input type="text" id="room-search" placeholder="Search rooms..." 
+                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                value="${state.roomSearch}" 
+                oninput="handleRoomSearch(this.value)">
+        </div>
+        <button onclick="openAddRoomModal()" class="btn btn-primary flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+            </svg>
+            Add Room
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        ${filteredRooms.length === 0 ? `
+            <div class="col-span-full py-20 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                <p class="text-gray-500">No rooms found</p>
+                <button onclick="openAddRoomModal()" class="mt-4 text-blue-600 hover:underline font-bold">Add your first room</button>
+            </div>
+        ` : filteredRooms.map(r => `
+            <div class="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-all group overflow-hidden relative">
+                <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div class="flex gap-1">
+                        <button onclick="openEditRoomModal('${r.id}')" class="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        </button>
+                        <button onclick="deleteRoom('${r.id}')" class="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-start gap-4 mb-4">
+                    <div class="p-3 bg-gray-50 rounded-xl group-hover:bg-blue-50 transition-colors">
+                        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900">${r.name}</h3>
+                        <p class="text-xs text-gray-500 uppercase tracking-widest font-bold mt-0.5">${r.room_type}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6 mt-6">
+                    <div>
+                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-tighter mb-0.5">Capacity</p>
+                        <div class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                            <span class="text-sm font-bold text-gray-700">${r.capacity}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-tighter mb-0.5">Status</p>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                            ${r.is_active ? 'ACTIVE' : 'INACTIVE'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `).join('')}
+    </div>
+  `;
+}
+
+window.handleRoomSearch = function (query) {
+  state.roomSearch = query;
+  render();
+  const input = document.getElementById('room-search');
+  if (input) {
+    input.focus();
+    input.setSelectionRange(query.length, query.length);
+  }
+};
+
+window.openAddRoomModal = function () {
+  const modal = new Modal({
+    title: 'Add New Room',
+    content: `
+      <form id="room-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Room Name *</label>
+          <input type="text" id="room-name" placeholder="e.g., Room 101" required class="form-input transition-all">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Capacity *</label>
+                <input type="number" id="room-capacity" value="40" min="1" max="1000" required class="form-input transition-all">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Room Type *</label>
+                <select id="room-type" class="form-select transition-all">
+                    <option value="LECTURE">Lecture Room</option>
+                    <option value="LABORATORY">Laboratory</option>
+                    <option value="FUNCTION">Function Room</option>
+                    <option value="OTHER">Other</option>
+                </select>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 pt-2">
+            <input type="checkbox" id="room-active" checked class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+            <label for="room-active" class="text-sm text-gray-700 font-medium select-none">Room is active and available for scheduling</label>
+        </div>
+      </form>
+    `,
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Create Room',
+        primary: true,
+        onClick: async (m) => {
+          const form = document.getElementById('room-form');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+
+          const data = {
+            name: document.getElementById('room-name').value,
+            capacity: parseInt(document.getElementById('room-capacity').value),
+            room_type: document.getElementById('room-type').value,
+            is_active: document.getElementById('room-active').checked
+          };
+
+          try {
+            await api.post(endpoints.rooms, data);
+            Toast.success('Room created successfully');
+            m.close();
+            await loadRooms();
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, 'Creating room');
+          }
+        }
+      }
+    ]
+  });
+  modal.show();
+};
+
+window.openEditRoomModal = async function (roomId) {
+  try {
+    const room = await api.get(endpoints.room(roomId));
+    state.editingRoom = room;
+
+    const modal = new Modal({
+      title: 'Edit Room',
+      content: `
+        <form id="room-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Room Name *</label>
+                <input type="text" id="room-name" value="${room.name}" required class="form-input transition-all">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Capacity *</label>
+                    <input type="number" id="room-capacity" value="${room.capacity}" min="1" max="1000" required class="form-input transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Room Type *</label>
+                    <select id="room-type" class="form-select transition-all">
+                        <option value="LECTURE" ${room.room_type === 'LECTURE' ? 'selected' : ''}>Lecture Room</option>
+                        <option value="LABORATORY" ${room.room_type === 'LABORATORY' ? 'selected' : ''}>Laboratory</option>
+                        <option value="FUNCTION" ${room.room_type === 'FUNCTION' ? 'selected' : ''}>Function Room</option>
+                        <option value="OTHER" ${room.room_type === 'OTHER' ? 'selected' : ''}>Other</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 pt-2">
+                <input type="checkbox" id="room-active" ${room.is_active ? 'checked' : ''} class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <label for="room-active" class="text-sm text-gray-700 font-medium select-none">Room is active and available for scheduling</label>
+            </div>
+        </form>
+      `,
+      actions: [
+        { label: 'Cancel', onClick: (m) => m.close() },
+        {
+          label: 'Save Changes',
+          primary: true,
+          onClick: async (m) => {
+            const form = document.getElementById('room-form');
+            if (!form.checkValidity()) {
+              form.reportValidity();
+              return;
+            }
+
+            const data = {
+              name: document.getElementById('room-name').value,
+              capacity: parseInt(document.getElementById('room-capacity').value),
+              room_type: document.getElementById('room-type').value,
+              is_active: document.getElementById('room-active').checked
+            };
+
+            try {
+              await api.patch(endpoints.room(roomId), data);
+              Toast.success('Room updated successfully');
+              m.close();
+              await loadRooms();
+              render();
+            } catch (error) {
+              ErrorHandler.handle(error, 'Updating room');
+            }
+          }
+        }
+      ]
+    });
+    modal.show();
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading room details');
+  }
+};
+
+window.deleteRoom = async function (roomId) {
+  const ok = await ConfirmModal({
+    title: 'Delete Room',
+    message: 'Are you sure you want to delete this room? This cannot be undone.',
+    danger: true
+  });
+
+  if (!ok) return;
+
+  try {
+    await api.delete(endpoints.room(roomId));
+    Toast.success('Room deleted successfully');
+    await loadRooms();
+    render();
+  } catch (error) {
+    ErrorHandler.handle(error, 'Deleting room');
   }
 };
 
@@ -1801,6 +2073,7 @@ function renderSectionsTab() {
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
       <div class="relative">
         <input type="text" 
+               id="section-search"
                placeholder="Search by name..." 
                class="form-input text-sm pl-8"
                value="${state.sectionSearch}"
@@ -1955,83 +2228,83 @@ function renderSectionDetail() {
 
     <!-- Main Content -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <!-- Subjects Management -->
-      <div class="lg:col-span-4">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <!-- Subjects Management - Drop target for unassigning -->
+      <div class="lg:col-span-4" ondragover="event.preventDefault()" ondrop="handleDropToUnassign(event)">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden sticky top-24">
           <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-            <h3 class="font-bold text-gray-800">Curriculum Subjects</h3>
+            <h3 class="font-bold text-gray-800">Available Subjects</h3>
             <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider">
-              ${state.semesterInfo?.name || 'Current Sem'}
+              Drag to Grid
             </span>
           </div>
           
-          <div class="p-5 space-y-4 max-h-[700px] overflow-y-auto custom-scrollbar">
+          <div class="p-5 space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto custom-scrollbar">
             ${(!state.detailedSubjects || state.detailedSubjects.length === 0) ? `
               <div class="text-center py-12 text-gray-400">
-                <div class="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg class="w-8 h-8 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                </div>
-                <p class="text-sm font-medium">No subjects found in curriculum</p>
-                <p class="text-xs mt-1">Check the curriculum settings for this year level.</p>
+                <p class="text-sm font-medium">No subjects found</p>
               </div>
-            ` : state.detailedSubjects.map(subj => `
-              <div class="group border ${subj.is_assigned ? 'border-gray-100 bg-white shadow-sm' : 'border-dashed border-gray-200 bg-gray-50/50'} p-4 rounded-xl transition-all hover:border-blue-200 hover:shadow-md">
-                <div class="flex items-start justify-between mb-3">
-                  <div class="min-w-0 pr-4">
-                    <div class="flex items-center gap-2 mb-1">
-                      <span class="text-[10px] font-bold py-0.5 px-1.5 rounded bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-tighter">${subj.code}</span>
-                      <span class="text-[9px] font-bold px-1.5 rounded bg-amber-50 text-amber-600 border border-amber-100">${subj.semester_tag}</span>
-                    </div>
-                    <h4 class="text-sm font-bold text-gray-800 line-clamp-2 leading-tight">${subj.title}</h4>
-                    <p class="text-[10px] text-gray-400 font-medium mt-0.5">${subj.units} Units</p>
-                  </div>
-                  
-                  ${subj.is_assigned ? `
-                    <div class="flex flex-col gap-1">
-                      <button onclick="openScheduleSlotModal('${subj.section_subject_id}')" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Schedule">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      </button>
-                    </div>
-                  ` : `
-                    <div class="bg-gray-200/50 p-1.5 rounded-lg text-gray-400" title="Not linked to section">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
-                    </div>
-                  `}
-                </div>
+            ` : state.detailedSubjects.map(subj => {
+    const assignedCount = state.sectionSchedule.filter(s => s.subject_id === subj.subject_id).length;
+    const pendingCount = (state.pendingSlots || []).filter(s => s.subject_id === subj.subject_id).length;
 
-                <!-- Assigned Professors -->
-                <div class="space-y-2">
-                  <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Assignment</p>
-                  <div class="flex flex-wrap gap-2">
-                    ${subj.assigned_professors.length > 0 ? subj.assigned_professors.map(p => `
-                      <div class="inline-flex items-center gap-1.5 py-1 px-2.5 bg-green-50 text-green-700 rounded-lg border border-green-100 text-xs font-semibold">
-                        <div class="w-1 h-1 bg-green-500 rounded-full"></div>
-                        ${p.name}
+    const officiallyAssignedProf = (subj.assigned_professors && subj.assigned_professors.length > 0)
+      ? (subj.assigned_professors.find(p => p.is_primary) || subj.assigned_professors[0])
+      : null;
+
+    const totalSlotted = assignedCount + pendingCount;
+    const isAlreadySlotted = totalSlotted > 0;
+    const hasProfessors = subj.qualified_professors && subj.qualified_professors.length > 0;
+
+    return `
+                <div class="group border ${isAlreadySlotted ? 'border-gray-200 bg-gray-50 opacity-75' : (officiallyAssignedProf ? 'border-blue-200 bg-blue-50/50' : 'border-dashed border-gray-200 bg-gray-50/30')} p-4 rounded-xl transition-all ${isAlreadySlotted ? 'cursor-not-allowed' : 'hover:border-blue-400 hover:shadow-md cursor-grab active:cursor-grabbing'} relative"
+                     ${isAlreadySlotted ? '' : `draggable="true" ondragstart="handleDragStart(event, '${subj.subject_id}', '${subj.code}', '${subj.title}')"`}
+                     id="drag-subject-${subj.subject_id}">
+                  
+                  <div class="flex items-start justify-between mb-2">
+                    <div class="min-w-0 pr-4">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="text-[10px] font-bold py-0.5 px-1.5 rounded bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-tighter">${subj.code}</span>
+                        <span class="text-[9px] font-bold px-1.5 rounded bg-amber-100 text-amber-700 border border-amber-200">${subj.semester_tag || 'N/A'}</span>
+                        ${isAlreadySlotted ? `<span class="text-[9px] font-bold px-1.5 rounded bg-green-100 text-green-700 border border-green-200">Scheduled</span>` : ''}
                       </div>
-                    `).join('') : `
-                      <div class="text-[11px] text-orange-500 bg-orange-50 px-2 py-1 rounded border border-orange-100 italic font-medium w-full flex items-center gap-1.5">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                        No professor assigned
-                      </div>
+                      <h4 class="text-sm font-bold text-gray-800 line-clamp-1 leading-tight">${subj.title}</h4>
+                    </div>
+                  </div>
+
+                  <div class="mt-2 flex flex-col gap-1">
+                    <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-widest pl-0.5">Assign Professor</label>
+                    ${!hasProfessors ? `
+                        <div class="text-[10px] text-red-500 font-bold bg-red-50 p-2 rounded border border-red-100 mt-1">
+                           No professor is assigned to that subject yet
+                        </div>
+                    ` : `
+                        <select class="form-select text-[11px] py-1 h-8 bg-white font-semibold ${isAlreadySlotted ? 'bg-gray-100 cursor-not-allowed' : ''}" 
+                                id="prof-select-${subj.subject_id}"
+                                ${isAlreadySlotted ? 'disabled' : ''}
+                                onchange="event.stopPropagation()"
+                                onclick="event.stopPropagation()">
+                            ${officiallyAssignedProf ? '' : '<option value="">-- Pick Professor --</option>'}
+                            ${(subj.qualified_professors || []).map(p => `
+                                <option value="${p.id}" ${officiallyAssignedProf && officiallyAssignedProf.id === p.id ? 'selected' : ''}>
+                                    ${p.name}
+                                </option>
+                            `).join('')}
+                        </select>
                     `}
                   </div>
-                </div>
-
-                <!-- Qualified Professors (Scrollable list if many) -->
-                ${subj.qualified_professors.length > 0 ? `
-                  <div class="mt-4 pt-3 border-t border-gray-100">
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 mb-2">Available Professors</p>
-                    <div class="flex flex-wrap gap-1.5 px-1">
-                      ${subj.qualified_professors.map(p => `
-                        <div class="text-[10px] font-medium bg-gray-50 text-gray-500 py-0.5 px-2 rounded-md border border-gray-100 transition-colors hover:bg-white hover:text-blue-600 hover:border-blue-100 cursor-default" title="Expertise: ${p.specialization || 'N/A'}">
-                          ${p.name.split(' ').pop()}
-                        </div>
-                      `).join('')}
-                    </div>
+                  
+                  <div class="mt-3 flex items-center justify-between text-[10px] text-gray-400 font-medium">
+                      <span>${subj.units} Units</span>
+                      <span class="opacity-0 group-hover:opacity-100 transition-opacity">
+                        ${isAlreadySlotted ? 'Already on Grid' : 'Drag to schedule &rarr;'}
+                      </span>
                   </div>
-                ` : ''}
-              </div>
-            `).join('')}
+                </div>
+                `;
+  }).join('')}
+          </div>
+          <div class="p-4 bg-gray-50 border-t border-gray-100 text-[11px] text-gray-500 italic text-center">
+            Drag a subject card to the schedule grid to assign a time slot.
           </div>
         </div>
       </div>
@@ -2039,14 +2312,17 @@ function renderSectionDetail() {
       <!-- Schedule Grid View -->
       <div class="lg:col-span-8">
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-            <h3 class="font-bold text-gray-800">Weekly Schedule Grid</h3>
-            <div class="flex items-center gap-4 text-xs">
-              <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 bg-blue-100 border border-blue-300 rounded-sm"></div>Lecture</div>
-              <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 bg-green-100 border border-green-300 rounded-sm"></div>Laboratory</div>
+          <div class="px-5 py-4 border-b border-gray-200 bg-gray-800 flex items-center justify-between shadow-sm">
+            <h3 class="font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                Weekly Builder Grid
+            </h3>
+            <div class="flex items-center gap-4 text-[10px] text-gray-300 font-medium tracking-wide uppercase">
+              <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 bg-blue-500 rounded-sm"></div>Scheduled</div>
+              <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 bg-gray-200 rounded-sm"></div>Empty Slot</div>
             </div>
           </div>
-          <div class="p-0 overflow-x-auto">
+          <div class="p-0 overflow-x-auto bg-gray-100/30">
             ${renderSectionScheduleGrid()}
           </div>
         </div>
@@ -2057,7 +2333,7 @@ function renderSectionDetail() {
 
 function renderSectionScheduleGrid() {
   return `
-    <table class="w-full border-collapse table-fixed min-w-[800px]">
+    <table class="w-full border-collapse table-fixed min-w-[800px] bg-white">
       <thead>
         <tr class="bg-gray-50 border-b border-gray-200">
           <th class="w-20 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">Time</th>
@@ -2070,8 +2346,8 @@ function renderSectionScheduleGrid() {
       </thead>
       <tbody>
         ${TIME_SLOTS.map(time => `
-          <tr class="h-12 border-b border-gray-100 group hover:bg-gray-50/30 transition-colors">
-            <td class="text-[10px] font-bold text-gray-400 text-center border-r border-gray-100 align-top pt-2">
+          <tr class="h-16 border-b border-gray-100 group transition-colors">
+            <td class="text-[10px] font-bold text-gray-400 text-center border-r border-gray-100 align-top pt-2 bg-gray-50/50">
                 ${formatTime(time)}
             </td>
             ${DAYS.map(day => renderScheduleCell(day.code, time)).join('')}
@@ -2083,50 +2359,143 @@ function renderSectionScheduleGrid() {
 }
 
 function renderScheduleCell(day, timeSlot) {
-  const matchingSlots = state.sectionSchedule.filter(s => {
+  const getMins = (ts) => {
+    const [h, m] = ts.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const currentMins = getMins(timeSlot);
+
+  // Check Confirmed Slots
+  const slot = state.sectionSchedule.find(s => {
     if (s.day !== day) return false;
-    const slotHour = parseInt(timeSlot.split(':')[0]);
-    const startHour = parseInt(s.start_time.split(':')[0]);
-    const endHour = parseInt(s.end_time.split(':')[0]);
-    return slotHour >= startHour && slotHour < endHour;
+    return currentMins >= getMins(s.start_time) && currentMins < getMins(s.end_time);
   });
 
-  if (matchingSlots.length === 0) {
-    return `<td class="border-r border-gray-100 p-0.5"></td>`;
-  }
+  // Check if it's the start of the slot
+  if (slot && timeSlot === slot.start_time.substring(0, 5)) {
+    const start = getMins(slot.start_time);
+    const end = getMins(slot.end_time);
+    const rowSpan = Math.ceil((end - start) / 60);
+    const colorClass = getSubjectColor(slot.subject_code, slot.id);
+    const isEditing = state.editingSlot && state.editingSlot.id === slot.id;
+    const showMenu = state.slotMenuId === slot.id;
 
-  const slot = matchingSlots[0];
-  const isFirstRow = timeSlot.startsWith(slot.start_time.substring(0, 2));
+    const cardHeight = (rowSpan * 64) - 8; // 64px per hour, -8px for p-1 (4px top + 4px bottom)
 
-  if (!isFirstRow) {
-    // We handle grouping with rowspan on the first matching row, 
-    // so skip rendering a cell for subsequent matching rows.
-    // Wait, for table cells to align correctly in a simple row-by-row render, 
-    // we can't easily use rowspan unless we track what cells are already "covered".
-    // Instead, let's render a transparent or empty cell, or better, 
-    // use the same logic as registrar-sections.js which expects rowspan handling 
-    // if we were building the whole table in one go.
-    // But here we are rendering row by row.
-    return '';
-  }
+    return `
+      <td class="border-r border-gray-100 p-1 relative ${isEditing ? 'z-50' : 'z-10'}" rowspan="${rowSpan}" data-slot-id="${slot.id}">
+        <div style="height: ${cardHeight}px;" 
+             class="w-full rounded-xl border-t-4 shadow-md p-3 flex flex-col justify-between cursor-pointer transition-all ${isEditing ? 'ring-4 ring-blue-400 scale-[1.02] shadow-xl' : 'hover:scale-[1.01]'} ${colorClass}"
+             draggable="true" 
+             ondragstart="handleGridDragStart(event, '${slot.id}', '${slot.subject_id}')"
+             onclick="handleSlotClick(event, '${slot.id}')">
+          
+          <div class="relative">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[9px] font-black uppercase tracking-tighter opacity-70">${slot.subject_code}</span>
+              <div class="flex gap-1">
+                  <button onclick="event.stopPropagation(); removeScheduleSlot('${slot.id}')" 
+                          class="p-1 hover:bg-red-500 hover:text-white text-red-500 rounded transition-all transform hover:scale-110"
+                          title="Delete Schedule">
+                      <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
+                      </svg>
+                  </button>
+              </div>
+            </div>
+            <h4 class="text-[11px] font-black leading-tight line-clamp-2">${slot.subject_title}</h4>
+            <div class="flex items-center gap-1 mt-1 text-[9px] font-bold opacity-80">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                ${slot.room || 'No Room'}
+            </div>
+          </div>
 
-  const duration = calculateDuration(slot.start_time, slot.end_time);
-  const colorClass = getSubjectColor(slot.subject_code);
+          <div class="mt-auto flex items-end justify-between">
+            <span class="text-[9px] font-bold bg-white/40 px-1 rounded time-badge">${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}</span>
+            <div class="w-4 h-1 rounded-full bg-black/10 cursor-ns-resize" onmousedown="handleResizeStart(event, '${slot.id}')"></div>
+          </div>
 
-  return `
-    <td class="border-r border-gray-100 p-1 align-top" rowspan="${duration}">
-      <div class="h-full rounded-lg border-l-4 shadow-sm p-2 flex flex-col justify-between ${colorClass} transition-transform hover:scale-[1.02] cursor-default">
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-tight opacity-75">${slot.subject_code}</p>
-          <p class="text-xs font-bold leading-tight line-clamp-2">${slot.subject_title}</p>
+          <!-- Action Overlay Menu -->
+          ${showMenu ? `
+          <div class="absolute inset-0 bg-black/70 backdrop-blur-[2px] rounded-xl flex items-center justify-center gap-4 z-40 animate-in fade-in zoom-in duration-200" onclick="event.stopPropagation()">
+              <div class="text-center">
+                  <button onclick="openEditDrawer('${slot.id}')" class="p-3 bg-white text-blue-600 rounded-xl hover:bg-blue-50 transition-all shadow-xl active:scale-95 group flex flex-col items-center">
+                      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                      <span class="text-[10px] font-black mt-1 uppercase tracking-tighter">Edit</span>
+                  </button>
+              </div>
+              <div class="text-center">
+                  <button onclick="openViewSubject('${slot.id}')" class="p-3 bg-white text-green-600 rounded-xl hover:bg-green-50 transition-all shadow-xl active:scale-95 group flex flex-col items-center">
+                      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                      <span class="text-[10px] font-black mt-1 uppercase tracking-tighter">View</span>
+                  </button>
+              </div>
+              <div class="text-center">
+                  <button onclick="removeScheduleSlot('${slot.id}')" class="p-3 bg-white text-red-600 rounded-xl hover:bg-red-50 transition-all shadow-xl active:scale-95 group flex flex-col items-center">
+                      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                      <span class="text-[10px] font-black mt-1 uppercase tracking-tighter">Delete</span>
+                  </button>
+              </div>
+              <button onclick="closeSlotMenu()" class="absolute top-2 right-2 p-1 text-white hover:text-gray-300">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+          </div>
+          ` : ''}
         </div>
-        <div class="mt-auto pt-2 flex items-center justify-between gap-1 border-t border-black/5">
-          <span class="text-[10px] font-bold"><span class="opacity-60">RM</span> ${slot.room || 'TBA'}</span>
-          ${slot.professor_name ? `<span class="text-[9px] truncate font-medium max-w-[60px] text-right" title="${slot.professor_name}">${slot.professor_name.split(' ').pop()}</span>` : ''}
-        </div>
-      </div>
-    </td>
+      </td>
     `;
+  }
+
+  // Check Pending Slots
+  const pending = (state.pendingSlots || []).find(s => {
+    if (s.day !== day) return false;
+    return currentMins >= getMins(s.start_time) && currentMins < getMins(s.end_time);
+  });
+
+  if (pending && timeSlot === pending.start_time.substring(0, 5)) {
+    const start = getMins(pending.start_time);
+    const end = getMins(pending.end_time);
+    const rowSpan = Math.ceil((end - start) / 60);
+
+    const cardHeight = (rowSpan * 64) - 8;
+
+    return `
+      <td class="border-r border-gray-100 p-1 relative z-20" rowspan="${rowSpan}">
+        <div style="height: ${cardHeight}px;" class="w-full rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 shadow-sm p-3 flex flex-col justify-between animate-pulse">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[9px] font-black uppercase text-amber-700 opacity-70">${pending.subject_code}</span>
+              <div class="flex gap-1">
+                  <button onclick="confirmPendingSlot('${pending.tempId}')" class="p-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors shadow-sm">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                  </button>
+                  <button onclick="removePendingSlot('${pending.tempId}')" class="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors shadow-sm">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+              </div>
+            </div>
+            <h4 class="text-[11px] font-black text-amber-900 leading-tight line-clamp-2">PENDING: ${pending.subject_title}</h4>
+          </div>
+          <div class="mt-auto flex items-end justify-between">
+            <span class="text-[9px] font-black bg-amber-200/50 px-1 rounded text-amber-900">${formatTime(pending.start_time)}</span>
+            <div class="w-4 h-1 rounded-full bg-amber-400/50 cursor-ns-resize" onmousedown="handleResizeStart(event, '${pending.tempId}', true)"></div>
+          </div>
+        </div>
+      </td>
+    `;
+  }
+
+  // Handle cell overlap
+  if (slot || pending) return '';
+
+  return `<td class="border-r border-gray-100 p-0 hover:bg-blue-50/30 transition-colors drop-zone" 
+                data-day="${day}" 
+                data-time="${timeSlot}"
+                ondragover="handleDragOver(event)"
+                ondragleave="handleDragLeave(event)"
+                ondrop="handleDropToSchedule(event)">
+            </td>`;
 }
 
 // ============================================================
@@ -2136,6 +2505,7 @@ function renderScheduleCell(day, timeSlot) {
 window.handleSectionSearch = function (q) {
   state.sectionSearch = q;
   render();
+  restoreFocus('section-search');
 };
 
 window.handleSectionFilterProgram = function (id) {
@@ -2393,10 +2763,20 @@ function getAssignSectionSubjectForm() {
   // Room Options
   const roomOptions = ROOMS.map(r => `<option value="${r}">${r}</option>`).join('');
 
-  // Use state.detailedSubjects (filtered by year/semester) instead of all program subjects
-  const subjectOptions = (state.detailedSubjects || []).map(s => `
+  // Filter out subjects that are already assigned
+  const availableSubjects = (state.detailedSubjects || []).filter(s => !s.is_assigned);
+
+  const subjectOptions = availableSubjects.map(s => `
      <option value="${s.subject_id}">${s.code} - ${s.title}</option>
   `).join('');
+
+  if (availableSubjects.length === 0) {
+    return `<div class="p-8 text-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+              <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <p class="text-gray-600 font-bold">All Curriculum Subjects Assigned</p>
+              <p class="text-xs text-gray-500 mt-1">Every subject in this year/semester curriculum is already linked to this section.</p>
+            </div>`;
+  }
 
   return `
         <form id="assign-section-subject-form" class="space-y-4">
@@ -2433,12 +2813,17 @@ function getAssignSectionSubjectForm() {
                      </select>
                 </div>
 
-                 <div>
+                <div>
                      <label class="block text-sm font-medium text-gray-700 mb-1">Room</label>
                      <select id="assign-room" class="form-select w-full" onchange="checkConflictsAsync()">
                         <option value="">TBA</option>
                         ${roomOptions}
                      </select>
+                     <div id="room-availability-status" class="hidden mt-1 p-1 text-[10px] rounded border border-green-100 font-medium"></div>
+                </div>
+
+                <div class="md:col-span-2">
+                     <div id="time-availability-status" class="hidden p-1.5 text-[10px] rounded border border-gray-200 font-medium text-center"></div>
                 </div>
 
                 <div>
@@ -2468,11 +2853,55 @@ window.checkConflictsAsync = async function () {
   const warningEl = document.getElementById('conflict-warning');
   const msgEl = document.getElementById('conflict-message');
 
+  // New Availability UI elements
+  const roomStatus = document.getElementById('room-availability-status');
+  const timeStatus = document.getElementById('time-availability-status');
+
   // Reset UI
   warningEl.classList.add('hidden');
   msgEl.textContent = '';
+  if (roomStatus) roomStatus.classList.add('hidden');
+  if (timeStatus) timeStatus.classList.add('hidden');
 
   if (!day || !start || !end) return false;
+
+  // Semester ID
+  const semesterId = state.selectedSection.semester || state.activeSemester?.id;
+
+  // 1. Proactive Room Availability (if time is set)
+  if (start && end && day && !room) {
+    try {
+      const resp = await api.get(`${endpoints.checkAvailability}?type=rooms&day=${day}&start_time=${start}&end_time=${end}&semester_id=${semesterId}`);
+      if (resp && resp.available_rooms) {
+        // Highlight available rooms in select? Or just show a note.
+        // For now, let's show a note with top 5 available.
+        if (roomStatus) {
+          roomStatus.innerHTML = `<strong>Available Rooms:</strong> ${resp.available_rooms.slice(0, 5).join(', ')}${resp.available_rooms.length > 5 ? '...' : ''}`;
+          roomStatus.classList.remove('hidden', 'text-red-600', 'bg-red-50');
+          roomStatus.classList.add('text-green-600', 'bg-green-50');
+        }
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  // 2. Proactive Time Availability (if room is set)
+  if (room && room !== 'TBA' && day) {
+    try {
+      const resp = await api.get(`${endpoints.checkAvailability}?type=times&day=${day}&room=${encodeURIComponent(room)}&semester_id=${semesterId}`);
+      if (resp && resp.busy_slots && resp.busy_slots.length > 0) {
+        if (timeStatus) {
+          const busyTimes = resp.busy_slots.map(s => `${formatTime(s.start_time)}-${formatTime(s.end_time)}`).join(', ');
+          timeStatus.innerHTML = `<strong>Room Busy:</strong> ${busyTimes}`;
+          timeStatus.classList.remove('hidden', 'text-green-600', 'bg-green-50');
+          timeStatus.classList.add('text-red-500', 'bg-red-50');
+        }
+      } else if (timeStatus) {
+        timeStatus.innerHTML = `<strong>Room Available:</strong> All day for ${day}`;
+        timeStatus.classList.remove('hidden', 'text-red-500', 'bg-red-50');
+        timeStatus.classList.add('text-green-600', 'bg-green-50');
+      }
+    } catch (e) { console.error(e); }
+  }
 
   // Basic validation
   if (start >= end) {
@@ -2499,8 +2928,6 @@ window.checkConflictsAsync = async function () {
   }
 
   // 2. Server-side Conflict Check
-  const semesterId = state.selectedSection.semester || state.activeSemester?.id;
-
   try {
     if (room && room !== 'TBA') {
       const roomResp = await api.post(endpoints.checkRoomConflict, {
@@ -2558,6 +2985,9 @@ window.handleAssignSubjectChange = function (subjectId) {
     profSelect.innerHTML = '<option value="">TBA</option>' +
       qualifiedProfs.map(p => `<option value="${p.id}">${p.name} (${p.specialization || 'Qualified'})</option>`).join('');
   }
+
+  // Also trigger conflict check to update availability UI
+  checkConflictsAsync();
 };
 
 window.submitSectionAssignment = async function (modal, btn) {
@@ -2771,6 +3201,8 @@ window.switchTab = function (tabId) {
   // Load data for the tab if needed
   if (tabId === TABS.PROFESSORS) {
     loadProfessors().then(render);
+  } else if (tabId === TABS.ROOMS) {
+    loadRooms().then(render);
   } else if (tabId === TABS.SECTIONS) {
     Promise.all([loadSemesters(), loadPrograms(), loadSections()]).then(render);
   } else if (tabId === TABS.CURRICULA) {
@@ -4443,180 +4875,7 @@ window.logout = function () {
 
 document.addEventListener('DOMContentLoaded', init);
 if (document.readyState !== 'loading') init();
-// ====================
-// SECTION MODALS (New)
-// ====================
 
-window.openAssignStudentsModal = async function () {
-  const section = state.selectedSection;
-  if (!section) return;
-
-  // UI Loading
-  const modal = new Modal({
-    title: 'Assign Students',
-    content: '<div class="p-8 text-center text-gray-500">Loading recommendations...</div>'
-  });
-  modal.show();
-
-  try {
-    const recommendations = await api.get(endpoints.section(section.id) + 'recommend-students/');
-
-    // Update modal content
-    const content = `
-            <div class="space-y-4">
-                <div class="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
-                    <svg class="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <div>
-                        <h4 class="font-bold text-blue-800 text-sm">System Recommendations</h4>
-                        <p class="text-xs text-blue-600">Showing students in ${section.program_code} - Year ${section.year_level} who are not assigned to any section.</p>
-                    </div>
-                </div>
-                
-                <div class="max-h-[400px] overflow-y-auto border border-gray-200 rounded-lg">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-2 w-10">
-                                    <input type="checkbox" onchange="toggleSelectAllStudents(this)" class="rounded border-gray-300">
-                                </th>
-                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Student No.</th>
-                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Name</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200" id="recommend-list">
-                            ${recommendations.map(s => `
-                                <tr>
-                                    <td class="px-4 py-2 text-center">
-                                        <input type="checkbox" name="assign_student" value="${s.user_id}" class="rounded border-gray-300 cursor-pointer">
-                                    </td>
-                                    <td class="px-4 py-2 text-sm font-mono">${s.student_number}</td>
-                                    <td class="px-4 py-2 text-sm font-bold">${s.last_name}, ${s.first_name}</td>
-                                </tr>
-                            `).join('')}
-                             ${recommendations.length === 0 ? '<tr><td colspan="3" class="px-4 py-8 text-center text-gray-400">No matching students found.</td></tr>' : ''}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-
-    modal.close();
-
-    new Modal({
-      title: `Assign Students to ${section.name}`,
-      content: content,
-      actions: [
-        { label: 'Cancel', onClick: m => m.close() },
-        {
-          label: `Assign Selected`,
-          primary: true,
-          onClick: async (m) => {
-            const selected = [...document.querySelectorAll('input[name="assign_student"]:checked')].map(cb => cb.value);
-            if (selected.length === 0) {
-              Toast.error('Please select students to assign');
-              return;
-            }
-
-            try {
-              setButtonLoading(m.element.querySelector('button.btn-primary'), true);
-              await api.post(endpoints.section(section.id) + 'assign-students/', { student_ids: selected });
-              Toast.success(`Assigned ${selected.length} students`);
-              m.close();
-              await viewSection(section.id);
-            } catch (e) {
-              ErrorHandler.handle(e, 'Assigning students');
-              setButtonLoading(m.element.querySelector('button.btn-primary'), false);
-            }
-          }
-        }
-      ],
-      size: 'lg'
-    }).show();
-
-  } catch (e) {
-    modal.close();
-    ErrorHandler.handle(e, 'Loading recommendations');
-  }
-};
-
-window.toggleSelectAllStudents = function (source) {
-  document.querySelectorAll('input[name="assign_student"]').forEach(cb => cb.checked = source.checked);
-};
-
-window.openViewStudentsModal = async function () {
-  const section = state.selectedSection;
-  if (!section) return;
-
-  // UI Loading
-  const modal = new Modal({
-    title: `Students in ${section.name}`,
-    content: '<div class="p-8 text-center text-gray-500">Loading students...</div>'
-  });
-  modal.show();
-
-  try {
-    const students = await api.get(endpoints.section(section.id) + 'students/');
-    const content = `
-                <div class="mb-2 text-sm text-gray-500 text-right">Total: ${students.length} students</div>
-                <div class="max-h-[500px] overflow-y-auto border border-gray-200 rounded-lg">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Student No.</th>
-                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Name</th>
-                                <th class="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            ${students.map(s => `
-                                <tr>
-                                    <td class="px-4 py-2 text-sm font-mono">${s.student_number}</td>
-                                    <td class="px-4 py-2 text-sm font-bold">${s.last_name}, ${s.first_name}</td>
-                                    <td class="px-4 py-2 text-right">
-                                        <button onclick="removeStudentFromSection('${s.user_id}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 rounded hover:bg-red-50 transition-colors">
-                                            Remove
-                                        </button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                             ${students.length === 0 ? '<tr><td colspan="3" class="px-4 py-8 text-center text-gray-400">No students assigned.</td></tr>' : ''}
-                        </tbody>
-                    </table>
-                </div>
-        `;
-    modal.close();
-    new Modal({
-      title: `Students in ${section.name}`,
-      content: content,
-      actions: [{ label: 'Close', onClick: m => m.close() }],
-      size: 'lg'
-    }).show();
-  } catch (e) {
-    modal.close();
-    ErrorHandler.handle(e, 'Loading students');
-  }
-};
-
-window.removeStudentFromSection = async function (studentId) {
-  if (!confirm('Are you sure you want to remove this student from the section?')) return;
-  try {
-    const section = state.selectedSection;
-    await api.post(endpoints.section(section.id) + 'remove-student/', { student_id: studentId });
-    Toast.success('Student removed');
-
-    // Refresh by reloading same modal - a bit recursive. 
-    // Better: Close all modals and re-open ViewStudents? 
-    // Or manually remove row?
-    document.querySelector(`button[onclick="removeStudentFromSection('${studentId}')"]`).closest('tr').remove();
-
-    // Also refresh the section details in background
-    await loadSectionDetails(section.id);
-    render(); // Updating counts
-
-  } catch (e) {
-    ErrorHandler.handle(e, 'Removing student');
-  }
-};
 
 // ====================
 // SECTION MODALS (New)
@@ -5242,3 +5501,896 @@ window.submitBulkSections = async function (modal, btn) {
     setButtonLoading(btn, false);
   }
 };
+
+// ============================================================
+// DRAG & DROP BUILDER HANDLERS
+// ============================================================
+
+window.handleDragStart = function (event, subjectId, code, title) {
+  const profSelect = document.getElementById(`prof-select-${subjectId}`);
+  const profId = profSelect ? profSelect.value : null;
+
+  if (!profId) {
+    Toast.error('Please assign a professor before dragging!');
+    event.preventDefault();
+    return;
+  }
+
+  const profName = profSelect.options[profSelect.selectedIndex].text;
+
+  const dragData = {
+    type: 'NEW_SLOT',
+    subject_id: subjectId,
+    subject_code: code,
+    subject_title: title,
+    professor_id: profId,
+    professor_name: profName
+  };
+  event.dataTransfer.setData('application/json', JSON.stringify(dragData));
+  event.dataTransfer.effectAllowed = 'copyMove';
+
+  // Add visual cue
+  event.target.classList.add('opacity-50', 'ring-2', 'ring-blue-500');
+};
+
+window.handleGridDragStart = function (event, slotId, subjectId) {
+  const dragData = {
+    type: 'EXISTING_SLOT',
+    slot_id: slotId,
+    subject_id: subjectId
+  };
+  event.dataTransfer.setData('application/json', JSON.stringify(dragData));
+  event.dataTransfer.effectAllowed = 'move';
+};
+
+window.handleDragOver = function (event) {
+  event.preventDefault();
+  const zone = event.target.closest('.drop-zone');
+  if (zone) {
+    zone.classList.add('bg-blue-100/50', 'ring-2', 'ring-inset', 'ring-blue-300');
+  }
+};
+
+window.handleDragLeave = function (event) {
+  const zone = event.target.closest('.drop-zone');
+  if (zone) {
+    zone.classList.remove('bg-blue-100/50', 'ring-2', 'ring-inset', 'ring-blue-300');
+  }
+};
+
+window.handleDropToSchedule = async function (event) {
+  event.preventDefault();
+  const zone = event.target.closest('.drop-zone');
+  if (zone) {
+    zone.classList.remove('bg-blue-100/50', 'ring-2', 'ring-inset', 'ring-blue-300');
+  }
+
+  try {
+    const rawData = event.dataTransfer.getData('application/json');
+    if (!rawData) return;
+    const dragData = JSON.parse(rawData);
+
+    const day = zone.dataset.day;
+    const startTime = zone.dataset.time;
+
+    if (dragData.type === 'NEW_SLOT') {
+      const [h, m] = startTime.split(':').map(Number);
+      const endTime = `${(h + 1).toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+      const tempId = 'pending-' + Date.now();
+      const newSlot = {
+        ...dragData,
+        tempId,
+        day,
+        start_time: startTime,
+        end_time: endTime,
+        room: null
+      };
+
+      const conflict = checkLocalConflict(newSlot);
+      if (conflict) {
+        Toast.error(conflict);
+        return;
+      }
+
+      state.pendingSlots.push(newSlot);
+      render();
+    } else if (dragData.type === 'EXISTING_SLOT') {
+      const slot = state.sectionSchedule.find(s => s.id === dragData.slot_id);
+      if (!slot) return;
+
+      // Keep original duration
+      const durationH = (parseInt(slot.end_time.split(':')[0]) - parseInt(slot.start_time.split(':')[0]));
+      const [h, m] = startTime.split(':').map(Number);
+      const newEndTime = `${(h + durationH).toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+      const updatedSlot = { ...slot, day, start_time: startTime, end_time: newEndTime };
+      const conflict = checkLocalConflict(updatedSlot, slot.id);
+      if (conflict) {
+        Toast.error(conflict);
+        return;
+      }
+
+      await updateScheduleSlot(dragData.slot_id, {
+        day,
+        start_time: startTime,
+        end_time: newEndTime
+      });
+    }
+  } catch (e) {
+    console.error('Drop error:', e);
+  }
+};
+
+window.handleDropToUnassign = async function (event) {
+  event.preventDefault();
+  try {
+    const rawData = event.dataTransfer.getData('application/json');
+    if (!rawData) return;
+    const dragData = JSON.parse(rawData);
+
+    if (dragData.type === 'EXISTING_SLOT') {
+      await removeScheduleSlot(dragData.slot_id, false);
+    } else if (dragData.type === 'PENDING_SLOT') {
+      removePendingSlot(dragData.tempId);
+    }
+  } catch (e) {
+    console.error('Unassign drop error:', e);
+  }
+};
+
+window.removePendingSlot = function (tempId) {
+  state.pendingSlots = state.pendingSlots.filter(s => s.tempId !== tempId);
+  render();
+};
+
+window.confirmPendingSlot = function (tempId) {
+  const slot = state.pendingSlots.find(s => s.tempId === tempId);
+  if (!slot) return;
+
+  state.activeConfirmSlot = slot;
+  // Requirement 3: Clicking check icon opens room selection modal
+  openScheduleConfirmationModal(slot);
+};
+
+async function openScheduleConfirmationModal(data) {
+  // Fetch room availability first
+  let roomOptionsHtml = '<option value="">Loading rooms...</option>';
+
+  const modal = new Modal({
+    title: `Confirm Room: ${data.subject_code}`,
+    content: `
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                        <p class="text-[10px] font-bold text-blue-800 uppercase tracking-wider mb-1">Subject</p>
+                        <p class="text-sm font-bold text-gray-900">${data.subject_title}</p>
+                    </div>
+                    <div class="p-3 bg-green-50 rounded-lg border border-green-100">
+                        <p class="text-[10px] font-bold text-green-800 uppercase tracking-wider mb-1">Professor</p>
+                        <p class="text-sm font-bold text-gray-900">${data.professor_name}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 pl-1">Selected Time</label>
+                        <div class="form-input bg-gray-50 font-bold flex items-center gap-2">
+                             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                             ${data.day} ${formatTime(data.start_time)} - ${formatTime(data.end_time)}
+                        </div>
+                        <input type="hidden" id="modal-day" value="${data.day}">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 pl-1">Room Selection *</label>
+                        <select id="modal-room" class="form-select font-bold" onchange="validateModalConflict()">
+                            ${roomOptionsHtml}
+                        </select>
+                    </div>
+                </div>
+
+                <div id="modal-conflict-warning" class="hidden p-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-700 space-y-1">
+                    <p class="font-bold flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Schedule Conflict Detected
+                    </p>
+                    <p id="modal-conflict-msg" class="italic"></p>
+                </div>
+            </div>
+        `,
+    actions: [
+      {
+        label: 'Cancel', onClick: (m) => {
+          state.activeConfirmSlot = null;
+          m.close();
+        }
+      },
+      {
+        label: 'Confirm Schedule',
+        primary: true,
+        onClick: async (m) => {
+          const room = document.getElementById('modal-room').value;
+          if (!room) {
+            Toast.error('Please select a room');
+            return;
+          }
+
+          const success = await finalizeScheduleSave(m, {
+            ...data,
+            room,
+            start_time: data.start_time,
+            end_time: data.end_time
+          });
+
+          if (success) {
+            // Remove from pending if successful
+            state.pendingSlots = state.pendingSlots.filter(s => s.tempId !== data.tempId);
+            state.activeConfirmSlot = null;
+          }
+        }
+      }
+    ]
+  });
+  modal.show();
+
+  // Load room availability async and update dropdown
+  try {
+    const rooms = await api.get(`${endpoints.roomAvailability}?day=${data.day}&start_time=${data.start_time}&end_time=${data.end_time}&semester_id=${state.activeSemester.id}`);
+    const select = document.getElementById('modal-room');
+    if (select) {
+      select.innerHTML = '<option value="">Select a room</option>' + rooms.map(r => `
+          <option value="${r.name}" ${!r.is_available ? 'disabled' : ''}>
+              ${r.name} (${r.room_type}) - ${r.is_available ? 'Available' : 'Occupied' + (r.occupied_by ? ': ' + r.occupied_by : '')}
+          </option>
+      `).join('');
+    }
+  } catch (e) {
+    console.error('Failed to load room availability', e);
+  }
+
+  validateModalConflict();
+}
+
+window.validateModalConflict = async function () {
+  const room = document.getElementById('modal-room').value;
+  const warn = document.getElementById('modal-conflict-warning');
+  const msg = document.getElementById('modal-conflict-msg');
+  const saveBtn = document.querySelector('.modal-action[data-primary="true"]');
+
+  if (!room || !state.activeConfirmSlot) {
+    warn.classList.add('hidden');
+    return;
+  }
+
+  const slot = state.activeConfirmSlot;
+
+  try {
+    const semesterId = state.activeSemester?.id;
+
+    // 1. Section Check
+    const sectionResp = await api.post(endpoints.checkSectionConflict, {
+      section_id: state.selectedSection.id,
+      day: slot.day,
+      start_time: slot.start_time,
+      end_time: slot.end_time
+    });
+
+    if (sectionResp && sectionResp.has_conflict) {
+      warn.classList.remove('hidden');
+      msg.innerHTML = `<strong>Section Conflict:</strong> ${sectionResp.conflict}`;
+      if (saveBtn) saveBtn.disabled = true;
+      return;
+    }
+
+    // 2. Room Check
+    const roomResp = await api.post(endpoints.checkRoomConflict, {
+      room,
+      day: slot.day,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      semester_id: semesterId
+    });
+
+    if (roomResp && roomResp.has_conflict) {
+      warn.classList.remove('hidden');
+      msg.innerHTML = `<strong>Room Conflict:</strong> ${roomResp.conflict}`;
+      if (saveBtn) saveBtn.disabled = true;
+      return;
+    }
+
+    // 3. Professor Check
+    if (slot.professor_id) {
+      const profResp = await api.post(endpoints.checkProfessorConflict, {
+        professor_id: slot.professor_id,
+        day: slot.day,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        semester_id: semesterId
+      });
+
+      if (profResp && profResp.has_conflict) {
+        warn.classList.remove('hidden');
+        msg.innerHTML = `<strong>Professor Conflict:</strong> ${profResp.conflict}`;
+        if (saveBtn) saveBtn.disabled = true;
+        return;
+      }
+    }
+
+    if (saveBtn) saveBtn.disabled = false;
+    warn.classList.add('hidden');
+  } catch (e) {
+    console.warn('Proactive check failed', e);
+  }
+};
+
+async function finalizeScheduleSave(modal, data) {
+  try {
+    setButtonLoading(document.querySelector('.modal-action[data-primary="true"]'), true, 'Scheduling...');
+
+    // 1. Check if section-subject already exists, if not create it
+    let ssId = null;
+    const existingSS = state.detailedSubjects.find(s => s.subject_id === data.subject_id);
+
+    if (existingSS && existingSS.is_assigned) {
+      ssId = existingSS.section_subject_id;
+    } else {
+      const assignment = await api.post(endpoints.sectionSubjects, {
+        section: state.selectedSection.id,
+        subject: data.subject_id,
+        professor: data.professor_id || null
+      });
+      ssId = assignment.id;
+    }
+
+    // 2. Create Schedule Slot
+    await api.post(endpoints.scheduleSlots, {
+      section_subject: ssId,
+      day: data.day,
+      room: data.room,
+      start_time: data.start_time,
+      end_time: data.end_time,
+      professor: data.professor_id || null
+    });
+
+    Toast.success('Schedule confirmed and saved');
+    modal.close();
+    await loadSectionDetails(state.selectedSection.id);
+    render();
+    return true;
+  } catch (e) {
+    ErrorHandler.handle(e, 'Saving schedule');
+    return false;
+  }
+}
+
+async function updateScheduleSlot(slotId, data) {
+  try {
+    await api.patch(endpoints.scheduleSlot(slotId), data);
+    Toast.success('Schedule updated');
+    await loadSectionDetails(state.selectedSection.id);
+    render();
+  } catch (e) {
+    ErrorHandler.handle(e, 'Updating schedule');
+  }
+}
+
+window.removeScheduleSlot = async function (slotId, confirm = true) {
+  if (confirm) {
+    const ok = await ConfirmModal({
+      title: 'Remove Slot',
+      message: 'Are you sure you want to remove this schedule slot?',
+      danger: true
+    });
+    if (!ok) return;
+  }
+
+  // Optimistic UI Update: Remove from local state immediately
+  const originalSchedule = [...state.sectionSchedule];
+  state.sectionSchedule = state.sectionSchedule.filter(s => s.id !== slotId);
+  render();
+
+  try {
+    await api.delete(endpoints.scheduleSlot(slotId));
+    Toast.success('Slot removed');
+    // Refresh fully in background to be sure
+    await loadSectionDetails(state.selectedSection.id);
+    render();
+  } catch (e) {
+    // If it's a 404, the object is already gone, so we can treat it as success
+    if (e.status === 404) {
+      console.warn('Slot already removed (404), proceeding as success');
+      Toast.success('Slot removed');
+      return;
+    }
+
+    // Otherwise, rollback local state on error
+    state.sectionSchedule = originalSchedule;
+    render();
+    ErrorHandler.handle(e, 'Removing slot');
+  }
+};
+
+// ============================================================
+// RESIZE LOGIC
+// ============================================================
+
+let isResizing = false;
+let resizeSlotId = null;
+let resizeIsPending = false;
+let initialY = 0;
+let initialHeight = 0;
+let slotElement = null;
+
+window.handleResizeStart = function (event, slotId, isPending = false) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  isResizing = true;
+  resizeSlotId = slotId;
+  resizeIsPending = isPending;
+  initialY = event.clientY;
+  slotElement = event.target.closest('td');
+  initialHeight = slotElement.offsetHeight;
+
+  document.addEventListener('mousemove', handleResizeMove);
+  document.addEventListener('mouseup', handleResizeEnd);
+
+  document.body.classList.add('cursor-ns-resize', 'select-none');
+};
+
+function handleResizeMove(event) {
+  if (!isResizing || !slotElement) return;
+
+  const diff = event.clientY - initialY;
+  const snappedSlots = Math.round(diff / 64);
+  const newHeight = Math.max(64, initialHeight + (snappedSlots * 64));
+
+  const contentDiv = slotElement.querySelector('div');
+  if (contentDiv) {
+    const cardHeight = newHeight - 8; // Snap the inner height minus cell padding
+    contentDiv.style.height = `${cardHeight}px`;
+    contentDiv.style.zIndex = '50';
+    contentDiv.classList.add('shadow-2xl', 'ring-2', 'ring-blue-500');
+
+    // Real-time time update on the card
+    const list = resizeIsPending ? state.pendingSlots : state.sectionSchedule;
+    const slot = list.find(s => (resizeIsPending ? s.tempId : s.id) === resizeSlotId);
+    if (slot) {
+      const [h, m] = slot.start_time.split(':').map(Number);
+      const durationH = Math.max(1, (initialHeight / 64) + snappedSlots);
+      const currentEndH = Math.min(22, h + durationH);
+      const timeDisplay = contentDiv.querySelector('.time-badge');
+      if (timeDisplay) {
+        timeDisplay.textContent = `${formatTime(slot.start_time)} - ${formatTime(`${currentEndH.toString().padStart(2, '0')}:00`)}`;
+        timeDisplay.classList.add('bg-blue-600', 'text-white');
+      }
+    }
+  }
+}
+
+async function handleResizeEnd(event) {
+  if (!isResizing) return;
+
+  const diff = event.clientY - initialY;
+  const slotsChange = Math.round(diff / 64);
+
+  // Clean up visual feedback
+  if (slotElement) {
+    const contentDiv = slotElement.querySelector('div');
+    if (contentDiv) {
+      contentDiv.style.height = '';
+      contentDiv.style.zIndex = '';
+      contentDiv.classList.remove('shadow-2xl', 'ring-2', 'ring-blue-500');
+      const timeDisplay = contentDiv.querySelector('.time-badge');
+      if (timeDisplay) timeDisplay.classList.remove('bg-blue-600', 'text-white');
+    }
+  }
+
+  if (slotsChange !== 0) {
+    const list = resizeIsPending ? state.pendingSlots : state.sectionSchedule;
+    const slot = list.find(s => (resizeIsPending ? s.tempId : s.id) === resizeSlotId);
+
+    if (slot) {
+      const [h, m] = slot.end_time.split(':').map(Number);
+      const newH = Math.min(22, Math.max(8, h + slotsChange));
+      const newEndTime = `${newH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+      if (newEndTime !== slot.end_time) {
+        // Check for conflicts before applying
+        const conflict = checkLocalConflict({
+          ...slot,
+          end_time: newEndTime
+        }, slot.tempId || slot.id);
+
+        if (conflict) {
+          Toast.error(`Conflict: ${conflict}`);
+          render();
+        } else {
+          if (resizeIsPending) {
+            slot.end_time = newEndTime;
+            render();
+          } else {
+            await updateScheduleSlot(resizeSlotId, { end_time: newEndTime });
+          }
+        }
+      }
+    }
+  }
+
+  isResizing = false;
+  resizeSlotId = null;
+  resizeIsPending = false;
+  document.removeEventListener('mousemove', handleResizeMove);
+  document.removeEventListener('mouseup', handleResizeEnd);
+  document.body.classList.remove('cursor-ns-resize', 'select-none');
+}
+
+function checkLocalConflict(slot, excludeId = null) {
+  // Check against confirmed schedule
+  for (const s of state.sectionSchedule) {
+    if (s.id === excludeId) continue;
+    if (s.day === slot.day) {
+      if (isTimeOverlap(slot.start_time, slot.end_time, s.start_time, s.end_time)) {
+        return `Overlap with ${s.subject_code} in the grid`;
+      }
+    }
+  }
+  // Check against pending slots
+  for (const s of state.pendingSlots) {
+    if (s.tempId === excludeId) continue;
+    if (s.day === slot.day) {
+      if (isTimeOverlap(slot.start_time, slot.end_time, s.start_time, s.end_time)) {
+        return `Overlap with pending ${s.subject_code}`;
+      }
+    }
+  }
+  return null;
+}
+
+function isTimeOverlap(start1, end1, start2, end2) {
+  const s1 = parseInt(start1.replace(':', ''));
+  const e1 = parseInt(end1.replace(':', ''));
+  const s2 = parseInt(start2.replace(':', ''));
+  const e2 = parseInt(end2.replace(':', ''));
+  return s1 < e2 && e1 > s2;
+}
+
+// ============================================================
+// EDIT / VIEW HANDLERS (New)
+// ============================================================
+
+window.handleSlotClick = function (event, slotId) {
+  if (isResizing) return;
+  state.slotMenuId = state.slotMenuId === slotId ? null : slotId;
+  render();
+};
+
+window.closeSlotMenu = function () {
+  state.slotMenuId = null;
+  render();
+};
+
+window.openEditDrawer = function (slotId) {
+  const slot = state.sectionSchedule.find(s => s.id === slotId);
+  if (!slot) return;
+
+  state.editingSlot = JSON.parse(JSON.stringify(slot)); // Deep clone for draft
+  state.slotMenuId = null;
+  render();
+  setTimeout(() => updateDrawerRoomAvailability(), 100);
+};
+
+window.closeEditDrawer = function () {
+  state.editingSlot = null;
+  render();
+};
+
+window.updateEditDrawerField = function (field, value) {
+  if (!state.editingSlot) return;
+  state.editingSlot[field] = value;
+
+  if (['day', 'start_time', 'end_time'].includes(field)) {
+    updateDrawerRoomAvailability();
+  }
+
+  validateDrawerConflicts();
+};
+
+async function updateDrawerRoomAvailability() {
+  if (!state.editingSlot) return;
+  const slot = state.editingSlot;
+  const select = document.getElementById('drawer-room-select');
+  if (!select) return;
+
+  try {
+    const rooms = await api.get(`${endpoints.roomAvailability}?day=${slot.day}&start_time=${slot.start_time}&end_time=${slot.end_time}&semester_id=${state.activeSemester.id}`);
+    const currentRoom = slot.room;
+
+    select.innerHTML = '<option value="">No Room</option>' + rooms.map(r => {
+      const isCurrent = r.name === currentRoom;
+      const isAvailable = r.is_available || isCurrent;
+      return `
+            <option value="${r.name}" ${isCurrent ? 'selected' : ''} ${!isAvailable ? 'disabled' : ''}>
+                ${r.name} (${r.room_type}) - ${isAvailable ? 'Available' : 'Occupied' + (r.occupied_by ? ': ' + r.occupied_by : '')}
+            </option>
+        `;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to refresh room availability', e);
+  }
+}
+
+window.updateSlotColor = function (colorClass) {
+  if (!state.editingSlot) return;
+  if (!state.colorOverrides) state.colorOverrides = {};
+  state.colorOverrides[state.editingSlot.id] = colorClass;
+  render();
+};
+
+async function validateDrawerConflicts() {
+  const slot = state.editingSlot;
+  if (!slot) return;
+
+  const warn = document.getElementById('drawer-conflict-warning');
+  const msg = document.getElementById('drawer-conflict-msg');
+  const saveBtn = document.getElementById('drawer-save-btn');
+
+  if (!warn || !msg || !saveBtn) return;
+
+  try {
+    const semesterId = state.activeSemester?.id;
+
+    // 1. Section Conflict Check
+    const sectionResp = await api.post(endpoints.checkSectionConflict, {
+      section_id: state.selectedSection.id,
+      day: slot.day,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      exclude_slot: slot.id
+    });
+
+    if (sectionResp && sectionResp.has_conflict) {
+      warn.classList.remove('hidden');
+      msg.innerHTML = `<strong>Section Conflict:</strong> ${sectionResp.conflict}`;
+      saveBtn.disabled = true;
+      return;
+    }
+
+    // 2. Room Conflict Check
+    if (slot.room) {
+      const roomResp = await api.post(endpoints.checkRoomConflict, {
+        room: slot.room,
+        day: slot.day,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        semester_id: semesterId,
+        exclude_slot: slot.id
+      });
+
+      if (roomResp && roomResp.has_conflict) {
+        warn.classList.remove('hidden');
+        msg.innerHTML = `<strong>Room Conflict:</strong> ${roomResp.conflict}`;
+        saveBtn.disabled = true;
+        return;
+      }
+    }
+
+    // 3. Professor Conflict Check
+    if (slot.professor_id) {
+      const profResp = await api.post(endpoints.checkProfessorConflict, {
+        professor_id: slot.professor_id,
+        day: slot.day,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        semester_id: semesterId,
+        exclude_slot: slot.id
+      });
+
+      if (profResp && profResp.has_conflict) {
+        warn.classList.remove('hidden');
+        msg.innerHTML = `<strong>Professor Conflict:</strong> ${profResp.conflict}`;
+        saveBtn.disabled = true;
+        return;
+      }
+    }
+
+    warn.classList.add('hidden');
+    saveBtn.disabled = false;
+  } catch (e) {
+    console.warn('Conflict check failed', e);
+  }
+}
+
+window.saveDrawerChanges = async function () {
+  if (!state.editingSlot) return;
+  const btn = document.getElementById('drawer-save-btn');
+  setButtonLoading(btn, true, 'Saving...');
+
+  try {
+    await api.patch(endpoints.scheduleSlot(state.editingSlot.id), {
+      day: state.editingSlot.day,
+      room: state.editingSlot.room,
+      start_time: state.editingSlot.start_time,
+      end_time: state.editingSlot.end_time
+    });
+
+    Toast.success('Schedule updated successfully');
+    state.editingSlot = null;
+    await loadSectionDetails(state.selectedSection.id);
+    render();
+  } catch (e) {
+    ErrorHandler.handle(e, 'Saving changes');
+  } finally {
+    setButtonLoading(btn, false);
+  }
+};
+
+window.openViewSubject = function (slotId) {
+  state.viewingSlotId = slotId;
+  state.slotMenuId = null;
+  render();
+};
+
+window.closeViewPage = function () {
+  state.viewingSlotId = null;
+  render();
+};
+
+function renderEditDrawer() {
+  let drawer = document.getElementById('edit-drawer');
+  if (!drawer) {
+    drawer = document.createElement('div');
+    drawer.id = 'edit-drawer';
+    drawer.className = 'fixed top-0 right-0 h-full w-[400px] bg-white shadow-2xl z-[100] transform transition-transform duration-300 translate-x-full border-l border-gray-200 flex flex-col';
+    document.body.appendChild(drawer);
+  }
+
+  if (!state.editingSlot) {
+    drawer.classList.add('translate-x-full');
+    document.body.classList.remove('overflow-hidden');
+    return;
+  }
+
+  const slot = state.editingSlot;
+  drawer.classList.remove('translate-x-full');
+  document.body.classList.add('overflow-hidden');
+
+  drawer.innerHTML = `
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Edit Schedule</h3>
+                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">${slot.subject_code}</p>
+            </div>
+            <button onclick="closeEditDrawer()" class="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-8">
+            <!-- Subject Context -->
+            <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 shadow-sm">
+                <h4 class="text-sm font-bold text-blue-900 mb-1">${slot.subject_title}</h4>
+                <div class="flex items-center gap-3 text-[10px] text-blue-700 font-bold uppercase tracking-wider">
+                    <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg> ${slot.professor_name || 'No Professor'}</span>
+                </div>
+            </div>
+
+            <!-- Time & Day -->
+            <div class="space-y-4">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Schedule Alignment</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Day</span>
+                        <select onchange="updateEditDrawerField('day', this.value)" class="form-select font-bold">
+                            ${DAYS.map(d => `<option value="${d.code}" ${d.code === slot.day ? 'selected' : ''}>${d.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <span class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Room</span>
+                        <select id="drawer-room-select" onchange="updateEditDrawerField('room', this.value)" class="form-select font-bold">
+                            <option value="">No Room</option>
+                            ${state.rooms.map(r => `<option value="${r.name}" ${r.name === slot.room ? 'selected' : ''}>${r.name}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Start Time</span>
+                        <select onchange="updateEditDrawerField('start_time', this.value)" class="form-select font-bold">
+                            ${TIME_SLOTS.map(t => `<option value="${t}" ${t === slot.start_time.substring(0, 5) ? 'selected' : ''}>${formatTime(t)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <span class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">End Time</span>
+                        <select onchange="updateEditDrawerField('end_time', this.value)" class="form-select font-bold">
+                            ${TIME_SLOTS.concat(['22:00']).map(t => `<option value="${t}" ${t === slot.end_time.substring(0, 5) ? 'selected' : ''}>${formatTime(t)}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Color Coding -->
+            <div class="space-y-4">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Appearance & Category</label>
+                <div class="grid grid-cols-4 gap-3">
+                    ${COLORS.map((c, i) => `
+                        <button onclick="updateSlotColor('${c}')" class="w-full aspect-square rounded-lg border-2 ${getSubjectColor(slot.subject_code, slot.id) === c ? 'ring-2 ring-offset-2 ring-blue-500 border-transparent shadow-md' : 'border-white'} ${c} transition-all transform hover:scale-110"></button>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- Conflict Warnings -->
+            <div id="drawer-conflict-warning" class="hidden p-4 bg-red-50 border border-red-100 rounded-xl space-y-2 animate-in slide-in-from-top-4 duration-300">
+                <div class="flex items-center gap-2 text-red-700 font-bold text-xs uppercase tracking-wider">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    Conflict Detected
+                </div>
+                <p id="drawer-conflict-msg" class="text-[11px] text-red-600 font-medium italic"></p>
+            </div>
+        </div>
+
+        <div class="p-6 border-t border-gray-100 bg-gray-50 flex gap-4">
+            <button onclick="closeEditDrawer()" class="flex-1 btn btn-secondary">Cancel</button>
+            <button id="drawer-save-btn" onclick="saveDrawerChanges()" class="flex-1 btn btn-primary">Save Changes</button>
+        </div>
+    `;
+
+  validateDrawerConflicts();
+}
+
+function renderViewPlaceholder() {
+  let viewer = document.getElementById('subject-viewer');
+  if (!viewer) {
+    viewer = document.createElement('div');
+    viewer.id = 'subject-viewer';
+    viewer.className = 'fixed inset-0 bg-white z-[200] transform transition-transform duration-500 translate-y-full flex flex-col overflow-hidden';
+    document.body.appendChild(viewer);
+  }
+
+  if (!state.viewingSlotId) {
+    viewer.classList.add('translate-y-full');
+    return;
+  }
+
+  const slot = state.sectionSchedule.find(s => s.id === state.viewingSlotId);
+  viewer.classList.remove('translate-y-full');
+
+  viewer.innerHTML = `
+        <div class="flex-1 flex flex-col items-center justify-center p-12 text-center">
+            <div class="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-8 animate-bounce">
+                <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </div>
+            
+            <h2 class="text-4xl font-black text-gray-900 mb-4">${slot.subject_title}</h2>
+            <p class="text-xl text-gray-500 font-medium mb-12 max-w-2xl">
+                This detailed view is currently under development. Soon you'll be able to see full class rosters, professor attendance, and grade distributions.
+            </p>
+
+            <div class="grid grid-cols-3 gap-8 w-full max-w-4xl text-left border-t border-b border-gray-100 py-12 mb-12">
+                <div class="space-y-2">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Assigned Professor</span>
+                    <p class="text-lg font-bold text-gray-800">${slot.professor_name || 'Not assigned'}</p>
+                </div>
+                <div class="space-y-2">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Room Location</span>
+                    <p class="text-lg font-bold text-gray-800">${slot.room || 'TBA'}</p>
+                </div>
+                <div class="space-y-2">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Schedule</span>
+                    <p class="text-lg font-bold text-gray-800">${slot.day} ${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}</p>
+                </div>
+            </div>
+
+            <button onclick="closeViewPage()" class="btn btn-primary px-12 py-4 rounded-full text-lg shadow-xl hover:scale-105 transition-transform">
+                Back to Schedule Builder
+            </button>
+        </div>
+        
+        <div class="absolute top-8 left-8">
+            <button onclick="closeViewPage()" class="p-3 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors group">
+                <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            </button>
+        </div>
+    `;
+}

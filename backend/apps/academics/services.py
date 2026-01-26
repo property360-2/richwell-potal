@@ -380,6 +380,64 @@ class SchedulingService:
                 return True, slot
         
         return False, None
+
+    @staticmethod
+    def check_section_conflict(section_id, day, start_time, end_time, exclude_slot_id=None):
+        """Check if a section has overlapping subjects."""
+        from apps.academics.models import ScheduleSlot
+        
+        slots = ScheduleSlot.objects.filter(
+            section_subject__section_id=section_id,
+            day=day,
+            is_deleted=False
+        )
+        
+        if exclude_slot_id:
+            slots = slots.exclude(id=exclude_slot_id)
+            
+        for slot in slots:
+            if SchedulingService.times_overlap(
+                start_time, end_time,
+                slot.start_time, slot.end_time
+            ):
+                return True, slot
+        
+        return False, None
+
+    @staticmethod
+    def get_room_busy_slots(room, day, semester):
+        """
+        Get all busy time slots for a specific room on a given day.
+        """
+        from apps.academics.models import ScheduleSlot
+        
+        return ScheduleSlot.objects.filter(
+            room=room,
+            day=day,
+            section_subject__section__semester=semester,
+            is_deleted=False
+        ).values('start_time', 'end_time', 'section_subject__section__name', 'section_subject__subject__code')
+
+    @staticmethod
+    def get_available_rooms(day, start_time, end_time, semester, all_rooms=None):
+        """
+        Get list of available rooms for a given time slot.
+        """
+        from apps.academics.models import ScheduleSlot, Room
+        
+        busy_rooms = ScheduleSlot.objects.filter(
+            day=day,
+            section_subject__section__semester=semester,
+            is_deleted=False
+        ).filter(
+            Q(start_time__lt=end_time) & Q(end_time__gt=start_time)
+        ).values_list('room', flat=True).distinct()
+        
+        if all_rooms is None:
+            # Use real rooms from the database instead of inferred from slots
+            all_rooms = Room.objects.filter(is_active=True, is_deleted=False).values_list('name', flat=True)
+            
+        return [r for r in all_rooms if r not in busy_rooms and r]
     
     @staticmethod
     def check_student_conflict(student, day, start_time, end_time, semester, exclude_section_subject_id=None):

@@ -55,6 +55,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
     
     program_name = serializers.CharField(source='program.name', read_only=True)
     program_code = serializers.CharField(source='program.code', read_only=True)
+    home_section_name = serializers.CharField(source='home_section.name', read_only=True, allow_null=True)
     
     class Meta:
         model = StudentProfile
@@ -62,7 +63,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             'id', 'year_level', 'status', 'middle_name', 'suffix',
             'birthdate', 'address', 'contact_number',
             'is_transferee', 'previous_school', 'previous_course',
-            'program_name', 'program_code'
+            'program_name', 'program_code', 'home_section_name'
         ]
         read_only_fields = ['id', 'status', 'is_transferee']
 

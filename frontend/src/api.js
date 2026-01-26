@@ -186,7 +186,9 @@ export const api = {
         const response = await this.request(endpoint, { method: 'DELETE' });
         if (!response.ok && response.status !== 204) {
             const errorData = await response.json().catch(() => ({}));
-            const error = new Error(errorData.detail || errorData.error || `Server error: ${response.status}`);
+            const detail = errorData.detail || errorData.error || errorData.message || `Server error: ${response.status}`;
+            const errorMessage = typeof detail === 'object' ? JSON.stringify(detail) : detail;
+            const error = new Error(errorMessage);
             error.status = response.status;
             error.data = errorData;
             throw error;
@@ -280,6 +282,8 @@ export const endpoints = {
     scheduleSlot: (id) => `/academics/schedule-slots/${id}/`,
     checkProfessorConflict: '/academics/check-professor-conflict/',
     checkRoomConflict: '/academics/check-room-conflict/',
+    checkSectionConflict: '/academics/check-section-conflict/',
+    checkAvailability: '/academics/availability/',
     professorSchedule: (profId, semId) => `/academics/professor/${profId}/schedule/${semId}/`,
 
     // Epic 2 & 8: Semesters
@@ -292,6 +296,11 @@ export const endpoints = {
     professors: '/academics/professors/',
     professorDetail: (id) => `/academics/professors/${id}/`,
     professorWorkload: (id) => `/academics/professors/${id}/workload/`,
+
+    // Rooms Management
+    rooms: '/academics/rooms/',
+    room: (id) => `/academics/rooms/${id}/`,
+    roomAvailability: '/academics/rooms/availability/',
 
     // Epic 3: Subject Enrollment (under /admissions/)
     recommendedSubjects: '/admissions/subjects/recommended/',

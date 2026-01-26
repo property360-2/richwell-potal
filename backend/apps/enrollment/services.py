@@ -861,7 +861,8 @@ class SubjectEnrollmentService:
         from .models import SubjectEnrollment
         from apps.core.exceptions import (
             PrerequisiteNotSatisfiedError, UnitCapExceededError,
-            PaymentRequiredError, ScheduleConflictError, ConflictError
+            PaymentRequiredError, ScheduleConflictError, ConflictError,
+            ValidationError
         )
         
         # Check if already enrolled
@@ -929,12 +930,59 @@ class SubjectEnrollmentService:
         profile = student.student_profile
         curriculum = profile.curriculum
         semester_number = self._get_semester_number(enrollment.semester)
+        home_section = profile.home_section
 
-        # Check if subject is in student's curriculum
-        is_irregular = False
+        # Determine Enrollment Type and Validations based on Student Category
+        if profile.overload_approved:
+            # 1. Overloaded Students: Can enroll in subjects from ANY section
+            enrollment_type = SubjectEnrollment.EnrollmentType.OVERLOAD
+        elif profile.is_irregular:
+            # 2. Irregular Students: Home Section OR Retake subjects from OTHER sections
+            if section == home_section:
+                enrollment_type = SubjectEnrollment.EnrollmentType.HOME
+            else:
+                # Cross-section enrollment ONLY allowed for retake subjects
+                # A subject is a retake if it was previously failed or if it's outside current year/sem
+                is_failed = SubjectEnrollment.objects.filter(
+                    enrollment__student=student,
+                    subject=subject,
+                    status=SubjectEnrollment.Status.FAILED
+                ).exists()
+
+                if not is_failed:
+                    # Check if it's an "out of sequence" subject (retake or advanced)
+                    # For simplicity, if it's not in their home section, we strictly require it to be a previously failed subject
+                    # or at least not belonging to their current curriculum slot.
+                    is_out_of_sequence = False
+                    if curriculum:
+                        curriculum_subject = CurriculumSubject.objects.filter(
+                            curriculum=curriculum,
+                            subject=subject,
+                            is_deleted=False
+                        ).first()
+                        if not curriculum_subject or curriculum_subject.year_level < profile.year_level:
+                            is_out_of_sequence = True
+                    
+                    if not (is_failed or is_out_of_sequence):
+                        raise ValidationError(
+                            f"Cross-section enrollment is ONLY allowed for retake subjects for irregular students."
+                        )
+                
+                enrollment_type = SubjectEnrollment.EnrollmentType.RETAKE
+        else:
+            # 3. Regular Students: ONLY enroll in subjects offered by their Home Section
+            if not home_section:
+                raise ValidationError("Student has no Home Section assigned. Please contact the registrar.")
+            
+            if section != home_section:
+                raise ValidationError(
+                    f"Regular students can ONLY enroll in subjects from their Home Section ({home_section.name})."
+                )
+            enrollment_type = SubjectEnrollment.EnrollmentType.HOME
+
+        # Determine if enrollment is considered irregular for curriculum tracking
+        is_irregular_enrollment = False
         if curriculum:
-            from apps.academics.models import CurriculumSubject
-
             curriculum_subject = CurriculumSubject.objects.filter(
                 curriculum=curriculum,
                 subject=subject,
@@ -942,33 +990,31 @@ class SubjectEnrollmentService:
             ).first()
 
             if not curriculum_subject:
-                # Subject not in curriculum - this is an irregular enrollment
-                is_irregular = True
+                is_irregular_enrollment = True
             elif (curriculum_subject.year_level != profile.year_level or
                   curriculum_subject.semester_number != semester_number):
-                # Subject in curriculum but different year/semester
-                is_irregular = True
+                is_irregular_enrollment = True
         else:
-            # FALLBACK: Use old logic for students without curriculum
-            is_irregular = (
+            is_irregular_enrollment = (
                 subject.year_level != profile.year_level or
                 semester_number != subject.semester_number
             )
 
         # Determine enrollment status:
         # NEW FLOW: Subject enrollments now require Head approval
-        # Status is set to PENDING_HEAD, Head will approve to change to ENROLLED
         enrollment_status = SubjectEnrollment.Status.PENDING_HEAD
 
-        # Create the enrollment with dual approval flags
+        # Create the enrollment with specific categorization
         subject_enrollment = SubjectEnrollment.objects.create(
             enrollment=enrollment,
             subject=subject,
             section=section,
             status=enrollment_status,
-            is_irregular=is_irregular,
-            payment_approved=enrollment.first_month_paid,  # Set based on current payment status
-            head_approved=False  # Initially False, awaiting head approval
+            enrollment_type=enrollment_type,
+            is_irregular=is_irregular_enrollment,
+            is_retake=(enrollment_type == SubjectEnrollment.EnrollmentType.RETAKE),
+            payment_approved=enrollment.first_month_paid,
+            head_approved=False
         )
         
         # Audit log
@@ -981,7 +1027,8 @@ class SubjectEnrollmentService:
                 'subject_code': subject.code,
                 'section': section.name,
                 'units': subject.units,
-                'is_irregular': is_irregular
+                'enrollment_type': enrollment_type,
+                'is_irregular': is_irregular_enrollment
             }
         )
         
