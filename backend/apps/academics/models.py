@@ -214,6 +214,13 @@ class Section(BaseModel):
         on_delete=models.PROTECT,
         related_name='sections'
     )
+    curriculum = models.ForeignKey(
+        'Curriculum',
+        on_delete=models.PROTECT,
+        related_name='sections',
+        null=True,
+        help_text='The curriculum followed by this section (used to auto-link subjects)'
+    )
     year_level = models.PositiveIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         help_text='Year level of this section'

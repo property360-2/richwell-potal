@@ -353,12 +353,14 @@ class SectionSerializer(serializers.ModelSerializer):
     semester_display = serializers.StringRelatedField(source='semester', read_only=True)
     enrolled_count = serializers.IntegerField(read_only=True)
     available_slots = serializers.IntegerField(read_only=True)
+    curriculum_display = serializers.StringRelatedField(source='curriculum', read_only=True)
     section_subjects = SectionSubjectSerializer(many=True, read_only=True)
     
     class Meta:
         model = Section
         fields = [
             'id', 'name', 'program', 'program_code', 'semester', 'semester_display',
+            'curriculum', 'curriculum_display',
             'year_level', 'capacity', 'enrolled_count', 'available_slots',
             'section_subjects', 'is_dissolved', 'parent_section'
         ]
@@ -376,7 +378,36 @@ class SectionCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Section
-        fields = ['name', 'program', 'semester', 'year_level', 'capacity', 'subject_ids']
+        fields = ['name', 'program', 'semester', 'curriculum', 'year_level', 'capacity', 'subject_ids']
+
+
+class BulkSectionCreateSerializer(serializers.Serializer):
+    """Serializer for bulk creating sections."""
+    
+    program = serializers.UUIDField(required=True)
+    year_level = serializers.IntegerField(min_value=1, max_value=5, required=True)
+    curriculum = serializers.UUIDField(required=True)
+    semester = serializers.UUIDField(required=True)
+    capacity = serializers.IntegerField(min_value=1, default=40)
+    section_names = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        min_length=1,
+        required=True
+    )
+
+    def validate(self, attrs):
+        # Validate existence of objects
+        if not Program.objects.filter(id=attrs['program'], is_deleted=False).exists():
+            raise serializers.ValidationError({'program': 'Program not found'})
+        
+        if not Curriculum.objects.filter(id=attrs['curriculum'], is_deleted=False).exists():
+            raise serializers.ValidationError({'curriculum': 'Curriculum not found'})
+        
+        from apps.enrollment.models import Semester
+        if not Semester.objects.filter(id=attrs['semester'], is_deleted=False).exists():
+            raise serializers.ValidationError({'semester': 'Semester not found'})
+            
+        return attrs
 
 
 # ============================================================

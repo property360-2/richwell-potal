@@ -20,6 +20,7 @@ router.register(r'schedule-slots', views.ScheduleSlotViewSet, basename='schedule
 router.register(r'curricula', views.CurriculumViewSet, basename='curriculum')
 router.register(r'semesters', SemesterViewSet, basename='semester')
 router.register(r'professors', views.ProfessorViewSet, basename='professor')
+router.register(r'archives', views.ArchiveViewSet, basename='archive')
 
 urlpatterns = [
     # EPIC 1 - Public endpoints (unchanged)

@@ -14,6 +14,7 @@ urlpatterns = [
     path('system/enrollment-status/', views.EnrollmentStatusView.as_view(), name='enrollment-status'),
     path('check-email/', views.CheckEmailAvailabilityView.as_view(), name='check-email'),
     path('check-student-id/', views.CheckStudentIdAvailabilityView.as_view(), name='check-student-id'),
+    path('check-name/', views.CheckNameAvailabilityView.as_view(), name='check-name'),
     path('programs/', views.PublicProgramListView.as_view(), name='public-programs'),
     path('enroll/', views.OnlineEnrollmentView.as_view(), name='online-enroll'),
     

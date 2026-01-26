@@ -279,3 +279,35 @@ export function initFormValidation(form, validationRules) {
     });
 }
 
+
+export const ErrorHandler = {
+    handle: async (error, context = 'Operation') => {
+        const { Toast } = await import('./components/Toast.js');
+        console.error(`${context} failed:`, error);
+
+        let message = 'An unexpected error occurred.';
+
+        if (error.response) {
+            // Server responded with error
+            const data = error.response.data;
+            if (data.detail) message = data.detail;
+            else if (data.error) message = data.error;
+            else if (data.message) message = data.message;
+            else if (typeof data === 'string') message = data;
+            // Handle Django field errors
+            else if (typeof data === 'object') {
+                const firstError = Object.values(data)[0];
+                if (Array.isArray(firstError)) message = firstError[0];
+                else if (typeof firstError === 'string') message = firstError;
+            }
+        } else if (error.request) {
+            // Request made but no response
+            message = 'Server received no response. Please check your connection.';
+        } else {
+            // Request setup error
+            message = error.message;
+        }
+
+        Toast.error(`${context}: ${message}`);
+    }
+};

@@ -23,7 +23,9 @@ const state = {
     previous_school: '',
     previous_course: ''
   },
-  documents: []
+  documents: [],
+  isNameAvailable: true,
+  isEmailAvailable: true
 };
 
 // Initialize the app
@@ -195,13 +197,14 @@ function renderStep1() {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="form-label">First Name <span class="text-red-500">*</span></label>
-          <input type="text" id="first_name" class="form-input" placeholder="Juan" value="${state.formData.first_name}" required>
+          <input type="text" id="first_name" class="form-input" placeholder="Juan" value="${state.formData.first_name}" required onblur="checkNameAvailabilityAuto()">
         </div>
         <div>
           <label class="form-label">Last Name <span class="text-red-500">*</span></label>
-          <input type="text" id="last_name" class="form-input" placeholder="Dela Cruz" value="${state.formData.last_name}" required>
+          <input type="text" id="last_name" class="form-input" placeholder="Dela Cruz" value="${state.formData.last_name}" required onblur="checkNameAvailabilityAuto()">
         </div>
       </div>
+      <p id="name-status" class="text-sm mt-1"></p>
       
       <div class="mt-4">
         <label class="form-label">Email Address <span class="text-red-500">*</span></label>
@@ -594,10 +597,61 @@ window.checkEmailAvailabilityAuto = async function () {
   statusEl.textContent = 'Checking availability...';
 
   const result = await checkEmailAvailability(email);
+  state.isEmailAvailable = result.available;
 
   if (result.available) {
     statusEl.className = 'text-sm mt-1 text-green-600';
     statusEl.textContent = '✓ Email is available';
+  } else {
+    statusEl.className = 'text-sm mt-1 text-red-600';
+    statusEl.textContent = '✗ ' + result.message;
+  }
+};
+
+// Name availability check
+async function checkNameAvailability(firstName, lastName) {
+  if (!firstName || !lastName) {
+    return { available: true, message: '' };
+  }
+
+  try {
+    const response = await fetch(`/api/v1/admissions/check-name/?first_name=${encodeURIComponent(firstName)}&last_name=${encodeURIComponent(lastName)}`);
+    const data = await response.json();
+
+    return {
+      available: data.available,
+      message: data.message
+    };
+  } catch (error) {
+    ErrorHandler.handle(error, 'Checking name availability');
+    return { available: true, message: '' };
+  }
+}
+
+// Automatic name availability check on blur
+window.checkNameAvailabilityAuto = async function () {
+  const firstName = state.formData.first_name;
+  const lastName = state.formData.last_name;
+  const statusEl = document.getElementById('name-status');
+
+  if (!statusEl) return;
+
+  if (!firstName || !lastName) {
+    statusEl.className = 'text-sm mt-1';
+    statusEl.textContent = '';
+    state.isNameAvailable = true;
+    return;
+  }
+
+  statusEl.className = 'text-sm mt-1 text-gray-500';
+  statusEl.textContent = 'Checking availability...';
+
+  const result = await checkNameAvailability(firstName, lastName);
+  state.isNameAvailable = result.available;
+
+  if (result.available) {
+    statusEl.className = 'text-sm mt-1 text-green-600';
+    statusEl.textContent = '✓ ' + result.message;
   } else {
     statusEl.className = 'text-sm mt-1 text-red-600';
     statusEl.textContent = '✗ ' + result.message;
@@ -679,6 +733,14 @@ function validateCurrentStep() {
       }
       if (!validateRequired(state.formData.address)) {
         Toast.error('Address is required');
+        return false;
+      }
+      if (!state.isNameAvailable) {
+        Toast.error('This name combination is already registered');
+        return false;
+      }
+      if (!state.isEmailAvailable) {
+        Toast.error('This email is already registered');
         return false;
       }
       return true;

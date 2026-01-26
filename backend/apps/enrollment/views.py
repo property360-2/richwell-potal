@@ -203,6 +203,29 @@ class CheckStudentIdAvailabilityView(APIView):
         })
 
 
+class CheckNameAvailabilityView(APIView):
+    """Public endpoint to check if name combination is already registered."""
+    permission_classes = []  # No authentication required
+    
+    def get(self, request, *args, **kwargs):
+        from apps.accounts.models import User
+        first_name = request.query_params.get('first_name', '').strip()
+        last_name = request.query_params.get('last_name', '').strip()
+        
+        if not first_name or not last_name:
+            return Response({"available": True, "message": ""})
+            
+        exists = User.objects.filter(
+            first_name__iexact=first_name,
+            last_name__iexact=last_name
+        ).exists()
+        
+        return Response({
+            "available": not exists,
+            "message": "This name combination is already registered" if exists else "Name combination is available"
+        })
+
+
 # Register simple view classes for expected names
 class OnlineEnrollmentView(APIView):
     """Public endpoint for online enrollment - creates student account and enrollment."""
@@ -226,6 +249,10 @@ class OnlineEnrollmentView(APIView):
         # Check if email already exists
         if User.objects.filter(email__iexact=data['email']).exists():
             return Response({"error": "Email already registered"}, status=400)
+        
+        # Check if name combination already exists
+        if User.objects.filter(first_name__iexact=data['first_name'], last_name__iexact=data['last_name']).exists():
+            return Response({"error": "A student with this name is already registered"}, status=400)
         
         try:
             with transaction.atomic():

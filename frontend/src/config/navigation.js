@@ -15,7 +15,8 @@ export const NAV_CONFIG = {
     { label: 'Students', href: '/registrar-students.html', page: 'registrar-students' },
     { label: 'Documents', href: '/registrar-documents.html', page: 'registrar-documents' },
     { label: 'Academic', href: '/registrar-academic.html', page: 'registrar-academic' },
-    { label: 'Override', href: '/registrar-enrollment.html', page: 'registrar-enrollment' }
+    { label: 'Override', href: '/registrar-enrollment.html', page: 'registrar-enrollment' },
+    { label: 'Data Archives', href: '/registrar-archives.html', page: 'registrar-archives' }
   ],
 
   professor: [

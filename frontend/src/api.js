@@ -130,9 +130,13 @@ export const api = {
         if (!response) return null;
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            const error = new Error(errorData.detail || errorData.error || `Server error: ${response.status}`);
+            const message = typeof errorData.detail === 'string' ? errorData.detail :
+                (typeof errorData.error === 'string' ? errorData.error :
+                    `Server error: ${response.status}`);
+            const error = new Error(message);
             error.status = response.status;
             error.data = errorData;
+            error.response = { status: response.status, data: errorData };
             throw error;
         }
         return response.json();
@@ -146,9 +150,13 @@ export const api = {
         if (!response) return null;
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            const error = new Error(errorData.detail || errorData.error || `Server error: ${response.status}`);
+            const message = typeof errorData.detail === 'string' ? errorData.detail :
+                (typeof errorData.error === 'string' ? errorData.error :
+                    `Server error: ${response.status}`);
+            const error = new Error(message);
             error.status = response.status;
             error.data = errorData;
+            error.response = { status: response.status, data: errorData };
             throw error;
         }
         return response.json();
@@ -162,9 +170,13 @@ export const api = {
         if (!response) return null;
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            const error = new Error(errorData.detail || errorData.error || `Server error: ${response.status}`);
+            const message = typeof errorData.detail === 'string' ? errorData.detail :
+                (typeof errorData.error === 'string' ? errorData.error :
+                    `Server error: ${response.status}`);
+            const error = new Error(message);
             error.status = response.status;
             error.data = errorData;
+            error.response = { status: response.status, data: errorData };
             throw error;
         }
         return response.json();

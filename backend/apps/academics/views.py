@@ -3,14 +3,14 @@ Academics views - Program, Subject, Section, and Scheduling endpoints.
 EPIC 2: Curriculum, Subjects & Section Scheduling
 """
 
-from django.db import models
+from django.db import transaction, models
 from django.db.models import Q
 from rest_framework import generics, viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 
 from apps.core.permissions import IsRegistrar, IsAdmin, IsRegistrarOrAdmin
 from apps.audit.models import AuditLog
@@ -19,7 +19,7 @@ from .models import Program, Subject, Section, SectionSubject, ScheduleSlot, Cur
 from .serializers import (
     ProgramSerializer, ProgramCreateSerializer, ProgramWithSubjectsSerializer,
     SubjectSerializer, SubjectCreateSerializer, PrerequisiteSerializer,
-    SectionSerializer, SectionCreateSerializer,
+    SectionSerializer, SectionCreateSerializer, BulkSectionCreateSerializer,
     SectionSubjectSerializer, SectionSubjectCreateSerializer,
     ScheduleSlotSerializer, ScheduleSlotCreateSerializer,
     CurriculumVersionSerializer, CurriculumVersionCreateSerializer,
@@ -368,6 +368,246 @@ class SectionViewSet(viewsets.ModelViewSet):
         """Soft delete."""
         instance.is_deleted = True
         instance.save()
+
+    @extend_schema(
+        summary="Bulk Create Sections",
+        description="Create multiple sections with automatic subject linking from curriculum",
+        request=BulkSectionCreateSerializer,
+        tags=["Section Management"]
+    )
+    @action(detail=False, methods=['post'], url_path='bulk-create')
+    def bulk_create(self, request):
+        """Bulk create sections with curriculum subjects."""
+        serializer = BulkSectionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        data = serializer.validated_data
+        program = Program.objects.get(id=data['program'])
+        curriculum = Curriculum.objects.get(id=data['curriculum'])
+        from apps.enrollment.models import Semester
+        semester = Semester.objects.get(id=data['semester'])
+        
+        # Check for ACTIVE existing section names in the SAME SEMESTER 
+        # (DB unique_together is ['name', 'semester'], regardless of program)
+        active_names = set(Section.objects.filter(
+            semester=semester, 
+            name__in=data['section_names'],
+            is_deleted=False
+        ).values_list('name', flat=True))
+        
+        if active_names:
+            return Response(
+                {'error': f"Active sections already exist for this semester: {', '.join(active_names)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Get subjects for this curriculum, year level, and semester number
+        semester_number = 1
+        if "2nd" in semester.name: semester_number = 2
+        elif "Summer" in semester.name: semester_number = 3
+        
+        curriculum_subjects = CurriculumSubject.objects.filter(
+            curriculum=curriculum,
+            year_level=data['year_level'],
+            semester_number=semester_number,
+            is_deleted=False
+        ).select_related('subject')
+        
+        if not curriculum_subjects.exists():
+            return Response(
+                {'warning': f"No subjects found in curriculum for Year {data['year_level']}, Sem {semester_number}"},
+                status=status.HTTP_200_OK
+            )
+
+        from django.db import IntegrityError
+        import time
+        try:
+            with transaction.atomic():
+                # Rename any soft-deleted sections that would cause a unique constraint conflict
+                # This allows reusing names from deleted sections
+                conflicting_deleted = Section.objects.filter(
+                    semester=semester,
+                    name__in=data['section_names'],
+                    is_deleted=True
+                )
+                for old_sec in conflicting_deleted:
+                    old_sec.name = f"{old_sec.name}_del_{int(time.time())}_{str(old_sec.id)[:4]}"
+                    old_sec.save(update_fields=['name'])
+
+                new_sections = []
+                new_section_subjects = []
+                
+                for name in data['section_names']:
+                    section = Section.objects.create(
+                        name=name,
+                        program=program,
+                        semester=semester,
+                        curriculum=curriculum,
+                        year_level=data['year_level'],
+                        capacity=data['capacity']
+                    )
+                    new_sections.append(section)
+                    
+                    for cs in curriculum_subjects:
+                        new_section_subjects.append(
+                            SectionSubject(
+                                section=section,
+                                subject=cs.subject,
+                                is_tba=True
+                            )
+                        )
+                
+                SectionSubject.objects.bulk_create(new_section_subjects)
+                
+                # Audit log
+                AuditLog.log(
+                    action=AuditLog.Action.SECTION_CREATED,
+                    target_model='Section',
+                    target_id=new_sections[0].id if new_sections else None,
+                    payload={
+                        'count': len(new_sections),
+                        'names': data['section_names'],
+                        'program': program.code,
+                        'is_bulk': True
+                    },
+                    actor=request.user
+                )
+                
+            return Response(
+                SectionSerializer(new_sections, many=True).data,
+                status=status.HTTP_201_CREATED
+            )
+        except IntegrityError as e:
+            return Response(
+                {'error': f"Database error: {str(e)} - A section with this name may already exist (possibly deleted)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            # Fallback for other issues
+            return Response(
+                {'error': f"An unexpected error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+    @action(detail=True, methods=['get'], url_path='detailed-view')
+    @extend_schema(summary="Get Section Detailed View", tags=["Section Management"])
+    def detailed_view(self, request, pk=None):
+        """Returns details of a section including semester-aware subjects and qualified professors."""
+        section = self.get_object()
+        from apps.academics.models import CurriculumSubject, SectionSubject, Curriculum
+        
+        # Get subjects that SHOULD be in this section based on curriculum
+        # Fallback: if section has no curriculum, use the active one for the program
+        target_curriculum = section.curriculum
+        if not target_curriculum:
+            target_curriculum = Curriculum.objects.filter(
+                program=section.program,
+                is_active=True
+            ).first()
+
+        semester = section.semester
+        semester_name = semester.name.lower()
+        semester_number = 1
+        if "2nd" in semester_name or "second" in semester_name: 
+            semester_number = 2
+        elif "summer" in semester_name: 
+            semester_number = 3
+        
+        curriculum_subjects = CurriculumSubject.objects.filter(
+            curriculum=target_curriculum,
+            year_level=section.year_level,
+            semester_number=semester_number,
+            is_deleted=False
+        ).select_related('subject')
+        
+        # Get current section subjects (already assigned)
+        assigned_subjects = SectionSubject.objects.filter(
+            section=section,
+            is_deleted=False
+        ).prefetch_related('professor_assignments__professor')
+        
+        # Map assigned subjects by ID for easy lookup
+        assigned_map = {str(ss.subject_id): ss for ss in assigned_subjects}
+        
+        # Combine data
+        subject_data = []
+        for cs in curriculum_subjects:
+            subj = cs.subject
+            assigned_ss = assigned_map.get(str(subj.id))
+            
+            # Get qualified professors for this subject
+            qualified_professors = subj.qualified_professors.filter(
+                is_active=True,
+                user__is_active=True
+            ).select_related('user')
+            
+            prof_list = [{
+                'id': str(p.user.id),
+                'name': p.user.get_full_name(),
+                'specialization': p.specialization
+            } for p in qualified_professors]
+            
+            item = {
+                'subject_id': str(subj.id),
+                'code': subj.code,
+                'title': subj.title,
+                'units': subj.units,
+                'semester_tag': f"{semester_number}{'st' if semester_number==1 else 'nd' if semester_number==2 else 'rd'} Sem",
+                'is_assigned': assigned_ss is not None,
+                'section_subject_id': str(assigned_ss.id) if assigned_ss else None,
+                'assigned_professors': [{
+                    'id': str(pa.professor.id),
+                    'name': pa.professor.get_full_name(),
+                    'is_primary': pa.is_primary
+                } for pa in assigned_ss.professor_assignments.all()] if assigned_ss else [],
+                'qualified_professors': prof_list
+            }
+            subject_data.append(item)
+            
+        return Response({
+            'section': SectionSerializer(section).data,
+            'subjects': subject_data,
+            'semester_info': {
+                'name': semester.name,
+                'number': semester_number
+            }
+        })
+
+    @action(detail=False, methods=['post'], url_path='validate-names')
+    @extend_schema(summary="Validate Section Names", tags=["Section Management"])
+    def validate_names(self, request):
+        """Check availability of multiple section names."""
+        names = request.data.get('names', [])
+        semester_id = request.data.get('semester_id')
+        
+        if not semester_id or not names:
+            return Response({'available': True})
+            
+        from apps.enrollment.models import Semester
+        try:
+            semester = Semester.objects.get(id=semester_id)
+        except Semester.DoesNotExist:
+            return Response({'error': 'Invalid semester'}, status=400)
+
+        # Find active sections
+        active_names = set(Section.objects.filter(
+            semester=semester,
+            name__in=names,
+            is_deleted=False
+        ).values_list('name', flat=True))
+
+        # Find deleted sections
+        deleted_names = set(Section.objects.filter(
+            semester=semester,
+            name__in=names,
+            is_deleted=True
+        ).values_list('name', flat=True))
+
+        return Response({
+            'active_conflicts': list(active_names),
+            'archived_conflicts': list(deleted_names)
+        })
 
     @action(detail=True, methods=['post'], url_path='merge')
     @extend_schema(summary="Merge Section", tags=["Section Management"])
@@ -1216,3 +1456,110 @@ class ProfessorViewSet(viewsets.ModelViewSet):
             **workload
         })
 
+
+# ============================================================
+# ARCHIVE VIEWS
+# ============================================================
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List Archived Items",
+        description="Search and filter soft-deleted items (programs, subjects, sections, curricula)",
+        tags=["Archives"],
+        parameters=[
+            OpenApiParameter(name='type', description='Type of archive (programs, subjects, sections, curricula)', required=True, type=str),
+            OpenApiParameter(name='search', description='Search term', required=False, type=str),
+        ]
+    )
+)
+class ArchiveViewSet(viewsets.ViewSet):
+    """
+    Viewset for viewing soft-deleted items.
+    Read-only, no restore action via this endpoint (restore is usually done via specific item restore endpoints if allowed).
+    """
+    permission_classes = [IsRegistrarOrAdmin]
+
+    def list(self, request):
+        archive_type = request.query_params.get('type')
+        search = request.query_params.get('search', '').lower()
+        
+        results = []
+
+        if archive_type == 'programs':
+            qs = Program.objects.filter(is_deleted=True)
+            if search:
+                qs = qs.filter(Q(name__icontains=search) | Q(code__icontains=search))
+            results = [{
+                'id': str(obj.id),
+                'title': f"{obj.code} - {obj.name}",
+                'type': 'Program',
+                'deleted_at': obj.updated_at,
+                'description': obj.description or 'No description',
+                'meta': {'code': obj.code}
+            } for obj in qs]
+
+        elif archive_type == 'subjects':
+            qs = Subject.objects.filter(is_deleted=True)
+            if search:
+                qs = qs.filter(Q(title__icontains=search) | Q(code__icontains=search))
+            results = [{
+                'id': str(obj.id),
+                'title': f"{obj.code} - {obj.title}",
+                'type': 'Subject',
+                'deleted_at': obj.updated_at,
+                'description': f"{obj.units} Units",
+                'meta': {'code': obj.code}
+            } for obj in qs]
+
+        elif archive_type == 'sections':
+            qs = Section.objects.filter(is_deleted=True)
+            if search:
+                qs = qs.filter(name__icontains=search)
+            results = [{
+                'id': str(obj.id),
+                'title': obj.name,
+                'type': 'Section',
+                'deleted_at': obj.updated_at,
+                'description': f"Year {obj.year_level}, {obj.capacity} Students",
+                'meta': {'program': str(obj.program_id)}
+            } for obj in qs]
+
+        elif archive_type == 'curricula':
+            qs = Curriculum.objects.filter(is_deleted=True)
+            if search:
+                qs = qs.filter(program__code__icontains=search)
+            results = [{
+                'id': str(obj.id),
+                'title': f"Curriculum for {obj.program.code}",
+                'type': 'Curriculum',
+                'deleted_at': obj.updated_at,
+                'description': f"Effective {obj.effective_year}",
+                'meta': {'version': obj.version}
+            } for obj in qs]
+
+        elif archive_type == 'professors':
+            from apps.accounts.models import User
+            # Treat inactive professors as "archived"
+            qs = User.objects.filter(role='PROFESSOR', is_active=False)
+            if search:
+                qs = qs.filter(
+                    Q(first_name__icontains=search) | 
+                    Q(last_name__icontains=search) | 
+                    Q(email__icontains=search)
+                )
+            results = [{
+                'id': str(obj.id),
+                'title': obj.get_full_name(),
+                'type': 'Professor',
+                'deleted_at': obj.updated_at,
+                'description': obj.email,
+                'meta': {'role': obj.role}
+            } for obj in qs]
+            
+        else:
+            return Response({'error': 'Invalid type. Choose programs, subjects, sections, curricula, or professors'}, status=400)
+
+        # Sort by deleted_at desc
+        results.sort(key=lambda x: x['deleted_at'], reverse=True)
+        
+        return Response(results)

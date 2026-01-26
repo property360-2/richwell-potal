@@ -1,7 +1,7 @@
 // frontend\src\pages\registrar-academic.js
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
-import { requireAuth, formatDate, setButtonLoading } from '../utils.js';
+import { requireAuth, formatDate, setButtonLoading, debounce } from '../utils.js';
 import { createHeader } from '../components/header.js';
 import { Toast } from '../components/Toast.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -266,12 +266,13 @@ async function loadSections() {
 
 async function loadSectionDetails(sectionId) {
   try {
-    const response = await api.get(endpoints.section(sectionId));
-    state.selectedSection = response;
+    const response = await api.get(`${endpoints.section(sectionId)}detailed-view/`);
+    state.selectedSection = response.section;
+    state.detailedSubjects = response.subjects;
+    state.semesterInfo = response.semester_info;
 
-    // Load section subjects with schedules
-    const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
-    state.sectionSubjects = subjectsResponse?.results || subjectsResponse || [];
+    // Use section_subjects for legacy schedule grid logic
+    state.sectionSubjects = response.section.section_subjects || [];
 
     // Build schedule from section subjects
     state.sectionSchedule = [];
@@ -1165,8 +1166,15 @@ function getProfessorForm(professor = null) {
 
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Department</label>
-          <input type="text" id="prof-department" value="${profile.department || ''}" class="form-input" placeholder="e.g. Computer Studies">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Program</label>
+          <select id="prof-department" class="form-select transition-colors">
+            <option value="">Select Program</option>
+            ${state.programs.map(p => `
+                <option value="${p.code}" ${profile.department === p.code ? 'selected' : ''}>
+                    ${p.code} - ${p.name}
+                </option>
+            `).join('')}
+          </select>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Specialization</label>
@@ -1774,6 +1782,12 @@ function renderSectionsTab() {
       </div>
       
       <div class="flex items-center gap-2">
+        <button onclick="openBulkSectionModal()" class="btn btn-secondary flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+          </svg>
+          Create Multiple Sections
+        </button>
         <button onclick="openAddSectionModal()" class="btn btn-primary flex items-center gap-2">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
@@ -1941,70 +1955,79 @@ function renderSectionDetail() {
 
     <!-- Main Content -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <!-- Assigned Subjects List -->
+      <!-- Subjects Management -->
       <div class="lg:col-span-4">
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-            <h3 class="font-bold text-gray-800">Assigned Subjects</h3>
-            <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">${state.sectionSubjects.length} Items</span>
+            <h3 class="font-bold text-gray-800">Curriculum Subjects</h3>
+            <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider">
+              ${state.semesterInfo?.name || 'Current Sem'}
+            </span>
           </div>
-          <div class="p-5 space-y-4 max-h-[600px] overflow-y-auto">
-            ${state.sectionSubjects.length === 0 ? `
-              <div class="text-center py-8 text-gray-400">
-                <svg class="w-12 h-12 mx-auto mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                <p>No subjects assigned yet.</p>
+          
+          <div class="p-5 space-y-4 max-h-[700px] overflow-y-auto custom-scrollbar">
+            ${(!state.detailedSubjects || state.detailedSubjects.length === 0) ? `
+              <div class="text-center py-12 text-gray-400">
+                <div class="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg class="w-8 h-8 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                </div>
+                <p class="text-sm font-medium">No subjects found in curriculum</p>
+                <p class="text-xs mt-1">Check the curriculum settings for this year level.</p>
               </div>
-            ` : state.sectionSubjects.map(ss => `
-              <div class="group relative bg-gray-50 hover:bg-white hover:shadow-md border border-gray-100 p-4 rounded-xl transition-all">
-                <div class="flex items-start justify-between">
-                  <div class="flex-1 min-w-0 pr-8">
-                    <p class="text-sm font-bold text-blue-600 truncate mb-0.5">${ss.subject_code}</p>
-                    <h4 class="text-sm font-bold text-gray-800 line-clamp-2 leading-snug mb-2">${ss.subject_title}</h4>
-                    
-                    <div class="space-y-1.5">
-                         ${ss.professors && ss.professors.length > 0 ? ss.professors.map(p => `
-                            <div class="flex items-center gap-2 text-xs text-gray-600">
-                                <div class="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
-                                <span class="font-medium">Prof. ${p.name}</span>
-                                ${p.is_primary ? '<span class="text-[10px] text-gray-400 italic">(Primary)</span>' : ''}
-                            </div>
-                         `).join('') : `
-                            <div class="flex items-center gap-2 text-xs text-orange-500 font-medium">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                                <span>No professor assigned</span>
-                            </div>
-                         `}
+            ` : state.detailedSubjects.map(subj => `
+              <div class="group border ${subj.is_assigned ? 'border-gray-100 bg-white shadow-sm' : 'border-dashed border-gray-200 bg-gray-50/50'} p-4 rounded-xl transition-all hover:border-blue-200 hover:shadow-md">
+                <div class="flex items-start justify-between mb-3">
+                  <div class="min-w-0 pr-4">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-[10px] font-bold py-0.5 px-1.5 rounded bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-tighter">${subj.code}</span>
+                      <span class="text-[9px] font-bold px-1.5 rounded bg-amber-50 text-amber-600 border border-amber-100">${subj.semester_tag}</span>
                     </div>
+                    <h4 class="text-sm font-bold text-gray-800 line-clamp-2 leading-tight">${subj.title}</h4>
+                    <p class="text-[10px] text-gray-400 font-medium mt-0.5">${subj.units} Units</p>
                   </div>
-                  <div class="flex flex-col gap-1.5">
-                      <button onclick="openScheduleSlotModal('${ss.id}')" 
-                              class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Add Schedule Slot">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                  
+                  ${subj.is_assigned ? `
+                    <div class="flex flex-col gap-1">
+                      <button onclick="openScheduleSlotModal('${subj.section_subject_id}')" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Schedule">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                       </button>
-                       <button onclick="removeSubjectFromSection('${ss.id}')" 
-                              class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Remove Subject">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                      </button>
+                    </div>
+                  ` : `
+                    <div class="bg-gray-200/50 p-1.5 rounded-lg text-gray-400" title="Not linked to section">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                    </div>
+                  `}
+                </div>
+
+                <!-- Assigned Professors -->
+                <div class="space-y-2">
+                  <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Assignment</p>
+                  <div class="flex flex-wrap gap-2">
+                    ${subj.assigned_professors.length > 0 ? subj.assigned_professors.map(p => `
+                      <div class="inline-flex items-center gap-1.5 py-1 px-2.5 bg-green-50 text-green-700 rounded-lg border border-green-100 text-xs font-semibold">
+                        <div class="w-1 h-1 bg-green-500 rounded-full"></div>
+                        ${p.name}
+                      </div>
+                    `).join('') : `
+                      <div class="text-[11px] text-orange-500 bg-orange-50 px-2 py-1 rounded border border-orange-100 italic font-medium w-full flex items-center gap-1.5">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        No professor assigned
+                      </div>
+                    `}
                   </div>
                 </div>
-                
-                ${ss.schedule_slots && ss.schedule_slots.length > 0 ? `
-                  <div class="mt-3 pt-3 border-t border-gray-100 grid grid-cols-1 gap-1">
-                    ${ss.schedule_slots.map(slot => `
-                      <div class="flex items-center justify-between text-[11px] text-gray-500 py-1 px-2 bg-white rounded-md border border-gray-100 group/slot">
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-gray-700">${slot.day}</span>
-                            <span>${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}</span>
-                            <span class="text-gray-300">|</span>
-                            <span class="bg-gray-100 px-1 rounded font-mono">${slot.room || 'TBA'}</span>
+
+                <!-- Qualified Professors (Scrollable list if many) -->
+                ${subj.qualified_professors.length > 0 ? `
+                  <div class="mt-4 pt-3 border-t border-gray-100">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 mb-2">Available Professors</p>
+                    <div class="flex flex-wrap gap-1.5 px-1">
+                      ${subj.qualified_professors.map(p => `
+                        <div class="text-[10px] font-medium bg-gray-50 text-gray-500 py-0.5 px-2 rounded-md border border-gray-100 transition-colors hover:bg-white hover:text-blue-600 hover:border-blue-100 cursor-default" title="Expertise: ${p.specialization || 'N/A'}">
+                          ${p.name.split(' ').pop()}
                         </div>
-                        <button onclick="deleteScheduleSlot('${slot.id}')" class="opacity-0 group-hover/slot:opacity-100 text-red-400 hover:text-red-600 p-0.5">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                      </div>
-                    `).join('')}
+                      `).join('')}
+                    </div>
                   </div>
                 ` : ''}
               </div>
@@ -2216,6 +2239,7 @@ window.openAddSectionModal = function () {
           const data = {
             name: document.getElementById('sec-name').value,
             program: document.getElementById('sec-program').value,
+            curriculum: document.getElementById('sec-curriculum').value,
             semester: state.activeSemester?.id,
             year_level: parseInt(document.getElementById('sec-year').value),
             capacity: parseInt(document.getElementById('sec-capacity').value),
@@ -2329,14 +2353,12 @@ window.deleteSection = async function (id) {
 };
 
 window.openAssignSectionSubjectModal = async function () {
-  // 1. Load subjects for this program (if not loaded)
   const section = state.selectedSection;
-  if (section && section.program) {
-    await loadSubjects(section.program);
-  }
-  // 2. Load professors (if not loaded)
-  if (state.professors.length === 0) {
-    await loadProfessors();
+  if (!section) return;
+
+  // Ensure we have the detailed subjects loaded
+  if (!state.detailedSubjects) {
+    await loadSectionDetails(section.id);
   }
 
   const modal = new Modal({
@@ -2355,6 +2377,12 @@ window.openAssignSectionSubjectModal = async function () {
     ]
   });
   modal.show();
+
+  // Trigger initial professor filter
+  const subSelect = document.getElementById('assign-subject');
+  if (subSelect && subSelect.value) {
+    window.handleAssignSubjectChange(subSelect.value);
+  }
 };
 
 function getAssignSectionSubjectForm() {
@@ -2364,10 +2392,11 @@ function getAssignSectionSubjectForm() {
   const dayOptions = DAYS.map(d => `<option value="${d.code}">${d.name}</option>`).join('');
   // Room Options
   const roomOptions = ROOMS.map(r => `<option value="${r}">${r}</option>`).join('');
-  // Subject Options
-  const subjectOptions = state.subjects.map(s => `<option value="${s.id}">${s.code} - ${s.title}</option>`).join('');
-  // Professor Options
-  const profOptions = state.professors.map(p => `<option value="${p.id}">${p.full_name || p.user?.first_name + ' ' + p.user?.last_name}</option>`).join('');
+
+  // Use state.detailedSubjects (filtered by year/semester) instead of all program subjects
+  const subjectOptions = (state.detailedSubjects || []).map(s => `
+     <option value="${s.subject_id}">${s.code} - ${s.title}</option>
+  `).join('');
 
   return `
         <form id="assign-section-subject-form" class="space-y-4">
@@ -2379,18 +2408,22 @@ function getAssignSectionSubjectForm() {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
-                    <select id="assign-subject" required class="form-select w-full">
+                    <select id="assign-subject" required class="form-select w-full" onchange="handleAssignSubjectChange(this.value)">
                         <option value="">Select Subject</option>
                         ${subjectOptions}
                     </select>
+                    <p class="text-[10px] text-gray-500 mt-1 italic">Showing only subjects assigned to Year ${state.selectedSection?.year_level} for this semester in this curriculum.</p>
                 </div>
 
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Professor</label>
                     <select id="assign-professor" class="form-select w-full">
-                        <option value="">TBA</option>
-                        ${profOptions}
+                        <option value="">Select Subject First</option>
                     </select>
+                    <div id="prof-restriction-notice" class="mt-1 flex items-center gap-1.5 text-[10px] text-amber-600 font-medium">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Only qualified professors listed.
+                    </div>
                 </div>
                 
                 <div>
@@ -2503,6 +2536,28 @@ window.checkConflictsAsync = async function () {
   }
 
   return false;
+};
+
+window.handleAssignSubjectChange = function (subjectId) {
+  const profSelect = document.getElementById('assign-professor');
+  if (!profSelect) return;
+
+  if (!subjectId) {
+    profSelect.innerHTML = '<option value="">Select Subject First</option>';
+    return;
+  }
+
+  const subjectData = state.detailedSubjects.find(s => s.subject_id === subjectId);
+  if (!subjectData) return;
+
+  const qualifiedProfs = subjectData.qualified_professors || [];
+
+  if (qualifiedProfs.length === 0) {
+    profSelect.innerHTML = '<option value="">No qualified professors available</option>';
+  } else {
+    profSelect.innerHTML = '<option value="">TBA</option>' +
+      qualifiedProfs.map(p => `<option value="${p.id}">${p.name} (${p.specialization || 'Qualified'})</option>`).join('');
+  }
 };
 
 window.submitSectionAssignment = async function (modal, btn) {
@@ -2625,17 +2680,16 @@ window.openScheduleSlotModal = function (ssId) {
             </div>
         </div>
         
-        <div>
+    <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Professor (Optional)</label>
           <select id="slot-prof" class="form-select">
             <option value="">Use Section Default</option>
-            ${state.professors.map(p => `
-                <option value="${p.id}" ${qualifiedProfs.some(qp => qp.id === p.id) ? 'style="font-weight:bold; color:green"' : ''}>
-                    ${p.full_name} ${qualifiedProfs.some(qp => qp.id === p.id) ? '★' : ''}
-                </option>
+            ${qualifiedProfs.map(p => `
+                <option value="${p.id}">${p.name} (Qualified)</option>
             `).join('')}
+            ${qualifiedProfs.length === 0 ? '<option value="" disabled>No qualified professors found for this subject</option>' : ''}
           </select>
-          <p class="text-[10px] text-gray-500 mt-1">★ Denotes professor qualified for this subject</p>
+          <p class="text-[10px] text-amber-600 mt-1 italic font-medium">Note: Only professors who handle this subject are listed.</p>
         </div>
 
         <div>
@@ -3412,7 +3466,7 @@ function getCurriculumViewContent(curriculum, response) {
     Object.keys(structure[year]).forEach(sem => {
       const subjects = structure[year][sem];
       if (subjects && subjects.length > 0) {
-        const key = `${year} -${sem} `;
+        const key = `${year}-${sem}`;
         subjectsByLevel[key] = subjects;
         totalSubjects += subjects.length;
       }
@@ -4750,8 +4804,16 @@ window.updateAddSectionCurricula = async function (programId) {
 
   // Fetch curricula
   try {
-    const curricula = await api.get(endpoints.curricula + `?program=${programId}`);
-    const activeFirst = curricula.sort((a, b) => (b.is_active - a.is_active));
+    const response = await api.get(endpoints.curricula + `?program=${programId}`);
+    const curricula = response.results || response || [];
+
+    if (!Array.isArray(curricula)) {
+      console.error('Expected array for curricula but got:', curricula);
+      currSelect.innerHTML = '<option value="">Invalid data received</option>';
+      return;
+    }
+
+    const activeFirst = [...curricula].sort((a, b) => (b.is_active - a.is_active));
 
     currSelect.innerHTML = '<option value="">Select Curriculum to load subjects...</option>' +
       activeFirst.map(c => `<option value="${c.id}">${c.code} ${c.is_active ? '(Active)' : ''}</option>`).join('');
@@ -4779,19 +4841,24 @@ window.updateAddSectionSubjects = async function () {
   container.innerHTML = '<p class="text-xs text-gray-500 col-span-2">Loading subjects...</p>';
 
   try {
-    const structure = await api.get(endpoints.curriculumStructure(currId));
+    const response = await api.get(endpoints.curriculumStructure(currId));
+    const structure = response.structure || {};
 
     let subjects = [];
-    const blocks = Array.isArray(structure) ? structure : (structure.year_levels || []);
+    // The backend returns an object keyed by year level strings: { "1": { "1": [], "2": [] }, "2": ... }
+    const yearData = structure[yearLevel.toString()];
 
-    blocks.forEach(yearBlock => {
-      if (yearBlock.year_level === yearLevel) {
-        subjects = subjects.concat(yearBlock.subjects || []);
-      }
-    });
+    if (yearData) {
+      // Collect subjects from all semesters (1st, 2nd, Summer) for this year level
+      Object.values(yearData).forEach(semSubjects => {
+        if (Array.isArray(semSubjects)) {
+          subjects = subjects.concat(semSubjects);
+        }
+      });
+    }
 
     if (subjects.length === 0) {
-      container.innerHTML = '<p class="text-sm text-gray-500 col-span-2">No subjects found for Year ' + yearLevel + '.</p>';
+      container.innerHTML = '<p class="text-sm text-gray-500 col-span-2">No subjects found for Year ' + yearLevel + ' in this curriculum.</p>';
       return;
     }
 
@@ -4808,5 +4875,370 @@ window.updateAddSectionSubjects = async function () {
   } catch (e) {
     container.innerHTML = '<p class="text-xs text-red-500 col-span-2">Error loading subjects</p>';
     console.error(e);
+  }
+};
+
+// ========================
+// BULK SECTION CREATION
+// ========================
+
+window.openBulkSectionModal = function () {
+  const modal = new Modal({
+    title: 'Bulk Create Sections',
+    content: `
+        <form id="bulk-section-form" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                   <label class="block text-sm font-medium text-gray-700 mb-1">Academic Program *</label>
+                   <select id="bulk-program" required class="form-select" onchange="updateBulkSectionCurricula(this.value)">
+                     <option value="">Select Program</option>
+                     ${state.programs.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('')}
+                   </select>
+                </div>
+
+                <div>
+                   <label class="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+                   <input type="text" value="${state.activeSemester?.academic_year || 'N/A'}" readonly class="form-input bg-gray-50 text-gray-500 cursor-not-allowed">
+                </div>
+
+                <div>
+                   <label class="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
+                   <select id="bulk-year" required class="form-select bg-white" onchange="updateBulkSectionSubjects()">
+                     <option value="1">1st Year</option>
+                     <option value="2">2nd Year</option>
+                     <option value="3">3rd Year</option>
+                     <option value="4">4th Year</option>
+                     <option value="5">5th Year</option>
+                   </select>
+                </div>
+
+                <div class="md:col-span-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum *</label>
+                    <select id="bulk-curriculum" required class="form-select" onchange="updateBulkSectionSubjects()">
+                        <option value="">Select Program First</option>
+                    </select>
+                </div>
+
+                <div class="md:col-span-2 hidden" id="bulk-subjects-wrapper">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Subjects to be Linked (Read-only)</label>
+                    <div id="bulk-subjects-list" class="border border-gray-200 rounded-md p-3 max-h-40 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2 bg-gray-50 text-xs text-gray-600">
+                        <p class="text-xs text-gray-400 text-center col-span-2">Select a curriculum to view subjects</p>
+                    </div>
+                </div>
+
+                <div class="border-t pt-4 md:col-span-2">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Number of Sections *</label>
+                            <input type="number" id="bulk-count" value="1" min="1" max="10" required class="form-input" oninput="updateBulkSectionPreview()">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Student Capacity *</label>
+                            <input type="number" id="bulk-capacity" value="40" required class="form-input" min="1" max="100">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="md:col-span-2 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <label class="block text-sm font-medium text-gray-700 mb-3">Section Names Preview (Editable)</label>
+                    <div id="bulk-names-preview" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <!-- Preview list -->
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-3 italic">Tip: You can customize individual section names before creating them.</p>
+                </div>
+            </div>
+        </form>
+        `,
+    size: 'lg',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Create Sections',
+        primary: true,
+        onClick: (m, e) => submitBulkSections(m, e.target)
+      }
+    ]
+  });
+  modal.show();
+  // Default preview
+  updateBulkSectionPreview();
+};
+
+window.updateBulkSectionCurricula = async function (programId) {
+  const currSelect = document.getElementById('bulk-curriculum');
+  if (!currSelect) return;
+  if (!programId) {
+    currSelect.innerHTML = '<option value="">Select Program First</option>';
+    return;
+  }
+  try {
+    const response = await api.get(endpoints.curricula + `?program=${programId}`);
+    const curricula = response.results || response || [];
+    const activeFirst = [...curricula].sort((a, b) => (b.is_active - a.is_active));
+    currSelect.innerHTML = '<option value="">Select Curriculum...</option>' +
+      activeFirst.map(c => `<option value="${c.id}" ${c.is_active ? 'selected' : ''}>${c.code} ${c.is_active ? '(Active)' : ''}</option>`).join('');
+    updateBulkSectionSubjects();
+  } catch (e) {
+    currSelect.innerHTML = '<option value="">Error loading curricula</option>';
+  }
+};
+
+window.updateBulkSectionSubjects = async function () {
+  const currId = document.getElementById('bulk-curriculum')?.value;
+  const yearLevel = parseInt(document.getElementById('bulk-year')?.value || 1);
+  const wrapper = document.getElementById('bulk-subjects-wrapper');
+  const container = document.getElementById('bulk-subjects-list');
+
+  if (!currId || !wrapper) return;
+
+  wrapper.classList.remove('hidden');
+  container.innerHTML = 'Loading subjects...';
+
+  try {
+    const semester = state.activeSemester?.name || "";
+    let semNum = 1;
+    if (semester.includes("2nd")) semNum = 2;
+    else if (semester.includes("Summer")) semNum = 3;
+
+    const response = await api.get(endpoints.curriculumStructure(currId));
+    const structure = response.structure || {};
+    const yearData = structure[yearLevel.toString()];
+    const subjects = yearData ? yearData[semNum.toString()] || [] : [];
+
+    if (subjects.length === 0) {
+      container.innerHTML = '<p class="text-xs text-amber-600 col-span-2 font-medium">No subjects found for Year ' + yearLevel + ', Sem ' + semNum + ' in this curriculum.</p>';
+    } else {
+      container.innerHTML = subjects.map(s => `
+                <div class="flex items-center gap-2 p-1.5 bg-white border border-gray-100 rounded">
+                    <span class="font-bold text-blue-600">${s.code}</span>
+                    <span class="truncate">${s.title}</span>
+                </div>
+            `).join('');
+    }
+    updateBulkSectionPreview();
+  } catch (e) {
+    console.error(e);
+    container.innerHTML = 'Error loading subjects.';
+  }
+};
+
+window.updateBulkSectionPreview = function () {
+  const count = parseInt(document.getElementById('bulk-count')?.value || 1);
+  const year = document.getElementById('bulk-year')?.value || "1";
+  const programSelect = document.getElementById('bulk-program');
+  const programCode = programSelect?.options[programSelect.selectedIndex]?.text.split(' - ')[0] || "PROG";
+  const container = document.getElementById('bulk-names-preview');
+
+  if (!container) return;
+
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let html = '';
+  for (let i = 0; i < count; i++) {
+    const defaultName = `${programCode}-${year}${letters[i] || (i + 1)}`;
+    html += `
+            <div class="bulk-section-item">
+                <div class="flex items-center gap-3 bg-white p-2 rounded border border-gray-100 shadow-sm transition-all">
+                    <span class="text-[10px] font-bold text-gray-400 w-4">${i + 1}</span>
+                    <input type="text" name="bulk-names" value="${defaultName}" 
+                        class="form-input text-xs h-8 border-0 bg-transparent focus:ring-0 p-0 w-full" 
+                        placeholder="Section Name"
+                        oninput="validateBulkSectionNames()">
+                </div>
+            </div>
+        `;
+  }
+  container.innerHTML = html;
+  validateBulkSectionNames();
+};
+
+window.validateBulkSectionNames = function () {
+  const inputs = [...document.querySelectorAll('input[name="bulk-names"]')];
+  const names = inputs.map(i => i.value.trim().toUpperCase());
+  const duplicates = names.filter((name, index) => name && names.indexOf(name) !== index);
+
+  const container = document.getElementById('bulk-names-preview');
+  const existingWarning = document.getElementById('bulk-duplicate-warning');
+
+  // Find the primary button in the current modal
+  const modalEl = container.closest('.fixed');
+  const createBtn = modalEl?.querySelector('.modal-action[data-primary="true"]');
+
+  // Clear previous backend errors on any input
+  inputs.forEach(input => {
+    const wrapper = input.closest('.bulk-section-item');
+    const existingError = wrapper?.querySelector('.backend-error');
+    if (existingError) existingError.remove();
+
+    const inputDiv = input.closest('div');
+    inputDiv?.classList.remove('border-red-500', 'ring-1', 'ring-red-500', 'border-amber-500', 'ring-amber-500');
+  });
+
+  if (duplicates.length > 0) {
+    if (!existingWarning) {
+      const warning = document.createElement('div');
+      warning.id = 'bulk-duplicate-warning';
+      warning.className = 'md:col-span-2 mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-[11px] flex items-center gap-2';
+      warning.innerHTML = `
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <span>Duplicate section names detected: ${[...new Set(duplicates)].join(', ')}</span>
+            `;
+      container.after(warning);
+    } else {
+      existingWarning.querySelector('span').textContent = `Duplicate section names detected: ${[...new Set(duplicates)].join(', ')}`;
+    }
+    if (createBtn) createBtn.disabled = true;
+
+    // Highlight duplicates
+    inputs.forEach(input => {
+      if (duplicates.includes(input.value.trim().toUpperCase())) {
+        input.parentElement.classList.add('border-red-300', 'bg-red-50');
+        input.parentElement.classList.remove('border-gray-100', 'bg-white');
+      } else {
+        input.parentElement.classList.remove('border-red-300', 'bg-red-50', 'border-red-500', 'ring-1', 'ring-red-500');
+        input.parentElement.classList.add('border-gray-100', 'bg-white');
+      }
+    });
+  } else {
+    if (existingWarning) existingWarning.remove();
+    if (createBtn) createBtn.disabled = false;
+    inputs.forEach(input => {
+      input.parentElement.classList.remove('border-red-300', 'bg-red-50', 'border-red-500', 'ring-1', 'ring-red-500');
+      input.parentElement.classList.add('border-gray-100', 'bg-white');
+    });
+
+    // If no frontend duplicates, check with API for existing sections
+    checkNamesAvailability(names);
+  }
+};
+
+const checkNamesAvailability = debounce(async (names) => {
+  if (!names.length || !state.activeSemester) return;
+
+  try {
+    const response = await api.post(endpoints.sections + 'validate-names/', {
+      names: names,
+      semester_id: state.activeSemester.id
+    });
+
+    const inputs = [...document.querySelectorAll('input[name="bulk-names"]')];
+    const { active_conflicts, archived_conflicts } = response;
+
+    inputs.forEach(input => {
+      const val = input.value.trim().toUpperCase();
+      const wrapper = input.closest('.bulk-section-item');
+      const inputDiv = input.closest('div');
+
+      // Clear previous specific state
+      const existingBackendError = wrapper?.querySelector('.backend-error');
+      if (existingBackendError) existingBackendError.remove();
+      inputDiv?.classList.remove('border-red-500', 'ring-1', 'ring-red-500', 'border-amber-500', 'ring-amber-500');
+
+      if (active_conflicts.includes(val)) {
+        inputDiv?.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+        addBackendError(wrapper, 'Name already taken (active section)');
+        // Disable button if any active conflict
+        const createBtn = document.querySelector('.modal-action[data-primary="true"]');
+        if (createBtn) createBtn.disabled = true;
+      }
+      else if (archived_conflicts.includes(val)) {
+        inputDiv?.classList.add('border-amber-500', 'ring-1', 'ring-amber-500');
+        addBackendError(wrapper, 'has duplicate in the archived/deleted', 'amber');
+      }
+    });
+  } catch (e) {
+    console.error('Validation error:', e);
+  }
+}, 500);
+
+function addBackendError(wrapper, message, color = 'red') {
+  if (!wrapper || wrapper.querySelector('.backend-error')) return;
+  const errorMsg = document.createElement('div');
+  const colorClass = color === 'amber' ? 'text-amber-600' : 'text-red-600';
+  errorMsg.className = `backend-error text-[9px] ${colorClass} mt-1 px-1 font-medium italic animate-fade-in`;
+  errorMsg.textContent = message;
+  wrapper.appendChild(errorMsg);
+}
+
+
+window.submitBulkSections = async function (modal, btn) {
+  const form = document.getElementById('bulk-section-form');
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
+
+  if (!state.activeSemester) {
+    Toast.error("No active semester found. Please set a current semester in the Semesters tab first.");
+    return;
+  }
+
+  const names = [...document.querySelectorAll('input[name="bulk-names"]')].map(i => i.value.trim());
+  if (names.some(n => !n)) {
+    Toast.error("All section names are required");
+    return;
+  }
+
+  const payload = {
+    program: document.getElementById('bulk-program').value,
+    year_level: parseInt(document.getElementById('bulk-year').value),
+    curriculum: document.getElementById('bulk-curriculum').value,
+    semester: state.activeSemester?.id,
+    capacity: parseInt(document.getElementById('bulk-capacity').value),
+    section_names: names
+  };
+
+  console.log('Finalizing Bulk Create payload:', payload);
+
+  setButtonLoading(btn, true, 'Creating...');
+  try {
+    const response = await api.post(endpoints.sections + 'bulk-create/', payload);
+    if (response.warning) {
+      Toast.warning(response.warning);
+    } else {
+      Toast.success(`Successfully created ${names.length} sections`);
+    }
+    modal.close();
+    await loadSections();
+    render();
+  } catch (e) {
+    console.error('Bulk creation error full object:', e);
+    const errorData = e.response?.data || e.data;
+
+    // Specific handling for existing section names
+    if (errorData?.error && (errorData.error.includes('already exist') || errorData.error.includes('taken'))) {
+      // Split by colon and take the last part which contains the names
+      const parts = errorData.error.split(': ');
+      const namesStr = parts.length > 1 ? parts[parts.length - 1] : '';
+      const existingNames = namesStr ? namesStr.split(', ').map(n => n.trim().toUpperCase()) : [];
+
+      const inputs = [...document.querySelectorAll('input[name="bulk-names"]')];
+      inputs.forEach(input => {
+        const val = input.value.trim().toUpperCase();
+        if (existingNames.includes(val) || (existingNames.length === 0 && errorData.error.includes(val))) {
+          const wrapper = input.closest('.bulk-section-item');
+          const inputDiv = input.closest('div');
+
+          if (inputDiv) {
+            inputDiv.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+            inputDiv.classList.remove('border-gray-100');
+          }
+
+          // Add help text inside the wrapper
+          if (wrapper && !wrapper.querySelector('.backend-error')) {
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'backend-error text-[9px] text-red-600 mt-1 px-1 font-medium italic';
+            errorMsg.textContent = 'Name already taken (check deleted sections)';
+            wrapper.appendChild(errorMsg);
+          }
+        }
+      });
+      Toast.error("Some section names are already taken. They might exist in a deleted state.");
+    } else {
+      ErrorHandler.handle(e, 'Bulk creating sections');
+    }
+  } finally {
+    setButtonLoading(btn, false);
   }
 };
