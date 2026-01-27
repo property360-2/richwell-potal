@@ -678,11 +678,13 @@ class RecommendedSubjectsView(APIView):
                     'section_id': str(ss.section.id),
                     'section_name': ss.section.name,
                     'available_slots': ss.section.available_slots,
+                    'professor': ss.professor.get_full_name() if ss.professor else 'TBA',
                     'schedule': [
                         {
                             'day': slot.get_day_display(),
                             'start_time': slot.start_time.strftime("%I:%M %p"),
-                            'end_time': slot.end_time.strftime("%I:%M %p") 
+                            'end_time': slot.end_time.strftime("%I:%M %p"),
+                            'room': slot.room or 'TBA'
                         } for slot in ss.schedule_slots.filter(is_deleted=False)
                     ]
                 })
@@ -693,7 +695,7 @@ class RecommendedSubjectsView(APIView):
                 'title': subject.title,
                 'units': subject.units,
                 'year_level': cs.year_level,
-                'semester': cs.semester_number,
+                'semester_number': cs.semester_number,
                 'can_enroll': can_enroll,
                 'is_retake': is_retake,  # Helpful for UI
                 'missing_prerequisites': missing_prereqs,
@@ -774,25 +776,63 @@ class AvailableSubjectsView(APIView):
                     missing_prereqs.append(p.code)
 
             # Get sections
+            # Get sections (with Filtering)
             from apps.academics.models import SectionSubject
-            sections = SectionSubject.objects.filter(
+            section_subjects = SectionSubject.objects.filter(
                 subject=subject,
                 section__semester=active_semester,
                 is_deleted=False
-            ).select_related('section')
+            ).select_related('section', 'professor')
+
+            # Get Student Profile
+            profile = user.student_profile
+            home_section = profile.home_section
+            is_irregular = profile.is_irregular
+            is_overloaded = profile.overload_approved
+
+            # Check if retake
+            is_retake = False
+            if subject.id not in passed_subjects: # basic check
+                 is_retake = SubjectEnrollment.objects.filter(
+                    enrollment__student=user,
+                    subject=subject,
+                    status__in=['FAILED', 'DROPPED', 'RETAKE']
+                 ).exists()
+
+            valid_sections = []
+            for ss in section_subjects:
+                allowed = False
+                # Rule 3: Overloaded
+                if is_overloaded:
+                     allowed = True
+                # Rule 2: Irregular
+                elif is_irregular:
+                    if ss.section == home_section:
+                        allowed = True
+                    elif is_retake:
+                        allowed = True
+                # Rule 1: Regular
+                else:
+                    if ss.section == home_section:
+                        allowed = True
+                
+                if allowed:
+                    valid_sections.append(ss)
 
             available_sections = []
-            for ss in sections:
+            for ss in valid_sections:
                 available_sections.append({
                     'id': str(ss.section.id),
                     'name': ss.section.name,
                     'slots': ss.section.available_slots,
                     'enrolled': ss.section.enrolled_count, # Estimate
+                    'professor': ss.professor.get_full_name() if ss.professor else 'TBA',
                     'schedule': [
                         {
                             'day': slot.get_day_display(),
                             'start_time': slot.start_time.strftime("%H:%M"),
-                            'end_time': slot.end_time.strftime("%H:%M") 
+                            'end_time': slot.end_time.strftime("%H:%M"),
+                            'room': slot.room or 'TBA'
                         } for slot in ss.schedule_slots.filter(is_deleted=False)
                     ]
                 })
@@ -802,6 +842,8 @@ class AvailableSubjectsView(APIView):
                 'code': subject.code,
                 'title': subject.title,
                 'units': subject.units,
+                'year_level': subject.year_level,
+                'semester_number': subject.semester_number,
                 'prerequisites_met': prereqs_met,
                 'missing_prerequisites': missing_prereqs,
                 'is_enrolled': subject.id in current_subjects,
@@ -838,15 +880,35 @@ class MySubjectEnrollmentsView(APIView):
             is_deleted=False
         ).select_related('subject', 'section')
 
+        # Bulk fetch professors and schedules via SectionSubject
+        from apps.academics.models import SectionSubject
+        section_ids = [se.section_id for se in enrollments if se.section_id]
+        subject_ids = [se.subject_id for se in enrollments]
+        
+        prof_map = {}
+        schedule_map = {}
+        if section_ids:
+            section_subjects = SectionSubject.objects.filter(
+                section_id__in=section_ids,
+                subject_id__in=subject_ids
+            ).select_related('professor').prefetch_related('schedule_slots')
+            
+            for ss in section_subjects:
+                key = (ss.section_id, ss.subject_id)
+                prof_map[key] = ss.professor
+                schedule_map[key] = ss.schedule_slots.all()
+
         data = []
         total_units = 0
         for se in enrollments:
             total_units += se.subject.units
             
-            # Formatting schedule
-            # Assuming simplified schedule retrieval for now
-            schedule_str = "TBA"
-            # In real app, fetch slots
+            # Get professor from map
+            prof = prof_map.get((se.section_id, se.subject_id))
+            prof_name = prof.get_full_name() if prof else 'TBA'
+            
+            # Get slots from map
+            slots = schedule_map.get((se.section_id, se.subject_id), [])
             
             data.append({
                 'id': str(se.id),
@@ -861,7 +923,15 @@ class MySubjectEnrollmentsView(APIView):
                 'head_approved': se.head_approved,
                 'approval_status_display': 'Enrolled' if se.status == 'ENROLLED' else 'Pending Head' if not se.head_approved else 'Pending Payment',
                 'is_fully_enrolled': se.status == 'ENROLLED',
-                'schedule': schedule_str # Placeholder
+                'professor': prof_name,
+                'schedule': [
+                    {
+                        'day': slot.get_day_display(),
+                        'start_time': slot.start_time.strftime("%I:%M %p"),
+                        'end_time': slot.end_time.strftime("%I:%M %p"),
+                        'room': slot.room or 'TBA'
+                    } for slot in slots
+                ]
             })
 
         return Response({

@@ -41,7 +41,8 @@ const state = {
     { value: 3, label: 'Summer' }
   ],
   // Error states
-  noCurriculumError: null
+  noCurriculumError: null,
+  yearLevelToggles: {} // Key: year (string), Value: semester (int)
 };
 
 // Cart persistence helpers
@@ -184,7 +185,8 @@ async function loadData() {
             name: sec.section_name || sec.name,
             slots: sec.available_slots || sec.slots,
             enrolled: sec.enrolled_count || 0,
-            schedule: Array.isArray(sec.schedule) ? sec.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time}`).join(', ') : sec.schedule
+            professor: sec.professor || 'TBA',
+            schedule: Array.isArray(sec.schedule) ? sec.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time} (${slot.room})`).join(', ') : sec.schedule
           }))
         }));
 
@@ -225,7 +227,8 @@ async function loadData() {
             name: sec.section_name || sec.name,
             slots: sec.available_slots || sec.slots,
             enrolled: 0,
-            schedule: Array.isArray(sec.schedule) ? sec.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time}`).join(', ') : sec.schedule
+            professor: sec.professor || 'TBA',
+            schedule: Array.isArray(sec.schedule) ? sec.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time} (${slot.room})`).join(', ') : sec.schedule
           }))
         }));
       } else if (availableResponse?.length) {
@@ -256,7 +259,9 @@ async function loadData() {
           subject_code: s.subject_code,
           subject_title: s.subject_title,
           units: s.units,
-          schedule: Array.isArray(s.schedule) ? s.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time}`).join(', ') : s.schedule,
+          units: s.units,
+          professor: s.professor || 'TBA',
+          schedule: Array.isArray(s.schedule) ? s.schedule.map(slot => `${slot.day} ${slot.start_time}-${slot.end_time} (${slot.room})`).join(', ') : s.schedule,
           status: s.status,
           // Dual approval fields
           payment_approved: s.payment_approved,
@@ -371,79 +376,61 @@ function renderCategorizedSubjects(grouped, isRecommended, sectionId) {
   }
 
   return years.map(year => {
-    const semesters = grouped[year];
     const yearId = `${sectionId}-year-${year}`;
+    // Get active semester for this year from state, default to 1
+    // Store toggle state keyed by sectionId + year to maintain independent state
+    const toggleKey = `${sectionId}_${year}`;
+    const activeSem = state.yearLevelToggles[toggleKey] || 1;
 
-    // Sort semesters: 1, 2, 3, then 0 (uncategorized)
-    const semesterKeys = Object.keys(semesters).sort((a, b) => {
-      const numA = parseInt(a);
-      const numB = parseInt(b);
-      if (numA === 0) return 1;
-      if (numB === 0) return -1;
-      return numA - numB;
-    });
+    const subjects = grouped[year][activeSem] || [];
 
     return `
-      <!-- Year Level Accordion -->
-      <div class="border border-gray-200 rounded-lg mb-3 overflow-hidden">
-        <!-- Year Header (Clickable) -->
-        <button
-          onclick="toggleAccordion('${yearId}', this)"
-          aria-expanded="true"
-          aria-controls="${yearId}"
-          class="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
-        >
+      <!-- Year Level Card -->
+      <div class="border border-gray-200 rounded-lg mb-4 overflow-hidden bg-white shadow-sm">
+        <!-- Year Header -->
+        <div class="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+             <div class="w-10 h-10 bg-white border border-blue-100 rounded-lg flex items-center justify-center text-blue-700 font-bold shadow-sm">
               ${year === 'Other' ? '?' : year}
             </div>
-            <span class="font-bold text-gray-800 text-lg">${getYearLabel(year)}</span>
-            <span class="text-sm text-gray-500">
-              (${Object.values(semesters).flat().length} subject${Object.values(semesters).flat().length !== 1 ? 's' : ''})
-            </span>
+            <div>
+              <h3 class="font-bold text-gray-800 text-lg">${getYearLabel(year)}</h3>
+              <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Academic Year Level</p>
+            </div>
           </div>
-          <svg class="w-5 h-5 text-gray-600 transition-transform accordion-chevron" id="${yearId}-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-          </svg>
-        </button>
+          
+          <!-- Semester Toggle -->
+          <div class="flex p-1 bg-gray-200/80 rounded-lg">
+            <button onclick="setYearSemesterToggle('${toggleKey}', 1)" 
+              class="px-4 py-1.5 text-xs font-semibold rounded-md transition-all ${activeSem === 1 ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+              1st Sem
+            </button>
+            <button onclick="setYearSemesterToggle('${toggleKey}', 2)" 
+              class="px-4 py-1.5 text-xs font-semibold rounded-md transition-all ${activeSem === 2 ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+              2nd Sem
+            </button>
+             <button onclick="setYearSemesterToggle('${toggleKey}', 3)" 
+              class="px-4 py-1.5 text-xs font-semibold rounded-md transition-all ${activeSem === 3 ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+              Summer
+            </button>
+          </div>
+        </div>
 
-        <!-- Year Content (Collapsible) -->
-        <div id="${yearId}" class="accordion-content" style="display: block;">
-          ${semesterKeys.map(semesterNum => {
-      const subjects = semesters[semesterNum];
-      const semId = `${yearId}-sem-${semesterNum}`;
-
-      return `
-              <!-- Semester Accordion (Nested) -->
-              <div class="border-t border-gray-200">
-                <!-- Semester Header -->
-                <button
-                  onclick="toggleAccordion('${semId}', this)"
-                  aria-expanded="true"
-                  aria-controls="${semId}"
-                  class="w-full flex items-center justify-between p-3 pl-12 bg-gray-50 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
-                >
-                  <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                    </svg>
-                    <span class="font-semibold text-gray-700">${getSemesterLabel(parseInt(semesterNum))}</span>
-                    <span class="text-xs text-gray-500">(${subjects.length} subject${subjects.length !== 1 ? 's' : ''})</span>
-                  </div>
-                  <svg class="w-4 h-4 text-gray-600 transition-transform accordion-chevron" id="${semId}-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                  </svg>
-                </button>
-
-                <!-- Semester Content (Subject Cards) -->
-                <div id="${semId}" class="accordion-content" style="display: block;">
-                  <div class="p-4 pl-12 space-y-3 bg-white">
-                    ${subjects.map(subject => renderSubjectCard(subject, isRecommended)).join('')}
-                  </div>
-                </div>
-              </div>
-            `;
-    }).join('')}
+        <!-- Subjects Grid -->
+        <div class="p-4 bg-gray-50/50 min-h-[100px]">
+          ${subjects.length > 0 ? `
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              ${subjects.map(subject => renderSubjectCard(subject, isRecommended)).join('')}
+            </div>
+          ` : `
+            <div class="flex flex-col items-center justify-center py-8 text-gray-400">
+              <svg class="w-12 h-12 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+              </svg>
+              <p class="text-sm font-medium">No subjects found for ${getSemesterLabel(activeSem)}</p>
+              <p class="text-xs opacity-75">Switch semester to view other subjects</p>
+            </div>
+          `}
         </div>
       </div>
     `;
@@ -558,7 +545,8 @@ function render() {
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Code</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Title</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule & Room</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Professor</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -596,7 +584,12 @@ function render() {
         <!-- Page Title -->
         <div class="mb-8">
           <h1 class="text-3xl font-bold text-gray-800">Subject Enrollment</h1>
-          <p class="text-gray-600 mt-1">Select subjects for the current semester</p>
+          <div class="flex items-center gap-2 mt-1">
+             <p class="text-gray-600">Select subjects for the current semester</p>
+             <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-100 text-indigo-700">
+                ${state.user?.student_profile?.curriculum_code || 'No Curriculum'}
+             </span>
+          </div>
         </div>
 
         <!-- Unit Counter Bar -->
@@ -777,12 +770,12 @@ function renderFilters() {
 function renderSubjectCard(subject, isRecommended) {
   const isInCart = state.cart.some(item => item.subject.id === subject.id);
   const isEnrolled = state.enrolledSubjects.some(e => (e.subject?.code || e.subject_code || e.code) === subject.code);
-  const hasPrerequisiteIssue = subject.prerequisite_met === false; // Explicit check for false
+  const hasPrerequisiteIssue = subject.prerequisite_met === false;
   const hasIncPrerequisite = subject.has_inc_prerequisite === true;
   const canAdd = !hasPrerequisiteIssue && !hasIncPrerequisite && !isInCart && !isEnrolled;
   const wouldExceedLimit = (state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits;
 
-  // Determine block reason for display
+  // Determine block reason
   let blockReason = '';
   let blockClass = '';
   if (isEnrolled) {
@@ -796,7 +789,6 @@ function renderSubjectCard(subject, isRecommended) {
     blockReason = `Prerequisite ${incCode} has INC status`;
     blockClass = 'bg-red-50 text-red-700 border-red-100';
   } else if (hasPrerequisiteIssue) {
-    // Format missing prerequisites nicely
     let missingPrereqs = '';
     if (subject.missing_prerequisites && Array.isArray(subject.missing_prerequisites) && subject.missing_prerequisites.length > 0) {
       missingPrereqs = subject.missing_prerequisites.join(', ');
@@ -809,105 +801,192 @@ function renderSubjectCard(subject, isRecommended) {
     blockClass = 'bg-amber-50 text-amber-700 border-amber-100';
   }
 
-  // If subject has no sections, it cannot be added
   const hasSections = subject.sections && subject.sections.length > 0;
   if (!hasSections && canAdd) {
     blockReason = 'No sections available';
     blockClass = 'bg-gray-50 text-gray-600 border-gray-200';
   }
 
-  // Card Status Border & Bg
-  let cardBorderClass = 'border-gray-200 hover:border-blue-300';
-  if (isEnrolled) cardBorderClass = 'border-blue-200 bg-blue-50/30';
-  else if (isInCart) cardBorderClass = 'border-green-300 bg-green-50/30 shadow-sm';
-  else if (hasPrerequisiteIssue || hasIncPrerequisite) cardBorderClass = 'border-gray-200 bg-gray-50 opacity-90';
+  // --- New Logic: Locking & Default Section ---
+  const isStudentIrregular = state.user?.student_profile?.is_irregular || state.user?.is_irregular;
+  const isRetake = subject.is_retake;
+  const isLocked = !isStudentIrregular && !isRetake;
+
+  let defaultSection = subject.sections ? subject.sections[0] : null;
+  if (isLocked && subject.sections) {
+    const userSectionId = state.user?.student_profile?.home_section;
+    const userSectionName = state.user?.student_profile?.section_name || state.user?.section_name;
+    // Try to match
+    const match = subject.sections.find(s => s.id === userSectionId || s.name === userSectionName);
+    if (match) defaultSection = match;
+  }
+
+  // Decide which section is "Active" for display
+  // If in cart, show that one. If not, show default.
+  const cartItem = state.cart.find(i => i.subject.id === subject.id);
+  const activeSectionId = cartItem ? cartItem.section.id : defaultSection?.id;
+  const activeSection = (subject.sections || []).find(s => s.id == activeSectionId) || defaultSection;
+
+  // Interaction Classes
+  const isClickable = canAdd && hasSections;
+  const cursorClass = isClickable ? 'cursor-pointer hover:-translate-y-1 hover:shadow-lg' : 'cursor-default opacity-80';
+
+  // Styles
+  let cardClass = 'bg-white border-gray-200';
+  let badgeClass = 'bg-gray-100 text-gray-600';
+  let statusIcon = '';
+
+  if (isEnrolled) {
+    cardClass = 'bg-green-50 border-green-200';
+    badgeClass = 'bg-green-100 text-green-700';
+    statusIcon = '<span class="text-green-600 font-bold text-xs uppercase tracking-wider">Enrolled</span>';
+  } else if (isInCart) {
+    cardClass = 'bg-blue-50 border-blue-400 ring-1 ring-blue-400';
+    badgeClass = 'bg-blue-100 text-blue-700';
+    statusIcon = '<span class="text-blue-600 font-bold text-xs uppercase tracking-wider">Selected</span>';
+  } else if (blockReason) {
+    cardClass = 'bg-gray-50 border-gray-200 opacity-75 grayscale-[0.5]';
+    badgeClass = 'bg-gray-200 text-gray-500';
+  } else if (isClickable) {
+    cardClass = 'bg-white border-gray-200 hover:border-blue-300 group';
+  }
+
+  // Section Selector
+  let sectionSelector = '';
+  if (canAdd && hasSections && !isInCart) {
+    if (isLocked) {
+      sectionSelector = `<input type="hidden" id="section-select-${subject.id}" value="${activeSection?.id || ''}">`;
+    } else {
+      sectionSelector = `
+            <div class="mt-3" onclick="event.stopPropagation()">
+              <label class="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Choose Section</label>
+              <select id="section-select-${subject.id}" 
+                      onchange="updateSubjectCardDetails('${subject.id}', this)"
+                      class="w-full text-xs border-gray-200 bg-gray-50 rounded-lg focus:ring-blue-500 focus:border-blue-500 py-1.5 px-2 cursor-pointer transition-colors hover:bg-white hover:border-gray-300">
+                  ${subject.sections.map(sec => `
+                      <option value="${sec.id}" 
+                              data-prof="${sec.professor || 'TBA'}" 
+                              data-sched="${sec.schedule || 'TBA'}" 
+                              data-room="${sec.room || 'TBA'}"
+                              data-name="${sec.name}"
+                              ${sec.id == activeSection?.id ? 'selected' : ''}>
+                          ${sec.name}
+                      </option>
+                  `).join('')}
+              </select>
+            </div>
+          `;
+    }
+  }
+
+  const selectedSectionDisplay = isInCart ? `
+    <div class="mt-3 text-xs bg-blue-100/50 text-blue-800 px-2 py-1.5 rounded-lg border border-blue-100 flex items-center justify-between">
+      <span class="font-medium truncate mr-2">${activeSection?.name || 'Section'}</span>
+      <button onclick="event.stopPropagation(); removeFromCart('${subject.id}')" class="text-blue-400 hover:text-red-500 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  ` : '';
 
   return `
-    <div class="relative bg-white border ${cardBorderClass} rounded-xl p-5 transition-all duration-200 hover:shadow-md group">
-      <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        
-        <!-- Left: Subject Info -->
-        <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-3 mb-1">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-bold bg-gray-100 text-gray-800 font-mono">
-                    ${subject.code}
-                </span>
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
-                    ${subject.units} Units
-                </span>
-                ${subject.is_major ? `
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">
-                        Major
-                    </span>` : ''}
-            </div>
-            
-            <h3 class="text-lg font-bold text-gray-900 leading-tight mb-2">${subject.title || subject.name}</h3>
-            
-            <!-- Prerequisites (visible if relevant) -->
-            ${(subject.prerequisites && subject.prerequisites.length > 0 && !hasPrerequisiteIssue) ? `
-                <div class="flex flex-wrap gap-1 mt-2 text-xs text-gray-500">
-                    <span class="mr-1">Prereqs:</span>
-                    ${subject.prerequisites.map(p => `
-                        <span class="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-mono">${p.code}</span>
-                    `).join('')}
-                </div>
-            ` : ''}
-
-            <!-- Status Message (for blocked/enrolled/cart items) -->
-            ${blockReason ? `
-                <div class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${blockClass}">
-                    ${isEnrolled ? `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>` : ''}
-                    ${hasPrerequisiteIssue || hasIncPrerequisite ? `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>` : ''}
-                    ${blockReason}
-                </div>
-            ` : ''}
+    <div onclick="${isClickable ? `toggleSubjectEnrollment('${subject.id}')` : ''}" 
+         class="relative flex flex-col h-full border rounded-xl p-4 transition-all duration-200 ${cardClass} ${cursorClass}">
+      
+      <!-- Header -->
+      <div class="flex justify-between items-start gap-3 mb-2">
+        <div class="flex items-center gap-2">
+            <span class="font-mono font-bold text-gray-800 text-base group-hover:text-blue-600 transition-colors">${subject.code}</span>
         </div>
+        <span class="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${badgeClass}">
+            ${subject.units}u
+        </span>
+      </div>
 
-        <!-- Right: Actions -->
-        ${(canAdd && hasSections && !isInCart) ? `
-            <div class="flex-shrink-0 w-full md:w-72 mt-2 md:mt-0">
-                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Available Sections</label>
-                    <div class="space-y-2">
-                        <select id="section-select-${subject.id}" class="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 py-1.5 pl-2 pr-8">
-                            ${subject.sections.map((sec, idx) => `
-                                <option value="${sec.id}">
-                                    ${sec.name} (${sec.slots - sec.enrolled} slots)
-                                </option>
-                            `).join('')}
-                        </select>
-                        <button 
-                            onclick="addToCart('${subject.id}')"
-                            ${wouldExceedLimit ? 'disabled' : ''}
-                            class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                        >
-                            ${wouldExceedLimit ? `
-                                <span>Unit Limit Reached</span>
-                            ` : `
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                                </svg>
-                                <span>Add Subject</span>
-                            `}
-                        </button>
-                        ${wouldExceedLimit ? '<p class="text-xs text-red-500 text-center mt-1">Exceeds semester unit cap</p>' : ''}
-                    </div>
-                </div>
+      <!-- Title -->
+      <h3 class="text-sm font-medium text-gray-700 leading-snug mb-3 line-clamp-2 min-h-[2.5em] flex-grow" title="${subject.title}">
+        ${subject.title || subject.name}
+      </h3>
+
+      <!-- Detailed Info Block -->
+      ${activeSection ? `
+      <div class="border-t border-dashed border-gray-100 pt-2 mb-2 space-y-1 text-xs text-gray-600">
+          <div class="flex justify-between items-start">
+              <span class="text-gray-400">Section</span>
+              <span id="detail-name-${subject.id}" class="font-semibold text-gray-800 text-right">${activeSection.name}</span>
+          </div>
+           <div class="flex justify-between items-start">
+              <span class="text-gray-400">Professor</span>
+              <span id="detail-prof-${subject.id}" class="font-medium text-right" title="${activeSection.professor}">${activeSection.professor || 'TBA'}</span>
+          </div>
+          <div class="flex justify-between items-start">
+              <span class="text-gray-400">Schedule</span>
+              <span id="detail-sched-${subject.id}" class="font-medium text-right" title="${activeSection.schedule}">${activeSection.schedule || 'TBA'}</span>
+          </div>
+          <div class="flex justify-between items-start">
+              <span class="text-gray-400">Room</span>
+              <span id="detail-room-${subject.id}" class="font-medium text-right">${activeSection.room || 'TBA'}</span>
+          </div>
+      </div>
+      ` : ''}
+
+      <!-- Status / Footer -->
+      <div class="mt-auto">
+        ${blockReason ? `
+            <div class="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2 py-1.5 rounded border border-amber-100">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <span class="font-medium truncate">${blockReason}</span>
             </div>
         ` : ''}
 
-        ${isInCart ? `
-             <div class="flex-shrink-0 flex items-center">
-                <button onclick="removeFromCart('${subject.id}')" class="text-red-600 hover:text-red-700 font-medium text-sm flex items-center gap-1 px-3 py-1.5 hover:bg-red-50 rounded-lg transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    Remove
-                </button>
-             </div>
-        ` : ''}
+        ${statusIcon ? `<div class="flex justify-end">${statusIcon}</div>` : ''}
+        
+        ${sectionSelector}
+        ${selectedSectionDisplay}
       </div>
+      
+      <!-- Selection Overlay -->
+      ${isClickable && !isInCart ? `
+        <div class="absolute inset-0 rounded-xl border-2 border-blue-400 opacity-0 scale-95 group-hover:opacity-10 group-hover:scale-100 transition-all duration-200 pointer-events-none"></div>
+      ` : ''}
     </div>
   `;
 }
+
+// Helper to update card details when section changes
+window.updateSubjectCardDetails = function (subjectId, selectEl) {
+  const option = selectEl.options[selectEl.selectedIndex];
+  if (!option) return;
+
+  const prof = option.getAttribute('data-prof');
+  const sched = option.getAttribute('data-sched');
+  const room = option.getAttribute('data-room');
+  const name = option.getAttribute('data-name');
+
+  const elName = document.getElementById(`detail-name-${subjectId}`);
+  const elProf = document.getElementById(`detail-prof-${subjectId}`);
+  const elSched = document.getElementById(`detail-sched-${subjectId}`);
+  const elRoom = document.getElementById(`detail-room-${subjectId}`);
+
+  if (elName) elName.textContent = name;
+  if (elProf) elProf.textContent = prof;
+  if (elSched) elSched.textContent = sched;
+  if (elRoom) elRoom.textContent = room;
+};
+
+window.toggleSubjectEnrollment = function (subjectId) {
+  const isInCart = state.cart.some(item => item.subject.id === subjectId);
+  if (isInCart) {
+    removeFromCart(subjectId);
+  } else {
+    const select = document.getElementById(`section-select-${subjectId}`);
+    const sectionId = select?.value;
+    if (sectionId) {
+      enrollSubject(subjectId, sectionId);
+    } else {
+      Toast.error('Please select a section');
+    }
+  }
+};
 
 
 function renderEnrolledSubjectRow(enrollment) {
@@ -950,6 +1029,9 @@ function renderEnrolledSubjectRow(enrollment) {
       </td>
       <td class="px-6 py-4">
         <div class="text-sm text-gray-900">${enrollment.schedule || 'TBA'}</div>
+      </td>
+      <td class="px-6 py-4">
+        <div class="text-sm text-gray-900">${enrollment.professor || 'TBA'}</div>
       </td>
       <td class="px-6 py-4 whitespace-nowrap">
         <div class="text-sm text-gray-900">${enrollment.units}</div>
@@ -1027,8 +1109,11 @@ function renderEnrolledSubjectCardMobile(enrollment) {
            <div class="font-medium text-gray-900">${enrollment.section_name || 'N/A'}</div>
         </div>
         <div>
-           <span class="text-gray-400 text-xs uppercase tracking-wider font-semibold">Schedule</span>
-           <div class="font-medium text-gray-900">${enrollment.schedule || 'TBA'}</div>
+           <span class="text-gray-400 text-xs uppercase tracking-wider font-semibold">Prof / Room</span>
+           <div class="font-medium text-gray-900 text-xs">
+             <div class="truncate">${enrollment.professor || 'TBA'}</div>
+             <div class="text-gray-500">${enrollment.schedule || 'TBA'}</div>
+           </div>
         </div>
       </div>
 
@@ -1844,6 +1929,11 @@ window.clearFilters = async function () {
   render();
   await loadData();
   state.fetchingSubjects = false;
+  render();
+};
+
+window.setYearSemesterToggle = function (key, semester) {
+  state.yearLevelToggles[key] = semester;
   render();
 };
 
