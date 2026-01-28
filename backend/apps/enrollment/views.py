@@ -6,10 +6,12 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.core.permissions import IsDepartmentHead, IsRegistrar, IsAdmin
-from apps.enrollment.models import Enrollment, SubjectEnrollment, Semester
+from apps.enrollment.models import Enrollment, SubjectEnrollment, Semester, GradeResolution
+from .serializers import GradeResolutionSerializer
 
 
 # Semester ViewSet for academics app
@@ -21,8 +23,44 @@ class SemesterViewSet(ModelViewSet):
         return Semester.objects.all().order_by('-start_date')
     
     def get_serializer_class(self):
-        from apps.enrollment.serializers import SemesterSerializer
+        from apps.enrollment.serializers import SemesterSerializer, SemesterCreateSerializer
+        if self.action == 'create':
+            return SemesterCreateSerializer
         return SemesterSerializer
+
+    @extend_schema(request=None, responses={200: None})
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """
+        Activate a term (set is_current=True).
+        Strict Rule: Cannot activate a new term unless the current active term is fully ended (GRADING_CLOSED or ARCHIVED).
+        """
+        target_semester = self.get_object()
+        
+        # Check current active semester
+        current_active = Semester.objects.filter(is_current=True).exclude(pk=target_semester.pk).first()
+        
+        if current_active:
+            # Enforce Hard Switch Rule
+            if current_active.status not in [Semester.TermStatus.GRADING_CLOSED, Semester.TermStatus.ARCHIVED]:
+                return Response(
+                    {
+                        'detail': f'Current active term "{current_active.name}" must be closed (Grading Closed or Archived)'
+                                  f' before activating a new term. Current status: {current_active.get_status_display()}'
+                    }, 
+                    status=400
+                )
+            
+            # Deactivate old term
+            current_active.is_current = False
+            current_active.save()
+
+        # Activate new term
+        target_semester.is_current = True
+        target_semester.status = Semester.TermStatus.ENROLLMENT_OPEN
+        target_semester.save()
+        
+        return Response({'success': True, 'message': f'Term "{target_semester.name}" is now active and open for enrollment.'})
 
 # ============================================================
 # Report Views (EPIC 13)
@@ -154,9 +192,22 @@ class PublicProgramListView(APIView):
     permission_classes = []  # No authentication required
     
     def get(self, request, *args, **kwargs):
-        from apps.academics.models import Program
-        programs = Program.objects.filter(is_active=True).values('id', 'name', 'code', 'description')
-        return Response(list(programs))
+        from apps.academics.models import Program, Curriculum
+        programs = Program.objects.filter(is_active=True)
+        
+        results = []
+        for program in programs:
+            active_curriculum = Curriculum.objects.filter(program=program, is_active=True).first()
+            results.append({
+                'id': program.id,
+                'name': program.name,
+                'code': program.code,
+                'description': program.description,
+                'curriculum_name': active_curriculum.name if active_curriculum else None,
+                'curriculum_code': active_curriculum.code if active_curriculum else None
+            })
+            
+        return Response(results)
 
 
 class EnrollmentStatusView(APIView):
@@ -164,7 +215,10 @@ class EnrollmentStatusView(APIView):
     permission_classes = []  # No authentication required
     
     def get(self, request, *args, **kwargs):
-        return Response({"enrollment_enabled": True})
+        from apps.enrollment.models import Semester
+        semester = Semester.objects.filter(is_current=True).first()
+        enabled = semester.is_enrollment_open if semester else False
+        return Response({"enrollment_enabled": enabled})
 
 
 class CheckEmailAvailabilityView(APIView):
@@ -1450,3 +1504,76 @@ HeadRejectEnrollmentView = SimplePOSTView
 HeadBulkApproveView = SimplePOSTView
 
 GenerateCORView = SimplePOSTView
+
+from rest_framework import status
+from rest_framework.decorators import action
+from django.utils import timezone
+
+class GradeResolutionViewSet(ModelViewSet):
+    """
+    ViewSet for handling grade resolution requests.
+    """
+    queryset = GradeResolution.objects.all().select_related(
+        'subject_enrollment__enrollment__student',
+        'subject_enrollment__subject',
+        'requested_by'
+    )
+    serializer_class = GradeResolutionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'PROFESSOR':
+            return self.queryset.filter(requested_by=user)
+        elif user.role in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
+            return self.queryset.all()
+        elif user.role == 'DEPARTMENT_HEAD':
+            # Simplified: Department head sees all for now.
+            # In production, this would be filtered by their department.
+            return self.queryset.all()
+        return self.queryset.none()
+
+    @action(detail=False, methods=['get'])
+    def pending(self, request):
+        """List resolutions pending registrar review."""
+        pending = self.get_queryset().filter(status=GradeResolution.Status.PENDING_REGISTRAR)
+        serializer = self.get_serializer(pending, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Approve a resolution (Registrar level)."""
+        resolution = self.get_object()
+        if resolution.status != GradeResolution.Status.PENDING_REGISTRAR:
+            return Response(
+                {'detail': f'Resolution is in {resolution.status} status, cannot be approved by registrar'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        resolution.status = GradeResolution.Status.PENDING_HEAD
+        resolution.reviewed_by_registrar = request.user
+        resolution.registrar_action_at = timezone.now()
+        resolution.registrar_notes = request.data.get('notes', '')
+        resolution.save()
+        
+        return Response({'success': True, 'message': 'Approved and forwarded to Program Head'})
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Reject a resolution."""
+        resolution = self.get_object()
+        reason = request.data.get('reason', '')
+        
+        resolution.status = GradeResolution.Status.REJECTED
+        
+        if request.user.role in ['REGISTRAR', 'HEAD_REGISTRAR']:
+            resolution.reviewed_by_registrar = request.user
+            resolution.registrar_action_at = timezone.now()
+            resolution.registrar_notes = reason
+        else:
+            resolution.reviewed_by_head = request.user
+            resolution.head_action_at = timezone.now()
+            resolution.head_notes = reason
+            
+        resolution.save()
+        return Response({'success': True, 'message': 'Resolution rejected'})

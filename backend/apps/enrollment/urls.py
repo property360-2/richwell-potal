@@ -3,13 +3,18 @@ Enrollment URL configuration.
 Includes public admissions endpoints and authenticated enrollment endpoints.
 """
 
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from . import views
 from . import export_views
 
 app_name = 'enrollment'
 
+router = DefaultRouter()
+router.register(r'grade-resolutions', views.GradeResolutionViewSet, basename='grade-resolution')
+
 urlpatterns = [
+    path('', include(router.urls)),
     # Public - Admissions
     path('system/enrollment-status/', views.EnrollmentStatusView.as_view(), name='enrollment-status'),
     path('check-email/', views.CheckEmailAvailabilityView.as_view(), name='check-email'),

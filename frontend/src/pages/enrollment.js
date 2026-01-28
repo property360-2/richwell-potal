@@ -248,8 +248,18 @@ function renderStep2() {
           <label class="flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all hover:border-blue-300 ${state.formData.program_id === program.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}">
             <input type="radio" name="program" value="${program.id}" ${state.formData.program_id === program.id ? 'checked' : ''} class="w-5 h-5 text-blue-600">
             <div class="ml-4 flex-1">
-              <div class="font-semibold text-gray-800">${program.name}</div>
-              <div class="text-sm text-gray-500">${program.code}</div>
+              <div class="flex justify-between items-start">
+                <div>
+                  <div class="font-semibold text-gray-800">${program.name}</div>
+                  <div class="text-sm text-gray-500">${program.code}</div>
+                </div>
+                ${program.curriculum_name ? `
+                  <div class="text-right">
+                    <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase tracking-wide">Curriculum</span>
+                    <div class="text-[11px] font-medium text-blue-600 mt-0.5">${program.curriculum_name}</div>
+                  </div>
+                ` : ''}
+              </div>
             </div>
           </label>
         `).join('')}
@@ -395,8 +405,18 @@ function renderStep5() {
         <!-- Program -->
         <div class="bg-gray-50 rounded-xl p-4">
           <h3 class="font-semibold text-gray-700 mb-3">Selected Program</h3>
-          <p class="font-medium text-blue-600">${selectedProgram?.name || 'Not selected'}</p>
-          <p class="text-sm text-gray-500">${selectedProgram?.code || ''}</p>
+          <div class="flex justify-between items-end">
+            <div>
+              <p class="font-medium text-blue-600">${selectedProgram?.name || 'Not selected'}</p>
+              <p class="text-sm text-gray-500">${selectedProgram?.code || ''}</p>
+            </div>
+            ${selectedProgram?.curriculum_name ? `
+              <div class="text-right">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Assigned Curriculum</p>
+                <p class="text-sm font-semibold text-gray-700">${selectedProgram.curriculum_name}</p>
+              </div>
+            ` : ''}
+          </div>
         </div>
         
         <!-- Documents -->
@@ -793,61 +813,31 @@ window.submitEnrollment = async function () {
   `;
 
   try {
-    const response = await fetch('/api/v1/admissions/enroll/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state.formData)
-    });
+    const responseData = await api.post('/admissions/enroll/', state.formData);
 
-    if (response.ok) {
-      const data = await response.json();
-      Toast.success('Enrollment submitted successfully!');
+    Toast.success('Enrollment submitted successfully!');
 
-      // Save tokens for auto-login
-      if (data.tokens) {
-        TokenManager.setTokens(data.tokens.access, data.tokens.refresh);
-      }
-
-      // Redirect to success page with credentials from server
-      setTimeout(() => {
-        const creds = data.credentials || {};
-        const params = new URLSearchParams({
-          student_number: creds.student_number || data.data?.student?.student_number || '2025-00001',
-          login_email: creds.login_email || state.formData.email,  // Personal email for login
-          school_email: creds.school_email || '',
-          password: creds.password || creds.student_number || '2025-00001',
-          first_name: state.formData.first_name,
-          last_name: state.formData.last_name,
-          status: 'PENDING'
-        });
-        window.location.href = `/enrollment-success.html?${params.toString()}`;
-      }, 1500);
-    } else {
-      const error = await response.json();
-      ErrorHandler.handle(error, 'Submitting enrollment');
-      // Extract specific error messages
-      let errorMessage = 'Enrollment failed. Please try again.';
-      if (error.errors) {
-        const errorMessages = Object.entries(error.errors)
-          .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
-          .join('; ');
-        errorMessage = errorMessages || errorMessage;
-      } else if (error.detail) {
-        errorMessage = error.detail;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      Toast.error(errorMessage);
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = `
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-        </svg>
-        Submit Enrollment
-      `;
+    // Save tokens for auto-login
+    if (responseData.tokens) {
+      TokenManager.setTokens(responseData.tokens.access, responseData.tokens.refresh);
     }
+
+    // Redirect to success page with credentials from server
+    setTimeout(() => {
+      const creds = responseData.credentials || {};
+      const params = new URLSearchParams({
+        student_number: creds.student_number || responseData.data?.student?.student_number || '2025-00001',
+        login_email: creds.login_email || state.formData.email,  // Personal email for login
+        school_email: creds.school_email || '',
+        password: creds.password || creds.student_number || '2025-00001',
+        first_name: state.formData.first_name,
+        last_name: state.formData.last_name,
+        status: 'PENDING'
+      });
+      window.location.href = `/enrollment-success.html?${params.toString()}`;
+    }, 1500);
   } catch (error) {
-    Toast.error('Network error. Please check your connection.');
+    ErrorHandler.handle(error, 'Submitting enrollment');
     submitBtn.disabled = false;
     submitBtn.innerHTML = `
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

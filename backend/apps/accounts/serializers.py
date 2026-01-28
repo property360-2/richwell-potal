@@ -24,14 +24,15 @@ class LoginSerializer(TokenObtainPairSerializer):
     
     def validate(self, attrs):
         data = super().validate(attrs)
+        from apps.enrollment.models import Enrollment
+        
+        # Get latest enrollment once for both checks
+        latest_enrollment = Enrollment.objects.filter(
+            student=self.user
+        ).order_by('-created_at').first()
         
         # Check if student account has been rejected
         if self.user.role == 'STUDENT':
-            from apps.enrollment.models import Enrollment
-            latest_enrollment = Enrollment.objects.filter(
-                student=self.user
-            ).order_by('-created_at').first()
-            
             if latest_enrollment and latest_enrollment.status == 'REJECTED':
                 raise serializers.ValidationError({
                     'detail': 'Your application has been rejected. Please contact the Admissions Office for more information.'
@@ -45,6 +46,7 @@ class LoginSerializer(TokenObtainPairSerializer):
             'last_name': self.user.last_name,
             'role': self.user.role,
             'student_number': self.user.student_number,
+            'enrollment_status': latest_enrollment.status if latest_enrollment else None,
         }
         
         return data

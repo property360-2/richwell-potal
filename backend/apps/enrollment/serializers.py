@@ -9,7 +9,7 @@ from apps.accounts.models import User, StudentProfile
 from apps.academics.models import Program, Subject
 from apps.academics.serializers import SectionSerializer, SubjectSerializer
 
-from .models import Enrollment, MonthlyPaymentBucket, EnrollmentDocument, Semester
+from .models import Enrollment, MonthlyPaymentBucket, EnrollmentDocument, Semester, GradeResolution
 
 
 class MonthlyPaymentBucketSerializer(serializers.ModelSerializer):
@@ -1026,3 +1026,25 @@ class SemesterCreateSerializer(serializers.ModelSerializer):
             )
 
         return data
+
+# ============================================================
+# Grade Resolution Serializers (EPIC 5)
+# ============================================================
+
+class GradeResolutionSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='subject_enrollment.enrollment.student.get_full_name', read_only=True)
+    student_number = serializers.CharField(source='subject_enrollment.enrollment.student.student_number', read_only=True)
+    subject_code = serializers.CharField(source='subject_enrollment.subject.code', read_only=True)
+    subject_title = serializers.CharField(source='subject_enrollment.subject.title', read_only=True)
+    original_grade = serializers.DecimalField(source='current_grade', max_digits=3, decimal_places=2, read_only=True)
+    requested_grade = serializers.DecimalField(source='proposed_grade', max_digits=3, decimal_places=2)
+    requested_by_name = serializers.CharField(source='requested_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = GradeResolution
+        fields = [
+            'id', 'student_name', 'student_number', 'subject_code', 'subject_title',
+            'original_grade', 'requested_grade', 'reason', 'status',
+            'requested_by_name', 'created_at', 'registrar_notes', 'head_notes'
+        ]
+        read_only_fields = ['id', 'status', 'created_at']

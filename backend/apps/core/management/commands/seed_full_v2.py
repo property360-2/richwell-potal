@@ -367,9 +367,8 @@ class Command(BaseCommand):
                 'is_superuser': True
             }
         )
-        if not self.admin.has_usable_password():
-            self.admin.set_password('password123')
-            self.admin.save()
+        self.admin.set_password('password123')
+        self.admin.save()
         
         # Head Registrar
         self.head_registrar, _ = User.objects.get_or_create(
@@ -382,9 +381,8 @@ class Command(BaseCommand):
                 'is_staff': True
             }
         )
-        if not self.head_registrar.has_usable_password():
-            self.head_registrar.set_password('password123')
-            self.head_registrar.save()
+        self.head_registrar.set_password('password123')
+        self.head_registrar.save()
         
         # Registrar
         self.registrar, _ = User.objects.get_or_create(
@@ -397,9 +395,8 @@ class Command(BaseCommand):
                 'is_staff': True
             }
         )
-        if not self.registrar.has_usable_password():
-            self.registrar.set_password('password123')
-            self.registrar.save()
+        self.registrar.set_password('password123')
+        self.registrar.save()
         
         # Department Head
         self.dept_head, _ = User.objects.get_or_create(
@@ -412,9 +409,8 @@ class Command(BaseCommand):
                 'is_staff': True
             }
         )
-        if not self.dept_head.has_usable_password():
-            self.dept_head.set_password('password123')
-            self.dept_head.save()
+        self.dept_head.set_password('password123')
+        self.dept_head.save()
         
         # Cashier
         self.cashier, _ = User.objects.get_or_create(
@@ -427,9 +423,8 @@ class Command(BaseCommand):
                 'is_staff': True
             }
         )
-        if not self.cashier.has_usable_password():
-            self.cashier.set_password('password123')
-            self.cashier.save()
+        self.cashier.set_password('password123')
+        self.cashier.save()
         
         # Admission Staff
         self.admission, _ = User.objects.get_or_create(
@@ -442,9 +437,8 @@ class Command(BaseCommand):
                 'is_staff': True
             }
         )
-        if not self.admission.has_usable_password():
-            self.admission.set_password('password123')
-            self.admission.save()
+        self.admission.set_password('password123')
+        self.admission.save()
         
         self.stdout.write('   - Created staff users')
 
@@ -553,9 +547,8 @@ class Command(BaseCommand):
                     'role': User.Role.PROFESSOR
                 }
             )
-            if created or not user.has_usable_password():
-                user.set_password('password123')
-                user.save()
+            user.set_password('password123')
+            user.save()
             
             profile, _ = ProfessorProfile.objects.get_or_create(
                 user=user,
@@ -948,9 +941,8 @@ class Command(BaseCommand):
                     'student_number': data['student_number']
                 }
             )
-            if created or not user.has_usable_password():
-                user.set_password('password123')
-                user.save()
+            user.set_password('password123')
+            user.save()
             
             section = self.sections.get(data['section'])
             

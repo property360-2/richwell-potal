@@ -4444,12 +4444,12 @@ function renderSemestersTab() {
       ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Current</span>'
       : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">Inactive</span>'}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button onclick="openEditSemesterModal('${semester.id}')" class="text-blue-600 hover:text-blue-900">Edit</button>
-                  ${!semester.is_current ? `
-                    <button onclick="setCurrentSemester('${semester.id}')" class="text-green-600 hover:text-green-900">Set Current</button>
-                    <button onclick="deleteSemester('${semester.id}')" class="text-red-600 hover:text-red-900">Delete</button>
-                  ` : ''}
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  ${semester.is_current ? `
+                    <button onclick="openEditSemesterModal('${semester.id}')" class="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
+                  ` : `
+                    <button onclick="viewSemester('${semester.id}')" class="text-blue-600 hover:text-blue-900">View</button>
+                  `}
                 </td>
               </tr>
             `).join('')}
@@ -4463,7 +4463,80 @@ function renderSemestersTab() {
   `;
 }
 
+const autoGenerateAcademicYear = () => {
+  const start = document.getElementById('add-sem-start').value;
+  const end = document.getElementById('add-sem-end').value;
+  const semName = document.getElementById('add-sem-name').value;
+  const yearInput = document.getElementById('add-sem-year');
+
+  if (!start || !end) return;
+
+  const startYear = parseInt(start.split('-')[0]);
+  const endYear = parseInt(end.split('-')[0]);
+
+  // Logic: If years are same (e.g. Aug-Dec), assume AY is Start-(Start+1).
+  // If years differ (e.g. Jan-May), assume AY is (End-1)-End.
+  // Actually, user said "year start date and end date format".
+  // Let's deduce standard Academic Year (e.g. 2025-2026).
+  // 1st Sem (Aug-Dec 2025) -> AY 2025-2026
+  // 2nd Sem (Jan-May 2026) -> AY 2025-2026
+  // Summer (Jun-Jul 2026) -> AY 2025-2026 (usually)
+
+  let ayStart, ayEnd;
+
+  // Heuristic based on Semester Name
+  if (semName === '1st Semester') {
+    ayStart = startYear;
+    ayEnd = startYear + 1;
+  } else if (semName === '2nd Semester') {
+    // Usually starts in Jan of the second year
+    ayStart = endYear - 1;
+    ayEnd = endYear;
+  } else {
+    // Summer, usually end of cycle
+    ayStart = endYear - 1;
+    ayEnd = endYear;
+  }
+
+  // Fallback if dates are weird (e.g. 1st sem set to Jan) -> just trust year span
+  if (startYear !== endYear) {
+    // If dates cross years (rare for single sem unless very long), maybe Start-End
+  }
+
+  // Simplest approach that usually works:
+  // If sem is 1st -> StartYear - (StartYear+1)
+  // If sem is 2nd -> (StartYear-1) - StartYear ... wait, if start is 2026, AY is 2025-2026.
+
+  // Let's refine based on user request "year start date and end date format".
+  // Maybe they legally mean "2025-2026" where 2025 is start date year, 2026 is end date year?
+  // User quote: "the format is the year start date and end date format"
+  // Interpretation A: Start=2025, End=2025 -> "2025-2025"? (Unlikely for AY)
+  // Interpretation B: Start=2025, End=2026 -> "2025-2026"
+
+  // Let's stick to standard AY calculation which is most useful.
+  // Logic: 
+  // If month > 6 (July+), it's the start of an AY.
+  // If month < 6 (June-), it's the end of an AY.
+
+  const startMonth = parseInt(start.split('-')[1]);
+
+  if (startMonth >= 7) {
+    // Jul-Dec -> Start of AY
+    ayStart = startYear;
+    ayEnd = startYear + 1;
+  } else {
+    // Jan-Jun -> End of AY
+    ayStart = startYear - 1;
+    ayEnd = startYear;
+  }
+
+  yearInput.value = `${ayStart}-${ayEnd}`;
+};
+
+window.autoGenerateAcademicYear = autoGenerateAcademicYear;
+
 function renderSemesterAddModal() {
+  // Determine if we should attach listeners (simplest viz. onchange in HTML)
   return `
     <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeSemesterAddModal()">
       <div class="bg-white rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl" onclick="event.stopPropagation()">
@@ -4471,7 +4544,7 @@ function renderSemesterAddModal() {
         <form id="add-semester-form" class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Semester Name *</label>
-            <select id="add-sem-name" required class="form-select">
+            <select id="add-sem-name" required class="form-select" onchange="autoGenerateAcademicYear()">
               <option value="1st Semester">1st Semester</option>
               <option value="2nd Semester">2nd Semester</option>
               <option value="Summer">Summer</option>
@@ -4480,18 +4553,18 @@ function renderSemesterAddModal() {
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Academic Year *</label>
-            <input type="text" id="add-sem-year" required class="form-input" placeholder="2024-2025" pattern="\\d{4}-\\d{4}">
-              <p class="text-xs text-gray-500 mt-1">Format: YYYY-YYYY (e.g., 2024-2025)</p>
+            <input type="text" id="add-sem-year" required class="form-input bg-gray-50" placeholder="2024-2025" pattern="\\d{4}-\\d{4}" readonly>
+              <p class="text-xs text-gray-500 mt-1">Auto-generated based on Start Date</p>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
-              <input type="date" id="add-sem-start" required class="form-input">
+              <input type="date" id="add-sem-start" required class="form-input" onchange="autoGenerateAcademicYear()">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">End Date *</label>
-              <input type="date" id="add-sem-end" required class="form-input">
+              <input type="date" id="add-sem-end" required class="form-input" onchange="autoGenerateAcademicYear()">
             </div>
           </div>
 
@@ -4687,24 +4760,132 @@ window.submitEditSemester = async function () {
   }
 };
 
-window.setCurrentSemester = async function (semesterId) {
+window.activateTerm = async function (semesterId) {
+  const semester = state.semesters.find(s => s.id === semesterId);
+  if (!semester) return;
+
   const confirmed = await ConfirmModal({
-    title: 'Set as Current Semester',
-    message: 'Are you sure you want to set this semester as the current semester?',
-    confirmLabel: 'Set as Current',
+    title: `Activate Term: ${semester.name}?`,
+    message: `<div class="text-left">
+                <p class="mb-2">Are you sure you want to activate <strong>${semester.name} ${semester.academic_year}</strong>?</p>
+                <div class="bg-yellow-50 p-3 rounded text-sm text-yellow-800 border border-yellow-200">
+                    <p class="font-bold">⚠️ Warning:</p>
+                    <ul class="list-disc pl-4 mt-1 space-y-1">
+                        <li>The current active term will be deactivated.</li>
+                        <li>Enrollment will open for this new term.</li>
+                        <li><strong>Strict Rule:</strong> The previous term must be fully closed (Grading Closed or Archived) before this action.</li>
+                    </ul>
+                </div>
+              </div>`,
+    confirmLabel: 'Activate Term',
+    confirmClass: 'bg-green-600 hover:bg-green-700',
     danger: false
   });
 
   if (!confirmed) return;
 
   try {
-    await api.post(endpoints.setCurrentSemester(semesterId), {});
-    Toast.success('Semester set as current successfully');
+    const response = await api.post(endpoints.activateTerm(semesterId), {});
+    Toast.success(response.message || 'Semester activated successfully');
     await loadSemesters();
     render();
   } catch (error) {
-    ErrorHandler.handle(error, 'Setting current semester');
+    console.error('Activation Error:', error);
+    // ErrorHandler will typically handle this, but let's be explicit for this critical action
+    // If the backend sends 400 with 'detail', Api.js throws an Error object with .data property
+    if (error.data && error.data.detail) {
+      // Show a persistent or long-duration toast/modal for this specific rule violation
+      await ConfirmModal({
+        title: 'Activation Failed',
+        message: `<div class="text-red-600">${error.data.detail}</div>`,
+        confirmLabel: 'Understood',
+        confirmClass: 'bg-red-600 text-white',
+        showCancel: false
+      });
+    } else {
+      ErrorHandler.handle(error, 'Activating semester');
+    }
   }
+};
+
+window.viewSemester = function (semesterId) {
+  const semester = state.semesters.find(s => s.id === semesterId);
+  if (!semester) return;
+
+  // WORK IN PROGRESS VIEW FOR INACTIVE
+  const app = document.getElementById('app');
+
+  // Simple override of the main content
+  app.innerHTML = `
+      ${createHeader({
+    role: 'REGISTRAR',
+    activePage: 'registrar-academic',
+    user: state.user
+  })}
+      
+      <main class="max-w-7xl mx-auto px-4 py-8">
+        <button onclick="location.reload()" class="mb-6 flex items-center text-gray-500 hover:text-gray-800 transition-colors">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to Semesters
+        </button>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+            <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                </svg>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">${semester.name} ${semester.academic_year}</h1>
+            <p class="text-xl text-gray-500 font-medium">Work in Progress</p>
+            <p class="text-gray-400 mt-2 max-w-md mx-auto">This historical view is currently under development. Please check back later.</p>
+            
+            <div class="mt-8 pt-8 border-t border-gray-100">
+                 <button onclick="activateTerm('${semester.id}')" class="text-green-600 hover:text-green-800 text-sm font-medium">
+                    (Developer Bypass: Activate This Term)
+                 </button>
+            </div>
+        </div>
+      </main>
+    `;
+};
+
+window.viewSemester = function (semesterId) {
+  const semester = state.semesters.find(s => s.id === semesterId);
+  if (!semester) return;
+
+  // WORK IN PROGRESS VIEW FOR INACTIVE
+  const app = document.getElementById('app');
+
+  // Simple override of the main content
+  app.innerHTML = `
+      ${createHeader({
+    role: 'REGISTRAR',
+    activePage: 'registrar-academic',
+    user: state.user
+  })}
+      
+      <main class="max-w-7xl mx-auto px-4 py-8">
+        <button onclick="location.reload()" class="mb-6 flex items-center text-gray-500 hover:text-gray-800 transition-colors">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to Semesters
+        </button>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+            <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                </svg>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">${semester.name} ${semester.academic_year}</h1>
+            <p class="text-xl text-gray-500 font-medium">Work in Progress</p>
+            <p class="text-gray-400 mt-2 max-w-md mx-auto">This historical view is currently under development. Please check back later.</p>
+            
+            <div class="mt-8 pt-8 border-t border-gray-100 hidden">
+                 <!-- Hidden developer options -->
+            </div>
+        </div>
+      </main>
+    `;
 };
 
 window.deleteSemester = async function (semesterId) {

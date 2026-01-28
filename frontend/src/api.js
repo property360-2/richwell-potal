@@ -290,7 +290,7 @@ export const endpoints = {
     semesters: '/academics/semesters/',
     semesterDetail: (id) => `/academics/semesters/${id}/`,
     activeSemester: '/academics/semesters/active/',
-    setCurrentSemester: (id) => `/academics/semesters/${id}/set_current/`,
+    activateTerm: (id) => `/academics/semesters/${id}/activate/`,
 
     // Epic 2: Professors
     professors: '/academics/professors/',
