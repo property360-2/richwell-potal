@@ -99,11 +99,18 @@ urlpatterns = [
     # Grades & GPA (EPIC 5)
     # ============================================================
     
-    # Professor grading
+    # Professor grading (NEW comprehensive endpoints)
+    path('grading/sections/', views.ProfessorAssignedSectionsView.as_view(), name='professor-grading-sections'),
+    path('grading/students/', views.ProfessorGradeableStudentsView.as_view(), name='professor-gradeable-students'),
+    path('grading/submit/', views.ProfessorSubmitGradeView.as_view(), name='professor-submit-grade'),
+    path('grading/bulk/', views.BulkGradeSubmissionView.as_view(), name='professor-bulk-grade'),
+    path('grading/history/<uuid:pk>/', views.GradeHistoryView.as_view(), name='grade-history'),
+    
+    # Legacy professor grading endpoints (for backward compatibility)
     path('grades/my-sections/', views.ProfessorSectionsView.as_view(), name='professor-sections'),
     path('grades/section/<uuid:section_id>/subject/<uuid:subject_id>/students/', views.SectionStudentsView.as_view(), name='section-students'),
     path('grades/submit/', views.SubmitGradeView.as_view(), name='submit-grade'),
-    path('grades/history/<uuid:subject_enrollment_id>/', views.GradeHistoryView.as_view(), name='grade-history'),
+    path('grades/history/<uuid:subject_enrollment_id>/', views.GradeHistoryViewLegacy.as_view(), name='grade-history-legacy'),
     
     # Registrar finalization
     path('grades/sections/', views.SectionFinalizationListView.as_view(), name='sections-for-finalization'),

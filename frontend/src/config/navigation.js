@@ -7,6 +7,7 @@ export const NAV_CONFIG = {
     { label: 'Subjects', href: '/subject-enrollment.html', page: 'subject-enrollment' },
     { label: 'My Schedule', href: '/student-schedule.html', page: 'student-schedule' },
     { label: 'Grades & Curriculum', href: '/grades.html', page: 'grades' },
+    { label: 'Exam Permits', href: '/student-exam-permits.html', page: 'exam-permits' },
     { label: 'SOA', href: '/soa.html', page: 'soa' }
   ],
 
@@ -14,14 +15,18 @@ export const NAV_CONFIG = {
     { label: 'Dashboard', href: '/registrar-dashboard.html', page: 'registrar-dashboard' },
     { label: 'Students', href: '/registrar-students.html', page: 'registrar-students' },
     { label: 'Resolutions', href: '/registrar-resolutions.html', page: 'registrar-resolutions' },
-    { label: 'Documents', href: '/registrar-documents.html', page: 'registrar-documents' },
+    { label: 'Academic Sections', href: '/registrar-sections.html', page: 'registrar-sections' },
+    { label: 'Grade Finalization', href: '/registrar-grade-finalization.html', page: 'grade-finalization' },
+    { label: 'Document Release', href: '/registrar-documents.html', page: 'registrar-documents' },
+    { label: 'INC Management', href: '/registrar-inc.html', page: 'registrar-inc' },
     { label: 'Academic', href: '/registrar-academic.html', page: 'registrar-academic' },
     { label: 'Override', href: '/registrar-enrollment.html', page: 'registrar-enrollment' },
     { label: 'Data Archives', href: '/registrar-archives.html', page: 'registrar-archives' }
   ],
 
   professor: [
-    { label: 'My Schedule', href: '/professor-schedule.html', page: 'professor-schedule' }
+    { label: 'My Schedule', href: '/professor-schedule.html', page: 'professor-schedule' },
+    { label: 'Grades', href: '/professor-grades.html', page: 'grades' }
   ],
 
   head: [

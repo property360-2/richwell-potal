@@ -13,6 +13,14 @@ from apps.core.permissions import IsDepartmentHead, IsRegistrar, IsAdmin
 from apps.enrollment.models import Enrollment, SubjectEnrollment, Semester, GradeResolution
 from .serializers import GradeResolutionSerializer
 
+# Import grading views from separate module
+from .views_grading import (
+    ProfessorGradeableStudentsView,
+    ProfessorAssignedSectionsView,
+    ProfessorSubmitGradeView,
+    BulkGradeSubmissionView,
+    GradeHistoryView
+)
 
 # Semester ViewSet for academics app
 class SemesterViewSet(ModelViewSet):
@@ -1390,12 +1398,15 @@ CashierPendingPaymentsView = SimpleGETView
 CashierTodayTransactionsView = SimpleGETView
 MyPaymentsView = SimpleGETView
 
-ExamMonthMappingView = SimpleGETView
-ExamMonthMappingDetailView = SimpleGETView
-MyExamPermitsView = SimpleGETView
-GenerateExamPermitView = SimplePOSTView
-PrintExamPermitView = SimpleGETView
-ExamPermitListView = SimpleGETView
+# Import exam views
+from .views_exam import (
+    ExamMonthMappingView,
+    ExamMonthMappingDetailView,
+    MyExamPermitsView,
+    GenerateExamPermitView,
+    PrintExamPermitView,
+    ExamPermitListView
+)
 
 ProfessorSectionsView = SimpleGETView
 SectionStudentsView = SimpleGETView
@@ -1476,32 +1487,44 @@ class SubmitGradeView(APIView):
         )
         
         return Response({"success": True, "message": "Grade submitted"})
-GradeHistoryView = SimpleGETView
-SectionFinalizationListView = SimpleGETView
-FinalizeSectionGradesView = SimplePOSTView
-OverrideGradeView = SimplePOSTView
+# Import finalization views
+from .views_finalization import (
+    SectionFinalizationListView,
+    FinalizeSectionGradesView,
+    OverrideGradeView
+)
 
-INCReportView = SimpleGETView
-ProcessExpiredINCsView = SimplePOSTView
-MyGradesView = SimpleGETView
-MyTranscriptView = SimpleGETView
+# Import real implementations from views_student_grades
+from .views_student_grades import (
+    MyGradesView,
+    MyTranscriptView,
+    INCReportView,
+    ProcessExpiredINCsView
+)
 UpdateAcademicStandingView = SimplePOSTView
 
-CreateDocumentReleaseView = SimplePOSTView
-MyReleasesView = SimpleGETView
-StudentEnrollmentStatusView = SimpleGETView
-StudentDocumentsView = SimpleGETView
-DocumentDetailView = SimpleGETView
-DownloadDocumentPDFView = SimpleGETView
-RevokeDocumentView = SimplePOSTView
-ReissueDocumentView = SimplePOSTView
-AllReleasesView = SimpleGETView
-DocumentReleaseStatsView = SimpleGETView
+# Import document release views
+from .views_documents import (
+    CreateDocumentReleaseView,
+    MyReleasesView,
+    StudentDocumentsView,
+    DocumentDetailView,
+    DownloadDocumentPDFView,
+    RevokeDocumentView,
+    ReissueDocumentView,
+    AllReleasesView,
+    DocumentReleaseStatsView
+)
 
-HeadPendingEnrollmentsView = SimpleGETView
-HeadApproveEnrollmentView = SimplePOSTView
-HeadRejectEnrollmentView = SimplePOSTView
-HeadBulkApproveView = SimplePOSTView
+StudentEnrollmentStatusView = SimpleGETView # TODO: Implement this
+
+# Import head approval views
+from .views_head import (
+    HeadPendingEnrollmentsView,
+    HeadApproveEnrollmentView,
+    HeadRejectEnrollmentView,
+    HeadBulkApproveView
+)
 
 GenerateCORView = SimplePOSTView
 

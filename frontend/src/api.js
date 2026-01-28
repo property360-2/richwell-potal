@@ -314,6 +314,12 @@ export const endpoints = {
     // My Enrollment (enrollment URLs are under /admissions/)
     myEnrollment: '/admissions/my-enrollment/',
     myPayments: '/admissions/my-enrollment/payments/',
+    myGrades: '/admissions/my-enrollment/grades/',
+    myTranscript: '/admissions/my-enrollment/transcript/',
+
+    // INC Management (Registrar)
+    incReport: '/admissions/grades/inc-report/',
+    processExpiredIncs: '/admissions/grades/process-expired-incs/',
 
     // Cashier endpoints (enrollment app is registered under /admissions/ prefix)
     cashierStudentSearch: '/admissions/cashier/students/search/',
@@ -389,6 +395,19 @@ export const endpoints = {
     gradeResolutionApprove: (id) => `/admissions/grade-resolutions/${id}/approve/`,
     gradeResolutionReject: (id) => `/admissions/grade-resolutions/${id}/reject/`,
     pendingResolutions: '/admissions/grade-resolutions/pending/',
+
+    // Professor Grading (EPIC 5)
+    grading: {
+        sections: '/admissions/grading/sections/',
+        students: '/admissions/grading/students/',
+        submit: '/admissions/grading/submit/',
+        bulk: '/admissions/grading/bulk/',
+        history: (id) => `/admissions/grading/history/${id}/`,
+    },
+
+    // Registrar Grade Finalization
+    sectionsForFinalization: '/admissions/grades/sections/',
+    finalizeSection: (id) => `/admissions/grades/section/${id}/finalize/`,
 
     // Legacy endpoints (for backwards compatibility)
     me: '/accounts/me/',

@@ -135,6 +135,21 @@ class IsAdminOrRegistrar(BasePermission):
 IsRegistrarOrAdmin = IsAdminOrRegistrar
 
 
+class IsProfessorOrRegistrar(BasePermission):
+    """
+    Permission class for professor or registrar access.
+    Used for grading endpoints where both roles can submit grades.
+    """
+    message = 'Only professors or registrar staff can access this resource.'
+    
+    def has_permission(self, request, view):
+        return (
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.role in ['PROFESSOR', 'REGISTRAR', 'HEAD_REGISTRAR']
+        )
+
+
 class IsStaff(BasePermission):
     """
     Permission class for any staff member (non-student).

@@ -1,3 +1,8 @@
+/**
+ * Registrar Sections Page
+ * 
+ * Refactored to use modular components from the atomic architecture.
+ */
 import '../style.css';
 import { api, endpoints, TokenManager } from '../api.js';
 import { requireAuth, formatDate } from '../utils.js';
@@ -8,46 +13,25 @@ import { LoadingOverlay } from '../components/Spinner.js';
 import { Modal, ConfirmModal } from '../components/Modal.js';
 import { createTabs, updateHash } from '../components/tabs.js';
 
+// Import modular components
+import { renderScheduleGrid, DAYS, TIME_SLOTS, formatTime } from '../organisms/tables/ScheduleGrid.js';
+import { renderPageHeader } from '../organisms/layout/PageHeader.js';
+import { renderEmptyState, EmptyStatePresets } from '../organisms/layout/EmptyState.js';
+import { renderFilterPanel } from '../organisms/filters/FilterPanel.js';
+import { renderBadge, renderStatusBadge } from '../atoms/badges/Badge.js';
+import { Icon } from '../atoms/icons/Icon.js';
+
 // Tab constants
 const TABS = {
   SECTIONS: 'sections',
   SCHEDULE: 'schedule'
 };
 
-// Days for schedule grid (Monday-Sunday)
-const DAYS = [
-  { code: 'MON', name: 'Monday', short: 'Mon' },
-  { code: 'TUE', name: 'Tuesday', short: 'Tue' },
-  { code: 'WED', name: 'Wednesday', short: 'Wed' },
-  { code: 'THU', name: 'Thursday', short: 'Thu' },
-  { code: 'FRI', name: 'Friday', short: 'Fri' },
-  { code: 'SAT', name: 'Saturday', short: 'Sat' },
-  { code: 'SUN', name: 'Sunday', short: 'Sun' }
-];
-
-// Time slots (1-hour blocks from 7am to 9pm)
-const TIME_SLOTS = [];
-for (let hour = 7; hour <= 21; hour++) {
-  TIME_SLOTS.push(`${hour.toString().padStart(2, '0')}:00`);
-}
-
-// Room options
+// Room options (can be fetched from API later)
 const ROOMS = [
   'Room 101', 'Room 102', 'Room 103', 'Room 104', 'Room 105',
   'Room 201', 'Room 202', 'Room 203', 'Room 204', 'Room 205',
   'Lab 1', 'Lab 2', 'Lab 3', 'Lab 4', 'Lab 5'
-];
-
-// Subject colors for schedule grid
-const COLORS = [
-  'bg-blue-100 border-blue-400 text-blue-800',
-  'bg-green-100 border-green-400 text-green-800',
-  'bg-purple-100 border-purple-400 text-purple-800',
-  'bg-orange-100 border-orange-400 text-orange-800',
-  'bg-pink-100 border-pink-400 text-pink-800',
-  'bg-teal-100 border-teal-400 text-teal-800',
-  'bg-indigo-100 border-indigo-400 text-indigo-800',
-  'bg-red-100 border-red-400 text-red-800'
 ];
 
 // State
@@ -74,11 +58,9 @@ const state = {
   subjectAssignModal: null
 };
 
-function getSubjectColor(subjectCode) {
-  const codes = [...new Set(state.sectionSchedule.map(s => s.subject_code))];
-  const index = codes.indexOf(subjectCode);
-  return COLORS[index % COLORS.length];
-}
+// ============================================================
+// INITIALIZATION
+// ============================================================
 
 async function init() {
   if (!requireAuth()) return;
@@ -103,6 +85,10 @@ async function init() {
     }
   });
 }
+
+// ============================================================
+// DATA LOADING
+// ============================================================
 
 async function loadUserProfile() {
   try {
@@ -146,10 +132,7 @@ async function loadInitialData() {
     state.semesters = [];
   }
 
-  // Load sections
   await loadSections();
-
-  // Load professors
   await loadProfessors();
 }
 
@@ -186,7 +169,7 @@ async function loadSectionDetails(sectionId) {
     const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
     state.sectionSubjects = subjectsResponse?.results || subjectsResponse || [];
 
-    // Build schedule from section subjects
+    // Build schedule from section subjects - format for ScheduleGrid
     state.sectionSchedule = [];
     state.sectionSubjects.forEach(ss => {
       if (ss.schedule_slots) {
@@ -201,7 +184,9 @@ async function loadSectionDetails(sectionId) {
             start_time: slot.start_time,
             end_time: slot.end_time,
             room: slot.room,
-            professor: ss.professors?.[0] || ss.professor
+            professor_name: ss.professors?.[0]
+              ? `${ss.professors[0].first_name || ''} ${ss.professors[0].last_name || ''}`.trim()
+              : null
           });
         });
       }
@@ -211,6 +196,10 @@ async function loadSectionDetails(sectionId) {
     ErrorHandler.handle(error, 'Loading section details');
   }
 }
+
+// ============================================================
+// MAIN RENDER
+// ============================================================
 
 function render() {
   const app = document.getElementById('app');
@@ -229,10 +218,10 @@ function render() {
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Header -->
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-800">Section & Schedule Management</h1>
-        <p class="text-gray-600 mt-1">Manage sections, assign subjects, professors, and schedules</p>
-      </div>
+      ${renderPageHeader({
+    title: 'Section & Schedule Management',
+    subtitle: 'Manage sections, assign subjects, professors, and schedules'
+  })}
 
       <!-- Semester Filter -->
       <div class="mb-6 flex items-center gap-4">
@@ -280,7 +269,7 @@ function renderTabContent() {
 // ============================================================
 
 function renderSectionsTab() {
-  return `
+  const headerHtml = `
     <div class="flex items-center justify-between mb-6">
       <div>
         <h2 class="text-xl font-bold text-gray-800">Sections</h2>
@@ -289,46 +278,53 @@ function renderSectionsTab() {
         </p>
       </div>
       <button onclick="openAddSectionModal()" class="btn btn-primary flex items-center gap-2">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
+        ${Icon('plus', { size: 'md' })}
         Add Section
       </button>
     </div>
+  `;
 
-    ${state.sections.length === 0 ? `
-      <div class="card text-center py-12">
-        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-        </svg>
-        <p class="text-gray-500 text-lg">No sections found</p>
-        <p class="text-gray-400 text-sm mt-2">Click "Add Section" to create your first section</p>
-      </div>
-    ` : `
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        ${state.sections.map(section => `
-          <div class="card hover:shadow-lg transition-shadow cursor-pointer" onclick="viewSection('${section.id}')">
-            <div class="flex items-start justify-between mb-3">
-              <div>
-                <h3 class="text-lg font-bold text-blue-600">${section.name}</h3>
-                <p class="text-sm text-gray-600">${section.program_code || section.program?.code || 'N/A'}</p>
-              </div>
-              <span class="px-2 py-1 text-xs font-medium rounded ${section.year_level === 1 ? 'bg-green-100 text-green-800' :
-      section.year_level === 2 ? 'bg-blue-100 text-blue-800' :
-        section.year_level === 3 ? 'bg-purple-100 text-purple-800' :
-          'bg-orange-100 text-orange-800'
-    }">
-                Year ${section.year_level || 'N/A'}
-              </span>
+  if (state.sections.length === 0) {
+    return `
+      ${headerHtml}
+      ${renderEmptyState({
+      icon: 'folder',
+      title: 'No sections found',
+      message: 'Click "Add Section" to create your first section',
+      action: { label: 'Add Section', onClick: 'openAddSectionModal()' }
+    })}
+    `;
+  }
+
+  // Year level badge colors
+  const getYearBadgeColor = (year) => {
+    const colors = { 1: 'success', 2: 'primary', 3: 'purple', 4: 'warning' };
+    return colors[year] || 'secondary';
+  };
+
+  return `
+    ${headerHtml}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      ${state.sections.map(section => `
+        <div class="card hover:shadow-lg transition-shadow cursor-pointer" onclick="viewSection('${section.id}')">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h3 class="text-lg font-bold text-blue-600">${section.name}</h3>
+              <p class="text-sm text-gray-600">${section.program_code || section.program?.code || 'N/A'}</p>
             </div>
-            <div class="flex items-center justify-between text-sm text-gray-500">
-              <span>${section.enrolled_count || 0}/${section.capacity || 40} students</span>
-              <span>${section.subject_count || 0} subjects</span>
-            </div>
+            ${renderBadge({
+    text: `Year ${section.year_level || 'N/A'}`,
+    color: getYearBadgeColor(section.year_level),
+    size: 'sm'
+  })}
           </div>
-        `).join('')}
-      </div>
-    `}
+          <div class="flex items-center justify-between text-sm text-gray-500">
+            <span>${section.enrolled_count || 0}/${section.capacity || 40} students</span>
+            <span>${section.subject_count || 0} subjects</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
   `;
 }
 
@@ -342,9 +338,7 @@ function renderSectionDetail() {
   return `
     <!-- Back Button -->
     <button onclick="backToSections()" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-6">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-      </svg>
+      ${Icon('arrowLeft', { size: 'md' })}
       Back to Sections
     </button>
 
@@ -379,122 +373,70 @@ function renderSectionDetail() {
       <div class="lg:col-span-1">
         <div class="card">
           <h3 class="text-lg font-bold text-gray-800 mb-4">Assigned Subjects</h3>
-          ${state.sectionSubjects.length === 0 ? `
-            <p class="text-gray-500 text-center py-8">No subjects assigned yet</p>
-          ` : `
-            <div class="space-y-3">
-              ${state.sectionSubjects.map(ss => {
+          ${renderAssignedSubjects()}
+        </div>
+      </div>
+
+      <!-- Weekly Schedule Grid - Using ScheduleGrid organism! -->
+      <div class="lg:col-span-2">
+        <div class="card">
+          <h3 class="text-lg font-bold text-gray-800 mb-4">Weekly Schedule</h3>
+          ${renderScheduleGrid({
+    slots: state.sectionSchedule,
+    mode: 'view',
+    showDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
+    emptyMessage: 'No schedule slots defined yet',
+    className: ''
+  })}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAssignedSubjects() {
+  if (state.sectionSubjects.length === 0) {
+    return `<p class="text-gray-500 text-center py-8">No subjects assigned yet</p>`;
+  }
+
+  return `
+    <div class="space-y-3">
+      ${state.sectionSubjects.map(ss => {
     const subject = ss.subject || {};
     const professor = ss.professors?.[0] || ss.professor;
+    const profName = professor
+      ? `Prof. ${professor.first_name || ''} ${professor.last_name || ''}`.trim()
+      : null;
+
     return `
-                  <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <div class="flex items-start justify-between">
-                      <div>
-                        <p class="font-bold text-blue-600">${subject.code || ss.subject_code}</p>
-                        <p class="text-sm text-gray-700">${subject.title || ss.subject_name || ''}</p>
-                        ${professor ? `
-                          <p class="text-xs text-gray-500 mt-1">
-                            Prof. ${professor.first_name || ''} ${professor.last_name || ''}
-                          </p>
-                        ` : '<p class="text-xs text-orange-500 mt-1">No professor assigned</p>'}
-                      </div>
-                      <button onclick="openScheduleSlotModal('${ss.id}')"
-                              class="text-blue-600 hover:text-blue-800 text-sm">
-                        + Schedule
-                      </button>
-                    </div>
-                    ${ss.schedule_slots && ss.schedule_slots.length > 0 ? `
-                      <div class="mt-2 pt-2 border-t border-gray-200">
-                        ${ss.schedule_slots.map(slot => `
-                          <p class="text-xs text-gray-600">
-                            ${slot.day} ${slot.start_time}-${slot.end_time} | ${slot.room || 'TBA'}
-                          </p>
-                        `).join('')}
-                      </div>
-                    ` : ''}
-                  </div>
-                `;
-  }).join('')}
+          <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="font-bold text-blue-600">${subject.code || ss.subject_code}</p>
+                <p class="text-sm text-gray-700">${subject.title || ss.subject_name || ''}</p>
+                ${profName
+        ? `<p class="text-xs text-gray-500 mt-1">${profName}</p>`
+        : `<p class="text-xs text-orange-500 mt-1">No professor assigned</p>`
+      }
+              </div>
+              <button onclick="openScheduleSlotModal('${ss.id}')"
+                      class="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1">
+                ${Icon('plus', { size: 'sm' })} Schedule
+              </button>
             </div>
-          `}
-        </div>
-      </div>
-
-      <!-- Weekly Schedule Grid -->
-      <div class="lg:col-span-2">
-        <div class="card overflow-hidden">
-          <h3 class="text-lg font-bold text-gray-800 mb-4">Weekly Schedule</h3>
-          ${renderSectionScheduleGrid()}
-        </div>
-      </div>
+            ${ss.schedule_slots && ss.schedule_slots.length > 0 ? `
+              <div class="mt-2 pt-2 border-t border-gray-200">
+                ${ss.schedule_slots.map(slot => `
+                  <p class="text-xs text-gray-600">
+                    ${slot.day} ${formatTime(slot.start_time)}-${formatTime(slot.end_time)} | ${slot.room || 'TBA'}
+                  </p>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+  }).join('')}
     </div>
-  `;
-}
-
-function renderSectionScheduleGrid() {
-  if (state.sectionSchedule.length === 0) {
-    return `
-      <div class="text-center py-8 text-gray-500">
-        <p>No schedule slots defined yet</p>
-        <p class="text-sm mt-1">Assign subjects and add schedules to see them here</p>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-sm">
-        <thead>
-          <tr class="bg-gray-50">
-            <th class="border border-gray-200 px-2 py-2 text-left text-xs font-semibold text-gray-600 uppercase sticky left-0 bg-gray-50 z-10 w-16">Time</th>
-            ${DAYS.map(day => `
-              <th class="border border-gray-200 px-2 py-2 text-center text-xs font-semibold text-gray-600 uppercase min-w-[100px]">${day.short}</th>
-            `).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${TIME_SLOTS.map(timeSlot => `
-            <tr>
-              <td class="border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 sticky left-0 z-10">${formatTime(timeSlot)}</td>
-              ${DAYS.map(day => renderScheduleCell(day.code, timeSlot)).join('')}
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function renderScheduleCell(day, timeSlot) {
-  const slots = state.sectionSchedule.filter(s => {
-    if (s.day !== day) return false;
-    const slotHour = parseInt(timeSlot.split(':')[0]);
-    const startHour = parseInt(s.start_time?.split(':')[0] || '0');
-    const endHour = parseInt(s.end_time?.split(':')[0] || '0');
-    return slotHour >= startHour && slotHour < endHour;
-  });
-
-  if (slots.length === 0) {
-    return `<td class="border border-gray-200 px-1 py-1 bg-white h-8"></td>`;
-  }
-
-  const slot = slots[0];
-  const isFirstSlot = timeSlot === slot.start_time?.substring(0, 5);
-
-  if (!isFirstSlot) {
-    return `<td class="border-0"></td>`;
-  }
-
-  const duration = calculateDuration(slot.start_time, slot.end_time);
-  const color = getSubjectColor(slot.subject_code);
-
-  return `
-    <td class="border border-gray-200 px-1 py-1 align-top" rowspan="${duration}">
-      <div class="rounded border-l-4 p-1 h-full ${color} text-xs">
-        <div class="font-bold">${slot.subject_code}</div>
-        <div class="opacity-80">${slot.room || 'TBA'}</div>
-      </div>
-    </td>
   `;
 }
 
@@ -511,7 +453,7 @@ function renderScheduleTab() {
           <p class="text-sm text-gray-600 mt-1">View all section schedules</p>
         </div>
         <select id="section-filter" onchange="filterScheduleBySection(this.value)" class="form-select">
-          <option value="">All Sections</option>
+          <option value="">Select a Section</option>
           ${state.sections.map(s => `
             <option value="${s.id}">${s.name}</option>
           `).join('')}
@@ -519,33 +461,20 @@ function renderScheduleTab() {
       </div>
     </div>
 
-    <div class="card text-center py-12">
-      <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-      </svg>
-      <p class="text-gray-500 text-lg">Select a section to view its schedule</p>
-      <p class="text-gray-400 text-sm mt-2">Or click on a section card in the Sections tab</p>
-    </div>
+    ${state.sectionSchedule.length > 0
+      ? renderScheduleGrid({
+        slots: state.sectionSchedule,
+        mode: 'view',
+        showDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
+        emptyMessage: 'Select a section to view its schedule'
+      })
+      : renderEmptyState({
+        icon: 'calendar',
+        title: 'Select a section to view its schedule',
+        message: 'Or click on a section card in the Sections tab'
+      })
+    }
   `;
-}
-
-// ============================================================
-// HELPER FUNCTIONS
-// ============================================================
-
-function formatTime(time24) {
-  const [hours, minutes] = time24.split(':');
-  const hour = parseInt(hours);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const hour12 = hour % 12 || 12;
-  return `${hour12}${ampm}`;
-}
-
-function calculateDuration(startTime, endTime) {
-  if (!startTime || !endTime) return 1;
-  const start = parseInt(startTime.split(':')[0]);
-  const end = parseInt(endTime.split(':')[0]);
-  return Math.max(1, end - start);
 }
 
 // ============================================================
