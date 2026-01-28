@@ -1600,3 +1600,17 @@ class GradeResolutionViewSet(ModelViewSet):
             
         resolution.save()
         return Response({'success': True, 'message': 'Resolution rejected'})
+
+# ============================================================
+# Grading Views (EPIC 5)
+# ============================================================
+from .views_grading import (
+    ProfessorAssignedSectionsView,
+    ProfessorGradeableStudentsView,
+    ProfessorSubmitGradeView,
+    BulkGradeSubmissionView,
+    GradeHistoryView
+)
+
+# Legacy alias
+GradeHistoryViewLegacy = GradeHistoryView
