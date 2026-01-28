@@ -173,6 +173,54 @@ async function setCurrentSemester(id) {
   }
 }
 
+// NEW: Update semester term status
+async function updateSemesterStatus(id, newStatus) {
+  try {
+    state.loading = true;
+    render();
+
+    const response = await api.patch(endpoints.semesterDetail(id), { status: newStatus });
+
+    if (response && response.id) {
+      Toast.success(`Term status updated to ${formatTermStatus(newStatus)}`);
+      await loadSemesters();
+    } else {
+      throw new Error(response?.error || 'Failed to update status');
+    }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Updating term status');
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+function formatTermStatus(status) {
+  const labels = {
+    'SETUP': 'Setup',
+    'ENROLLMENT_OPEN': 'Enrollment Open',
+    'ENROLLMENT_CLOSED': 'Enrollment Closed',
+    'GRADING_OPEN': 'Grading Open',
+    'CLOSED': 'Closed'
+  };
+  return labels[status] || status;
+}
+
+function getTermStatusColor(status) {
+  const colors = {
+    'SETUP': 'bg-gray-50 text-gray-700',
+    'ENROLLMENT_OPEN': 'bg-green-50 text-green-700 border-green-300',
+    'ENROLLMENT_CLOSED': 'bg-yellow-50 text-yellow-700 border-yellow-300',
+    'GRADING_OPEN': 'bg-blue-50 text-blue-700 border-blue-300',
+    'CLOSED': 'bg-red-50 text-red-700 border-red-300'
+  };
+  return colors[status] || '';
+}
+
+function handleStatusChange(semesterId, newStatus) {
+  updateSemesterStatus(semesterId, newStatus);
+}
+
 // Helper Functions
 function filterSemesters() {
   if (state.filterYear === 'all') {
@@ -438,6 +486,7 @@ function renderSemesterTable() {
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrollment Period</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Term Phase</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
           </tr>
         </thead>
@@ -459,24 +508,34 @@ function renderSemesterTable() {
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-600">
                   ${semester.enrollment_start_date && semester.enrollment_end_date
-                    ? `${formatDate(semester.enrollment_start_date)} - ${formatDate(semester.enrollment_end_date)}`
-                    : 'Not set'}
+      ? `${formatDate(semester.enrollment_start_date)} - ${formatDate(semester.enrollment_end_date)}`
+      : 'Not set'}
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 ${semester.is_current
-                  ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Current</span>'
-                  : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Inactive</span>'}
+      ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Current</span>'
+      : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Inactive</span>'}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <select onchange="window.semestersApp.handleStatusChange('${semester.id}', this.value)" 
+                        class="text-sm border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 py-1 px-2 ${getTermStatusColor(semester.status)}">
+                  <option value="SETUP" ${semester.status === 'SETUP' ? 'selected' : ''}>Setup</option>
+                  <option value="ENROLLMENT_OPEN" ${semester.status === 'ENROLLMENT_OPEN' ? 'selected' : ''}>Enrollment Open</option>
+                  <option value="ENROLLMENT_CLOSED" ${semester.status === 'ENROLLMENT_CLOSED' ? 'selected' : ''}>Enrollment Closed</option>
+                  <option value="GRADING_OPEN" ${semester.status === 'GRADING_OPEN' ? 'selected' : ''}>Grading Open</option>
+                  <option value="CLOSED" ${semester.status === 'CLOSED' ? 'selected' : ''}>Closed</option>
+                </select>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                 <button onclick="window.semestersApp.handleOpenEditModal(${JSON.stringify(semester).replace(/"/g, '&quot;')})"
                         class="text-blue-600 hover:text-blue-900">Edit</button>
                 ${!semester.is_current
-                  ? `<button onclick="window.semestersApp.handleSetCurrent(${JSON.stringify(semester).replace(/"/g, '&quot;')})"
+      ? `<button onclick="window.semestersApp.handleSetCurrent(${JSON.stringify(semester).replace(/"/g, '&quot;')})"
                             class="text-green-600 hover:text-green-900">Set Current</button>
                      <button onclick="window.semestersApp.handleOpenDeleteConfirm(${JSON.stringify(semester).replace(/"/g, '&quot;')})"
                             class="text-red-600 hover:text-red-900">Delete</button>`
-                  : ''}
+      : ''}
               </td>
             </tr>
           `).join('')}
@@ -749,10 +808,10 @@ function render() {
 
   app.innerHTML = `
     ${createHeader({
-      role: 'REGISTRAR',
-      activePage: 'registrar-semesters',
-      user: state.user
-    })}
+    role: 'REGISTRAR',
+    activePage: 'registrar-semesters',
+    user: state.user
+  })}
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       ${renderToolbar()}
       ${renderSemesterTable()}
@@ -764,7 +823,7 @@ function render() {
 }
 
 // Logout function
-window.logout = function() {
+window.logout = function () {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');
   setTimeout(() => {
@@ -786,6 +845,7 @@ window.semestersApp = {
   handleDeleteConfirm,
   handleSetCurrent,
   handleFilterChange,
+  handleStatusChange,
   loadSemesters
 };
 

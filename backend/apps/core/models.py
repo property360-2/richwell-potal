@@ -49,11 +49,41 @@ class BaseModel(models.Model):
         self.save(update_fields=['is_deleted', 'updated_at'])
 
 
+
 class ActiveManager(models.Manager):
     """Manager that returns only non-deleted records by default."""
     
     def get_queryset(self):
         return super().get_queryset().filter(is_deleted=False)
+
+
+class ArchivableMixin(models.Model):
+    """
+    Mixin for entities that get archived after term ends.
+    Archived records are read-only and preserved for historical purposes.
+    """
+    is_archived = models.BooleanField(
+        default=False, 
+        db_index=True,
+        help_text='Whether this record has been archived'
+    )
+    archived_at = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text='When this record was archived'
+    )
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, 
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='+',
+        help_text='User who performed the archival'
+    )
+    
+    class Meta:
+        abstract = True
+
 
 
 class BaseModelWithActiveManager(BaseModel):

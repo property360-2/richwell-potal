@@ -383,6 +383,13 @@ export const endpoints = {
         delete: (id) => `/core/notifications/${id}/`,
     },
 
+    // Grade Resolution (Phase 4)
+    gradeResolutions: '/admissions/grade-resolutions/',
+    gradeResolution: (id) => `/admissions/grade-resolutions/${id}/`,
+    gradeResolutionApprove: (id) => `/admissions/grade-resolutions/${id}/approve/`,
+    gradeResolutionReject: (id) => `/admissions/grade-resolutions/${id}/reject/`,
+    pendingResolutions: '/admissions/grade-resolutions/pending/',
+
     // Legacy endpoints (for backwards compatibility)
     me: '/accounts/me/',
 };

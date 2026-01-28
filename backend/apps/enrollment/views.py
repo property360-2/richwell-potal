@@ -278,10 +278,18 @@ class OnlineEnrollmentView(APIView):
                     role='STUDENT'
                 )
                 
+                # Get latest active curriculum for the program to bind the student
+                from apps.academics.models import Curriculum
+                active_curriculum = Curriculum.objects.filter(
+                    program=program,
+                    is_active=True
+                ).order_by('-effective_year').first()
+
                 # Create student profile
                 StudentProfile.objects.create(
                     user=user,
                     program=program,
+                    curriculum=active_curriculum, # BINDING: Student is now bound to this version
                     year_level=1,
                     contact_number=data.get('contact_number', ''),
                     address=data.get('address', ''),
@@ -294,6 +302,9 @@ class OnlineEnrollmentView(APIView):
                     semester = Semester.objects.order_by('-start_date').first()
                 
                 if semester:
+                    if not semester.is_enrollment_open:
+                        return Response({"error": "Enrollment is currently closed for this semester"}, status=400)
+
                     # Create enrollment
                     Enrollment.objects.create(
                         student=user,
@@ -562,10 +573,15 @@ class RecommendedSubjectsView(APIView):
             return Response({"error": "No program assigned"}, status=400)
 
         # 3. Get Student's Assigned Curriculum
-        curriculum = Curriculum.objects.filter(
-            program=program, 
-            is_active=True
-        ).order_by('-effective_year').first()
+        # 3. Get Student's Assigned Curriculum
+        # PRIORITY: profile.curriculum > Latest Active Curriculum (Fallback)
+        curriculum = profile.curriculum
+        
+        if not curriculum:
+             curriculum = Curriculum.objects.filter(
+                program=program, 
+                is_active=True
+            ).order_by('-effective_year').first()
         
         if not curriculum:
              return Response({
@@ -635,15 +651,26 @@ class RecommendedSubjectsView(APIView):
             
             # Check if this is a retake subject (Failed, Dropped, or 5.00)
             is_retake = False
+            last_enrollment = None
+            retake_blocked_reason = None
+            
             if subject.id in passed_subject_ids: # Should be caught above, but double check
                 pass
             else:
                  # Check history for failures
-                 is_retake = SubjectEnrollment.objects.filter(
+                 last_enrollment = SubjectEnrollment.objects.filter(
                     enrollment__student=user,
                     subject=subject,
-                    status__in=['FAILED', 'DROPPED', 'RETAKE'] # 5.0 grades are usually marked as FAILED in status
-                 ).exists()
+                    status__in=['FAILED', 'DROPPED', 'RETAKE', 'INC'] 
+                 ).order_by('-created_at').first()
+                 
+                 if last_enrollment:
+                     is_retake = True
+                     # Check eligibility
+                     if not last_enrollment.is_retake_eligible:
+                         can_enroll = False
+                         date_str = last_enrollment.retake_eligibility_date.strftime('%b %d, %Y') if last_enrollment.retake_eligibility_date else 'Unknown'
+                         retake_blocked_reason = f"Retake blocked until {date_str}"
 
             valid_sections = []
             for ss in section_subjects:
@@ -698,6 +725,7 @@ class RecommendedSubjectsView(APIView):
                 'semester_number': cs.semester_number,
                 'can_enroll': can_enroll,
                 'is_retake': is_retake,  # Helpful for UI
+                'enrollment_blocked_reason': retake_blocked_reason,
                 'missing_prerequisites': missing_prereqs,
                 'available_sections': sections
             })
@@ -965,10 +993,14 @@ class StudentCurriculumView(APIView):
             return Response({"error": "No program assigned"}, status=400)
 
         # 2. Get Curriculum
-        curriculum = Curriculum.objects.filter(
-            program=program, 
-            is_active=True
-        ).order_by('-effective_year').first()
+        # PRIORITY: profile.curriculum > Latest Active Curriculum (Fallback)
+        curriculum = profile.curriculum
+        
+        if not curriculum:
+             curriculum = Curriculum.objects.filter(
+                program=program, 
+                is_active=True
+            ).order_by('-effective_year').first()
         
         if not curriculum:
              return Response({
@@ -987,7 +1019,9 @@ class StudentCurriculumView(APIView):
                 'grade': e.grade,
                 'status': e.status,
                 'semester': e.enrollment.semester.name if e.enrollment.semester else 'N/A',
-                'academic_year': e.enrollment.semester.academic_year if e.enrollment.semester else 'N/A'
+                'academic_year': e.enrollment.semester.academic_year if e.enrollment.semester else 'N/A',
+                'retake_eligibility_date': e.retake_eligibility_date,
+                'is_retake_eligible': e.is_retake_eligible
             }
 
         # 4. Build Structure
@@ -1029,6 +1063,8 @@ class StudentCurriculumView(APIView):
                 'status': grade_info['status'] if grade_info else 'NOT_TAKEN',
                 'semester_taken': grade_info['semester'] if grade_info else None,
                 'year_taken': grade_info['academic_year'] if grade_info else None,
+                'retake_eligibility_date': grade_info['retake_eligibility_date'] if grade_info else None,
+                'is_retake_eligible': grade_info['is_retake_eligible'] if grade_info else None,
             })
 
         # Calculate GPA (simple average of numeric grades for now)
@@ -1096,6 +1132,9 @@ class EnrollSubjectView(APIView):
                 semester = Semester.objects.filter(is_current=True).first()
                 if not semester:
                     return Response({"error": "No active semester"}, status=400)
+                
+                if not semester.is_enrollment_open:
+                    return Response({"error": "Enrollment is currently closed"}, status=400)
 
                 # 4. Get/Create Enrollment Header
                 enrollment, created = Enrollment.objects.get_or_create(
@@ -1136,11 +1175,17 @@ class EnrollSubjectView(APIView):
                 allowed = False
                 
                 # Check for Retake Status
-                is_retake = SubjectEnrollment.objects.filter(
+                last_enrollment = SubjectEnrollment.objects.filter(
                     enrollment__student=user,
                     subject=subject,
-                    status__in=['FAILED', 'DROPPED', 'RETAKE']
-                ).exists()
+                    status__in=['FAILED', 'DROPPED', 'RETAKE', 'INC']
+                ).order_by('-created_at').first()
+                
+                is_retake = last_enrollment is not None
+                
+                if is_retake and not last_enrollment.is_retake_eligible:
+                     date_str = last_enrollment.retake_eligibility_date.strftime('%b %d, %Y') if last_enrollment.retake_eligibility_date else 'Unknown'
+                     return Response({"error": f"You cannot retake this subject until {date_str}"}, status=403)
 
                 if is_overloaded:
                     allowed = True
@@ -1300,7 +1345,83 @@ ExamPermitListView = SimpleGETView
 
 ProfessorSectionsView = SimpleGETView
 SectionStudentsView = SimpleGETView
-SubmitGradeView = SimplePOSTView
+class SubmitGradeView(APIView):
+    """
+    Submit grades for a specific student in a subject.
+    Enforces grading window.
+    """
+    permission_classes = [IsAuthenticated] # Should be IsProfessor
+
+    def post(self, request, *args, **kwargs):
+        from apps.enrollment.models import SubjectEnrollment, GradeHistory, Semester
+        from decimal import Decimal
+        
+        # 1. Get Active Semester and check window
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            return Response({"error": "No active semester"}, status=400)
+            
+        if not semester.is_grading_open:
+            # Allow if it is a resolution request? (Phase 4)
+            # For now, strict block
+            return Response({"error": "Grading window is closed"}, status=400)
+            
+        enrollment_id = request.data.get('enrollment_id')
+        grade_value = request.data.get('grade')
+        
+        if not enrollment_id or grade_value is None:
+            return Response({"error": "Enrollment ID and Grade are required"}, status=400)
+            
+        try:
+            se = SubjectEnrollment.objects.get(id=enrollment_id)
+        except SubjectEnrollment.DoesNotExist:
+            return Response({"error": "Subject enrollment not found"}, status=404)
+            
+        # Check if professor handles this section (TODO: Authorization check)
+        
+        # Check if already finalized
+        if se.is_finalized:
+            return Response({"error": "Grade is already finalized"}, status=400)
+            
+        # Validate Grade Value
+        allowed_grades = ['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00', '5.00', 'INC', 'DRP']
+        # Convert numeric inputs to string for check
+        if str(grade_value) not in allowed_grades and str(float(grade_value)) not in allowed_grades:
+             # Allow numeric check
+             pass # TODO: stricter validation
+        
+        # Update Grade
+        old_grade = se.grade
+        old_status = se.status
+        
+        se.grade = Decimal(grade_value) if hasattr(grade_value, 'isdigit') or isinstance(grade_value, (int, float)) else None
+        
+        # Map grade to status
+        new_status = 'ENROLLED'
+        if str(grade_value) == 'INC':
+            new_status = 'INC'
+        elif str(grade_value) == 'DRP':
+            new_status = 'DROPPED'
+        elif str(grade_value) == '5.00' or (se.grade and se.grade == 5.0):
+             new_status = 'FAILED'
+        elif se.grade and se.grade <= 3.0:
+             new_status = 'PASSED'
+             
+        se.status = new_status
+        se.save()
+        
+        # History
+        GradeHistory.objects.create(
+            subject_enrollment=se,
+            previous_grade=old_grade,
+            new_grade=se.grade,
+            previous_status=old_status,
+            new_status=new_status,
+            changed_by=request.user,
+            change_reason="Grade submission"
+        )
+        
+        return Response({"success": True, "message": "Grade submitted"})
 GradeHistoryView = SimpleGETView
 SectionFinalizationListView = SimpleGETView
 FinalizeSectionGradesView = SimplePOSTView

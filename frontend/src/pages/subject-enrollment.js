@@ -772,18 +772,47 @@ function renderSubjectCard(subject, isRecommended) {
   const isEnrolled = state.enrolledSubjects.some(e => (e.subject?.code || e.subject_code || e.code) === subject.code);
   const hasPrerequisiteIssue = subject.prerequisite_met === false;
   const hasIncPrerequisite = subject.has_inc_prerequisite === true;
-  const canAdd = !hasPrerequisiteIssue && !hasIncPrerequisite && !isInCart && !isEnrolled;
+
+  // NEW: Retake eligibility check from backend
+  const isRetakeBlocked = subject.is_retake && subject.can_enroll === false;
+  const retakeEligibilityDate = subject.retake_eligibility_date;
+
+  // Compute final "canAdd" including retake check
+  const canAdd = !hasPrerequisiteIssue && !hasIncPrerequisite && !isInCart && !isEnrolled && !isRetakeBlocked;
   const wouldExceedLimit = (state.totalUnits + getSelectedUnits() + subject.units) > state.maxUnits;
+
+  // Helper: Format countdown
+  function formatCountdown(dateString) {
+    if (!dateString) return '';
+    const target = new Date(dateString);
+    const now = new Date();
+    const diffMs = target - now;
+    if (diffMs <= 0) return 'Now eligible';
+    const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (days > 30) {
+      const months = Math.ceil(days / 30);
+      return `${months} month${months > 1 ? 's' : ''}`;
+    }
+    return `${days} day${days > 1 ? 's' : ''}`;
+  }
 
   // Determine block reason
   let blockReason = '';
   let blockClass = '';
+  let retakeCountdown = '';
+
   if (isEnrolled) {
     blockReason = 'Already enrolled';
     blockClass = 'bg-blue-50 text-blue-700 border-blue-100';
   } else if (isInCart) {
     blockReason = 'Added to selection';
     blockClass = 'bg-green-50 text-green-700 border-green-100';
+  } else if (isRetakeBlocked) {
+    // NEW: Retake eligibility blocked
+    retakeCountdown = formatCountdown(retakeEligibilityDate);
+    const dateDisplay = retakeEligibilityDate ? new Date(retakeEligibilityDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    blockReason = subject.blocked_reason || `Retake available ${retakeCountdown ? 'in ' + retakeCountdown : dateDisplay}`;
+    blockClass = 'bg-purple-50 text-purple-700 border-purple-200';
   } else if (hasIncPrerequisite) {
     const incCode = subject.inc_prerequisite_code || subject.inc_prerequisite || '';
     blockReason = `Prerequisite ${incCode} has INC status`;
@@ -896,6 +925,7 @@ function renderSubjectCard(subject, isRecommended) {
       <div class="flex justify-between items-start gap-3 mb-2">
         <div class="flex items-center gap-2">
             <span class="font-mono font-bold text-gray-800 text-base group-hover:text-blue-600 transition-colors">${subject.code}</span>
+            ${subject.is_retake ? `<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded uppercase tracking-wide">Retake</span>` : ''}
         </div>
         <span class="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${badgeClass}">
             ${subject.units}u
@@ -932,8 +962,12 @@ function renderSubjectCard(subject, isRecommended) {
       <!-- Status / Footer -->
       <div class="mt-auto">
         ${blockReason ? `
-            <div class="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2 py-1.5 rounded border border-amber-100">
-                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div class="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border ${blockClass}">
+                ${isRetakeBlocked ? `
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                ` : `
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                `}
                 <span class="font-medium truncate">${blockReason}</span>
             </div>
         ` : ''}

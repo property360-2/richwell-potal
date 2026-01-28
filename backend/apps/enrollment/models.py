@@ -7,7 +7,7 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 
-from apps.core.models import BaseModel
+from apps.core.models import BaseModel, ArchivableMixin
 
 
 class Semester(BaseModel):
@@ -38,10 +38,43 @@ class Semester(BaseModel):
         null=True, blank=True,
         help_text='Date when enrollment closes'
     )
+    class TermStatus(models.TextChoices):
+        SETUP = 'SETUP', 'Setup'
+        ENROLLMENT_OPEN = 'ENROLLMENT_OPEN', 'Enrollment Open'
+        ENROLLMENT_CLOSED = 'ENROLLMENT_CLOSED', 'Enrollment Closed'
+        GRADING_OPEN = 'GRADING_OPEN', 'Grading Open'
+        GRADING_CLOSED = 'GRADING_CLOSED', 'Grading Closed'
+        ARCHIVED = 'ARCHIVED', 'Archived'
+
+    # ... existing fields ...
+    
+    status = models.CharField(
+        max_length=20,
+        choices=TermStatus.choices,
+        default=TermStatus.SETUP,
+        help_text='Current status of the semester'
+    )
+    grading_start_date = models.DateField(
+        null=True, blank=True,
+        help_text='Date when grading opens'
+    )
+    grading_end_date = models.DateField(
+        null=True, blank=True,
+        help_text='Date when grading closes'
+    )
+    
     is_current = models.BooleanField(
         default=False,
         help_text='Whether this is the current active semester'
     )
+
+    @property
+    def is_enrollment_open(self):
+        return self.status == self.TermStatus.ENROLLMENT_OPEN
+
+    @property
+    def is_grading_open(self):
+        return self.status == self.TermStatus.GRADING_OPEN
     
     class Meta:
         verbose_name = 'Semester'
@@ -281,7 +314,7 @@ class EnrollmentDocument(BaseModel):
         return f"{self.get_document_type_display()} - {self.enrollment.student.get_full_name()}"
 
 
-class SubjectEnrollment(BaseModel):
+class SubjectEnrollment(ArchivableMixin, BaseModel):
     """
     Tracks a student's enrollment in a specific subject.
     Handles credits (CREDITED status for transferees), regular enrollment, and grades.
@@ -300,6 +333,7 @@ class SubjectEnrollment(BaseModel):
         DROPPED = 'DROPPED', 'Dropped'
         CREDITED = 'CREDITED', 'Credited (Transferee)'
         RETAKE = 'RETAKE', 'Retake'
+        FOR_RESOLUTION = 'FOR_RESOLUTION', 'For Resolution'
         PENDING_PAYMENT = 'PENDING_PAYMENT', 'Pending Payment'
         PENDING_HEAD = 'PENDING_HEAD', 'Pending Head Approval'
     
@@ -360,6 +394,11 @@ class SubjectEnrollment(BaseModel):
         blank=True,
         help_text='When INC status was set (for expiry calculation)'
     )
+    failed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When FAILED status was set (for retake eligibility)'
+    )
     
     # Grade finalization (EPIC 5)
     is_finalized = models.BooleanField(
@@ -407,6 +446,40 @@ class SubjectEnrollment(BaseModel):
         default=False,
         help_text='Whether registrar approval is complete (required for overload)'
     )
+
+    @property
+    def retake_eligibility_date(self):
+        """Calculate when student can retake this subject."""
+        # Clock starts from failed_at or inc_marked_at
+        base_date = self.failed_at or self.inc_marked_at
+        if not base_date:
+            return None
+        
+        # Policy: Major = 6 months, Minor = 1 year
+        from datetime import timedelta
+        months = 6 if self.subject.is_major else 12
+        return base_date + timedelta(days=months * 30)
+
+    @property
+    def is_retake_eligible(self):
+        """True if past the eligibility date (can enroll again)."""
+        from django.utils import timezone
+        eligibility = self.retake_eligibility_date
+        if not eligibility:
+            return False
+        return timezone.now() >= eligibility
+
+    @property
+    def is_resolution_allowed(self):
+        """Resolution allowed BEFORE retake eligibility date if requirements met."""
+        if self.status not in ['INC', 'FOR_RESOLUTION']:
+            return False
+        # Before eligibility date = resolution window open
+        eligibility = self.retake_eligibility_date
+        if not eligibility:
+            return True  # No date set = allow resolution
+        from django.utils import timezone
+        return timezone.now() < eligibility
 
     class Meta:
         verbose_name = 'Subject Enrollment'
@@ -1064,3 +1137,74 @@ class DocumentRelease(BaseModel):
     @property
     def has_replacement(self):
         return self.replaced_by.exists()
+
+
+class GradeResolution(BaseModel):
+    """
+    Formal request handling for grade changes/resolutions.
+    Required for changing grades after they are finalized or during restricted periods.
+    Workflow: Professor Request -> Registrar Review -> Program Head Approval
+    """
+    
+    class Status(models.TextChoices):
+        PENDING_REGISTRAR = 'PENDING_REGISTRAR', 'Pending Registrar Review'
+        PENDING_HEAD = 'PENDING_HEAD', 'Pending Program Head Approval'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    subject_enrollment = models.ForeignKey(
+        'enrollment.SubjectEnrollment',
+        on_delete=models.CASCADE,
+        related_name='grade_resolutions',
+        help_text='The enrollment record being resolved'
+    )
+    
+    current_grade = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)
+    proposed_grade = models.DecimalField(max_digits=3, decimal_places=2)
+    
+    current_status = models.CharField(max_length=20) # Snapshot of status
+    proposed_status = models.CharField(max_length=20)
+    
+    reason = models.TextField(help_text='Reason for grade change request')
+    
+    # Workflow Tracking
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING_REGISTRAR
+    )
+    
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='requested_resolutions'
+    )
+    
+    reviewed_by_registrar = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_resolutions_registrar'
+    )
+    registrar_notes = models.TextField(blank=True)
+    registrar_action_at = models.DateTimeField(null=True, blank=True)
+    
+    reviewed_by_head = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_resolutions_head'
+    )
+    head_notes = models.TextField(blank=True)
+    head_action_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        verbose_name = "Grade Resolution"
+        verbose_name_plural = "Grade Resolutions"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Resolution for {self.subject_enrollment} ({self.status})"

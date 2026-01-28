@@ -5,7 +5,7 @@ Academic models - Programs and Subjects with prerequisites.
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 
-from apps.core.models import BaseModel, BaseModelWithActiveManager
+from apps.core.models import BaseModel, BaseModelWithActiveManager, ArchivableMixin
 
 
 class Program(BaseModelWithActiveManager):
@@ -230,7 +230,7 @@ class Subject(BaseModelWithActiveManager):
         return 6 if self.is_major else 12
 
 
-class Section(BaseModelWithActiveManager):
+class Section(ArchivableMixin, BaseModelWithActiveManager):
     """
     A section groups students for a semester (e.g., BSIT-1A).
     Contains multiple SectionSubject entries linking subjects to professors.
