@@ -42,6 +42,11 @@ async function checkEnrollmentStatus() {
     if (response.ok) {
       const data = await response.json();
       state.enrollmentEnabled = data.enrollment_enabled !== false;
+      state.semesterInfo = {
+        name: data.semester_name || 'Current Semester',
+        startDate: data.enrollment_start_date,
+        endDate: data.enrollment_end_date
+      };
     } else {
       // API returned error, default to enabled for development
       state.enrollmentEnabled = true;
@@ -185,8 +190,25 @@ function renderCurrentStep() {
 
 // Step 1: Personal Information
 function renderStep1() {
+  const { name, endDate } = state.semesterInfo;
+  const formattedEndDate = endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
   return `
     <div class="fade-in">
+      ${name ? `
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+          <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div>
+            <p class="text-[13px] font-bold text-blue-900 tracking-tight leading-tight">Ongoing Enrollment: ${name}</p>
+            ${formattedEndDate ? `<p class="text-[11px] font-medium text-blue-600 mt-0.5 uppercase tracking-wider">Available until ${formattedEndDate}</p>` : ''}
+          </div>
+        </div>
+      ` : ''}
+
       <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
         <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
@@ -328,7 +350,7 @@ function renderStep4() {
       </h2>
       
       <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 mb-6 border border-blue-100">
-        <p class="text-sm text-gray-600">Set your monthly payment commitment. The semester is divided into 6 monthly payments, this indicates how much you can pay for every month</p>
+        <p class="text-sm text-gray-600">Ilagay mo rito kung magkano napag-usapan nyo sa monthly commitment ng admission</p>
       </div>
       
       <div class="mb-6">

@@ -12,6 +12,7 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from apps.core.permissions import IsDepartmentHead, IsRegistrar, IsAdmin
 from apps.enrollment.models import Enrollment, SubjectEnrollment, Semester, GradeResolution
 from .serializers import GradeResolutionSerializer
+from django.db import transaction
 
 # Import grading views from separate module
 from .views_grading import (
@@ -420,12 +421,23 @@ class EnrollmentDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        from apps.enrollment.models import Enrollment
+        from apps.enrollment.models import Enrollment, Semester
         
-        # Get latest enrollment
-        enrollment = Enrollment.objects.filter(
-            student=request.user
-        ).select_related('semester').order_by('-created_at').first()
+        # 1. Try to get enrollment for the current semester
+        active_semester = Semester.objects.filter(is_current=True).first()
+        enrollment = None
+        
+        if active_semester:
+            enrollment = Enrollment.objects.filter(
+                student=request.user,
+                semester=active_semester
+            ).first()
+            
+        # 2. Fallback to latest enrollment if no current one
+        if not enrollment:
+            enrollment = Enrollment.objects.filter(
+                student=request.user
+            ).select_related('semester').order_by('-created_at').first()
         
         if not enrollment:
             return Response({"success": True, "data": None})
@@ -486,10 +498,151 @@ class ApplicantListView(APIView):
 
 
 # Register simple view classes for expected names
-TransfereeCreateView = SimplePOSTView
-TransfereeCreditView = SimpleGETView
-TransfereeCreateView = SimplePOSTView
-TransfereeCreditView = SimpleGETView
+class TransfereeCreateView(APIView):
+    """
+    Registrar view to manually create a student (usually transferee).
+    Handles user creation, profile, and initial credited subjects.
+    """
+    permission_classes = [IsAuthenticated] # Should be IsRegistrarOrAdmin
+    
+    def post(self, request, *args, **kwargs):
+        from apps.accounts.serializers import StudentManualCreateSerializer
+        from django.db import transaction
+        
+        serializer = StudentManualCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            with transaction.atomic():
+                # 1. Generate Student Number
+                from .services import EnrollmentService
+                service = EnrollmentService()
+                student_number = service.generate_student_number()
+                
+                # 2. Get validated data
+                data = serializer.validated_data
+                email = data.pop('email')
+                first_name = data.pop('first_name')
+                last_name = data.pop('last_name')
+                credited_subjects = data.pop('credited_subjects', [])
+                
+                # 3. Create User
+                from apps.accounts.models import User
+                user = User.objects.create_user(
+                    email=email,
+                    username=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    role='STUDENT',
+                    student_number=student_number,
+                    password=email # Temporary password is email
+                )
+                
+                # 4. Create Profile (StudentManualCreateSerializer handles some, but let's be explicit if needed)
+                from apps.accounts.models import StudentProfile
+                profile = StudentProfile.objects.create(
+                    user=user,
+                    **data
+                )
+                
+                # 5. Handle Credited Subjects
+                if credited_subjects:
+                    from .models import Enrollment, SubjectEnrollment
+                    # Create a "PREVIOUS" enrollment record to hold credited subjects if no current semester?
+                    # Or just use the current active semester for administrative record-keeping
+                    active_semester = Semester.objects.filter(is_current=True).first()
+                    
+                    enrollment, _ = Enrollment.objects.get_or_create(
+                        student=user,
+                        semester=active_semester,
+                        defaults={'status': 'ACTIVE', 'payment_approved': True, 'head_approved': True}
+                    )
+                    
+                    for item in credited_subjects:
+                        SubjectEnrollment.objects.create(
+                            enrollment=enrollment,
+                            subject_id=item['subject_id'],
+                            grade=item.get('grade'),
+                            status='CREDITED',
+                            enrollment_type='HOME',
+                            payment_approved=True,
+                            head_approved=True
+                        )
+                
+                return Response({
+                    'success': True,
+                    'message': f'Student {student_number} created successfully.',
+                    'student_id': str(user.id)
+                }, status=status.HTTP_201_CREATED)
+                
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class TransfereeCreditView(APIView):
+    """
+    View to manage/view credited subjects for a transferee.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, pk, *args, **kwargs):
+        """List credited subjects for student."""
+        from .models import SubjectEnrollment
+        from .serializers import SubjectEnrollmentSerializer
+        
+        enrollments = SubjectEnrollment.objects.filter(
+            enrollment__student_id=pk,
+            status='CREDITED',
+            is_deleted=False
+        ).select_related('subject')
+        
+        data = []
+        for se in enrollments:
+            data.append({
+                'id': str(se.id),
+                'subject_code': se.subject.code,
+                'subject_title': se.subject.title,
+                'grade': se.grade,
+                'status': se.status
+            })
+        return Response(data)
+        
+    def post(self, request, pk, *args, **kwargs):
+        """Add a credited subject."""
+        from .models import Enrollment, SubjectEnrollment
+        from apps.accounts.models import User
+        
+        subject_id = request.data.get('subject_id')
+        grade = request.data.get('grade')
+        
+        if not subject_id:
+            return Response({'error': 'Subject ID required'}, status=400)
+            
+        try:
+            user = User.objects.get(id=pk, role='STUDENT')
+            active_semester = Semester.objects.filter(is_current=True).first()
+            
+            enrollment, _ = Enrollment.objects.get_or_create(
+                student=user,
+                semester=active_semester,
+                defaults={'status': 'ACTIVE', 'payment_approved': True, 'head_approved': True}
+            )
+            
+            se = SubjectEnrollment.objects.create(
+                enrollment=enrollment,
+                subject_id=subject_id,
+                grade=grade,
+                status='CREDITED',
+                enrollment_type='HOME',
+                payment_approved=True,
+                head_approved=True
+            )
+            
+            return Response({'success': True, 'id': str(se.id)})
+        except User.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
 
 class NextStudentNumberView(APIView):
     """
@@ -754,8 +907,11 @@ class RecommendedSubjectsView(APIView):
                 
                 # Rule 1: Regular
                 # - ONLY enroll in subjects offered by their Home Section
+                # - Robust check: Match by ID or Name (handles semester mismatches)
                 else:
                     if ss.section == home_section:
+                        allowed = True
+                    elif home_section and ss.section.name == home_section.name:
                         allowed = True
                 
                 if allowed:
@@ -902,8 +1058,12 @@ class AvailableSubjectsView(APIView):
                     elif is_retake:
                         allowed = True
                 # Rule 1: Regular
+                # - ONLY enroll in subjects offered by their Home Section
+                # - Robust check: Match by ID or Name (handles semester mismatches)
                 else:
                     if ss.section == home_section:
+                        allowed = True
+                    elif home_section and ss.section.name == home_section.name:
                         allowed = True
                 
                 if allowed:
@@ -1132,7 +1292,7 @@ class StudentCurriculumView(APIView):
         # Calculate GPA (simple average of numeric grades for now)
         numeric_grades = [
             float(e.grade) for e in enrollments 
-            if e.grade and e.grade.replace('.', '', 1).isdigit() and e.status == 'COMPLETED'
+            if e.grade is not None and e.status in ['PASSED', 'FAILED', 'COMPLETED']
         ]
         gpa = sum(numeric_grades) / len(numeric_grades) if numeric_grades else 0.00
 
@@ -1150,9 +1310,10 @@ class StudentCurriculumView(APIView):
                 "statistics": {
                     "gpa": round(gpa, 2),
                     "total_subjects": total_subjects,
-                    "passed_subjects": passed_subjects,
+                    "completed_subjects": passed_subjects,
                     "total_units": total_units,
-                    "earned_units": earned_units
+                    "completed_units": earned_units,
+                    "inc_count": enrollments.filter(status='INC').count()
                 }
             }
         })
@@ -1228,6 +1389,17 @@ class EnrollSubjectView(APIView):
                 
                 subject = section_subject.subject
                 section = section_subject.section
+
+                # 6.5 Validate Curriculum
+                # Ensure the subject is part of the student's assigned curriculum
+                if profile.curriculum:
+                    from apps.academics.models import CurriculumSubject
+                    if not CurriculumSubject.objects.filter(
+                        curriculum=profile.curriculum, 
+                        subject=subject,
+                        is_deleted=False
+                    ).exists():
+                         return Response({"error": f"Subject {subject.code} is not in your assigned curriculum ({profile.curriculum.name})"}, status=400)
 
                 # 7. ENFORCE RULES (Regular/Irregular/Overload)
                 home_section = profile.home_section
@@ -1558,28 +1730,80 @@ class GradeResolutionViewSet(ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def pending(self, request):
-        """List resolutions pending registrar review."""
-        pending = self.get_queryset().filter(status=GradeResolution.Status.PENDING_REGISTRAR)
+        """List resolutions pending review based on role."""
+        user = request.user
+        if user.role in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
+            pending = self.get_queryset().filter(status=GradeResolution.Status.PENDING_REGISTRAR)
+        elif user.role == 'DEPARTMENT_HEAD':
+            pending = self.get_queryset().filter(status=GradeResolution.Status.PENDING_HEAD)
+        else:
+            pending = self.get_queryset().none()
+            
         serializer = self.get_serializer(pending, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """Approve a resolution (Registrar level)."""
+        """Approve a resolution (Registrar or Head)."""
         resolution = self.get_object()
-        if resolution.status != GradeResolution.Status.PENDING_REGISTRAR:
-            return Response(
-                {'detail': f'Resolution is in {resolution.status} status, cannot be approved by registrar'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        user = request.user
         
-        resolution.status = GradeResolution.Status.PENDING_HEAD
-        resolution.reviewed_by_registrar = request.user
-        resolution.registrar_action_at = timezone.now()
-        resolution.registrar_notes = request.data.get('notes', '')
-        resolution.save()
-        
-        return Response({'success': True, 'message': 'Approved and forwarded to Program Head'})
+        with transaction.atomic():
+            if user.role in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
+                if resolution.status != GradeResolution.Status.PENDING_REGISTRAR:
+                    return Response(
+                        {'detail': f'Resolution is in {resolution.status} status, cannot be approved by registrar'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Final Approval by Registrar
+                resolution.status = GradeResolution.Status.APPROVED
+                resolution.reviewed_by_registrar = user
+                resolution.registrar_action_at = timezone.now()
+                resolution.registrar_notes = request.data.get('notes', resolution.registrar_notes)
+                resolution.save()
+                
+                # Apply the grade change to SubjectEnrollment
+                se = resolution.subject_enrollment
+                previous_grade = se.grade
+                previous_status = se.status
+                
+                se.grade = resolution.proposed_grade
+                se.status = resolution.proposed_status
+                se.save()
+                
+                # Create GradeHistory
+                from .models import GradeHistory
+                GradeHistory.objects.create(
+                    subject_enrollment=se,
+                    previous_grade=previous_grade,
+                    new_grade=se.grade,
+                    previous_status=previous_status,
+                    new_status=se.status,
+                    changed_by=user,
+                    change_reason=f"Grade Resolution Approved: {resolution.reason}",
+                    is_system_action=False
+                )
+                
+                return Response({'success': True, 'message': 'Resolution approved and grade updated'})
+                
+            elif user.role == 'DEPARTMENT_HEAD':
+                if resolution.status != GradeResolution.Status.PENDING_HEAD:
+                    return Response(
+                        {'detail': f'Resolution is in {resolution.status} status, cannot be approved by head'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Forward to Registrar
+                resolution.status = GradeResolution.Status.PENDING_REGISTRAR
+                resolution.reviewed_by_head = user
+                resolution.head_action_at = timezone.now()
+                resolution.head_notes = request.data.get('notes', resolution.head_notes)
+                resolution.save()
+                
+                return Response({'success': True, 'message': 'Approved by Head and forwarded to Registrar'})
+            
+            return Response({'error': 'Unauthorized role for approval'}, status=status.HTTP_403_FORBIDDEN)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):

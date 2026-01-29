@@ -24,7 +24,8 @@ import { Icon } from '../atoms/icons/Icon.js';
 // Tab constants
 const TABS = {
   SECTIONS: 'sections',
-  SCHEDULE: 'schedule'
+  SCHEDULE: 'schedule',
+  STUDENTS: 'students'
 };
 
 // Room options (can be fetched from API later)
@@ -47,7 +48,10 @@ const state = {
   activeSemester: null,
   selectedSection: null,
   sectionSubjects: [],
+  sectionStudents: [],
   sectionSchedule: [],
+  availableStudents: [], // For recommendation
+  showAddStudentModal: false,
 
   // Professors state
   professors: [],
@@ -166,8 +170,11 @@ async function loadSectionDetails(sectionId) {
     state.selectedSection = response;
 
     // Load section subjects with schedules
-    const subjectsResponse = await api.get(`${endpoints.sectionSubjects}?section=${sectionId}`);
     state.sectionSubjects = subjectsResponse?.results || subjectsResponse || [];
+
+    // Load section students
+    const studentsResponse = await api.get(`${endpoints.sections}${sectionId}/students/`);
+    state.sectionStudents = studentsResponse || [];
 
     // Build schedule from section subjects - format for ScheduleGrid
     state.sectionSchedule = [];
@@ -239,6 +246,7 @@ function render() {
       ${createTabs({
     tabs: [
       { id: TABS.SECTIONS, label: 'Sections' },
+      { id: TABS.STUDENTS, label: 'Students', hidden: !state.selectedSection },
       { id: TABS.SCHEDULE, label: 'Schedule Grid' }
     ],
     activeTab: state.activeTab,
@@ -257,6 +265,8 @@ function renderTabContent() {
   switch (state.activeTab) {
     case TABS.SECTIONS:
       return state.selectedSection ? renderSectionDetail() : renderSectionsTab();
+    case TABS.STUDENTS:
+      return renderSectionStudents();
     case TABS.SCHEDULE:
       return renderScheduleTab();
     default:
@@ -506,8 +516,167 @@ window.viewSection = async function (sectionId) {
 window.backToSections = function () {
   state.selectedSection = null;
   state.sectionSubjects = [];
+  state.sectionStudents = [];
   state.sectionSchedule = [];
+  if (state.activeTab === TABS.STUDENTS) {
+    state.activeTab = TABS.SECTIONS;
+  }
   render();
+};
+
+window.renderSectionStudents = function () {
+  const section = state.selectedSection;
+  if (!section) return renderSectionsTab();
+
+  return `
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">Students in ${section.name}</h2>
+        <p class="text-sm text-gray-600 mt-1">${state.sectionStudents.length} students enrolled</p>
+      </div>
+      <button onclick="openAddStudentToSectionModal()" class="btn btn-primary flex items-center gap-2">
+        ${Icon('plus', { size: 'sm' })} Add Students
+      </button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Student</th>
+            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Program</th>
+            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Year</th>
+            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
+            <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          ${state.sectionStudents.length === 0 ? `
+            <tr>
+              <td colspan="5" class="px-6 py-12 text-center text-gray-500">No students found in this section</td>
+            </tr>
+          ` : state.sectionStudents.map(student => `
+            <tr>
+              <td class="px-6 py-4">
+                <div class="text-sm font-bold text-gray-900">${student.first_name} ${student.last_name}</div>
+                <div class="text-xs text-gray-500">${student.student_number}</div>
+              </td>
+              <td class="px-6 py-4 text-sm text-gray-600">${student.program_code}</td>
+              <td class="px-6 py-4 text-sm text-gray-600">${student.year_level}</td>
+              <td class="px-6 py-4">${renderStatusBadge(student.status)}</td>
+              <td class="px-6 py-4 text-right">
+                <button onclick="removeStudentFromSection('${student.user_id}')" class="text-red-500 hover:text-red-700 p-1">
+                  ${Icon('trash', { size: 'sm' })}
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+};
+
+window.openAddStudentToSectionModal = async function () {
+  // Load recommended students
+  try {
+    const response = await api.get(`${endpoints.sections}${state.selectedSection.id}/recommend-students/`);
+    state.availableStudents = response || [];
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading recommended students');
+    state.availableStudents = [];
+  }
+
+  const modal = new Modal({
+    title: 'Add Students to Section',
+    content: `
+      <div class="mb-4 text-sm text-gray-600">
+        Showing students from ${state.selectedSection.program_code} Year ${state.selectedSection.year_level} without a section.
+      </div>
+      <div class="max-h-96 overflow-y-auto border rounded-lg">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50 sticky top-0">
+            <tr>
+              <th class="px-4 py-2 text-left text-xs font-bold text-gray-500">
+                <input type="checkbox" onchange="toggleAllStudents(this.checked)">
+              </th>
+              <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Student</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            ${state.availableStudents.length === 0 ? `
+              <tr><td colspan="2" class="px-4 py-8 text-center text-gray-500">No recommended students found</td></tr>
+            ` : state.availableStudents.map(s => `
+              <tr>
+                <td class="px-4 py-2">
+                  <input type="checkbox" class="student-checkbox" value="${s.user_id}">
+                </td>
+                <td class="px-4 py-2">
+                  <div class="text-sm font-medium">${s.first_name} ${s.last_name}</div>
+                  <div class="text-xs text-gray-500">${s.student_number}</div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `,
+    size: 'lg',
+    actions: [
+      { label: 'Cancel', onClick: (m) => m.close() },
+      {
+        label: 'Add Selected',
+        primary: true,
+        onClick: async (m) => {
+          const checkboxes = document.querySelectorAll('.student-checkbox:checked');
+          const studentIds = Array.from(checkboxes).map(cb => cb.value);
+          if (studentIds.length === 0) {
+            Toast.error('Please select at least one student');
+            return;
+          }
+
+          try {
+            await api.post(`${endpoints.sections}${state.selectedSection.id}/assign-students/`, {
+              student_ids: studentIds
+            });
+            Toast.success(`${studentIds.length} students assigned`);
+            m.close();
+            await loadSectionDetails(state.selectedSection.id);
+            render();
+          } catch (error) {
+            ErrorHandler.handle(error, 'Assigning students');
+          }
+        }
+      }
+    ]
+  });
+  modal.show();
+};
+
+window.toggleAllStudents = function (checked) {
+  document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = checked);
+};
+
+window.removeStudentFromSection = async function (studentId) {
+  const confirmed = await ConfirmModal({
+    title: 'Remove Student',
+    message: 'Are you sure you want to remove this student from the section? This will also unenroll them from section subjects.',
+    confirmLabel: 'Remove',
+    danger: true
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await api.post(`${endpoints.sections}${state.selectedSection.id}/remove-student/`, {
+      student_id: studentId
+    });
+    Toast.success('Student removed');
+    await loadSectionDetails(state.selectedSection.id);
+    render();
+  } catch (error) {
+    ErrorHandler.handle(error, 'Removing student');
+  }
 };
 
 window.openAddSectionModal = function () {

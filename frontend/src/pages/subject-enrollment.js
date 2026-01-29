@@ -589,6 +589,11 @@ function render() {
              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-100 text-indigo-700">
                 ${state.user?.student_profile?.curriculum_code || 'No Curriculum'}
              </span>
+             ${state.user?.student_profile?.home_section_name ? `
+             <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-700">
+                Section: ${state.user.student_profile.home_section_name}
+             </span>
+             ` : ''}
           </div>
         </div>
 
@@ -842,10 +847,10 @@ function renderSubjectCard(subject, isRecommended) {
   const isLocked = !isStudentIrregular && !isRetake;
 
   let defaultSection = subject.sections ? subject.sections[0] : null;
-  if (isLocked && subject.sections) {
+  if (subject.sections) {
     const userSectionId = state.user?.student_profile?.home_section;
-    const userSectionName = state.user?.student_profile?.section_name || state.user?.section_name;
-    // Try to match
+    const userSectionName = state.user?.student_profile?.home_section_name || state.user?.student_profile?.section_name || state.user?.section_name;
+    // Try to match by ID or Name
     const match = subject.sections.find(s => s.id === userSectionId || s.name === userSectionName);
     if (match) defaultSection = match;
   }

@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.core.permissions import IsStudent
-from .models import SubjectEnrollment, Enrollment, Semester
+from .models import SubjectEnrollment, Enrollment, Semester, GradeResolution
 
 
 class MyGradesView(views.APIView):
@@ -32,7 +32,7 @@ class MyGradesView(views.APIView):
             'enrollment__semester',
             'subject',
             'section'
-        ).order_by('-enrollment__semester__start_date', 'subject__code')
+        ).prefetch_related('grade_resolutions').order_by('-enrollment__semester__start_date', 'subject__code')
         
         # Filter by semester if specified
         if semester_id:
@@ -56,6 +56,23 @@ class MyGradesView(views.APIView):
                     'gpa': None
                 }
             
+            # Check for pending resolutions
+            pending_res = se.grade_resolutions.filter(
+                status__in=[GradeResolution.Status.PENDING_REGISTRAR, GradeResolution.Status.PENDING_HEAD]
+            ).first()
+            
+            status_display = se.get_status_display() if hasattr(se, 'get_status_display') else se.status
+            res_info = None
+            
+            if pending_res:
+                status_display = "Resolution Pending approval"
+                res_info = {
+                    'proposed_grade': str(pending_res.proposed_grade),
+                    'proposed_status': pending_res.proposed_status,
+                    'requested_by': pending_res.requested_by.get_full_name(),
+                    'created_at': pending_res.created_at
+                }
+
             grade_data = {
                 'subject_enrollment_id': str(se.id),
                 'subject_code': se.subject.code,
@@ -64,9 +81,10 @@ class MyGradesView(views.APIView):
                 'section_name': se.section.name if se.section else 'N/A',
                 'grade': str(se.grade) if se.grade else None,
                 'status': se.status,
-                'status_display': se.get_status_display() if hasattr(se, 'get_status_display') else se.status,
+                'status_display': status_display,
                 'is_finalized': se.is_finalized,
-                'enrollment_type': se.enrollment_type
+                'enrollment_type': se.enrollment_type,
+                'pending_resolution': res_info
             }
             
             semesters_data[sem_key]['subjects'].append(grade_data)

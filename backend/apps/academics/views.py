@@ -600,12 +600,9 @@ class SectionViewSet(viewsets.ModelViewSet):
         assigned_subjects = SectionSubject.objects.filter(
             section=section,
             is_deleted=False
-        ).prefetch_related('professor_assignments__professor')
+        )
         
-        # Map assigned subjects by ID for easy lookup
-        assigned_map = {str(ss.subject_id): ss for ss in assigned_subjects}
-        
-        # Combine data
+        assigned_map = {str(ss.subject.id): ss for ss in assigned_subjects}
         subject_data = []
         for cs in curriculum_subjects:
             subj = cs.subject
@@ -1164,6 +1161,7 @@ class ProfessorScheduleView(APIView):
         
         # Also fetch all assigned sections (including TBA)
         from .models import SectionSubject
+        from apps.enrollment.models import SubjectEnrollment
         assigned_subjects = SectionSubject.objects.filter(
             professor=professor,
             section__semester=semester,
@@ -1186,11 +1184,15 @@ class ProfessorScheduleView(APIView):
 
             assigned_sections.append({
                 'id': str(assignment.id),
+                'section_id': str(assignment.section.id),
                 'section_name': assignment.section.name,
+                'subject_id': str(assignment.subject.id),
                 'subject_code': assignment.subject.code,
                 'subject_title': assignment.subject.title,
+                'units': assignment.subject.units,
                 'schedule': schedule_text,
-                'is_tba': assignment.is_tba
+                'is_tba': assignment.is_tba,
+                'enrolled_count': SubjectEnrollment.objects.filter(section=assignment.section, subject=assignment.subject, is_deleted=False).count()
             })
 
         return Response({

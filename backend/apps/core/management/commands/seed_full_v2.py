@@ -38,7 +38,8 @@ from apps.academics.models import (
 from apps.enrollment.models import (
     Enrollment, SubjectEnrollment, Semester, MonthlyPaymentBucket,
     PaymentTransaction, ExamMonthMapping, ExamPermit,
-    GradeHistory, SemesterGPA, OverloadRequest, EnrollmentApproval
+    GradeHistory, SemesterGPA, OverloadRequest, EnrollmentApproval,
+    GradeResolution
 )
 from apps.audit.models import AuditLog
 
@@ -102,6 +103,9 @@ class Command(BaseCommand):
             # Level 8: Transactions & Audit
             self._seed_level_8_transactions_audit()
             
+            # Level 9: Grade Resolutions & History
+            self._seed_level_9_resolutions()
+            
             self._print_summary()
         
         self.stdout.write(self.style.SUCCESS('\n✓ Seeding completed successfully!'))
@@ -113,7 +117,8 @@ class Command(BaseCommand):
     def _wipe_all_data(self):
         self.stdout.write('\n🗑️  Wiping existing data (reverse dependency order)...')
         
-        # Level 8 first (most dependent)
+        # Level 8 first (most dependent) + Level 9
+        GradeResolution.objects.all().delete()
         AuditLog.objects.all().delete()
         GradeHistory.objects.all().delete()
         SemesterGPA.objects.all().delete()
@@ -136,7 +141,8 @@ class Command(BaseCommand):
         
         # Level 4
         StudentProfile.objects.all().delete()
-        Section.objects.all().delete()
+        # Use all_objects to ensure soft-deleted sections are also wiped
+        Section.all_objects.all().delete()
         
         # Level 3
         CurriculumSubject.objects.all().delete()
@@ -183,9 +189,10 @@ class Command(BaseCommand):
 
     def _create_semesters(self):
         """Create current and past semesters for multi-term history."""
-        now = timezone.now().date()
+        # The user's test date is Jan 29, 2026
+        now = date(2026, 1, 29)
         
-        # Past semesters (for academic history)
+        # Past semesters (Academic Year 2024-2025)
         self.semester_2024_1, _ = Semester.objects.get_or_create(
             name='1st Semester',
             academic_year='2024-2025',
@@ -194,6 +201,9 @@ class Command(BaseCommand):
                 'end_date': date(2024, 12, 15),
                 'enrollment_start_date': date(2024, 7, 15),
                 'enrollment_end_date': date(2024, 8, 15),
+                'grading_start_date': date(2024, 11, 1),
+                'grading_end_date': date(2024, 12, 31),
+                'status': 'ARCHIVED',
                 'is_current': False
             }
         )
@@ -206,19 +216,41 @@ class Command(BaseCommand):
                 'end_date': date(2025, 5, 31),
                 'enrollment_start_date': date(2024, 12, 15),
                 'enrollment_end_date': date(2025, 1, 10),
+                'grading_start_date': date(2025, 4, 1),
+                'grading_end_date': date(2025, 6, 15),
+                'status': 'ARCHIVED',
                 'is_current': False
             }
         )
         
-        # Current semester
-        self.semester_current, _ = Semester.objects.get_or_create(
+        # Last Semester (1st Semester 2025-2026) - This is where INCs should be from
+        self.semester_2025_1, _ = Semester.objects.get_or_create(
             name='1st Semester',
             academic_year='2025-2026',
             defaults={
                 'start_date': date(2025, 8, 1),
                 'end_date': date(2025, 12, 15),
-                'enrollment_start_date': now - timedelta(days=30),
-                'enrollment_end_date': now + timedelta(days=30),
+                'enrollment_start_date': date(2025, 7, 1),
+                'enrollment_end_date': date(2025, 8, 15),
+                'grading_start_date': date(2025, 11, 1),
+                'grading_end_date': date(2025, 12, 31),
+                'status': 'GRADING_CLOSED',
+                'is_current': False
+            }
+        )
+        
+        # Current semester (2nd Semester 2025-2026) - Grading should be open
+        self.semester_current, _ = Semester.objects.get_or_create(
+            name='2nd Semester',
+            academic_year='2025-2026',
+            defaults={
+                'start_date': date(2026, 1, 5),
+                'end_date': date(2026, 5, 30),
+                'enrollment_start_date': date(2025, 12, 1),
+                'enrollment_end_date': date(2026, 1, 15),
+                'grading_start_date': date(2026, 1, 25), # Grading just opened
+                'grading_end_date': date(2026, 6, 15),
+                'status': 'GRADING_OPEN',
                 'is_current': True
             }
         )
@@ -536,7 +568,7 @@ class Command(BaseCommand):
         
         self.professors = []
         for first, last, spec, _ in professors_data:
-            email = f'{first.lower()}.{last.lower()}@richwell.edu'
+            email = f'{first.lower()}.{last.lower()}@richwell.edu'.replace(' ', '.')
             
             user, created = User.objects.get_or_create(
                 email=email,
@@ -797,7 +829,8 @@ class Command(BaseCommand):
             all_sections_def.extend([(name, year, cap, curr, bsis_program) for name, year, cap, curr in bsis_sections])
 
         for name, year, capacity, curriculum, program in all_sections_def:
-            section, _ = Section.objects.get_or_create(
+            # Use all_objects to prevent UNIQUE constraint failure if a soft-deleted section exists
+            section, created = Section.all_objects.get_or_create(
                 name=name,
                 semester=self.semester_current,
                 defaults={
@@ -808,6 +841,12 @@ class Command(BaseCommand):
                     'is_dissolved': False
                 }
             )
+            
+            # If it was found but soft-deleted, restore it
+            if not created and section.is_deleted:
+                section.is_deleted = False
+                section.save()
+                
             self.sections[name] = section
         
         self.stdout.write(f'   - Created {len(self.sections)} sections')
@@ -888,6 +927,15 @@ class Command(BaseCommand):
                 'scenario': 'TRANSFEREE'
             },
             
+            # Student with expiring INC
+            {
+                'email': 'student.inc@richwell.edu',
+                'first_name': 'Ina', 'last_name': 'Nacional',
+                'student_number': '2024-I0001',
+                'year_level': 2, 'section': 'BSIT-2A',
+                'scenario': 'EXPIRING_INC'
+            },
+            
             # Curriculum Comparison Test Students (BSIT)
             {
                 'email': 'student.curr2024@richwell.edu',
@@ -924,6 +972,13 @@ class Command(BaseCommand):
                 'year_level': 1, 'section': 'BSIS-1A',
                 'program_key': 'BSIS', 'curriculum_key': 'BSIS_2024',
                 'scenario': 'REGULAR_PENDING'
+            },
+            {
+                'email': 'student.test.inc@richwell.edu',
+                'first_name': 'Test', 'last_name': 'INC Student',
+                'student_number': '2024-TEST-INC',
+                'year_level': 2, 'section': 'BSIT-2A',
+                'scenario': 'INC_RESOLUTION_TEST'
             },
         ]
         
@@ -967,7 +1022,7 @@ class Command(BaseCommand):
                     'is_irregular': data.get('is_irregular', False),
                     'overload_approved': data.get('overload_approved', False),
                     'status': 'ACTIVE',
-                    'academic_status': 'REGULAR',
+                    'academic_status': 'TRANSFEREE' if data.get('is_transferee') else ('IRREGULAR' if data.get('is_irregular') else 'REGULAR'),
                     'middle_name': 'M',
                     'birthdate': date(2000 + random.randint(0, 5), random.randint(1, 12), random.randint(1, 28)),
                     'address': f'{random.randint(1, 999)} Sample Street, City',
@@ -1002,14 +1057,15 @@ class Command(BaseCommand):
         """Create SectionSubject entries linking subjects to sections."""
         self.section_subjects = defaultdict(list)
         
+        semester_num = 1 if self.semester_current.name == '1st Semester' else 2
+        
         for section_name, section in self.sections.items():
             year = section.year_level
             
-            # Get subjects for this year level and semester 1
-            # (current semester is 1st semester)
+            # Get subjects for this year level and current semester
             year_subjects = [
                 s for s in self.subjects.values()
-                if s.year_level == year and s.semester_number == 1
+                if s.year_level == year and s.semester_number == semester_num
             ]
             
             for subject in year_subjects:
@@ -1136,7 +1192,7 @@ class Command(BaseCommand):
             scenario = student_data['scenario']
             
             # Determine status based on scenario
-            if scenario in ['REGULAR_PAID', 'OVERLOAD']:
+            if scenario in ['REGULAR_PAID', 'OVERLOAD', 'TRANSFEREE', 'IRREGULAR_RETAKE', 'EXPIRING_INC']:
                 status = 'ACTIVE'
                 first_month_paid = True
             elif scenario == 'REGULAR_UNPAID':
@@ -1311,19 +1367,46 @@ class Command(BaseCommand):
         if self.minimal:
             return
         
+        # Create a past section for Juan Dela Cruz to have in archives
+        juan = self.professors[0] # Juan Dela Cruz
+        past_section, _ = Section.all_objects.get_or_create(
+            name='BSIT-1A-PAST',
+            semester=self.semester_2025_1,
+            defaults={
+                'program': self.programs['BSIT'],
+                'curriculum': self.curricula['BSIT_2024'],
+                'year_level': 1,
+                'capacity': 40
+            }
+        )
+        
+        # Create past section subjects
+        for code in ['CS101', 'CS102']:
+            subject = self.subjects[code]
+            ss, _ = SectionSubject.objects.get_or_create(
+                section=past_section,
+                subject=subject,
+                defaults={'professor': juan}
+            )
+            SectionSubjectProfessor.objects.get_or_create(
+                section_subject=ss,
+                professor=juan,
+                defaults={'is_primary': True}
+            )
+
         # Find students who need past history
         for student_data in self.students:
             user = student_data['user']
             profile = student_data['profile']
             scenario = student_data['scenario']
             
-            if profile.year_level == 1:
-                continue  # 1st years have no past
+            if profile.year_level == 1 and scenario != 'INC_RESOLUTION_TEST':
+                continue
             
-            # Create past enrollment
+            # Create past enrollment (Last Semester - 1st Sem 2025-2026)
             past_enroll, created = Enrollment.objects.get_or_create(
                 student=user,
-                semester=self.semester_2024_2,
+                semester=self.semester_2025_1,
                 defaults={
                     'status': 'COMPLETED',
                     'created_via': 'ONLINE',
@@ -1335,11 +1418,11 @@ class Command(BaseCommand):
             if not created:
                 continue
             
-            # Add passed subjects
-            year = profile.year_level - 1
+            # Add past subjects
+            year = 1 if scenario == 'INC_RESOLUTION_TEST' else (profile.year_level if profile.year_level > 1 else 1)
             past_subjects = [
                 s for s in self.subjects.values()
-                if s.year_level == year and s.semester_number == 2
+                if s.year_level == year and s.semester_number == 1
             ]
             
             for subject in past_subjects:
@@ -1349,11 +1432,27 @@ class Command(BaseCommand):
                 if scenario == 'IRREGULAR_RETAKE' and subject.code == 'CS103':
                     passed = False
                 
+                enrollment_status = 'PASSED' if passed else 'FAILED'
+                enrollment_grade = Decimal('1.50') if passed else Decimal('5.00')
+                inc_marked_at = None
+                
+                # Special cases for INC
+                if scenario == 'EXPIRING_INC' and subject.code == 'CS103':
+                    enrollment_status = 'INC'
+                    enrollment_grade = None
+                    inc_marked_at = timezone.make_aware(timezone.datetime(2025, 2, 15))
+                elif scenario == 'INC_RESOLUTION_TEST' and subject.code == 'CS101':
+                    enrollment_status = 'INC'
+                    enrollment_grade = None
+                    inc_marked_at = timezone.make_aware(timezone.datetime(2025, 11, 15))
+                
                 SubjectEnrollment.objects.create(
                     enrollment=past_enroll,
                     subject=subject,
-                    status='PASSED' if passed else 'FAILED',
-                    grade=Decimal('1.50') if passed else Decimal('5.00'),
+                    section=past_section if subject.code in ['CS101', 'CS102'] else None,
+                    status=enrollment_status,
+                    grade=enrollment_grade,
+                    inc_marked_at=inc_marked_at,
                     is_finalized=True,
                     payment_approved=True,
                     head_approved=True
@@ -1463,6 +1562,157 @@ class Command(BaseCommand):
         self.stdout.write(f'   - Created {AuditLog.objects.count()} audit logs')
 
     # =========================================================================
+    # LEVEL 9: Grade Resolutions & History
+    # =========================================================================
+    
+    def _seed_level_9_resolutions(self):
+        self.stdout.write('\n📋 Level 9: Grade Resolutions & History...')
+        
+        self._create_grade_resolutions()
+        self._create_inc_scenarios()
+        
+        self.stdout.write(self.style.SUCCESS('   ✓ Grade resolutions complete'))
+
+    def _create_grade_resolutions(self):
+        """Create grade resolution records in various states for testing."""
+        if self.minimal:
+            return
+        
+        # Find a completed enrollment with a grade that could be resolved
+        # We need past semester enrollments with finalized grades
+        past_enrollment = SubjectEnrollment.objects.filter(
+            status__in=['FAILED', 'PASSED'],
+            is_finalized=True
+        ).first()
+        
+        if not past_enrollment:
+            self.stdout.write(self.style.WARNING('   ⚠ No finalized enrollments for resolutions'))
+            return
+        
+        professor = self.professors[0] if self.professors else None
+        if not professor:
+            return
+        
+        # 1. PENDING_HEAD: Awaiting Department Head approval
+        GradeResolution.objects.get_or_create(
+            subject_enrollment=past_enrollment,
+            status=GradeResolution.Status.PENDING_HEAD,
+            defaults={
+                'current_grade': past_enrollment.grade or Decimal('5.00'),
+                'proposed_grade': Decimal('2.50'),
+                'current_status': past_enrollment.status,
+                'proposed_status': 'PASSED',
+                'reason': 'Recomputation of final grade after reviewing exam papers.',
+                'requested_by': professor,
+                'reviewed_by_registrar': self.registrar,
+                'registrar_notes': 'Verified by Registrar. Forwarded to Head for approval.',
+                'registrar_action_at': timezone.now() - timedelta(days=2),
+            }
+        )
+        
+        # Find another enrollment for PENDING_REGISTRAR
+        another_enrollment = SubjectEnrollment.objects.filter(
+            status__in=['INC', 'FAILED'],
+            is_finalized=True
+        ).exclude(pk=past_enrollment.pk).first()
+        
+        if another_enrollment:
+            # 2. PENDING_REGISTRAR: Awaiting Registrar review (first step)
+            GradeResolution.objects.get_or_create(
+                subject_enrollment=another_enrollment,
+                status=GradeResolution.Status.PENDING_REGISTRAR,
+                defaults={
+                    'current_grade': another_enrollment.grade or Decimal('5.00'),
+                    'proposed_grade': Decimal('3.00'),
+                    'current_status': another_enrollment.status,
+                    'proposed_status': 'PASSED',
+                    'reason': 'Student submitted missing requirements after deadline.',
+                    'requested_by': professor,
+                }
+            )
+        
+        # 3. APPROVED: Fully approved resolution (for history)
+        approved_enrollment = SubjectEnrollment.objects.filter(
+            status='PASSED',
+            is_finalized=True
+        ).exclude(pk__in=[past_enrollment.pk, another_enrollment.pk if another_enrollment else None]).first()
+        
+        if approved_enrollment:
+            GradeResolution.objects.get_or_create(
+                subject_enrollment=approved_enrollment,
+                status=GradeResolution.Status.APPROVED,
+                defaults={
+                    'current_grade': Decimal('3.00'),
+                    'proposed_grade': approved_enrollment.grade or Decimal('2.00'),
+                    'current_status': 'PASSED',
+                    'proposed_status': 'PASSED',
+                    'reason': 'Grade adjustment after clerical error discovery.',
+                    'requested_by': professor,
+                    'reviewed_by_registrar': self.registrar,
+                    'registrar_notes': 'Verified computation error.',
+                    'registrar_action_at': timezone.now() - timedelta(days=5),
+                    'reviewed_by_head': self.dept_head,
+                    'head_notes': 'Approved. Grade corrected.',
+                    'head_action_at': timezone.now() - timedelta(days=3),
+                }
+            )
+
+        if another_enrollment:
+             # EPIC 5: Create a resolution pending registrar review for testing
+             GradeResolution.objects.get_or_create(
+                 subject_enrollment=another_enrollment,
+                 status=GradeResolution.Status.PENDING_REGISTRAR,
+                 defaults={
+                     'current_grade': None,
+                     'proposed_grade': Decimal('2.50'),
+                     'current_status': 'INC',
+                     'proposed_status': 'PASSED',
+                     'reason': 'Student submitted late project for resolution.',
+                     'requested_by': professor,
+                     'reviewed_by_head': self.dept_head,
+                     'head_notes': 'Verified compliance. Passed to registrar.',
+                     'head_action_at': timezone.now() - timedelta(days=1),
+                 }
+             )
+        
+        self.stdout.write(f'   - Created {GradeResolution.objects.count()} grade resolutions')
+
+    def _create_inc_scenarios(self):
+        """Create INC grade scenarios for testing expiry workflows."""
+        if self.minimal:
+            return
+        
+        # Find an enrollment that can be set to INC
+        enrolled_subj = SubjectEnrollment.objects.filter(
+            status='ENROLLED',
+            is_finalized=False
+        ).first()
+        
+        if enrolled_subj:
+            # Set this to INC with a finalized_at date ~20 days ago
+            enrolled_subj.status = 'INC'
+            enrolled_subj.grade = None
+            enrolled_subj.is_finalized = True
+            enrolled_subj.finalized_at = timezone.now() - timedelta(days=20)
+            enrolled_subj.save()
+            
+            # Create grade history for this
+            GradeHistory.objects.get_or_create(
+                subject_enrollment=enrolled_subj,
+                new_grade=None,
+                new_status='INC',
+                defaults={
+                    'previous_grade': None,
+                    'previous_status': 'ENROLLED',
+                    'change_reason': 'Student did not complete requirements.',
+                    'changed_by': self.professors[0] if self.professors else self.registrar,
+                    'is_finalization': True
+                }
+            )
+            
+            self.stdout.write('   - Created INC scenario (expiring in ~10 days)')
+
+    # =========================================================================
     # SUMMARY
     # =========================================================================
     
@@ -1489,6 +1739,8 @@ class Command(BaseCommand):
             ('Payment Buckets', MonthlyPaymentBucket.objects.count()),
             ('Payment Transactions', PaymentTransaction.objects.count()),
             ('Exam Permits', ExamPermit.objects.count()),
+            ('Grade Resolutions', GradeResolution.objects.count()),
+            ('Grade History', GradeHistory.objects.count()),
             ('Audit Logs', AuditLog.objects.count()),
             ('Permissions', Permission.objects.count()),
         ]
@@ -1501,7 +1753,11 @@ class Command(BaseCommand):
         self.stdout.write('-'*60)
         self.stdout.write('   Admin:     admin@richwell.edu / password123')
         self.stdout.write('   Registrar: registrar@richwell.edu / password123')
+        self.stdout.write('   Head:      head@richwell.edu / password123')
         self.stdout.write('   Cashier:   cashier@richwell.edu / password123')
-        self.stdout.write('   Professor: juan.dela cruz@richwell.edu / password123')
+        self.stdout.write('   Professor: juan.dela.cruz@richwell.edu / password123')
         self.stdout.write('   Student:   student.regular1@richwell.edu / password123')
+        self.stdout.write('   Student (2024 Curr): student.curr2024@richwell.edu / password123')
+        self.stdout.write('   Student (2025 Curr): student.curr2025@richwell.edu / password123')
         self.stdout.write('='*60)
+

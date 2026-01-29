@@ -11,12 +11,11 @@ import { createErrorState, parseApiError } from '../components/ErrorState.js';
 const state = {
   user: null,
   loading: true,
-  error: null, // Track error state
+  error: null,
   stats: {
     totalStudents: 0,
     pendingCOR: 0,
-    pendingOverride: 0,
-    incStudents: 0
+    expiringINC: 0
   },
   recentStudents: []
 };
@@ -27,11 +26,29 @@ async function init() {
   state.loading = true;
   state.error = null;
 
-  await loadUserProfile();
-  await loadStudents();
+  try {
+    await Promise.all([
+      loadUserProfile(),
+      loadStudents(),
+      loadINCSummary()
+    ]);
+  } catch (err) {
+    state.error = err;
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
 
-  state.loading = false;
-  render();
+async function loadINCSummary() {
+  try {
+    const response = await api.get(endpoints.incReport);
+    if (response?.success) {
+      state.stats.expiringINC = response.data.expiring_soon_count || 0;
+    }
+  } catch (error) {
+    console.error('Failed to load INC summary:', error);
+  }
 }
 
 window.retryLoadData = async function () {
@@ -66,9 +83,7 @@ async function loadStudents() {
       student_number: s.student_number || 'N/A',
       name: s.student_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown',
       program: s.program_code || s.program?.code || 'N/A',
-      year_level: s.year_level || 1,
-      status: 'complete',  // Default to complete since we don't have INC data yet
-      inc_count: 0
+      year_level: s.year_level || 1
     }));
 
     // Update stats with real count
@@ -129,32 +144,15 @@ function render() {
       </div>
       
       <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        ${renderStatCard('Total Students', state.stats.totalStudents, 'blue', 'users', '/registrar-documents.html')}
-        ${renderStatCard('COR Requests', state.stats.pendingCOR, 'green', 'document', '/registrar-documents.html')}
-        ${renderStatCard('Override Pending', state.stats.pendingOverride, 'yellow', 'clipboard', '/registrar-enrollment.html')}
-        ${renderStatCard('Students with INC', state.stats.incStudents, 'orange', 'alert', '/registrar-documents.html')}
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        ${renderStatCard('Total Students', state.stats.totalStudents, 'blue', 'users', '/registrar-students.html')}
+        ${renderStatCard('Pending COR', state.stats.pendingCOR, 'green', 'document', '/registrar-cor.html')}
+        ${renderStatCard('Expiring INC', state.stats.expiringINC, state.stats.expiringINC > 0 ? 'orange' : 'yellow', 'alert', '/registrar-inc.html')}
       </div>
       
       <!-- Quick Actions -->
       <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-        <!-- Document Release Card -->
-        <a href="/registrar-documents.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-blue-200">
-          <div class="flex items-start gap-4">
-            <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <h3 class="text-lg font-bold text-gray-800 group-hover:text-blue-600 transition-colors">Document Release</h3>
-              <p class="text-gray-600 text-sm mt-1">Release official documents (COR, TOR, etc.) for students.</p>
-              <span class="inline-flex items-center gap-1 text-blue-600 text-sm font-medium mt-2">
-                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-              </span>
-            </div>
-          </div>
-        </a>
+
 
         <!-- Subject Management Card -->
         <a href="/registrar-subjects.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-purple-200">
@@ -192,41 +190,9 @@ function render() {
           </div>
         </a>
 
-        <!-- Override Enrollment Card -->
-        <a href="/registrar-enrollment.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-green-200">
-          <div class="flex items-start gap-4">
-            <div class="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <h3 class="text-lg font-bold text-gray-800 group-hover:text-green-600 transition-colors">Override Enrollment</h3>
-              <p class="text-gray-600 text-sm mt-1">Manually enroll students in subjects. Override prerequisites and capacity.</p>
-              <span class="inline-flex items-center gap-1 text-green-600 text-sm font-medium mt-2">
-                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-              </span>
-            </div>
-          </div>
-        </a>
 
-        <!-- Section Management Card -->
-        <a href="/sections.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-teal-200">
-          <div class="flex items-start gap-4">
-            <div class="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <h3 class="text-lg font-bold text-gray-800 group-hover:text-teal-600 transition-colors">Section Management</h3>
-              <p class="text-gray-600 text-sm mt-1">Create sections, assign subjects and professors.</p>
-              <span class="inline-flex items-center gap-1 text-teal-600 text-sm font-medium mt-2">
-                Open <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-              </span>
-            </div>
-          </div>
-        </a>
+
+
 
         <!-- Schedule Management Card -->
         <a href="/schedule.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-violet-200">
@@ -260,8 +226,6 @@ function render() {
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Student</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Program</th>
                 <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Year</th>
-                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Status</th>
-                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -280,14 +244,6 @@ function render() {
                   </td>
                   <td class="px-4 py-3 text-gray-700">${student.program}</td>
                   <td class="px-4 py-3 text-center text-gray-700">Year ${student.year_level}</td>
-                  <td class="px-4 py-3 text-center">
-                    ${student.status === 'has_inc' ?
-      `<span class="badge badge-warning">${student.inc_count} INC</span>` :
-      '<span class="badge badge-success">Complete</span>'
-    }
-                  </td>
-                  <td class="px-4 py-3 text-center">
-                    <a href="/registrar-documents.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Release Docs</a>
                   </td>
                 </tr>
               `).join('')}

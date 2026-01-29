@@ -176,5 +176,10 @@ class ToastManager {
 // Create singleton instance
 export const Toast = new ToastManager();
 
+// Wrapper for backward compatibility with some pages
+export function showToast(message, type = 'info', duration = 5000) {
+  return Toast.show(message, type, duration);
+}
+
 // Export for testing
 export { ToastManager };

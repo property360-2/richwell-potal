@@ -139,7 +139,12 @@ function renderGradesContent() {
 }
 
 function renderStatistics() {
-  const stats = state.statistics;
+  const stats = state.statistics || {};
+  const completedSubjects = stats.completed_subjects ?? 0;
+  const totalSubjects = stats.total_subjects ?? 0;
+  const completedUnits = stats.completed_units ?? 0;
+  const totalUnits = stats.total_units ?? 0;
+  const incCount = stats.inc_count ?? 0;
 
   return `
     <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
@@ -148,25 +153,25 @@ function renderStatistics() {
       <!-- Subjects -->
       <div class="card">
         <p class="text-gray-500 text-xs font-medium">Subjects</p>
-        <p class="text-2xl font-bold text-gray-800 mt-1">${stats.completed_subjects}/${stats.total_subjects}</p>
+        <p class="text-2xl font-bold text-gray-800 mt-1">${completedSubjects}/${totalSubjects}</p>
       </div>
 
       <!-- Units -->
       <div class="card">
         <p class="text-gray-500 text-xs font-medium">Units</p>
-        <p class="text-2xl font-bold text-gray-800 mt-1">${stats.completed_units}/${stats.total_units}</p>
+        <p class="text-2xl font-bold text-gray-800 mt-1">${completedUnits}/${totalUnits}</p>
       </div>
 
       <!-- INC Count -->
-      ${stats.inc_count > 0 ? `
+      ${incCount > 0 ? `
         <div class="card border-2 border-yellow-300">
           <p class="text-yellow-600 text-xs font-medium">INC Subjects</p>
-          <p class="text-2xl font-bold text-yellow-600 mt-1">${stats.inc_count}</p>
+          <p class="text-2xl font-bold text-yellow-600 mt-1">${incCount}</p>
         </div>
       ` : `
         <div class="card">
           <p class="text-gray-500 text-xs font-medium">Current Year</p>
-          <p class="text-2xl font-bold text-gray-800 mt-1">${state.studentInfo.current_year_level}</p>
+          <p class="text-2xl font-bold text-gray-800 mt-1">${state.studentInfo?.current_year_level ?? '-'}</p>
         </div>
       `}
     </div>
@@ -199,7 +204,7 @@ function renderYearSection(yearLevel) {
     yearData[sem].forEach(subject => {
       totalSubjects++;
       totalUnits += subject.units;
-      if (subject.status === 'completed') {
+      if (['PASSED', 'CREDITED', 'COMPLETED'].includes(subject.status)) {
         completedSubjects++;
         completedUnits += subject.units;
       }
@@ -281,7 +286,7 @@ function renderSubjectRow(subject) {
       </td>
       <td class="px-6 py-4">
         <span class="text-sm text-gray-800">${subject.title}</span>
-        ${subject.prerequisites.length > 0 ? `
+        ${subject.prerequisites?.length > 0 ? `
           <p class="text-xs text-gray-400 mt-0.5">Prereq: ${subject.prerequisites.map(p => p.code).join(', ')}</p>
         ` : ''}
       </td>
@@ -338,14 +343,19 @@ function getGradeDisplay(subject) {
 
 function getStatusBadge(subject) {
   const statusConfig = {
-    'completed': { class: 'bg-green-100 text-green-700', label: 'Passed' },
-    'enrolled': { class: 'bg-blue-100 text-blue-700', label: 'Enrolled' },
-    'inc': { class: 'bg-yellow-100 text-yellow-700', label: 'INC' },
-    'failed': { class: 'bg-red-100 text-red-700', label: 'Failed' },
-    'pending': { class: 'bg-gray-100 text-gray-500', label: 'Pending' }
+    'PASSED': { class: 'bg-green-100 text-green-700', label: 'Passed' },
+    'CREDITED': { class: 'bg-green-100 text-green-700', label: 'Passed' },
+    'COMPLETED': { class: 'bg-green-100 text-green-700', label: 'Passed' },
+    'ENROLLED': { class: 'bg-blue-300 text-blue-800 font-bold border-blue-400', label: 'ENROLLED' },
+    'INC': { class: 'bg-yellow-100 text-yellow-700', label: 'INC' },
+    'FAILED': { class: 'bg-red-100 text-red-700', label: 'Failed' },
+    'DROPPED': { class: 'bg-gray-100 text-gray-500', label: 'Dropped' },
+    'NOT_TAKEN': { class: 'bg-gray-50 text-gray-400', label: 'Not Taken' },
+    'PENDING': { class: 'bg-gray-100 text-gray-500', label: 'Pending' }
   };
 
-  const config = statusConfig[subject.status] || statusConfig.pending;
+  const normalizedStatus = (subject.status || '').toUpperCase();
+  const config = statusConfig[normalizedStatus] || statusConfig.PENDING;
 
   return `<span class="px-2 py-1 text-xs font-medium rounded-full ${config.class}">${config.label}</span>`;
 }

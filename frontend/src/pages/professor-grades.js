@@ -20,41 +20,43 @@ import { showToast } from '../components/Toast.js';
 // ============================================================
 
 const state = {
-    user: null,
-    semester: null,
-    assignedSections: [],
-    selectedSectionSubject: null,
-    students: [],
-    modifiedGrades: {}, // { subjectEnrollmentId: { grade, status, remarks } }
-    loading: true,
-    loadingStudents: false,
-    submitting: false,
-    gradeHistory: [],
-    showHistoryModal: false,
-    historyStudentId: null
+  user: null,
+  semesters: [],
+  selectedSemesterId: null,
+  semester: null, // Selected semester detail
+  assignedSections: [],
+  selectedSectionSubject: null,
+  students: [],
+  modifiedGrades: {}, // { subjectEnrollmentId: { grade, status, remarks } }
+  loading: true,
+  loadingStudents: false,
+  submitting: false,
+  gradeHistory: [],
+  showHistoryModal: false,
+  historyStudentId: null
 };
 
 // Grade options for dropdown
 const GRADE_OPTIONS = [
-    { value: '', label: 'Select' },
-    { value: '1.00', label: '1.00' },
-    { value: '1.25', label: '1.25' },
-    { value: '1.50', label: '1.50' },
-    { value: '1.75', label: '1.75' },
-    { value: '2.00', label: '2.00' },
-    { value: '2.25', label: '2.25' },
-    { value: '2.50', label: '2.50' },
-    { value: '2.75', label: '2.75' },
-    { value: '3.00', label: '3.00' },
-    { value: '5.00', label: '5.00' }
+  { value: '', label: 'Select' },
+  { value: '1.00', label: '1.00' },
+  { value: '1.25', label: '1.25' },
+  { value: '1.50', label: '1.50' },
+  { value: '1.75', label: '1.75' },
+  { value: '2.00', label: '2.00' },
+  { value: '2.25', label: '2.25' },
+  { value: '2.50', label: '2.50' },
+  { value: '2.75', label: '2.75' },
+  { value: '3.00', label: '3.00' },
+  { value: '5.00', label: '5.00' }
 ];
 
 const STATUS_OPTIONS = [
-    { value: 'ENROLLED', label: 'Enrolled' },
-    { value: 'PASSED', label: 'Passed' },
-    { value: 'FAILED', label: 'Failed' },
-    { value: 'INC', label: 'Incomplete' },
-    { value: 'DROPPED', label: 'Dropped' }
+  { value: 'ENROLLED', label: 'Enrolled' },
+  { value: 'PASSED', label: 'Passed' },
+  { value: 'FAILED', label: 'Failed' },
+  { value: 'INC', label: 'Incomplete' },
+  { value: 'DROPPED', label: 'Dropped' }
 ];
 
 // ============================================================
@@ -62,13 +64,17 @@ const STATUS_OPTIONS = [
 // ============================================================
 
 async function init() {
-    if (!requireAuth()) return;
+  if (!requireAuth()) return;
 
-    await loadUserProfile();
+  await loadUserProfile();
+  await loadSemesters();
+
+  if (state.selectedSemesterId) {
     await loadAssignedSections();
+  }
 
-    state.loading = false;
-    render();
+  state.loading = false;
+  render();
 }
 
 // ============================================================
@@ -76,225 +82,245 @@ async function init() {
 // ============================================================
 
 async function loadUserProfile() {
-    try {
-        const response = await api.get(endpoints.me);
-        if (response) {
-            const userData = response.data || response;
-            state.user = userData;
-            TokenManager.setUser(userData);
-        }
-    } catch (error) {
-        ErrorHandler.handle(error, 'Loading user profile');
+  try {
+    const response = await api.get(endpoints.me);
+    if (response) {
+      const userData = response.data || response;
+      state.user = userData;
+      TokenManager.setUser(userData);
     }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading user profile');
+  }
+}
+
+async function loadSemesters() {
+  try {
+    const response = await api.get(endpoints.semesters);
+    state.semesters = response?.results || response || [];
+    const current = state.semesters.find(s => s.is_current);
+    state.selectedSemesterId = current?.id || state.semesters[0]?.id;
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading semesters');
+  }
 }
 
 async function loadAssignedSections() {
-    try {
-        const response = await api.get(endpoints.grading.sections);
-        if (response) {
-            state.assignedSections = response.sections || [];
-            state.semester = response.semester;
-        }
-    } catch (error) {
-        ErrorHandler.handle(error, 'Loading assigned sections');
-        state.assignedSections = [];
+  try {
+    const url = `${endpoints.grading.sections}?semester=${state.selectedSemesterId}`;
+    const response = await api.get(url);
+    if (response) {
+      state.assignedSections = response.sections || [];
+      state.semester = response.semester;
     }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading assigned sections');
+    state.assignedSections = [];
+  }
 }
 
 async function loadStudents(sectionSubjectId) {
-    state.loadingStudents = true;
-    state.students = [];
-    state.modifiedGrades = {};
-    render();
+  state.loadingStudents = true;
+  state.students = [];
+  state.modifiedGrades = {};
+  render();
 
-    try {
-        const url = `${endpoints.grading.students}?section_subject=${sectionSubjectId}`;
-        const response = await api.get(url);
+  try {
+    const url = `${endpoints.grading.students}?section_subject=${sectionSubjectId}`;
+    const response = await api.get(url);
 
-        if (response) {
-            state.students = response.students || [];
-        }
-    } catch (error) {
-        ErrorHandler.handle(error, 'Loading students');
-        state.students = [];
+    if (response) {
+      state.students = response.students || [];
     }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading students');
+    state.students = [];
+  }
 
-    state.loadingStudents = false;
-    render();
+  state.loadingStudents = false;
+  render();
 }
 
 async function loadGradeHistory(subjectEnrollmentId) {
-    try {
-        const response = await api.get(endpoints.grading.history(subjectEnrollmentId));
-        state.gradeHistory = response || [];
-    } catch (error) {
-        ErrorHandler.handle(error, 'Loading grade history');
-        state.gradeHistory = [];
-    }
+  try {
+    const response = await api.get(endpoints.grading.history(subjectEnrollmentId));
+    state.gradeHistory = response || [];
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading grade history');
+    state.gradeHistory = [];
+  }
 }
 
 // ============================================================
 // ACTIONS
 // ============================================================
 
+function handleSemesterChange(semesterId) {
+  state.selectedSemesterId = semesterId;
+  state.selectedSectionSubject = null;
+  state.students = [];
+  state.modifiedGrades = {};
+  loadAssignedSections().then(render);
+}
+
 function handleSectionChange(sectionSubjectId) {
-    state.selectedSectionSubject = sectionSubjectId;
-    if (sectionSubjectId) {
-        loadStudents(sectionSubjectId);
-    } else {
-        state.students = [];
-        state.modifiedGrades = {};
-        render();
-    }
+  state.selectedSectionSubject = sectionSubjectId;
+  if (sectionSubjectId) {
+    loadStudents(sectionSubjectId);
+  } else {
+    state.students = [];
+    state.modifiedGrades = {};
+    render();
+  }
 }
 
 function handleGradeChange(subjectEnrollmentId, grade) {
-    if (!state.modifiedGrades[subjectEnrollmentId]) {
-        state.modifiedGrades[subjectEnrollmentId] = {};
-    }
-    state.modifiedGrades[subjectEnrollmentId].grade = grade;
+  if (!state.modifiedGrades[subjectEnrollmentId]) {
+    state.modifiedGrades[subjectEnrollmentId] = {};
+  }
+  state.modifiedGrades[subjectEnrollmentId].grade = grade;
 
-    // Auto-calculate status
-    if (grade) {
-        const gradeNum = parseFloat(grade);
-        if (gradeNum <= 3.0) {
-            state.modifiedGrades[subjectEnrollmentId].status = 'PASSED';
-        } else {
-            state.modifiedGrades[subjectEnrollmentId].status = 'FAILED';
-        }
+  // Auto-calculate status
+  if (grade) {
+    const gradeNum = parseFloat(grade);
+    if (gradeNum <= 3.0) {
+      state.modifiedGrades[subjectEnrollmentId].status = 'PASSED';
+    } else {
+      state.modifiedGrades[subjectEnrollmentId].status = 'FAILED';
     }
+  }
 
-    render();
+  render();
 }
 
 function handleStatusChange(subjectEnrollmentId, status) {
-    if (!state.modifiedGrades[subjectEnrollmentId]) {
-        state.modifiedGrades[subjectEnrollmentId] = {};
-    }
-    state.modifiedGrades[subjectEnrollmentId].status = status;
+  if (!state.modifiedGrades[subjectEnrollmentId]) {
+    state.modifiedGrades[subjectEnrollmentId] = {};
+  }
+  state.modifiedGrades[subjectEnrollmentId].status = status;
 
-    // Clear grade if INC or DROPPED
-    if (status === 'INC' || status === 'DROPPED') {
-        state.modifiedGrades[subjectEnrollmentId].grade = null;
-    }
+  // Clear grade if INC or DROPPED
+  if (status === 'INC' || status === 'DROPPED') {
+    state.modifiedGrades[subjectEnrollmentId].grade = null;
+  }
 
-    render();
+  render();
 }
 
 function handleRemarksChange(subjectEnrollmentId, remarks) {
-    if (!state.modifiedGrades[subjectEnrollmentId]) {
-        state.modifiedGrades[subjectEnrollmentId] = {};
-    }
-    state.modifiedGrades[subjectEnrollmentId].remarks = remarks;
+  if (!state.modifiedGrades[subjectEnrollmentId]) {
+    state.modifiedGrades[subjectEnrollmentId] = {};
+  }
+  state.modifiedGrades[subjectEnrollmentId].remarks = remarks;
 }
 
 async function submitSingleGrade(subjectEnrollmentId) {
-    const modifiedData = state.modifiedGrades[subjectEnrollmentId];
-    if (!modifiedData) return;
+  const modifiedData = state.modifiedGrades[subjectEnrollmentId];
+  if (!modifiedData) return;
 
-    const student = state.students.find(s => s.subject_enrollment_id === subjectEnrollmentId);
-    if (!student) return;
+  const student = state.students.find(s => s.subject_enrollment_id === subjectEnrollmentId);
+  if (!student) return;
 
-    // Validate INC requires remarks
-    if (modifiedData.status === 'INC' && !modifiedData.remarks) {
-        showToast('Remarks are required for Incomplete (INC) status', 'error');
-        return;
-    }
+  // Validate INC requires remarks
+  if (modifiedData.status === 'INC' && !modifiedData.remarks) {
+    showToast('Remarks are required for Incomplete (INC) status', 'error');
+    return;
+  }
 
-    state.submitting = true;
-    render();
+  state.submitting = true;
+  render();
 
-    try {
-        const payload = {
-            subject_enrollment_id: subjectEnrollmentId,
-            grade: modifiedData.grade ? parseFloat(modifiedData.grade) : null,
-            status: modifiedData.status || student.current_status,
-            remarks: modifiedData.remarks || ''
-        };
+  try {
+    const payload = {
+      subject_enrollment_id: subjectEnrollmentId,
+      grade: modifiedData.grade ? parseFloat(modifiedData.grade) : null,
+      status: modifiedData.status || student.current_status,
+      remarks: modifiedData.remarks || ''
+    };
 
-        await api.post(endpoints.grading.submit, payload);
+    await api.post(endpoints.grading.submit, payload);
 
-        showToast(`Grade submitted for ${student.full_name}`, 'success');
+    showToast(`Grade submitted for ${student.full_name}`, 'success');
 
-        // Clear modification and reload
-        delete state.modifiedGrades[subjectEnrollmentId];
-        await loadStudents(state.selectedSectionSubject);
+    // Clear modification and reload
+    delete state.modifiedGrades[subjectEnrollmentId];
+    await loadStudents(state.selectedSectionSubject);
 
-    } catch (error) {
-        ErrorHandler.handle(error, 'Submitting grade');
-    }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Submitting grade');
+  }
 
-    state.submitting = false;
-    render();
+  state.submitting = false;
+  render();
 }
 
 async function submitAllGrades() {
-    const modifiedIds = Object.keys(state.modifiedGrades);
-    if (modifiedIds.length === 0) {
-        showToast('No grades to submit', 'warning');
-        return;
+  const modifiedIds = Object.keys(state.modifiedGrades);
+  if (modifiedIds.length === 0) {
+    showToast('No grades to submit', 'warning');
+    return;
+  }
+
+  // Validate all INC have remarks
+  for (const id of modifiedIds) {
+    const data = state.modifiedGrades[id];
+    if (data.status === 'INC' && !data.remarks) {
+      const student = state.students.find(s => s.subject_enrollment_id === id);
+      showToast(`Remarks required for ${student?.full_name || 'student'} (INC status)`, 'error');
+      return;
+    }
+  }
+
+  state.submitting = true;
+  render();
+
+  try {
+    const grades = modifiedIds.map(id => {
+      const data = state.modifiedGrades[id];
+      const student = state.students.find(s => s.subject_enrollment_id === id);
+      return {
+        subject_enrollment_id: id,
+        grade: data.grade ? parseFloat(data.grade) : null,
+        status: data.status || student?.current_status,
+        remarks: data.remarks || ''
+      };
+    });
+
+    const response = await api.post(endpoints.grading.bulk, { grades });
+
+    if (response.success) {
+      showToast(`${response.submitted_count} grade(s) submitted successfully`, 'success');
+    } else {
+      showToast(`Submitted ${response.submitted_count}, ${response.error_count} error(s)`, 'warning');
     }
 
-    // Validate all INC have remarks
-    for (const id of modifiedIds) {
-        const data = state.modifiedGrades[id];
-        if (data.status === 'INC' && !data.remarks) {
-            const student = state.students.find(s => s.subject_enrollment_id === id);
-            showToast(`Remarks required for ${student?.full_name || 'student'} (INC status)`, 'error');
-            return;
-        }
-    }
+    // Clear modifications and reload
+    state.modifiedGrades = {};
+    await loadStudents(state.selectedSectionSubject);
 
-    state.submitting = true;
-    render();
+  } catch (error) {
+    ErrorHandler.handle(error, 'Submitting grades');
+  }
 
-    try {
-        const grades = modifiedIds.map(id => {
-            const data = state.modifiedGrades[id];
-            const student = state.students.find(s => s.subject_enrollment_id === id);
-            return {
-                subject_enrollment_id: id,
-                grade: data.grade ? parseFloat(data.grade) : null,
-                status: data.status || student?.current_status,
-                remarks: data.remarks || ''
-            };
-        });
-
-        const response = await api.post(endpoints.grading.bulk, { grades });
-
-        if (response.success) {
-            showToast(`${response.submitted_count} grade(s) submitted successfully`, 'success');
-        } else {
-            showToast(`Submitted ${response.submitted_count}, ${response.error_count} error(s)`, 'warning');
-        }
-
-        // Clear modifications and reload
-        state.modifiedGrades = {};
-        await loadStudents(state.selectedSectionSubject);
-
-    } catch (error) {
-        ErrorHandler.handle(error, 'Submitting grades');
-    }
-
-    state.submitting = false;
-    render();
+  state.submitting = false;
+  render();
 }
 
 async function showHistory(subjectEnrollmentId) {
-    state.historyStudentId = subjectEnrollmentId;
-    state.showHistoryModal = true;
-    state.gradeHistory = [];
-    render();
+  state.historyStudentId = subjectEnrollmentId;
+  state.showHistoryModal = true;
+  state.gradeHistory = [];
+  render();
 
-    await loadGradeHistory(subjectEnrollmentId);
-    render();
+  await loadGradeHistory(subjectEnrollmentId);
+  render();
 }
 
 function closeHistoryModal() {
-    state.showHistoryModal = false;
-    state.gradeHistory = [];
-    state.historyStudentId = null;
-    render();
+  state.showHistoryModal = false;
+  state.gradeHistory = [];
+  state.historyStudentId = null;
+  render();
 }
 
 // ============================================================
@@ -302,114 +328,184 @@ function closeHistoryModal() {
 // ============================================================
 
 function render() {
-    const app = document.getElementById('app');
+  const app = document.getElementById('app');
 
-    if (state.loading) {
-        app.innerHTML = LoadingOverlay('Loading grade management...');
-        return;
-    }
+  if (state.loading) {
+    app.innerHTML = LoadingOverlay('Loading grade management...');
+    return;
+  }
 
-    app.innerHTML = `
+  app.innerHTML = `
     ${createHeader({
-        role: 'PROFESSOR',
-        activePage: 'grades',
-        user: state.user
-    })}
+    role: 'PROFESSOR',
+    activePage: 'grades',
+    user: state.user
+  })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Header -->
       <div class="mb-6">
-        <h1 class="text-3xl font-bold text-gray-800">Grade Management</h1>
-        <p class="text-gray-600 mt-1">
-          ${state.semester ? `${state.semester.name} ${state.semester.academic_year}` : 'No active semester'}
+        <h1 class="text-3xl font-bold text-gray-800">My Sections</h1>
+        <div class="flex items-center gap-3 mt-1">
+          <p class="text-gray-600">
+            ${state.semester ? `${state.semester.name} ${state.semester.academic_year}` : 'No semester selected'}
+          </p>
+        <div class="mt-2">
           ${state.semester?.is_grading_open ?
-            renderBadge({ text: 'Grading Open', color: 'success', size: 'sm' }) :
-            renderBadge({ text: 'Grading Closed', color: 'danger', size: 'sm' })}
-        </p>
-      </div>
-      
-      <!-- Section Selector -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-        <div class="flex flex-wrap items-end gap-4">
-          <div class="flex-1 min-w-[250px]">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Select Section & Subject
-            </label>
-            <select 
-              id="section-select" 
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              onchange="window.handleSectionChange(this.value)"
-            >
-              <option value="">-- Select a section --</option>
-              ${state.assignedSections.map(ss => `
-                <option value="${ss.section_subject_id}" ${state.selectedSectionSubject === ss.section_subject_id ? 'selected' : ''}>
-                  ${ss.section_name} - ${ss.subject_code}: ${ss.subject_title}
-                </option>
-              `).join('')}
-            </select>
-          </div>
+      renderBadge({ text: 'Grading Open', color: 'success', size: 'sm' }) :
+      renderBadge({ text: 'Grading Closed', color: 'danger', size: 'sm' })}
           
-          ${Object.keys(state.modifiedGrades).length > 0 ? `
-            <button 
-              onclick="window.submitAllGrades()"
-              ${state.submitting ? 'disabled' : ''}
-              class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              ${state.submitting ? InlineSpinner() : Icon('check', { size: 'sm' })}
-              Save All Changes (${Object.keys(state.modifiedGrades).length})
-            </button>
+          ${state.semester?.grading_start_date ? `
+            <p class="text-sm text-gray-500 mt-1 font-medium italic">
+              grading date: ${formatDate(state.semester.grading_start_date)} - ${formatDate(state.semester.grading_end_date)}
+            </p>
           ` : ''}
+        </div>
         </div>
       </div>
       
-      <!-- Students Table -->
-      ${renderStudentsTable()}
+      
+      ${!state.selectedSectionSubject ? renderSectionsTable() : `
+        <!-- Back Button -->
+        <div class="mb-4">
+          <button 
+            onclick="window.handleBackToSections()"
+            class="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back to Sections
+          </button>
+        </div>
+
+        <!-- Save Button Bar -->
+        ${Object.keys(state.modifiedGrades).length > 0 ? `
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+            <div class="flex justify-end">
+              <button 
+                onclick="window.submitAllGrades()"
+                ${state.submitting ? 'disabled' : ''}
+                class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                ${state.submitting ? InlineSpinner() : Icon('check', { size: 'sm' })}
+                Save Changes (${Object.keys(state.modifiedGrades).length})
+              </button>
+            </div>
+          </div>
+        ` : ''}
+        
+        <!-- Students Table -->
+        ${renderStudentsTable()}
+      `}
       
       <!-- History Modal -->
       ${state.showHistoryModal ? renderHistoryModal() : ''}
     </main>
   `;
 
-    attachEventListeners();
+  attachEventListeners();
+}
+
+function renderSectionsTable() {
+  if (state.assignedSections.length === 0) {
+    return `
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        ${renderEmptyState({
+      icon: 'clipboard',
+      title: 'No Sections Assigned',
+      message: 'No sections assigned as of the moment.'
+    })}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
+              <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Students</th>
+              <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            ${state.assignedSections.map(section => `
+              <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="font-semibold text-gray-800">${section.section_name}</span>
+                </td>
+                <td class="px-6 py-4">
+                  <div>
+                    <p class="font-mono text-sm font-semibold text-blue-600">${section.subject_code}</p>
+                    <p class="text-sm text-gray-600">${section.subject_title}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">${section.units} units</p>
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-600">
+                    ${section.schedule_display || '-'}
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="text-sm text-gray-600">${section.room || '-'}</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-center">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    ${section.enrolled_count || 0}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-center">
+                  <button
+                    onclick="window.handleSectionChange('${section.section_subject_id}')"
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    View
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 function renderStudentsTable() {
-    if (!state.selectedSectionSubject) {
-        return `
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        ${renderEmptyState({
-            icon: 'clipboard',
-            title: 'Select a Section',
-            message: 'Choose a section and subject from the dropdown above to view and grade students.'
-        })}
-      </div>
-    `;
-    }
+  if (!state.selectedSectionSubject) {
+    return '';
+  }
 
-    if (state.loadingStudents) {
-        return `
+  if (state.loadingStudents) {
+    return `
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
         ${InlineSpinner()}
         <p class="text-gray-500 mt-2">Loading students...</p>
       </div>
     `;
-    }
+  }
 
-    if (state.students.length === 0) {
-        return `
+  if (state.students.length === 0) {
+    return `
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         ${renderEmptyState({
-            icon: 'users',
-            title: 'No Students Found',
-            message: 'No students are enrolled in this section-subject combination.'
-        })}
+      icon: 'users',
+      title: 'No Students Found',
+      message: 'No students are enrolled in this section-subject combination.'
+    })}
       </div>
     `;
-    }
+  }
 
-    const selectedSection = state.assignedSections.find(s => s.section_subject_id === state.selectedSectionSubject);
+  const selectedSection = state.assignedSections.find(s => s.section_subject_id === state.selectedSectionSubject);
 
-    return `
+  return `
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
         <div>
@@ -444,21 +540,33 @@ function renderStudentsTable() {
 }
 
 function renderStudentRow(student) {
-    const modified = state.modifiedGrades[student.subject_enrollment_id];
-    const currentGrade = modified?.grade !== undefined ? modified.grade : (student.current_grade || '');
-    const currentStatus = modified?.status || student.current_status;
-    const isModified = !!modified;
-    const isFinalized = student.is_finalized;
+  const modified = state.modifiedGrades[student.subject_enrollment_id];
+  const currentGrade = modified?.grade !== undefined ? modified.grade : (student.current_grade || '');
+  const currentStatus = modified?.status || student.current_status;
+  const isModified = !!modified;
+  const isFinalized = student.is_finalized;
 
-    // Determine grade class
-    let gradeClass = '';
-    if (currentGrade) {
-        const gradeNum = parseFloat(currentGrade);
-        gradeClass = gradeNum <= 3.0 ? 'passed' : 'failed';
-    }
+  // Grading rules:
+  // 1. Finalized grades cannot be modified by professors.
+  // 2. INC resolution allowed if is_resolution_allowed is true AND no retake exists.
+  // 3. Normal grading allowed if semester is_grading_open is true.
+  // 3. Normal grading allowed if semester is_grading_open is true.
+  const isResolutionAllowed = student.is_resolution_allowed && !student.has_retake;
+  const isGradingOpen = state.semester?.is_grading_open;
 
-    return `
-    <tr class="${isModified ? 'bg-yellow-50' : ''} ${isFinalized ? 'opacity-60' : ''} hover:bg-gray-50">
+  // LOGIC FIX: Allow editing if it's an INC resolution regardless of finalization status
+  const isResolutionContext = isResolutionAllowed && (currentStatus === 'INC' || currentStatus === 'FOR_RESOLUTION');
+  const canEdit = !student.pending_resolution && ((!isFinalized && isGradingOpen) || isResolutionContext);
+
+  // Determine grade class
+  let gradeClass = '';
+  if (currentGrade) {
+    const gradeNum = parseFloat(currentGrade);
+    gradeClass = gradeNum <= 3.0 ? 'passed' : 'failed';
+  }
+
+  return `
+    <tr class="${isModified ? 'bg-yellow-50' : ''} ${!canEdit && !student.pending_resolution ? 'opacity-70 bg-gray-50' : ''} hover:bg-gray-50">
       <td class="px-4 py-3">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
@@ -472,14 +580,20 @@ function renderStudentRow(student) {
       </td>
       
       <td class="px-4 py-3 text-center">
-        ${isFinalized ? `
+        ${student.pending_resolution ? `
+          <div class="flex flex-col items-center">
+            <span class="text-xs text-gray-400 line-through">${currentGrade || '-'}</span>
+            <span class="text-base font-bold text-blue-600">${student.pending_resolution.proposed_grade}</span>
+            <span class="text-[10px] font-bold text-orange-600 mt-1 uppercase">Pending Approval</span>
+          </div>
+        ` : !canEdit ? `
           <span class="font-bold ${gradeClass}">${currentGrade || '-'}</span>
         ` : `
           <select 
             class="grade-input ${isModified ? 'modified' : ''} ${gradeClass}"
             data-id="${student.subject_enrollment_id}"
             data-field="grade"
-            ${currentStatus === 'INC' || currentStatus === 'DROPPED' ? 'disabled' : ''}
+            ${(currentStatus === 'INC' || currentStatus === 'FOR_RESOLUTION') && !isResolutionContext ? 'disabled' : ''}
           >
             ${GRADE_OPTIONS.map(opt => `
               <option value="${opt.value}" ${currentGrade === opt.value ? 'selected' : ''}>${opt.label}</option>
@@ -489,8 +603,14 @@ function renderStudentRow(student) {
       </td>
       
       <td class="px-4 py-3 text-center">
-        ${isFinalized ? `
+        ${!canEdit && !student.pending_resolution ? `
           ${renderStatusBadge(currentStatus)}
+          ${student.has_retake ? '<div class="text-[10px] text-red-500 font-bold mt-1">RETAKE ACTIVE</div>' : ''}
+        ` : student.pending_resolution ? `
+          <div class="flex flex-col items-center">
+            ${renderStatusBadge(student.pending_resolution.proposed_status)}
+            <span class="text-[10px] text-gray-400 mt-1 italic">Proposed Status</span>
+          </div>
         ` : `
           <select 
             class="status-select ${isModified ? 'modified' : ''}"
@@ -505,8 +625,10 @@ function renderStudentRow(student) {
       </td>
       
       <td class="px-4 py-3">
-        ${isFinalized ? `
-          <span class="text-sm text-gray-500">-</span>
+        ${!canEdit && !student.pending_resolution ? `
+          <span class="text-sm text-gray-500">${isFinalized ? 'Finalized' : isResolutionAllowed ? 'INC Resolution' : 'Closed'}</span>
+        ` : student.pending_resolution ? `
+           <span class="text-xs text-orange-600 font-medium">Awaiting Registrar & Head Review</span>
         ` : `
           <input 
             type="text" 
@@ -545,9 +667,9 @@ function renderStudentRow(student) {
 }
 
 function renderHistoryModal() {
-    const student = state.students.find(s => s.subject_enrollment_id === state.historyStudentId);
+  const student = state.students.find(s => s.subject_enrollment_id === state.historyStudentId);
 
-    return `
+  return `
     <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="window.closeHistoryModal()">
       <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -610,41 +732,50 @@ function renderHistoryModal() {
 // ============================================================
 
 function attachEventListeners() {
-    // Grade input changes
-    document.querySelectorAll('[data-field="grade"]').forEach(el => {
-        el.addEventListener('change', (e) => {
-            handleGradeChange(e.target.dataset.id, e.target.value);
-        });
+  // Grade input changes
+  document.querySelectorAll('[data-field="grade"]').forEach(el => {
+    el.addEventListener('change', (e) => {
+      handleGradeChange(e.target.dataset.id, e.target.value);
     });
+  });
 
-    // Status select changes
-    document.querySelectorAll('[data-field="status"]').forEach(el => {
-        el.addEventListener('change', (e) => {
-            handleStatusChange(e.target.dataset.id, e.target.value);
-        });
+  // Status select changes
+  document.querySelectorAll('[data-field="status"]').forEach(el => {
+    el.addEventListener('change', (e) => {
+      handleStatusChange(e.target.dataset.id, e.target.value);
     });
+  });
 
-    // Remarks input changes
-    document.querySelectorAll('[data-field="remarks"]').forEach(el => {
-        el.addEventListener('input', (e) => {
-            handleRemarksChange(e.target.dataset.id, e.target.value);
-        });
+  // Remarks input changes
+  document.querySelectorAll('[data-field="remarks"]').forEach(el => {
+    el.addEventListener('input', (e) => {
+      handleRemarksChange(e.target.dataset.id, e.target.value);
     });
+  });
+}
+
+function handleBackToSections() {
+  state.selectedSectionSubject = null;
+  state.students = [];
+  state.modifiedGrades = {};
+  render();
 }
 
 // ============================================================
 // GLOBAL HANDLERS
 // ============================================================
 
+window.handleSemesterChange = handleSemesterChange;
 window.handleSectionChange = handleSectionChange;
+window.handleBackToSections = handleBackToSections;
 window.submitSingleGrade = submitSingleGrade;
 window.submitAllGrades = submitAllGrades;
 window.showHistory = showHistory;
 window.closeHistoryModal = closeHistoryModal;
 
 window.logout = function () {
-    TokenManager.clearTokens();
-    window.location.href = '/login.html';
+  TokenManager.clearTokens();
+  window.location.href = '/login.html';
 };
 
 // Initialize

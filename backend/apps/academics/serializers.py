@@ -213,12 +213,15 @@ class ScheduleSlotSerializer(serializers.ModelSerializer):
     
     day_display = serializers.CharField(source='get_day_display', read_only=True)
     professor_name = serializers.CharField(source='professor.get_full_name', read_only=True)
+    section_name = serializers.CharField(source='section_subject.section.name', read_only=True)
+    subject_code = serializers.CharField(source='section_subject.subject.code', read_only=True)
     
     class Meta:
         model = ScheduleSlot
         fields = [
             'id', 'section_subject', 'day', 'day_display',
-            'start_time', 'end_time', 'room', 'professor', 'professor_name'
+            'start_time', 'end_time', 'room', 'professor', 'professor_name',
+            'section_name', 'subject_code'
         ]
         read_only_fields = ['id']
     

@@ -41,6 +41,11 @@ class GradeableStudentSerializer(serializers.Serializer):
     current_status = serializers.CharField(source='status')
     enrollment_type = serializers.CharField()
     is_finalized = serializers.BooleanField()
+    is_resolution_allowed = serializers.BooleanField()
+    has_retake = serializers.SerializerMethodField()
+
+    def get_has_retake(self, obj):
+        return obj.retakes.exists()
     
     def get_full_name(self, obj):
         student = obj.enrollment.student

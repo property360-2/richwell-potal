@@ -18,11 +18,11 @@ import { Icon } from '../atoms/icons/Icon.js';
 
 // State
 const state = {
-    user: null,
-    activeSemester: null,
-    schedule: null,
-    assignedSections: [],
-    loading: true
+  user: null,
+  activeSemester: null,
+  schedule: null,
+  assignedSections: [],
+  loading: true
 };
 
 // ============================================================
@@ -30,14 +30,14 @@ const state = {
 // ============================================================
 
 async function init() {
-    if (!requireAuth()) return;
-    await loadUserProfile();
-    await loadActiveSemester();
-    if (state.activeSemester && state.user) {
-        await loadSchedule();
-    }
-    state.loading = false;
-    render();
+  if (!requireAuth()) return;
+  await loadUserProfile();
+  await loadActiveSemester();
+  if (state.activeSemester && state.user) {
+    await loadSchedule();
+  }
+  state.loading = false;
+  render();
 }
 
 // ============================================================
@@ -45,50 +45,50 @@ async function init() {
 // ============================================================
 
 async function loadUserProfile() {
-    try {
-        const response = await api.get(endpoints.me);
-        if (response) {
-            const userData = response.data || response;
-            state.user = userData;
-            TokenManager.setUser(userData);
-        }
-    } catch (error) {
-        ErrorHandler.handle(error, 'Loading user profile');
+  try {
+    const response = await api.get(endpoints.me);
+    if (response) {
+      const userData = response.data || response;
+      state.user = userData;
+      TokenManager.setUser(userData);
     }
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading user profile');
+  }
 }
 
 async function loadActiveSemester() {
-    try {
-        const response = await api.get(endpoints.semesters);
-        const semesters = response?.semesters || response?.results || response || [];
-        state.activeSemester = semesters.find(s => s.is_current) || semesters[0];
-    } catch (error) {
-        ErrorHandler.handle(error, 'Loading semesters');
-    }
+  try {
+    const response = await api.get(endpoints.semesters);
+    const semesters = response?.semesters || response?.results || response || [];
+    state.activeSemester = semesters.find(s => s.is_current) || semesters[0];
+  } catch (error) {
+    ErrorHandler.handle(error, 'Loading semesters');
+  }
 }
 
 async function loadSchedule() {
-    try {
-        if (!state.user || !state.user.id) {
-            console.warn('User ID missing, skipping schedule load');
-            state.schedule = {};
-            state.assignedSections = [];
-            return;
-        }
-
-        const response = await api.get(`/academics/professor/${state.user.id}/schedule/${state.activeSemester.id}/`);
-        state.schedule = response?.schedule || {};
-        state.assignedSections = response?.assigned_sections || [];
-    } catch (error) {
-        if (error.message && error.message.includes('404')) {
-            state.schedule = {};
-            state.assignedSections = [];
-        } else {
-            ErrorHandler.handle(error, 'Loading schedule');
-            state.schedule = {};
-            state.assignedSections = [];
-        }
+  try {
+    if (!state.user || !state.user.id) {
+      console.warn('User ID missing, skipping schedule load');
+      state.schedule = {};
+      state.assignedSections = [];
+      return;
     }
+
+    const response = await api.get(`/academics/professor/${state.user.id}/schedule/${state.activeSemester.id}/`);
+    state.schedule = response?.schedule || {};
+    state.assignedSections = response?.assigned_sections || [];
+  } catch (error) {
+    if (error.message && error.message.includes('404')) {
+      state.schedule = {};
+      state.assignedSections = [];
+    } else {
+      ErrorHandler.handle(error, 'Loading schedule');
+      state.schedule = {};
+      state.assignedSections = [];
+    }
+  }
 }
 
 // ============================================================
@@ -96,19 +96,19 @@ async function loadSchedule() {
 // ============================================================
 
 function render() {
-    const app = document.getElementById('app');
+  const app = document.getElementById('app');
 
-    if (state.loading) {
-        app.innerHTML = LoadingOverlay('Loading dashboard...');
-        return;
-    }
+  if (state.loading) {
+    app.innerHTML = LoadingOverlay('Loading dashboard...');
+    return;
+  }
 
-    app.innerHTML = `
+  app.innerHTML = `
     ${createHeader({
-        role: 'PROFESSOR',
-        activePage: 'dashboard',
-        user: state.user
-    })}
+    role: 'PROFESSOR',
+    activePage: 'dashboard',
+    user: state.user
+  })}
 
     <main class="max-w-7xl mx-auto px-4 py-8">
       <div class="mb-8">
@@ -138,10 +138,51 @@ function render() {
 // RENDER COMPONENTS
 // ============================================================
 
-function renderQualifiedSubjects() {
-    const subjects = state.user?.professor_profile?.assigned_subjects || [];
+function renderQuickActions() {
+  return `
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+        <h3 class="font-bold text-gray-800">Quick Actions</h3>
+      </div>
+      <div class="p-4 grid grid-cols-1 gap-3">
+        <a href="/professor-grades.html" class="flex items-center gap-3 p-3 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors group">
+          <div class="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
+            ${Icon('book', { size: 'sm' })}
+          </div>
+          <div>
+            <p class="font-bold text-sm">Submit Grades</p>
+            <p class="text-[10px] opacity-75">Grade current sections</p>
+          </div>
+        </a>
+        
+        <a href="/professor-grades.html" class="flex items-center gap-3 p-3 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors group">
+          <div class="w-10 h-10 rounded-lg bg-purple-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
+            ${Icon('history', { size: 'sm' })}
+          </div>
+          <div>
+            <p class="font-bold text-sm">Past Records & Archive</p>
+            <p class="text-[10px] opacity-75">Resolve INCs & View History</p>
+          </div>
+        </a>
+        
+        <a href="/professor-schedule.html" class="flex items-center gap-3 p-3 rounded-xl bg-green-50 text-green-700 hover:bg-green-100 transition-colors group">
+          <div class="w-10 h-10 rounded-lg bg-green-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
+            ${Icon('calendar', { size: 'sm' })}
+          </div>
+          <div>
+            <p class="font-bold text-sm">Teaching Schedule</p>
+            <p class="text-[10px] opacity-75">Full weekly schedule</p>
+          </div>
+        </a>
+      </div>
+    </div>
+  `;
+}
 
-    return `
+function renderQualifiedSubjects() {
+  const subjects = state.user?.professor_profile?.assigned_subjects || [];
+
+  return `
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
         <h3 class="font-bold text-gray-800">My Qualified Subjects</h3>
@@ -168,9 +209,9 @@ function renderQualifiedSubjects() {
 }
 
 function renderAssignedSections() {
-    const sections = state.assignedSections || [];
+  const sections = state.assignedSections || [];
 
-    return `
+  return `
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[300px]">
       <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
         <h3 class="font-bold text-gray-800">My Assigned Sections</h3>
@@ -211,55 +252,55 @@ function renderAssignedSections() {
 }
 
 function renderProfessorSchedule() {
-    const schedule = state.schedule || {};
-    const isEmpty = Object.keys(schedule).length === 0 || Object.values(schedule).every(arr => arr.length === 0);
+  const schedule = state.schedule || {};
+  const isEmpty = Object.keys(schedule).length === 0 || Object.values(schedule).every(arr => arr.length === 0);
 
-    if (isEmpty) {
-        return `
+  if (isEmpty) {
+    return `
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
           <h3 class="font-bold text-gray-800">My Teaching Schedule</h3>
         </div>
         ${renderEmptyState({
-            icon: 'calendar',
-            title: 'No schedule assigned yet',
-            message: 'Please contact the registrar for your teaching assignments.'
-        })}
+      icon: 'calendar',
+      title: 'No schedule assigned yet',
+      message: 'Please contact the registrar for your teaching assignments.'
+    })}
       </div>
     `;
+  }
+
+  // Convert schedule format from { MON: [slots], TUE: [slots] } to flat array for ScheduleGrid
+  const slots = [];
+  Object.entries(schedule).forEach(([dayCode, daySlots]) => {
+    if (Array.isArray(daySlots)) {
+      daySlots.forEach(slot => {
+        slots.push({
+          id: slot.id || `${dayCode}-${slot.start_time}`,
+          day: dayCode,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          subject_code: slot.subject_code,
+          subject_title: slot.subject_title,
+          room: slot.room,
+          section: slot.section
+        });
+      });
     }
+  });
 
-    // Convert schedule format from { MON: [slots], TUE: [slots] } to flat array for ScheduleGrid
-    const slots = [];
-    Object.entries(schedule).forEach(([dayCode, daySlots]) => {
-        if (Array.isArray(daySlots)) {
-            daySlots.forEach(slot => {
-                slots.push({
-                    id: slot.id || `${dayCode}-${slot.start_time}`,
-                    day: dayCode,
-                    start_time: slot.start_time,
-                    end_time: slot.end_time,
-                    subject_code: slot.subject_code,
-                    subject_title: slot.subject_title,
-                    room: slot.room,
-                    section: slot.section
-                });
-            });
-        }
-    });
-
-    return `
+  return `
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
         <h3 class="font-bold text-gray-800">My Teaching Schedule</h3>
       </div>
       <div class="p-4">
         ${renderScheduleGrid({
-        slots,
-        mode: 'view',
-        showDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
-        emptyMessage: 'No schedule slots found'
-    })}
+    slots,
+    mode: 'view',
+    showDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
+    emptyMessage: 'No schedule slots found'
+  })}
       </div>
     </div>
   `;
@@ -272,6 +313,6 @@ function renderProfessorSchedule() {
 document.addEventListener('DOMContentLoaded', init);
 
 window.logout = function () {
-    TokenManager.clearTokens();
-    window.location.href = '/login.html';
+  TokenManager.clearTokens();
+  window.location.href = '/login.html';
 };

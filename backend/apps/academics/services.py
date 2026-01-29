@@ -517,7 +517,8 @@ class SchedulingService:
             
             schedule[day].append({
                 'id': str(slot.id),
-                'subject': slot.section_subject.subject.code,
+                'subject_code': slot.section_subject.subject.code,
+                'subject_title': slot.section_subject.subject.title,
                 'section': slot.section_subject.section.name,
                 'start_time': slot.start_time.strftime('%H:%M'),
                 'end_time': slot.end_time.strftime('%H:%M'),

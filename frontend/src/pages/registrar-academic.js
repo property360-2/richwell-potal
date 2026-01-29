@@ -1178,6 +1178,9 @@ function renderRoomsTab() {
             <div class="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-all group overflow-hidden relative">
                 <div class="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                     <div class="flex gap-1">
+                        <button onclick="viewRoomSchedule('${r.name}')" class="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors" title="View Weekly Schedule">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        </button>
                         <button onclick="openEditRoomModal('${r.id}')" class="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                         </button>
@@ -1381,6 +1384,128 @@ window.deleteRoom = async function (roomId) {
     ErrorHandler.handle(error, 'Deleting room');
   }
 };
+
+window.viewRoomSchedule = async function (roomName) {
+  const modal = new Modal({
+    title: `Schedule for ${roomName}`,
+    content: `<div class="p-8 text-center text-gray-500">Loading schedule...</div>`,
+    size: 'full'
+  });
+  modal.show();
+
+  try {
+    const semesterId = state.activeSemester?.id;
+    if (!semesterId) {
+      modal.setContent('<div class="p-8 text-center text-red-500 font-bold">No active semester found</div>');
+      return;
+    }
+
+    const response = await api.get(`${endpoints.scheduleSlots}?room=${encodeURIComponent(roomName)}&semester=${semesterId}`);
+    const slots = response.results || response || [];
+
+    // Sort slots by day and time
+    const sortedSlots = slots.sort((a, b) => {
+      if (a.day !== b.day) return DAYS.findIndex(d => d.code === a.day) - DAYS.findIndex(d => d.code === b.day);
+      return a.start_time.localeCompare(b.start_time);
+    });
+
+    modal.setContent(`
+      <div class="p-6 bg-gray-50 min-h-[600px]">
+        <div class="bg-white rounded-2xl shadow-xl overflow-x-auto border border-gray-100">
+           ${renderRoomScheduleGrid(sortedSlots)}
+        </div>
+      </div>
+    `);
+  } catch (e) {
+    console.error('Failed to load room schedule:', e);
+    modal.setContent('<div class="p-8 text-center text-red-500 font-bold">Error loading schedule</div>');
+  }
+};
+
+function renderRoomScheduleGrid(slots) {
+  return `
+    <table class="w-full border-collapse table-fixed min-w-[800px] bg-white">
+      <thead>
+        <tr class="bg-gray-50 border-b border-gray-200">
+          <th class="w-20 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">Time</th>
+          ${DAYS.map(day => `
+            <th class="py-3 text-xs font-bold text-gray-600 uppercase tracking-wider text-center border-r border-gray-100">
+                ${day.name}
+            </th>
+          `).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${TIME_SLOTS.map(time => `
+          <tr class="h-16 border-b border-gray-100 group transition-colors">
+            <td class="text-[10px] font-bold text-gray-400 text-center border-r border-gray-100 align-top pt-2 bg-gray-50/50">
+                ${formatTime(time)}
+            </td>
+            ${DAYS.map(day => renderRoomScheduleCell(slots, day.code, time)).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    `;
+}
+
+function renderRoomScheduleCell(slots, day, timeSlot) {
+  const getMins = (ts) => {
+    const [h, m] = ts.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const currentMins = getMins(timeSlot);
+  const slot = slots.find(s => {
+    if (s.day !== day) return false;
+    return currentMins >= getMins(s.start_time) && currentMins < getMins(s.end_time);
+  });
+
+  if (slot && timeSlot === slot.start_time.substring(0, 5)) {
+    const start = getMins(slot.start_time);
+    const end = getMins(slot.end_time);
+    const rowSpan = Math.ceil((end - start) / 60);
+    const ss = slot.section_subject_detail || {};
+    const subject = ss.subject || {};
+    const section = ss.section || {};
+    const professor = ss.professor || null;
+
+    const colorClass = getSubjectColor(subject.code || '', slot.id);
+
+    const cardHeight = (rowSpan * 64) - 8;
+
+    return `
+      <td class="border-r border-gray-100 p-1 relative z-10" rowspan="${rowSpan}">
+        <div style="height: ${cardHeight}px;" 
+             class="w-full rounded-xl border-t-4 shadow-sm p-3 flex flex-col justify-between ${colorClass}">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[9px] font-black uppercase tracking-tighter opacity-70">${slot.subject_code || subject.code || 'TBA'}</span>
+            </div>
+            <h4 class="text-[11px] font-black leading-tight line-clamp-2">${slot.subject_title || subject.title || 'TBA'}</h4>
+            <div class="flex items-center gap-1 mt-1 text-[9px] font-bold opacity-80">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                Section: ${slot.section_name || section.name || 'TBA'}
+            </div>
+            ${professor ? `
+            <div class="flex items-center gap-1 mt-0.5 text-[9px] font-bold opacity-80">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                ${professor.first_name} ${professor.last_name}
+            </div>
+            ` : ''}
+          </div>
+          <div class="mt-auto">
+            <span class="text-[9px] font-bold bg-white/40 px-1 rounded truncate block">${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}</span>
+          </div>
+        </div>
+      </td>
+    `;
+  }
+
+  if (slot) return '';
+
+  return `<td class="border-r border-gray-100 p-0 hover:bg-gray-50 transition-colors"></td>`;
+}
 
 function getProfessorForm(professor = null) {
   const isEdit = professor !== null;
@@ -2139,15 +2264,18 @@ function renderSectionsTab() {
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center gap-2">
-                                <div class="w-16 bg-gray-200 rounded-full h-1.5">
-                                    <div class="bg-blue-600 h-1.5 rounded-full" style="width: ${Math.min(100, (section.enrolled_count / section.capacity) * 100)}%"></div>
-                                </div>
-                                <span class="text-xs text-gray-600 font-medium">${section.enrolled_count} / ${section.capacity}</span>
-                            </div>
+                            <div class="text-sm font-bold text-blue-600">${section.enrolled_count}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-600">${section.section_subjects?.length || 0} Subjects</div>
+                            <div class="flex items-center gap-2">
+                                <div class="text-sm text-gray-600 font-medium">${section.section_subjects?.length || 0} Subjects</div>
+                                <button onclick="event.stopPropagation(); viewSectionSubjectSummary('${section.id}')" 
+                                        class="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="View Summary">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </button>
+                            </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button onclick="event.stopPropagation(); viewSection('${section.id}')" class="text-blue-600 hover:text-blue-900 mr-3">View</button>
@@ -2214,10 +2342,7 @@ function renderSectionDetail() {
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
             Assign Students
           </button>
-          <button onclick="openAssignSectionSubjectModal()" class="btn btn-secondary flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            Assign Schedule
-          </button>
+
           <button onclick="openViewStudentsModal()" class="btn btn-secondary flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
             View Students
@@ -2525,6 +2650,93 @@ window.viewSection = async function (id) {
   state.loadingSection = false;
   render();
   window.scrollTo(0, 0);
+};
+
+window.viewSectionSubjectSummary = async function (sectionId) {
+  try {
+    const section = state.sections.find(s => s.id === sectionId);
+    if (!section) return;
+
+    // Show loading toast or indicator if needed, but we can just fetch
+    const response = await api.get(`${endpoints.section(sectionId)}detailed-view/`);
+    const details = response.section;
+    const subjects = response.subjects;
+
+    const modal = document.createElement('div');
+    modal.id = 'subject-summary-modal';
+    modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-fadeIn';
+    modal.onclick = () => modal.remove();
+
+    modal.innerHTML = `
+      <div class="bg-white rounded-2xl w-full max-w-4xl mx-4 overflow-hidden shadow-2xl transform animate-slideUp" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+          <div>
+            <h3 class="text-xl font-bold text-gray-900">Subject Summary: ${details.name}</h3>
+            <p class="text-sm text-gray-500">${details.program_code} • Year ${details.year_level}</p>
+          </div>
+          <button onclick="document.getElementById('subject-summary-modal').remove()" class="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Content -->
+        <div class="p-6 max-h-[70vh] overflow-y-auto">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Code</th>
+                  <th class="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Subject Title</th>
+                  <th class="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Professor</th>
+                  <th class="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Schedule</th>
+                  <th class="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Room</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                ${subjects.map(subj => {
+      const assignedProf = subj.assigned_professors && subj.assigned_professors.length > 0
+        ? subj.assigned_professors.map(p => p.name).join(', ')
+        : '<span class="text-red-400 italic">Not assigned</span>';
+
+      // Need to find schedule slots for this subject in details.section_subjects
+      const ss = details.section_subjects?.find(s => s.subject === subj.subject_id || s.subject_id === subj.subject_id);
+      const slots = ss?.schedule_slots || [];
+      const scheduleStr = slots.length > 0
+        ? slots.map(s => `${s.day_display} ${s.start_time.slice(0, 5)}-${s.end_time.slice(0, 5)}`).join('<br>')
+        : '<span class="text-gray-400 italic font-medium">TBA</span>';
+      const roomStr = slots.length > 0
+        ? [...new Set(slots.map(s => s.room || 'TBA'))].join(', ')
+        : '<span class="text-gray-400 italic font-medium">TBA</span>';
+
+      return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="px-4 py-4 whitespace-nowrap"><span class="font-mono font-bold text-blue-600 text-xs">${subj.code}</span></td>
+                      <td class="px-4 py-4"><div class="text-xs font-semibold text-gray-800">${subj.title}</div></td>
+                      <td class="px-4 py-4"><div class="text-xs font-medium text-gray-600">${assignedProf}</div></td>
+                      <td class="px-4 py-4"><div class="text-[11px] font-medium text-gray-600 leading-relaxed">${scheduleStr}</div></td>
+                      <td class="px-4 py-4"><div class="text-xs font-bold text-gray-700">${roomStr}</div></td>
+                    </tr>
+                  `;
+    }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+          <button onclick="document.getElementById('subject-summary-modal').remove()" class="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold text-xs uppercase tracking-widest transition-all">Close</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+  } catch (error) {
+    console.error('Failed to load summary:', error);
+    Toast.error('Failed to load subject summary');
+  }
 };
 
 window.backToSections = function () {
@@ -2953,7 +3165,9 @@ window.checkConflictsAsync = async function () {
         semester_id: semesterId
       });
       if (profResp && profResp.has_conflict) {
-        msgEl.innerHTML = `<strong>Professor Conflict:</strong> ${profResp.conflict || 'Professor has another class.'}`;
+        const profSelect = document.getElementById('assign-professor');
+        const profName = profSelect.options[profSelect.selectedIndex]?.text || 'Professor';
+        msgEl.innerHTML = `<strong>${profName}</strong> is currently assigned this <strong>Professor Conflict:</strong> ${profResp.conflict || 'Professor has another class.'}`;
         warningEl.classList.remove('hidden');
         return true;
       }
@@ -5353,8 +5567,8 @@ window.openBulkSectionModal = function () {
                 </div>
 
                 <div class="md:col-span-1">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum *</label>
-                    <select id="bulk-curriculum" required class="form-select" onchange="updateBulkSectionSubjects()">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum (System Generated) *</label>
+                    <select id="bulk-curriculum" required disabled class="form-select bg-gray-50 text-gray-500 cursor-not-allowed" onchange="updateBulkSectionSubjects()">
                         <option value="">Select Program First</option>
                     </select>
                 </div>
@@ -5412,13 +5626,31 @@ window.updateBulkSectionCurricula = async function (programId) {
     return;
   }
   try {
+    currSelect.innerHTML = '<option value="">Searching latest curriculum...</option>';
     const response = await api.get(endpoints.curricula + `?program=${programId}`);
     const curricula = response.results || response || [];
-    const activeFirst = [...curricula].sort((a, b) => (b.is_active - a.is_active));
-    currSelect.innerHTML = '<option value="">Select Curriculum...</option>' +
-      activeFirst.map(c => `<option value="${c.id}" ${c.is_active ? 'selected' : ''}>${c.code} ${c.is_active ? '(Active)' : ''}</option>`).join('');
-    updateBulkSectionSubjects();
+
+    // Auto-select logic: Prioritize active, then latest by created_at or code
+    const activeFirst = [...curricula].sort((a, b) => {
+      if (a.is_active !== b.is_active) return b.is_active - a.is_active;
+      return b.id.localeCompare(a.id); // Assuming ID or date sorting
+    });
+
+    if (activeFirst.length > 0) {
+      const bestMatch = activeFirst[0];
+      currSelect.innerHTML = curricula.map(c => `
+        <option value="${c.id}" ${c.id === bestMatch.id ? 'selected' : ''}>
+          ${c.code} ${c.is_active ? '(Active)' : ''} ${c.id === bestMatch.id ? '✓' : ''}
+        </option>
+      `).join('');
+
+      // Force update subjects for the auto-selected curriculum
+      updateBulkSectionSubjects();
+    } else {
+      currSelect.innerHTML = '<option value="">No curriculum found for this program</option>';
+    }
   } catch (e) {
+    console.error('Failed to load curricula:', e);
     currSelect.innerHTML = '<option value="">Error loading curricula</option>';
   }
 };
@@ -5991,7 +6223,8 @@ window.validateModalConflict = async function () {
 
       if (profResp && profResp.has_conflict) {
         warn.classList.remove('hidden');
-        msg.innerHTML = `<strong>Professor Conflict:</strong> ${profResp.conflict}`;
+        const profName = slot.professor_name || 'Professor';
+        msg.innerHTML = `<strong>${profName}</strong> is currently assigned this <strong>Professor Conflict:</strong> ${profResp.conflict}`;
         if (saveBtn) saveBtn.disabled = true;
         return;
       }

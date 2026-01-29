@@ -67,6 +67,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             'id', 'year_level', 'status', 'middle_name', 'suffix',
             'birthdate', 'address', 'contact_number',
             'is_transferee', 'previous_school', 'previous_course',
+            'is_irregular', 'overload_approved',
             'program_name', 'program_code', 'curriculum_name', 'curriculum_code',
             'home_section_name'
         ]
@@ -245,7 +246,7 @@ class StudentDetailSerializer(RegistrarStudentSerializer):
              history.append({
                  'subject_code': se.subject.code,
                  'subject_title': se.subject.title,
-                 'grade': se.final_grade,
+                 'grade': se.grade,
                  'status': se.status,
                  'units': se.subject.units,
                  'semester': se.enrollment.semester.name

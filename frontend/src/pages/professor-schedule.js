@@ -11,7 +11,8 @@ const state = {
   user: null,
   schedule: [],
   semesters: [],
-  activeSemester: null,
+  selectedSemesterId: null,
+  activeSemester: null, // Basic semester info for the selected semester
   loading: true
 };
 
@@ -53,7 +54,10 @@ async function init() {
 
   await loadUserProfile();
   await loadSemesters();
-  await loadSchedule();
+
+  if (state.selectedSemesterId) {
+    await loadSchedule();
+  }
 
   state.loading = false;
   render();
@@ -76,10 +80,9 @@ async function loadSemesters() {
   try {
     const response = await api.get(endpoints.semesters);
     state.semesters = response?.results || response || [];
-    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0] || null;
-    if (!state.semesters.length) {
-      console.warn('No semesters found in the system');
-    }
+    const current = state.semesters.find(s => s.is_current);
+    state.selectedSemesterId = current?.id || state.semesters[0]?.id;
+    state.activeSemester = state.semesters.find(s => s.id === state.selectedSemesterId);
   } catch (error) {
     ErrorHandler.handle(error, 'Loading semesters');
     state.semesters = [];
@@ -88,22 +91,24 @@ async function loadSemesters() {
 }
 
 async function loadSchedule() {
-  if (!state.user?.id || !state.activeSemester?.id) {
+  if (!state.user?.id || !state.selectedSemesterId) {
     state.schedule = [];
-    console.warn('Missing user ID or active semester');
     return;
   }
 
   try {
-    const response = await api.get(endpoints.professorSchedule(state.user.id, state.activeSemester.id));
+    const response = await api.get(endpoints.professorSchedule(state.user.id, state.selectedSemesterId));
     state.schedule = response?.results || response || [];
-    if (!state.schedule.length) {
-      console.warn('No schedule found for professor');
-    }
   } catch (error) {
     ErrorHandler.handle(error, 'Loading schedule');
     state.schedule = [];
   }
+}
+
+function handleSemesterChange(semesterId) {
+  state.selectedSemesterId = semesterId;
+  state.activeSemester = state.semesters.find(s => s.id === semesterId);
+  loadSchedule().then(render);
 }
 
 function formatTime(time) {
@@ -141,17 +146,31 @@ function render() {
 
   app.innerHTML = `
     ${createHeader({
-      role: 'PROFESSOR',
-      activePage: 'professor-schedule',
-      user: state.user
-    })}
+    role: 'PROFESSOR',
+    activePage: 'professor-schedule',
+    user: state.user
+  })}
     
     <main class="max-w-7xl mx-auto px-4 py-8">
       <!-- Page Header -->
       <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
         <div>
           <h1 class="text-3xl font-bold text-gray-800">My Teaching Schedule</h1>
-          <p class="text-gray-600 mt-1">${state.activeSemester?.name || 'Current Semester'}</p>
+          <p class="text-gray-600 mt-1">${state.activeSemester ? `${state.activeSemester.name} ${state.activeSemester.academic_year}` : 'Current Semester'}</p>
+        </div>
+        
+        <div class="mt-4 md:mt-0 min-w-[200px]">
+          <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Select Semester</label>
+          <select 
+            class="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+            onchange="window.handleSemesterChange(this.value)"
+          >
+            ${state.semesters.map(s => `
+              <option value="${s.id}" ${state.selectedSemesterId === s.id ? 'selected' : ''}>
+                ${s.name} ${s.academic_year} ${s.is_current ? '(Current)' : ''}
+              </option>
+            `).join('')}
+          </select>
         </div>
       </div>
       
@@ -251,6 +270,8 @@ function render() {
   `;
 }
 
+
+window.handleSemesterChange = handleSemesterChange;
 
 window.logout = function () {
   TokenManager.clearTokens();

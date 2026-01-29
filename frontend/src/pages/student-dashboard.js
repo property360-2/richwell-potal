@@ -245,7 +245,7 @@ function render() {
 
 function renderAdmissionStatusBanner() {
   const isApproved = state.user?.student_number &&
-    (state.enrollmentStatus === 'ACTIVE' || state.enrollmentStatus === 'ENROLLED');
+    ['ACTIVE', 'ENROLLED', 'PENDING_PAYMENT', 'COMPLETED'].includes(state.enrollmentStatus);
 
   if (!isApproved) {
     return renderBanner({
@@ -327,17 +327,6 @@ function renderPaymentProgressCard() {
         </div>
       </div>
       
-      <!-- Permit Status -->
-      <div class="space-y-3 mb-6">
-        <h3 class="text-lg font-semibold text-gray-800">Permit Status</h3>
-        ${renderExamPermit('Subject Enrollment', state.month1Paid)}
-        ${renderExamPermit('Chapter Test', isMonthPaid(2))}
-        ${renderExamPermit('Prelims', isMonthPaid(3))}
-        ${renderExamPermit('Midterms', isMonthPaid(4))}
-        ${renderExamPermit('Prefinals', isMonthPaid(5))}
-        ${renderExamPermit('Finals', isMonthPaid(6))}
-      </div>
-
       <!-- 6 Month Buckets -->
       <div class="space-y-4">
         ${state.paymentBuckets.map(bucket => renderPaymentBucket(bucket)).join('')}
@@ -393,28 +382,7 @@ function renderPaymentBucket(bucket) {
   `;
 }
 
-function renderExamPermit(exam, unlocked) {
-  return `
-    <div class="flex items-center justify-between p-3 rounded-xl ${unlocked ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}">
-      <div class="flex items-center gap-3">
-        ${unlocked ? `
-          <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-            ${Icon('check', { size: 'sm', className: 'text-white' })}
-          </div>
-        ` : `
-          <div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-            ${Icon('lock', { size: 'sm', className: 'text-gray-500' })}
-          </div>
-        `}
-        <span class="font-medium ${unlocked ? 'text-green-700' : 'text-gray-500'}">${exam}</span>
-      </div>
-      ${unlocked
-      ? `<button class="text-xs text-green-600 font-medium hover:underline">Print</button>`
-      : `<span class="text-xs text-gray-400">Locked</span>`
-    }
-    </div>
-  `;
-}
+
 
 // ============================================================
 // CHANGE PASSWORD MODAL

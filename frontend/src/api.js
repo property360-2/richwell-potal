@@ -119,7 +119,14 @@ export const api = {
             return null;
         }
 
-        return response.json();
+        const result = await response.json();
+
+        // Unwrap standard response envelope success/data
+        if (result && result.success === true && result.data !== undefined) {
+            return result.data;
+        }
+
+        return result;
     },
 
     async post(endpoint, data) {
@@ -257,6 +264,7 @@ export const endpoints = {
     // Epic 2: Academics - Programs (Public)
     academicPrograms: '/academics/programs/',
     academicProgram: (id) => `/academics/programs/${id}/`,
+    academicSubjects: '/academics/subjects/',
 
     // Epic 2: Academics - Program Management (Admin/Registrar)
     managePrograms: '/academics/manage/programs/',

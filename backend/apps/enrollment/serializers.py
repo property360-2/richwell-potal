@@ -976,7 +976,8 @@ class SemesterSerializer(serializers.ModelSerializer):
             'id', 'name', 'academic_year',
             'start_date', 'end_date',
             'enrollment_start_date', 'enrollment_end_date',
-            'is_current', 'is_deleted',
+            'grading_start_date', 'grading_end_date',
+            'status', 'is_current', 'is_deleted',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -991,7 +992,8 @@ class SemesterCreateSerializer(serializers.ModelSerializer):
             'name', 'academic_year',
             'start_date', 'end_date',
             'enrollment_start_date', 'enrollment_end_date',
-            'is_current'
+            'grading_start_date', 'grading_end_date',
+            'status', 'is_current'
         ]
 
     def validate(self, data):

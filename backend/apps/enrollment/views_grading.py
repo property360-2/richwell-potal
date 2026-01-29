@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.core.permissions import IsProfessor, IsProfessorOrRegistrar
 from apps.academics.models import SectionSubject, SectionSubjectProfessor
-from .models import SubjectEnrollment, GradeHistory, Enrollment, Semester
+from .models import SubjectEnrollment, GradeHistory, Enrollment, Semester, GradeResolution
 from .serializers_grading import (
     GradeableStudentSerializer,
     GradeSubmissionSerializer,
@@ -99,14 +99,65 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
     
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
+        
+        # Apply status filter if provided
+        target_status = request.query_params.get('status')
+        if target_status:
+            queryset = queryset.filter(status=target_status)
+            
         serializer = self.get_serializer(queryset, many=True)
         
+        # Enrich INC records with expiration info
+        enriched_data = serializer.data
+        if target_status == 'INC' or not target_status:
+            from datetime import timedelta
+            now = timezone.now()
+            for record in enriched_data:
+                if record['current_status'] == 'INC':
+                    # Find the actual model instance to get inc_marked_at
+                    # (Note: For performance in a real app, this should be in the serializer)
+                    se = SubjectEnrollment.objects.prefetch_related('grade_resolutions').get(id=record['subject_enrollment_id'])
+                    
+                    # Check for pending resolutions
+                    pending_res = se.grade_resolutions.filter(
+                        status__in=[GradeResolution.Status.PENDING_REGISTRAR, GradeResolution.Status.PENDING_HEAD]
+                    ).first()
+                    
+                    if pending_res:
+                        record['pending_resolution'] = {
+                            'proposed_grade': str(pending_res.proposed_grade),
+                            'proposed_status': pending_res.proposed_status,
+                            'status': pending_res.status
+                        }
+
+                    if se.inc_marked_at:
+                        expiration_date = se.inc_marked_at + timedelta(days=365)
+                        record['days_remaining'] = (expiration_date - now).days
+                        record['is_expired'] = now > expiration_date
+                    else:
+                        record['days_remaining'] = None
+                        record['is_expired'] = False
+                else:
+                    # Even if not INC, check for resolutions (e.g. for archived semesters)
+                    se = SubjectEnrollment.objects.prefetch_related('grade_resolutions').get(id=record['subject_enrollment_id'])
+                    pending_res = se.grade_resolutions.filter(
+                        status__in=[GradeResolution.Status.PENDING_REGISTRAR, GradeResolution.Status.PENDING_HEAD]
+                    ).first()
+                    
+                    if pending_res:
+                        record['pending_resolution'] = {
+                            'proposed_grade': str(pending_res.proposed_grade),
+                            'proposed_status': pending_res.proposed_status,
+                            'status': pending_res.status
+                        }
+
         # Group by section-subject for better UI organization
         data = {
-            'students': serializer.data,
+            'students': enriched_data,
             'total_count': queryset.count(),
             'graded_count': queryset.exclude(grade__isnull=True).count(),
-            'pending_count': queryset.filter(grade__isnull=True, status='ENROLLED').count()
+            'pending_count': queryset.filter(grade__isnull=True, status='ENROLLED').count(),
+            'expiring_inc_count': len([s for s in enriched_data if s.get('days_remaining') is not None and s['days_remaining'] <= 30])
         }
         
         return Response(data)
@@ -162,7 +213,9 @@ class ProfessorAssignedSectionsView(generics.ListAPIView):
                 'id': str(semester.id),
                 'name': semester.name,
                 'academic_year': semester.academic_year,
-                'is_grading_open': semester.is_grading_open
+                'is_grading_open': semester.is_grading_open,
+                'grading_start_date': semester.grading_start_date,
+                'grading_end_date': semester.grading_end_date
             }
         })
 
@@ -200,18 +253,27 @@ class ProfessorSubmitGradeView(views.APIView):
                     status=status.HTTP_403_FORBIDDEN
                 )
         
-        # Check if grade is finalized (only registrar can modify)
-        if subject_enrollment.is_finalized and request.user.role != 'REGISTRAR':
+        # Check semester grading status
+        semester = subject_enrollment.enrollment.semester
+        is_resolution = subject_enrollment.status in ['INC', 'FOR_RESOLUTION'] and subject_enrollment.is_resolution_allowed
+        
+        # Check if grade is finalized (only registrar can modify, UNLESS it is a valid resolution)
+        if subject_enrollment.is_finalized and request.user.role != 'REGISTRAR' and not is_resolution:
             return Response(
                 {'error': 'This grade has been finalized and cannot be modified'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Check semester grading status
-        semester = subject_enrollment.enrollment.semester
-        if not semester.is_grading_open and request.user.role == 'PROFESSOR':
+        if not semester.is_grading_open and not is_resolution and request.user.role == 'PROFESSOR':
             return Response(
                 {'error': 'Grading is not currently open for this semester'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Additional check for resolution: cannot resolve if retake exists
+        if is_resolution and subject_enrollment.retakes.exists():
+            return Response(
+                {'error': 'Cannot resolve grade because a retake enrollment exists'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -246,8 +308,43 @@ class ProfessorSubmitGradeView(views.APIView):
     
     def _submit_grade(self, subject_enrollment, grade, new_status, remarks, user):
         """
-        Submit grade and create history entry.
+        Submit grade and create history entry or resolution request.
         """
+        semester = subject_enrollment.enrollment.semester
+        is_inc_resolution = subject_enrollment.status == 'INC'
+        is_window_closed = not semester.is_grading_open
+        
+        # If resolving INC or window is closed, create a resolution request for PROFESSORs
+        if (is_inc_resolution or is_window_closed) and user.role == 'PROFESSOR':
+            resolution, created = GradeResolution.objects.get_or_create(
+                subject_enrollment=subject_enrollment,
+                status__in=[GradeResolution.Status.PENDING_REGISTRAR, GradeResolution.Status.PENDING_HEAD],
+                defaults={
+                    'current_grade': subject_enrollment.grade,
+                    'proposed_grade': grade,
+                    'current_status': subject_enrollment.status,
+                    'proposed_status': new_status or subject_enrollment.status,
+                    'reason': remarks or 'INC Resolution',
+                    'requested_by': user,
+                    'status': GradeResolution.Status.PENDING_HEAD
+                }
+            )
+            
+            # If resolution already existed, update it
+            if not created:
+                resolution.proposed_grade = grade
+                resolution.proposed_status = new_status or subject_enrollment.status
+                resolution.reason = remarks or 'INC Resolution'
+                resolution.save()
+            
+            return {
+                'success': True,
+                'is_resolution': True,
+                'subject_enrollment_id': str(subject_enrollment.id),
+                'status': 'PENDING_APPROVAL',
+                'message': 'Grade resolution request submitted for approval'
+            }
+
         with transaction.atomic():
             # Store previous values for history
             previous_grade = subject_enrollment.grade
@@ -326,11 +423,29 @@ class BulkGradeSubmissionView(views.APIView):
                             })
                             continue
                     
-                    # Skip finalized grades
-                    if subject_enrollment.is_finalized and request.user.role != 'REGISTRAR':
+                    # Check grading window vs resolution window
+                    semester = subject_enrollment.enrollment.semester
+                    is_resolution = subject_enrollment.status in ['INC', 'FOR_RESOLUTION'] and subject_enrollment.is_resolution_allowed
+
+                    # Skip finalized grades (unless resolution)
+                    if subject_enrollment.is_finalized and request.user.role != 'REGISTRAR' and not is_resolution:
                         errors.append({
                             'subject_enrollment_id': str(grade_data['subject_enrollment_id']),
                             'error': 'Grade is finalized'
+                        })
+                        continue
+                    
+                    if not semester.is_grading_open and not is_resolution and request.user.role == 'PROFESSOR':
+                        errors.append({
+                            'subject_enrollment_id': str(grade_data['subject_enrollment_id']),
+                            'error': 'Grading is not open for this semester'
+                        })
+                        continue
+                        
+                    if is_resolution and subject_enrollment.retakes.exists():
+                        errors.append({
+                            'subject_enrollment_id': str(grade_data['subject_enrollment_id']),
+                            'error': 'Cannot resolve because retake exists'
                         })
                         continue
                     
@@ -374,7 +489,39 @@ class BulkGradeSubmissionView(views.APIView):
         ).exists()
     
     def _submit_grade(self, subject_enrollment, grade, new_status, remarks, user):
-        """Submit grade and create history entry."""
+        """Submit grade and create history entry or resolution request."""
+        semester = subject_enrollment.enrollment.semester
+        is_inc_resolution = subject_enrollment.status == 'INC'
+        is_window_closed = not semester.is_grading_open
+        
+        if (is_inc_resolution or is_window_closed) and user.role == 'PROFESSOR':
+            resolution, created = GradeResolution.objects.get_or_create(
+                subject_enrollment=subject_enrollment,
+                status__in=[GradeResolution.Status.PENDING_REGISTRAR, GradeResolution.Status.PENDING_HEAD],
+                defaults={
+                    'current_grade': subject_enrollment.grade,
+                    'proposed_grade': grade,
+                    'current_status': subject_enrollment.status,
+                    'proposed_status': new_status or subject_enrollment.status,
+                    'reason': remarks or 'INC Resolution',
+                    'requested_by': user,
+                    'status': GradeResolution.Status.PENDING_HEAD
+                }
+            )
+            
+            if not created:
+                resolution.proposed_grade = grade
+                resolution.proposed_status = new_status or subject_enrollment.status
+                resolution.reason = remarks or 'INC Resolution'
+                resolution.save()
+            
+            return {
+                'success': True,
+                'is_resolution': True,
+                'subject_enrollment_id': str(subject_enrollment.id),
+                'status': 'PENDING_APPROVAL'
+            }
+
         previous_grade = subject_enrollment.grade
         previous_status = subject_enrollment.status
         

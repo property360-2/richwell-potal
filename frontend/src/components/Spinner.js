@@ -119,6 +119,9 @@ export function InlineLoader(options = {}) {
   return Spinner({ size, color });
 }
 
+// Alias for backward compatibility with some pages
+export const InlineSpinner = InlineLoader;
+
 /**
  * Card skeleton loader
  *
