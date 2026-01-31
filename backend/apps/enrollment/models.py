@@ -433,6 +433,11 @@ class SubjectEnrollment(ArchivableMixin, BaseModel):
         help_text='Original failed enrollment if this is a retake'
     )
 
+    remarks = models.TextField(
+        blank=True,
+        help_text='Professor remarks or requirements for grade resolution'
+    )
+
     # Dual approval tracking
     payment_approved = models.BooleanField(
         default=False,

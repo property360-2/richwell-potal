@@ -106,6 +106,9 @@ class Command(BaseCommand):
             # Level 9: Grade Resolutions & History
             self._seed_level_9_resolutions()
             
+            # Additional Scenarios
+            self._seed_junjun_scenario()
+            
             self._print_summary()
         
         self.stdout.write(self.style.SUCCESS('\n✓ Seeding completed successfully!'))
@@ -1610,11 +1613,23 @@ class Command(BaseCommand):
             }
         )
         
-        # Find another enrollment for PENDING_REGISTRAR
-        another_enrollment = SubjectEnrollment.objects.filter(
-            status__in=['INC', 'FAILED'],
-            is_finalized=True
-        ).exclude(pk=past_enrollment.pk).first()
+        # Find specific student for PENDING_REGISTRAR test
+        test_inc_student = User.objects.filter(email='student.test.inc@richwell.edu').first()
+        another_enrollment = None
+        
+        if test_inc_student:
+             another_enrollment = SubjectEnrollment.objects.filter(
+                enrollment__student=test_inc_student,
+                status__in=['INC', 'FAILED'],
+                is_finalized=True
+            ).first()
+
+        if not another_enrollment:
+            # Fallback to any student
+            another_enrollment = SubjectEnrollment.objects.filter(
+                status__in=['INC', 'FAILED'],
+                is_finalized=True
+            ).exclude(pk=past_enrollment.pk).first()
         
         if another_enrollment:
             # 2. PENDING_REGISTRAR: Awaiting Registrar review (first step)
@@ -1713,6 +1728,257 @@ class Command(BaseCommand):
             self.stdout.write('   - Created INC scenario (expiring in ~10 days)')
 
     # =========================================================================
+    # JUNJUN SCENARIO
+    # =========================================================================
+
+    def _seed_junjun_scenario(self):
+        """
+        Special scenario for Professor Junjun:
+        - 3 terms of history (past semesters)
+        - 3 sections per term, 5 students per section
+        - 4 INCs in the last term
+        - Current sections with retake students
+        """
+        self.stdout.write('\n👨‍🏫 Special Scenario: Professor Junjun...')
+        
+        # 1. Create Professor Junjun
+        junjun_user, _ = User.objects.get_or_create(
+            email='junjun@richwell.edu',
+            defaults={
+                'username': 'junjun@richwell.edu',
+                'first_name': 'Junjun',
+                'last_name': 'Professor',
+                'role': User.Role.PROFESSOR
+            }
+        )
+        junjun_user.set_password('password123')
+        junjun_user.save()
+        
+        junjun_profile, _ = ProfessorProfile.objects.get_or_create(
+            user=junjun_user,
+            defaults={
+                'department': 'College of Computer Studies',
+                'specialization': 'Programming',
+                'is_active': True
+            }
+        )
+        
+        # Assign him some subjects
+        subjects = [self.subjects['CS101'], self.subjects['CS102'], self.subjects['CS103']]
+        for s in subjects:
+            junjun_profile.assigned_subjects.add(s)
+
+        # 2. Terms to seed (3 past + 1 current = 4 total, but user said "already teached in 3 terms" + current?)
+        # Let's interpret as 2 past terms + 1 last term (where INCs are) + 1 current term.
+        terms = [
+            (self.semester_2024_1, 'T1'),
+            (self.semester_2024_2, 'T2'),
+            (self.semester_2025_1, 'T3'),  # Last term (with INCs)
+            (self.semester_current, 'CURR')
+        ]
+        
+        program = self.programs['BSIT']
+        curriculum = self.curricula['BSIT_2024']
+        
+        inc_count = 0
+        
+        for semester, term_suffix in terms:
+            is_current = (semester == self.semester_current)
+            is_last_term = (semester == self.semester_2025_1)
+            
+            for i in range(1, 4):  # 3 sections
+                section_name = f'JUNJUN-{term_suffix}-{i}'
+                section, _ = Section.all_objects.get_or_create(
+                    name=section_name,
+                    semester=semester,
+                    defaults={
+                        'program': program,
+                        'curriculum': curriculum,
+                        'year_level': 1,
+                        'capacity': 10
+                    }
+                )
+                if section.is_deleted:
+                    section.is_deleted = False
+                    section.save()
+                
+                # Assign Junjun to a subject in this section
+                subject = subjects[i-1] # Cycle through subjects
+                ss, _ = SectionSubject.objects.get_or_create(
+                    section=section,
+                    subject=subject,
+                    defaults={'professor': junjun_user, 'capacity': 10}
+                )
+                SectionSubjectProfessor.objects.get_or_create(
+                    section_subject=ss,
+                    professor=junjun_user,
+                    defaults={'is_primary': True}
+                )
+
+                # Add a schedule slot for current term to avoid empty schedule view
+                if is_current:
+                    from datetime import time
+                    ScheduleSlot.objects.get_or_create(
+                        section_subject=ss,
+                        day=['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][i % 6],
+                        defaults={
+                            'start_time': time(8 + i, 0),
+                            'end_time': time(10 + i, 0),
+                            'room': f'CL-0{i}',
+                            'professor': junjun_user
+                        }
+                    )
+                    # Mark as not TBA since it has a schedule
+                    ss.is_tba = False
+                    ss.save()
+                
+                # 5 students per section
+                for j in range(1, 6):
+                    student_email = f'student.junjun.{term_suffix}.{i}.{j}@richwell.edu'
+                    s_user, created = User.objects.get_or_create(
+                        email=student_email,
+                        defaults={
+                            'username': student_email,
+                            'first_name': f'Student-{term_suffix}-{i}',
+                            'last_name': f'Junjun-{j}',
+                            'role': User.Role.STUDENT,
+                            'student_number': f'JJ-{term_suffix}-{i}-{j}'
+                        }
+                    )
+                    if created:
+                        s_user.set_password('password123')
+                        s_user.save()
+                    
+                    s_profile, _ = StudentProfile.objects.get_or_create(
+                        user=s_user,
+                        defaults={
+                            'program': program,
+                            'curriculum': curriculum, # Already using BSIT_2024 from line 1769
+                            'year_level': 1,
+                            'home_section': section if is_current else None,
+                            'academic_status': 'REGULAR',
+                            'status': 'ACTIVE', # Ensure they are active/approved
+                            'middle_name': 'M',
+                            'birthdate': date(2000 + random.randint(0, 5), random.randint(1, 12), random.randint(1, 28)),
+                            'address': f'{random.randint(1, 999)} Junjun Street, City',
+                            'contact_number': f'09{random.randint(100000000, 999999999)}',
+                            'academic_standing': 'Good Standing'
+                        }
+                    )
+                    
+                    # Force update important fields ensuring status is active and curriculum is set
+                    if s_profile.status != 'ACTIVE' or s_profile.curriculum != curriculum:
+                        s_profile.status = 'ACTIVE'
+                        s_profile.curriculum = curriculum
+                        s_profile.save()
+                    
+                    # Enrollment record
+                    enroll, _ = Enrollment.objects.get_or_create(
+                        student=s_user,
+                        semester=semester,
+                        defaults={
+                            'status': 'COMPLETED' if not is_current else 'ACTIVE',
+                            'monthly_commitment': Decimal('5000.00'),
+                            'created_via': 'ONLINE',
+                            'first_month_paid': True
+                        }
+                    )
+                    
+                    status = 'PASSED'
+                    grade = Decimal('2.00')
+                    inc_date = None
+                    is_retake = False
+                    
+                    # Last term INCs (Total 4)
+                    if is_last_term and inc_count < 4:
+                        status = 'INC'
+                        grade = None
+                        inc_date = semester.end_date - timedelta(days=5)
+                        inc_count += 1
+                    
+                    # Current term retakes
+                    if is_current and j == 1: # Let 1 student per section be a retaker
+                        is_retake = True
+                        # To make them a retaker, they must have failed in a past term
+                        # Let's add a failed enrollment in T1 for this student
+                        past_enroll, _ = Enrollment.objects.get_or_create(
+                            student=s_user,
+                            semester=self.semester_2024_1,
+                            defaults={
+                                'status': 'COMPLETED',
+                                'monthly_commitment': Decimal('5000.00'),
+                                'created_via': 'ONLINE',
+                                'first_month_paid': True
+                            }
+                        )
+                        SubjectEnrollment.objects.get_or_create(
+                            enrollment=past_enroll,
+                            subject=subject,
+                            defaults={
+                                'status': 'FAILED',
+                                'grade': Decimal('5.00'),
+                                'is_finalized': True,
+                                'failed_at': timezone.make_aware(timezone.datetime.combine(self.semester_2024_1.end_date, timezone.datetime.min.time()))
+                            }
+                        )
+                    
+                    subject_enroll = SubjectEnrollment.objects.create(
+                        enrollment=enroll,
+                        subject=subject,
+                        section=section,
+                        status=status if not is_current else 'ENROLLED',
+                        grade=grade if not is_current else None,
+                        inc_marked_at=timezone.make_aware(timezone.datetime.combine(inc_date, timezone.datetime.min.time())) if inc_date else None,
+                        is_finalized=not is_current,
+                        is_retake=is_retake,
+                        head_approved=True,
+                        payment_approved=True
+                    )
+                    
+                    # Create Resolutions for the INCs (for approval flow testing)
+                    if status == 'INC':
+                         # Student 1: Pending Head
+                        if j == 1:
+                            GradeResolution.objects.create(
+                                subject_enrollment=subject_enroll,
+                                status=GradeResolution.Status.PENDING_HEAD,
+                                current_grade=None,
+                                proposed_grade=Decimal('2.00'),
+                                current_status='INC',
+                                proposed_status='PASSED',
+                                reason='Completed requirements.',
+                                requested_by=junjun_user
+                            )
+                        # Student 2: Pending Registrar
+                        elif j == 2:
+                            GradeResolution.objects.create(
+                                subject_enrollment=subject_enroll,
+                                status=GradeResolution.Status.PENDING_REGISTRAR,
+                                current_grade=None,
+                                proposed_grade=Decimal('2.25'),
+                                current_status='INC',
+                                proposed_status='PASSED',
+                                reason='Late submission accepted.',
+                                requested_by=junjun_user,
+                                reviewed_by_head=junjun_user, # Self-approve as head? Or explicit head
+                                head_notes='Endorsed.'
+                            )
+                        # Student 3: Pending Head (Another one)
+                        elif j == 3:
+                            GradeResolution.objects.create(
+                                subject_enrollment=subject_enroll,
+                                status=GradeResolution.Status.PENDING_HEAD,
+                                current_grade=None,
+                                proposed_grade=Decimal('1.75'),
+                                current_status='INC',
+                                proposed_status='PASSED',
+                                reason='Output verification.',
+                                requested_by=junjun_user
+                            )
+
+        self.stdout.write(self.style.SUCCESS(f'   ✓ Seeded Junjun with {inc_count} INCs and retake scenarios'))
+
+    # =========================================================================
     # SUMMARY
     # =========================================================================
     
@@ -1756,8 +2022,13 @@ class Command(BaseCommand):
         self.stdout.write('   Head:      head@richwell.edu / password123')
         self.stdout.write('   Cashier:   cashier@richwell.edu / password123')
         self.stdout.write('   Professor: juan.dela.cruz@richwell.edu / password123')
+        self.stdout.write('   Professor: junjun@richwell.edu / password123')
         self.stdout.write('   Student:   student.regular1@richwell.edu / password123')
         self.stdout.write('   Student (2024 Curr): student.curr2024@richwell.edu / password123')
         self.stdout.write('   Student (2025 Curr): student.curr2025@richwell.edu / password123')
+        self.stdout.write('   Student (INC P-Head): student.junjun.T3.1.1@richwell.edu / password123')
+        self.stdout.write('   Student (INC P-Reg):  student.junjun.T3.1.2@richwell.edu / password123')
+        self.stdout.write('   Student (INC P-Head): student.junjun.T3.1.3@richwell.edu / password123')
+        self.stdout.write('   Student (INC None):   student.junjun.T3.1.4@richwell.edu / password123')
         self.stdout.write('='*60)
 

@@ -4628,6 +4628,7 @@ function renderSemestersTab() {
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Academic Year</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrollment</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade Submission</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
@@ -4651,6 +4652,16 @@ function renderSemestersTab() {
                     ${semester.enrollment_start_date && semester.enrollment_end_date
       ? `${formatSemesterDate(semester.enrollment_start_date)} - ${formatSemesterDate(semester.enrollment_end_date)}`
       : '<span class="text-gray-400">Not set</span>'}
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-600">
+                    ${semester.grading_start_date && semester.grading_end_date
+      ? `<span class="inline-flex items-center text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                          ${formatSemesterDate(semester.grading_start_date)} - ${formatSemesterDate(semester.grading_end_date)}
+                         </span>`
+      : '<span class="text-gray-400 italic">Not scheduled</span>'}
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -4796,6 +4807,20 @@ function renderSemesterAddModal() {
             </div>
           </div>
 
+          <div class="border-t pt-4">
+            <p class="text-sm font-medium text-gray-700 mb-2">Grade Submission Period (Optional)</p>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Opens</label>
+                <input type="date" id="add-sem-grading-start" class="form-input">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Closes</label>
+                <input type="date" id="add-sem-grading-end" class="form-input">
+              </div>
+            </div>
+          </div>
+
           <div class="flex items-center gap-2">
             <input type="checkbox" id="add-sem-current" class="rounded border-gray-300">
               <label for="add-sem-current" class="text-sm text-gray-700">Set as current semester</label>
@@ -4855,6 +4880,20 @@ function renderSemesterEditModal() {
               <div>
                 <label class="block text-sm text-gray-600 mb-1">Closes</label>
                 <input type="date" id="edit-sem-enroll-end" value="${sem.enrollment_end_date || ''}" class="form-input">
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t pt-4">
+            <p class="text-sm font-medium text-gray-700 mb-2">Grade Submission Period (Optional)</p>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Opens</label>
+                <input type="date" id="edit-sem-grading-start" value="${sem.grading_start_date || ''}" class="form-input">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Closes</label>
+                <input type="date" id="edit-sem-grading-end" value="${sem.grading_end_date || ''}" class="form-input">
               </div>
             </div>
           </div>
@@ -4923,12 +4962,16 @@ window.submitAddSemester = async function () {
     end_date: document.getElementById('add-sem-end').value,
     enrollment_start_date: document.getElementById('add-sem-enroll-start').value || null,
     enrollment_end_date: document.getElementById('add-sem-enroll-end').value || null,
+    grading_start_date: document.getElementById('add-sem-grading-start').value || null,
+    grading_end_date: document.getElementById('add-sem-grading-end').value || null,
     is_current: document.getElementById('add-sem-current').checked
   };
 
   // Remove empty optional fields
   if (!data.enrollment_start_date) delete data.enrollment_start_date;
   if (!data.enrollment_end_date) delete data.enrollment_end_date;
+  if (!data.grading_start_date) delete data.grading_start_date;
+  if (!data.grading_end_date) delete data.grading_end_date;
 
   try {
     await api.post(endpoints.semesters, data);
@@ -4955,12 +4998,16 @@ window.submitEditSemester = async function () {
     end_date: document.getElementById('edit-sem-end').value,
     enrollment_start_date: document.getElementById('edit-sem-enroll-start').value || null,
     enrollment_end_date: document.getElementById('edit-sem-enroll-end').value || null,
+    grading_start_date: document.getElementById('edit-sem-grading-start').value || null,
+    grading_end_date: document.getElementById('edit-sem-grading-end').value || null,
     is_current: document.getElementById('edit-sem-current').checked
   };
 
   // Remove empty optional fields
   if (!data.enrollment_start_date) delete data.enrollment_start_date;
   if (!data.enrollment_end_date) delete data.enrollment_end_date;
+  if (!data.grading_start_date) delete data.grading_start_date;
+  if (!data.grading_end_date) delete data.grading_end_date;
 
   try {
     await api.put(endpoints.semesterDetail(state.editingSemester.id), data);

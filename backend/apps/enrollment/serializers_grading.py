@@ -43,6 +43,9 @@ class GradeableStudentSerializer(serializers.Serializer):
     is_finalized = serializers.BooleanField()
     is_resolution_allowed = serializers.BooleanField()
     has_retake = serializers.SerializerMethodField()
+    current_remarks = serializers.CharField(source='remarks')
+    retake_eligibility_date = serializers.DateTimeField(allow_null=True)
+    semester_name = serializers.CharField(source='enrollment.semester.name', read_only=True)
 
     def get_has_retake(self, obj):
         return obj.retakes.exists()
@@ -79,7 +82,7 @@ class GradeSubmissionSerializer(serializers.Serializer):
         """
         Validate grade and status combination.
         - If grade is provided, auto-determine status if not given
-        - INC requires remarks
+        - Remarks are optional for INC
         """
         grade = data.get('grade')
         status = data.get('status')
@@ -95,10 +98,6 @@ class GradeSubmissionSerializer(serializers.Serializer):
         # If status is INC, grade should be null
         if status == 'INC':
             data['grade'] = None
-            if not remarks:
-                raise serializers.ValidationError({
-                    'remarks': 'Remarks are required when marking as Incomplete (INC)'
-                })
         
         # If status is DROPPED, grade should be null
         if status == 'DROPPED':

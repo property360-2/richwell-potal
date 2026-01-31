@@ -185,3 +185,64 @@ class OverrideGradeView(views.APIView):
         )
         
         return Response({"success": True, "message": "Grade overridden successfully"})
+
+
+
+class RegistrarSectionSubjectsView(views.APIView):
+    """
+    GET: List all subjects in a section with grade submission status.
+    Drill-down Step 3: Section -> Subjects
+    """
+    permission_classes = [IsAuthenticated, IsRegistrar]
+
+    def get(self, request, section_id):
+        from apps.academics.models import SectionSubject
+        
+        # 1. Get all subjects assigned to this section
+        section_subjects = SectionSubject.objects.filter(
+            section_id=section_id,
+            is_deleted=False
+        ).select_related('subject', 'professor')
+        
+        data = []
+        for ss in section_subjects:
+            # 2. Key metrics for status
+            enrollments = SubjectEnrollment.objects.filter(
+                section_subject=ss,
+                is_deleted=False,
+                status__in=['ENROLLED', 'PENDING', 'PASSED', 'FAILED', 'INC', 'DROPPED'] # Exclude cancelled/withdrawn if any
+            )
+            
+            total = enrollments.count()
+            graded = enrollments.filter(Q(grade__isnull=False) | Q(status='INC') | Q(status='DROPPED')).count()
+            finalized = enrollments.filter(is_finalized=True).count()
+            
+            # 3. Determine Status
+            status_label = 'Pending'
+            badge_color = 'warning'
+            
+            if total == 0:
+                status_label = 'No Students'
+                badge_color = 'secondary'
+            elif finalized == total:
+                status_label = 'Submitted'
+                badge_color = 'success'
+            elif graded > 0:
+                status_label = 'Partial'
+                badge_color = 'info'
+                
+            data.append({
+                'id': str(ss.id), # SectionSubject ID
+                'subject_code': ss.subject.code,
+                'subject_title': ss.subject.title,
+                'professor_name': ss.professor.get_full_name() if ss.professor else 'TBA',
+                'stats': {
+                    'enrolled': total,
+                    'graded': graded,
+                    'finalized': finalized
+                },
+                'status': status_label,
+                'badge_color': badge_color
+            })
+            
+        return Response(data)

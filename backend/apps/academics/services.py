@@ -491,7 +491,7 @@ class SchedulingService:
         Get a professor's full schedule for a semester.
         
         Returns:
-            list: List of schedule slots grouped by day
+            list: Flat list of schedule slots with nested subject/section info
         """
         from apps.academics.models import ScheduleSlot
         
@@ -509,17 +509,18 @@ class SchedulingService:
             'section_subject__section'
         ).order_by('day', 'start_time')
         
-        schedule = {}
+        schedule = []
         for slot in slots:
-            day = slot.day
-            if day not in schedule:
-                schedule[day] = []
-            
-            schedule[day].append({
+            schedule.append({
                 'id': str(slot.id),
-                'subject_code': slot.section_subject.subject.code,
-                'subject_title': slot.section_subject.subject.title,
-                'section': slot.section_subject.section.name,
+                'day': slot.day,
+                'subject': {
+                    'code': slot.section_subject.subject.code,
+                    'title': slot.section_subject.subject.title,
+                },
+                'section': {
+                    'name': slot.section_subject.section.name,
+                },
                 'start_time': slot.start_time.strftime('%H:%M'),
                 'end_time': slot.end_time.strftime('%H:%M'),
                 'room': slot.room

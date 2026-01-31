@@ -84,7 +84,9 @@ class MyGradesView(views.APIView):
                 'status_display': status_display,
                 'is_finalized': se.is_finalized,
                 'enrollment_type': se.enrollment_type,
-                'pending_resolution': res_info
+                'pending_resolution': res_info,
+                'retake_eligibility_date': se.retake_eligibility_date,
+                'is_retake_eligible': se.is_retake_eligible
             }
             
             semesters_data[sem_key]['subjects'].append(grade_data)

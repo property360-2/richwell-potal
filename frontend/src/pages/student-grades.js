@@ -282,6 +282,7 @@ function renderSemesterCard(semester) {
               <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject</th>
               <th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Units</th>
               <th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Grade</th>
+              <th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Retake Eligibility</th>
               <th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Status</th>
             </tr>
           </thead>
@@ -320,6 +321,17 @@ function renderSubjectRow(subject) {
         ` : `
             <span class="text-xl font-bold ${gradeClass}">${subject.grade || '--'}</span>
         `}
+      <td class="px-6 py-4 text-center">
+        ${subject.retake_eligibility_date ? `
+          <div class="flex flex-col items-center">
+            <span class="text-xs font-medium ${subject.is_retake_eligible ? 'text-green-600 bg-green-50' : 'text-blue-600 bg-blue-50'} px-2 py-0.5 rounded-full border ${subject.is_retake_eligible ? 'border-green-100' : 'border-blue-100'}">
+              ${formatDate(subject.retake_eligibility_date)}
+            </span>
+            <span class="text-[10px] text-gray-400 mt-1 uppercase tracking-tight">
+              ${subject.status === 'INC' ? 'Resolution Limit' : 'Eligible for Retake'}
+            </span>
+          </div>
+        ` : '<span class="text-gray-400 text-xs">N/A</span>'}
       </td>
       <td class="px-6 py-4 text-center">
         ${renderStatusBadge(subject.status)}

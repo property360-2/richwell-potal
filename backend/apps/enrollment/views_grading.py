@@ -11,7 +11,7 @@ Professors can:
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
-from rest_framework import generics, views, status
+from rest_framework import generics, views, status, filters
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
@@ -38,7 +38,15 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
     - subject: UUID of subject (returns across all sections)
     """
     serializer_class = GradeableStudentSerializer
-    permission_classes = [IsAuthenticated, IsProfessor]
+    permission_classes = [IsAuthenticated, IsProfessorOrRegistrar]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = [
+        'enrollment__student__first_name', 
+        'enrollment__student__last_name', 
+        'enrollment__student__student_number'
+    ]
+    ordering_fields = ['grade', 'status', 'enrollment__student__last_name', 'enrollment__student__first_name', 'created_at']
+    ordering = ['enrollment__student__last_name', 'enrollment__student__first_name']
     
     def get_queryset(self):
         user = self.request.user
@@ -50,21 +58,41 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
         subject_id = self.request.query_params.get('subject')
         
         # Determine semester
-        if semester_id:
+        is_archive_search = semester_id in ['all', 'archives', 'archive']
+        
+        if is_archive_search:
+            # For archive search, we look at everything handled by this professor
+            # but usually excluded by the specific semester filter.
+            # We will filter by professor assignment directly on the SubjectEnrollment later.
+            semester = None
+        elif semester_id:
             semester = Semester.objects.filter(id=semester_id).first()
         else:
             semester = Semester.objects.filter(is_current=True).first()
         
-        if not semester:
+        if not semester and not is_archive_search:
             return SubjectEnrollment.objects.none()
         
-        # Get section-subjects where this professor is assigned
-        # Check both SectionSubject.professor and SectionSubjectProfessor table
-        professor_section_subjects = SectionSubject.objects.filter(
-            Q(professor=user) | Q(professor_assignments__professor=user),
-            section__semester=semester,
-            is_deleted=False
-        ).distinct()
+        # Base filter for subjects handled by this professor
+        # IF USER IS REGISTRAR, DO NOT FILTER BY PROFESSOR
+        if user.role in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
+             professor_section_subjects = SectionSubject.objects.filter(is_deleted=False)
+        else:
+            assignment_q = Q(professor=user) | Q(professor_assignments__professor=user)
+            professor_section_subjects = SectionSubject.objects.filter(
+                assignment_q,
+                is_deleted=False
+            )
+
+        if semester:
+            professor_section_subjects = professor_section_subjects.filter(section__semester=semester)
+        elif is_archive_search:
+            # Exclude current semester for archive search if it exists
+            current = Semester.objects.filter(is_current=True).first()
+            if current:
+                professor_section_subjects = professor_section_subjects.exclude(section__semester=current)
+
+        professor_section_subjects = professor_section_subjects.distinct()
         
         # Filter by specific section-subject if provided
         if section_subject_id:
@@ -79,14 +107,23 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
             professor_section_subjects = professor_section_subjects.filter(subject_id=subject_id)
         
         # Get subject enrollments for these section-subjects
-        queryset = SubjectEnrollment.objects.filter(
-            enrollment__semester=semester,
-            section__in=professor_section_subjects.values_list('section', flat=True),
-            subject__in=professor_section_subjects.values_list('subject', flat=True),
-            status__in=['ENROLLED', 'PASSED', 'FAILED', 'INC', 'FOR_RESOLUTION'],
-            is_deleted=False
-        ).select_related(
+        filter_kwargs = {
+            'section__in': professor_section_subjects.values_list('section', flat=True),
+            'subject__in': professor_section_subjects.values_list('subject', flat=True),
+            'status__in': ['ENROLLED', 'PASSED', 'FAILED', 'INC', 'FOR_RESOLUTION'],
+            'is_deleted': False
+        }
+        
+        if semester:
+            filter_kwargs['enrollment__semester'] = semester
+        elif is_archive_search:
+            # Ensure we are only looking at what's in the professor's historical list
+            # The section__in/subject__in already handles that via professor_section_subjects
+            pass
+
+        queryset = SubjectEnrollment.objects.filter(**filter_kwargs).select_related(
             'enrollment__student',
+            'enrollment__semester',
             'subject',
             'section'
         ).order_by(
@@ -99,6 +136,7 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
     
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
+        queryset = self.filter_queryset(queryset)
         
         # Apply status filter if provided
         target_status = request.query_params.get('status')
@@ -125,9 +163,11 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
                     
                     if pending_res:
                         record['pending_resolution'] = {
-                            'proposed_grade': str(pending_res.proposed_grade),
+                            'id': str(pending_res.id),
+                            'proposed_grade': str(pending_res.proposed_grade) if pending_res.proposed_status not in ['INC', 'DROPPED'] else pending_res.proposed_status,
                             'proposed_status': pending_res.proposed_status,
-                            'status': pending_res.status
+                            'status': pending_res.status,
+                            'remarks': pending_res.reason
                         }
 
                     if se.inc_marked_at:
@@ -146,9 +186,11 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
                     
                     if pending_res:
                         record['pending_resolution'] = {
-                            'proposed_grade': str(pending_res.proposed_grade),
+                            'id': str(pending_res.id),
+                            'proposed_grade': str(pending_res.proposed_grade) if pending_res.proposed_status not in ['INC', 'DROPPED'] else pending_res.proposed_status,
                             'proposed_status': pending_res.proposed_status,
-                            'status': pending_res.status
+                            'status': pending_res.status,
+                            'remarks': pending_res.reason
                         }
 
         # Group by section-subject for better UI organization
@@ -355,6 +397,9 @@ class ProfessorSubmitGradeView(views.APIView):
             if new_status:
                 subject_enrollment.status = new_status
             
+            if remarks:
+                subject_enrollment.remarks = remarks
+            
             # Set failed_at timestamp if status is FAILED
             if new_status == 'FAILED' and previous_status != 'FAILED':
                 subject_enrollment.failed_at = timezone.now()
@@ -426,7 +471,7 @@ class BulkGradeSubmissionView(views.APIView):
                     # Check grading window vs resolution window
                     semester = subject_enrollment.enrollment.semester
                     is_resolution = subject_enrollment.status in ['INC', 'FOR_RESOLUTION'] and subject_enrollment.is_resolution_allowed
-
+                    
                     # Skip finalized grades (unless resolution)
                     if subject_enrollment.is_finalized and request.user.role != 'REGISTRAR' and not is_resolution:
                         errors.append({
@@ -464,6 +509,7 @@ class BulkGradeSubmissionView(views.APIView):
                         'subject_enrollment_id': str(grade_data['subject_enrollment_id']),
                         'error': 'Subject enrollment not found'
                     })
+                    continue
         
         return Response({
             'success': len(errors) == 0,
@@ -528,6 +574,9 @@ class BulkGradeSubmissionView(views.APIView):
         subject_enrollment.grade = grade
         if new_status:
             subject_enrollment.status = new_status
+        
+        if remarks:
+            subject_enrollment.remarks = remarks
         
         if new_status == 'FAILED' and previous_status != 'FAILED':
             subject_enrollment.failed_at = timezone.now()

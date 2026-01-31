@@ -163,38 +163,85 @@ window.viewResolution = function (id) {
     const modal = new Modal({
         title: 'Review Grade Resolution',
         content: `
-            <div class="space-y-4">
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h4 class="text-xs font-bold text-gray-400 uppercase mb-2">Request Details</h4>
-                    <p class="text-sm text-gray-700"><span class="font-bold">Reason:</span> ${resolution.reason}</p>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                        <span class="block text-xs text-blue-600 font-bold uppercase">Proposed Grade</span>
-                        <span class="text-2xl font-black text-blue-700">${resolution.requested_grade}</span>
+            <div class="space-y-6">
+                <!-- Header Section: Student & Subject -->
+                <div class="flex items-start justify-between pb-4 border-b border-gray-100">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 leading-tight">${resolution.student_name}</h3>
+                        <p class="text-sm text-gray-500 font-medium tracking-wide">${resolution.student_number}</p>
                     </div>
-                    <div class="bg-orange-50 p-3 rounded-lg border border-orange-100">
-                        <span class="block text-xs text-orange-600 font-bold uppercase">Target Status</span>
-                        <span class="text-2xl font-black text-orange-700">${resolution.status || 'PASSED'}</span>
+                    <div class="text-right">
+                        <p class="text-sm font-bold text-gray-800">${resolution.subject_code}</p>
+                        <p class="text-xs text-gray-500 truncate max-w-[200px]">${resolution.subject_title}</p>
                     </div>
                 </div>
 
+                <!-- Grade Change Visual -->
+                <div class="bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 p-5 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-2 opacity-10">
+                        ${Icon('trending-up', { size: 'xl' })}
+                    </div>
+                    
+                    <div class="flex items-center justify-between relative z-10">
+                        <div class="text-center">
+                            <span class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Current</span>
+                            <span class="text-2xl font-bold text-gray-500 font-mono">${resolution.original_grade || 'INC'}</span>
+                        </div>
+
+                        <div class="flex flex-col items-center px-4">
+                            <div class="h-0.5 w-12 bg-gray-200 mb-1"></div>
+                            ${Icon('arrow-right', { size: 'sm', class: 'text-blue-500' })}
+                            <div class="h-0.5 w-12 bg-gray-200 mt-1"></div>
+                        </div>
+
+                        <div class="text-center">
+                            <span class="block text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Proposed</span>
+                            <span class="text-3xl font-black text-blue-600 font-mono">${resolution.requested_grade}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 flex justify-center">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                            Target Status: ${resolution.status || 'PASSED'}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Reason Section -->
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">Approval Notes (Optional)</label>
-                    <textarea id="action-notes" class="form-input w-full h-24" placeholder="Enter any specific instructions or justifications..."></textarea>
+                    <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                        ${Icon('message-square', { size: 'xs' })} 
+                        Reason for Request
+                    </h4>
+                    <div class="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 leading-relaxed italic border-l-4 border-blue-400">
+                        "${resolution.reason || 'No reason provided.'}"
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2 text-right">Requested by <span class="font-semibold text-gray-600">${resolution.requested_by_name}</span> on ${formatDate(resolution.created_at)}</p>
+                </div>
+
+                <!-- Notes Input -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        Department Head Notes <span class="text-gray-400 font-normal">(Optional)</span>
+                    </label>
+                    <textarea 
+                        id="action-notes" 
+                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none text-sm"
+                        rows="3" 
+                        placeholder="Add any instructions, conditions, or rejection reasons here..."
+                    ></textarea>
                 </div>
             </div>
         `,
         actions: [
             {
                 label: 'Reject Request',
-                class: 'btn-secondary text-red-600',
+                class: 'px-6 py-2.5 text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-lg text-sm font-bold transition-all',
                 onClick: () => handleAction('reject')
             },
             {
-                label: 'Approve & Forward to Registrar',
-                class: 'btn-primary',
+                label: 'Approve & Forward',
+                class: 'px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 rounded-lg text-sm font-bold transition-all transform hover:-translate-y-0.5',
                 onClick: () => handleAction('approve')
             }
         ],

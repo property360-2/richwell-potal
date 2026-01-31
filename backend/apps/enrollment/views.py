@@ -1719,7 +1719,12 @@ class GradeResolutionViewSet(ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == 'PROFESSOR':
-            return self.queryset.filter(requested_by=user)
+            from django.db.models import Q
+            return self.queryset.filter(
+                Q(requested_by=user) | 
+                Q(subject_enrollment__section__professor=user) |
+                Q(subject_enrollment__section__professor_assignments__professor=user)
+            ).distinct()
         elif user.role in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
             return self.queryset.all()
         elif user.role == 'DEPARTMENT_HEAD':

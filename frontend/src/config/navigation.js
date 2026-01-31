@@ -15,14 +15,14 @@ export const NAV_CONFIG = {
     { label: 'Students', href: '/registrar-students.html', page: 'registrar-students' },
     { label: 'Academic', href: '/registrar-academic.html', page: 'registrar-academic' },
     { label: 'Resolutions', href: '/registrar-resolutions.html', page: 'registrar-resolutions' },
+    { label: 'Grades', href: '/registrar-grades.html', page: 'grades' },
     { label: 'Data Archives', href: '/registrar-archives.html', page: 'registrar-archives' }
   ],
 
   professor: [
     { label: 'Dashboard', href: '/professor-dashboard.html', page: 'professor-dashboard' },
     { label: 'My Schedule', href: '/professor-schedule.html', page: 'professor-schedule' },
-    { label: 'Sections', href: '/professor-grades.html', page: 'grades' },
-    { label: 'Past Records & Archives', href: '/professor-archives.html', page: 'professor-archives' }
+    { label: 'Sections', href: '/professor-grades.html', page: 'grades' }
   ],
 
   head: [

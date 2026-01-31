@@ -98,7 +98,7 @@ async function loadSchedule() {
 
   try {
     const response = await api.get(endpoints.professorSchedule(state.user.id, state.selectedSemesterId));
-    state.schedule = response?.results || response || [];
+    state.schedule = response?.schedule || response?.results || (Array.isArray(response) ? response : []);
   } catch (error) {
     ErrorHandler.handle(error, 'Loading schedule');
     state.schedule = [];
