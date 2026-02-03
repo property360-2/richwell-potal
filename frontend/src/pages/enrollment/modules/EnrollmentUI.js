@@ -1,6 +1,11 @@
 import { createHeader } from '../../../components/header.js';
 import { formatCurrency } from '../../../utils.js';
+import { UI } from '../../../components/UI.js';
 
+/**
+ * Enrollment UI Module
+ * Refactored with Atomic UI Components for Student Portal
+ */
 export const EnrollmentUI = {
     init(ctx) {
         this.ctx = ctx;
@@ -18,59 +23,43 @@ export const EnrollmentUI = {
 
     renderAdmissionPending() {
         return `
-            <div class="max-w-2xl mx-auto mt-12 p-8 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
-              <div class="text-center">
-                <svg class="mx-auto h-16 w-16 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                </svg>
-                <h2 class="mt-4 text-2xl font-bold text-gray-900">Account Pending Admission Approval</h2>
-                <p class="mt-3 text-gray-700">Your enrollment application is being reviewed by the Admission Office.</p>
-                <div class="mt-6">
-                  <a href="/student-dashboard.html" class="btn btn-primary">Back to Dashboard</a>
+            <div class="max-w-xl mx-auto mt-20 p-12 bg-white rounded-3xl border border-amber-100 shadow-2xl shadow-amber-500/10 text-center animate-in zoom-in duration-500">
+                <div class="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 ring-4 ring-amber-500/5">
+                    <svg class="h-10 w-10 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
                 </div>
-              </div>
+                <h2 class="text-3xl font-black text-gray-900 tracking-tight mb-4">Verification in Progress</h2>
+                <p class="text-gray-500 font-medium mb-8 leading-relaxed">Your portal account is currently pending admission office clearance. Please check back later once your identification has been verified.</p>
+                ${UI.button({ label: 'Back to Dashboard', onClick: "location.href='/pages/student/student-dashboard.html'", type: 'secondary', size: 'md' })}
             </div>
         `;
     },
 
     renderEnrolledView() {
         return `
-            <div class="mb-8">
-              <h1 class="text-3xl font-bold text-gray-800">Your Enrolled Subjects</h1>
-              <p class="text-gray-600 mt-1">Currently enrolled for this semester</p>
-            </div>
+            <header class="mb-10">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="px-2.5 py-1 bg-green-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Enrollment Active</span>
+                    <span class="text-xs text-gray-400 font-bold uppercase tracking-widest">${this.state.activeSemester?.name}</span>
+                </div>
+                <h1 class="text-4xl font-black text-gray-900 tracking-tight">Your Enrolled Subjects</h1>
+                <p class="text-gray-500 font-medium mt-2">Study load for the current academic session.</p>
+            </header>
             
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <table class="min-w-full divide-y divide-gray-200">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Subject</th>
-                      <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Section</th>
-                      <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Professor</th>
-                      <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Units</th>
-                      <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody class="bg-white divide-y divide-gray-200">
-                    ${this.state.enrolledSubjects.map(s => `
-                        <tr>
-                            <td class="px-6 py-4">
-                                <div class="text-sm font-bold text-gray-900">${s.subject_code}</div>
-                                <div class="text-[10px] text-gray-500">${s.subject_title}</div>
-                            </td>
-                            <td class="px-6 py-4 text-sm">${s.section_name}</td>
-                            <td class="px-6 py-4 text-sm">${s.professor || 'TBA'}</td>
-                            <td class="px-6 py-4 text-sm font-bold">${s.units}</td>
-                            <td class="px-6 py-4">
-                                <span class="px-2 py-1 rounded-full text-[10px] font-bold ${s.payment_approved ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
-                                    ${s.approval_status_display}
-                                </span>
-                            </td>
-                        </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-            </div>
+            ${UI.table({
+            headers: ['Academic Subject', 'Section', 'Faculty', 'Units', 'Status'],
+            rows: this.state.enrolledSubjects.map(s => [
+                `<div>
+                        <div class="font-black text-gray-900 text-sm">${s.subject_code}</div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">${s.subject_title}</div>
+                    </div>`,
+                `<span class="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-black border border-blue-100">${s.section_name}</span>`,
+                `<div class="text-sm font-bold text-gray-600">${s.professor || 'Assignment Pending'}</div>`,
+                `<div class="font-black text-gray-900">${s.units}</div>`,
+                UI.badge(s.payment_approved ? 'Paid & Verified' : 'Pending Payment', s.payment_approved ? 'success' : 'warning')
+            ])
+        })}
         `;
     },
 
@@ -80,21 +69,32 @@ export const EnrollmentUI = {
         );
 
         return `
-            <div class="mb-8 flex justify-between items-center">
-              <div>
-                <h1 class="text-3xl font-bold text-gray-800">Subject Enrollment</h1>
-                <p class="text-gray-600 mt-1">Select subjects for the current semester</p>
-              </div>
+            <header class="mb-12">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Enlistment Portal</span>
+                    <span class="text-xs text-gray-400 font-bold uppercase tracking-widest">${this.state.activeSemester?.name}</span>
+                </div>
+                <h1 class="text-4xl font-black text-gray-900 tracking-tight">Subject Enrollment</h1>
+                <p class="text-gray-500 font-medium mt-2">Personalize your academic load for the upcoming term.</p>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-12">
+                <div class="lg:col-span-1">
+                    ${this.renderUnitCounter()}
+                </div>
+                <div class="lg:col-span-3">
+                    ${this.renderFilters()}
+                </div>
             </div>
 
-            ${this.renderUnitCounter()}
-            ${this.renderFilters()}
-
-            <div class="space-y-8">
+            <div class="space-y-12">
                 <section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-xl font-bold text-gray-800">Recommended Subjects</h2>
-                        <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">${this.state.recommendedSubjects.length} Available</span>
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="text-2xl font-black text-gray-900 tracking-tight">Curriculum Picks</h2>
+                            <p class="text-sm text-gray-400 font-medium">Standard subjects based on your year level</p>
+                        </div>
+                        <span class="px-3 py-1 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-blue-100">${this.state.recommendedSubjects.length} Found</span>
                     </div>
                     ${this.subjects.renderCategorizedSubjects(
             this.subjects.groupSubjectsByYearAndSemester(this.state.recommendedSubjects),
@@ -103,9 +103,12 @@ export const EnrollmentUI = {
                 </section>
 
                 <section>
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-xl font-bold text-gray-800">All Available Subjects</h2>
-                        <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-bold">${filteredAvailable.length} Available</span>
+                    <div class="flex items-center justify-between mb-6">
+                         <div>
+                            <h2 class="text-2xl font-black text-gray-900 tracking-tight">Global Catalog</h2>
+                            <p class="text-sm text-gray-400 font-medium">All other subjects available for cross-enrollment</p>
+                        </div>
+                        <span class="px-3 py-1 bg-gray-50 text-gray-500 rounded-xl text-[10px] font-black uppercase tracking-widest border border-gray-100">${filteredAvailable.length} Listings</span>
                     </div>
                     ${this.subjects.renderCategorizedSubjects(
             this.subjects.groupSubjectsByYearAndSemester(filteredAvailable),
@@ -122,54 +125,46 @@ export const EnrollmentUI = {
         const currentUnits = this.cart.getTotalUnits();
         const percentage = (currentUnits / this.state.maxUnits) * 100;
         return `
-            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mb-8">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="flex items-center gap-3">
-                        <div class="p-2 bg-blue-600 rounded-lg text-white">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                        </div>
-                        <div>
-                            <span class="font-bold text-gray-800">Enrollment Units</span>
-                            <p class="text-[11px] text-gray-500 uppercase tracking-widest font-black">Limit: ${this.state.maxUnits} Units</p>
-                        </div>
+            <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-xl shadow-blue-500/5 h-full">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                     </div>
                     <div class="text-right">
-                        <span class="text-3xl font-black text-blue-600">${currentUnits}</span>
-                        <span class="text-xs text-gray-400 font-bold">/ ${this.state.maxUnits}</span>
+                        <div class="text-[28px] font-black text-gray-900 leading-none">${currentUnits}</div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">/ ${this.state.maxUnits} Limit</div>
                     </div>
                 </div>
-                <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                    <div class="bg-blue-600 h-full transition-all duration-500" style="width: ${Math.min(percentage, 100)}%"></div>
+                <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden mb-2">
+                    <div class="bg-blue-600 h-full transition-all duration-1000 ease-out" style="width: ${Math.min(percentage, 100)}%"></div>
                 </div>
+                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-tighter text-center">Credit Load Capacity</p>
             </div>
         `;
     },
 
     renderFilters() {
         return `
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                <div>
-                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-1 ml-1">Year Level</label>
-                    <select onchange="handleYearFilterChange(this.value)" class="form-select text-sm h-11">
-                        <option value="">All Years</option>
-                        ${[1, 2, 3, 4, 5].map(y => `<option value="${y}" ${this.state.filters.yearLevel === y ? 'selected' : ''}>Year ${y}</option>`).join('')}
+            <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-xl shadow-blue-500/5 flex flex-col md:flex-row gap-4 h-full items-end">
+                <div class="flex-1 w-full">
+                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2 tracking-widest">Filter by Year</label>
+                    <select onchange="handleYearFilterChange(this.value)" class="w-full px-5 py-3 bg-gray-50 border border-gray-50 rounded-2xl outline-none text-xs font-bold text-gray-600 focus:ring-4 focus:ring-blue-500/5 transition-all appearance-none cursor-pointer">
+                        <option value="">Full Academic History</option>
+                        ${[1, 2, 3, 4, 5].map(y => `<option value="${y}" ${this.state.filters.yearLevel === y ? 'selected' : ''}>Year Level ${y}</option>`).join('')}
                     </select>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-1 ml-1">Semester</label>
-                    <select onchange="handleSemesterFilterChange(this.value)" class="form-select text-sm h-11">
+                <div class="flex-1 w-full">
+                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-2 tracking-widest">Select Semester</label>
+                    <select onchange="handleSemesterFilterChange(this.value)" class="w-full px-5 py-3 bg-gray-50 border border-gray-50 rounded-2xl outline-none text-xs font-bold text-gray-600 focus:ring-4 focus:ring-blue-500/5 transition-all appearance-none cursor-pointer">
                         <option value="">All Semesters</option>
                         <option value="1" ${this.state.filters.semester === 1 ? 'selected' : ''}>1st Semester</option>
                         <option value="2" ${this.state.filters.semester === 2 ? 'selected' : ''}>2nd Semester</option>
-                        <option value="3" ${this.state.filters.semester === 3 ? 'selected' : ''}>Summer</option>
+                        <option value="3" ${this.state.filters.semester === 3 ? 'selected' : ''}>Summer Session</option>
                     </select>
                 </div>
-                <div class="flex items-end">
-                    <button onclick="clearFilters()" class="h-11 w-full flex items-center justify-center gap-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        Clear Filters
-                    </button>
-                </div>
+                <button onclick="clearFilters()" class="px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-2xl text-[11px] font-black text-gray-500 uppercase tracking-widest transition-all h-[47px]">
+                    Reset
+                </button>
             </div>
         `;
     },
@@ -177,13 +172,18 @@ export const EnrollmentUI = {
     renderFloatingCartButton() {
         if (this.state.cart.length === 0) return '';
         return `
-            <button onclick="openCartModal()" class="fixed bottom-8 right-8 bg-blue-600 text-white p-4 rounded-2xl shadow-2xl hover:bg-blue-700 transition-all hover:scale-105 active:scale-95 z-50 flex items-center gap-3">
-                <div class="relative">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-                    <span class="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">${this.state.cart.length}</span>
-                </div>
-                <span class="font-bold text-sm pr-2">Review Enrollment</span>
-            </button>
+            <div class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5 duration-500">
+                <button onclick="openCartModal()" class="bg-black text-white px-8 py-4 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-4 group">
+                    <div class="relative">
+                        <svg class="w-6 h-6 text-blue-400 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                        <span class="absolute -top-3 -right-3 bg-blue-500 text-white text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full ring-4 ring-black">${this.state.cart.length}</span>
+                    </div>
+                    <div class="text-left">
+                        <div class="text-xs font-black uppercase tracking-widest">Review Selections</div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase tracking-tight">${this.cart.getTotalUnits()} Total Units</div>
+                    </div>
+                </button>
+            </div>
         `;
     },
 
@@ -205,13 +205,13 @@ export const EnrollmentUI = {
     enrollSubject(subjectId) {
         const select = document.getElementById(`section-select-${subjectId}`);
         if (!select || !select.value) {
-            Toast.error('Please select a section first');
+            Toast.error('Please assign a learning section first');
             return;
         }
 
         const subject = this.state.recommendedSubjects.find(s => s.id === subjectId) ||
             this.state.availableSubjects.find(s => s.id === subjectId);
-        const section = subject.sections.find(sec => sec.id === select.value);
+        const section = (subject.sections || []).find(sec => sec.id === select.value);
 
         if (this.cart.addToCart(subject, section)) {
             this.render();

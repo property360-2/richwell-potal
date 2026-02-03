@@ -55,7 +55,7 @@ function render() {
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 ${state.programs.map(program => `
-                    <a href="/registrar-grades-sections.html?program_id=${program.id}&program_name=${encodeURIComponent(program.code)}" 
+                    <a href="/pages/registrar/registrar-grades-sections.html?program_id=${program.id}&program_name=${encodeURIComponent(program.code)}" 
                         class="block bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 overflow-hidden group">
                         <div class="p-6">
                             <div class="flex items-start justify-between mb-4">

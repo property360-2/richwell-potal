@@ -139,7 +139,7 @@ function render() {
       
       <!-- Footer -->
       <div class="text-center mt-12 text-gray-500 text-sm">
-        <p>Already have an account? <a href="/login.html" class="text-blue-600 hover:underline font-medium">Login here</a></p>
+        <p>Already have an account? <a href="/pages/login.html" class="text-blue-600 hover:underline font-medium">Login here</a></p>
       </div>
     </div>
   `;
@@ -491,7 +491,7 @@ function renderDisabledState() {
         </div>
         <h2 class="text-xl font-bold text-gray-800 mb-2">Enrollment Closed</h2>
         <p class="text-gray-600 mb-6">Online enrollment is currently not available. Please check back later or contact the registrar's office.</p>
-        <a href="/login.html" class="btn-secondary inline-block">Go to Login</a>
+        <a href="/pages/login.html" class="btn-secondary inline-block">Go to Login</a>
       </div>
     </div>
   `;
@@ -856,7 +856,7 @@ window.submitEnrollment = async function () {
         last_name: state.formData.last_name,
         status: 'PENDING'
       });
-      window.location.href = `/enrollment-success.html?${params.toString()}`;
+      window.location.href = `/pages/student/enrollment-success.html?${params.toString()}`;
     }, 1500);
   } catch (error) {
     ErrorHandler.handle(error, 'Submitting enrollment');

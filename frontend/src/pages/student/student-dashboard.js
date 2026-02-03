@@ -267,7 +267,7 @@ function renderAdmissionStatusBanner() {
             <p class="text-sm text-green-700 mt-2">
               Your enrollment application has been approved! You are now eligible to enroll in subjects.
             </p>
-            <a href="/subject-enrollment.html" class="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
+            <a href="/pages/subject-enrollment.html" class="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
               ${Icon('plus', { size: 'sm' })}
               Enroll in Subjects
             </a>
@@ -308,7 +308,7 @@ function renderPaymentProgressCard() {
         <h2 class="text-xl font-bold text-gray-800">Payment Progress</h2>
         <div class="flex items-center gap-2">
           ${renderBadge({ text: state.activeSemester?.name || 'Current Semester', color: 'primary', size: 'sm' })}
-          <a href="/soa.html" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
+          <a href="/pages/student/soa.html" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
             View SOA
             ${Icon('chevronRight', { size: 'sm' })}
           </a>
@@ -436,7 +436,7 @@ window.submitPasswordChange = async function (event) {
       closeChangePasswordModal();
       setTimeout(() => {
         TokenManager.clearTokens();
-        window.location.href = '/login.html';
+        window.location.href = '/pages/auth/login.html';
       }, 2000);
     } else {
       Toast.error(data?.error || 'Failed to change password');

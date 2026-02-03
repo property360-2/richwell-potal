@@ -126,17 +126,17 @@ export function createSpinner(size = 'md') {
  */
 export function redirectByRole(role) {
     const routes = {
-        STUDENT: '/student-dashboard.html',
-        ADMISSION_STAFF: '/admission-dashboard.html',
-        ADMIN: '/admin-dashboard.html',
-        REGISTRAR: '/registrar-dashboard.html',
-        HEAD_REGISTRAR: '/registrar-dashboard.html',
-        DEPARTMENT_HEAD: '/head-dashboard.html',
-        CASHIER: '/cashier-dashboard.html',
-        PROFESSOR: '/professor-dashboard.html'
+        STUDENT: '/pages/student/student-dashboard.html',
+        ADMISSION_STAFF: '/pages/admission/admission-dashboard.html',
+        ADMIN: '/pages/admin/admin-dashboard.html',
+        REGISTRAR: '/pages/registrar/registrar-dashboard.html',
+        HEAD_REGISTRAR: '/pages/registrar/registrar-dashboard.html',
+        DEPARTMENT_HEAD: '/pages/head/head-dashboard.html',
+        CASHIER: '/pages/cashier/cashier-dashboard.html',
+        PROFESSOR: '/pages/professor/professor-dashboard.html'
     };
 
-    const route = routes[role] || '/student-dashboard.html';
+    const route = routes[role] || '/pages/student/student-dashboard.html';
     window.location.href = route;
 }
 
@@ -146,7 +146,7 @@ export function redirectByRole(role) {
 export function requireAuth() {
     const token = localStorage.getItem('access_token');
     if (!token) {
-        window.location.href = '/login.html';
+        window.location.href = '/pages/auth/login.html';
         return false;
     }
     return true;
@@ -170,7 +170,7 @@ export async function logout() {
     TokenManager.clearTokens();
     Toast.success('Logged out successfully');
     setTimeout(() => {
-        window.location.href = '/login.html';
+        window.location.href = '/pages/auth/login.html';
     }, 1000);
 }
 

@@ -1044,7 +1044,7 @@ window.closeHistoryModal = () => {
 
 window.logout = function () {
   TokenManager.clearTokens();
-  window.location.href = '/login.html';
+  window.location.href = '/pages/auth/login.html';
 };
 
 document.addEventListener('DOMContentLoaded', init);

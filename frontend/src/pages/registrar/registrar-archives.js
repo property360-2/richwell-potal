@@ -33,7 +33,7 @@ async function init() {
     // Fallback to local storage if API fails, or redirect to login
     if (!state.user) {
       console.warn('No local user found, redirecting to login');
-      window.location.href = '/login.html';
+      window.location.href = '/pages/auth/login.html';
       return;
     }
   }

@@ -581,7 +581,7 @@ window.overrideConflict = async function () {
 window.logout = function () {
     TokenManager.clearTokens();
     Toast.success('Logged out successfully');
-    setTimeout(() => window.location.href = '/login.html', 1000);
+    setTimeout(() => window.location.href = '/pages/auth/login.html', 1000);
 };
 
 document.addEventListener('DOMContentLoaded', init);

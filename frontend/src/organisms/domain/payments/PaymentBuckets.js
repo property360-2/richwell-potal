@@ -134,7 +134,7 @@ export function renderPaymentBuckets({
           <span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-medium">
             ${semesterName}
           </span>
-          <a href="/soa.html" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
+          <a href="/pages/student/soa.html" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
             View SOA
             ${Icon('chevronRight', { size: 'sm' })}
           </a>

@@ -2,7 +2,13 @@ import { api, endpoints } from '../../../api.js';
 import { Toast } from '../../../components/Toast.js';
 import { ErrorHandler } from '../../../utils/errorHandler.js';
 import { Modal, ConfirmModal } from '../../../components/Modal.js';
+import { UI } from '../../../components/UI.js';
+import { Validator } from '../../../utils/validation.js';
 
+/**
+ * Admin Programs Module
+ * Refactored with Atomic UI Components
+ */
 export const AdminProgramsModule = {
     init(ctx) {
         this.ctx = ctx;
@@ -16,61 +22,42 @@ export const AdminProgramsModule = {
 
     renderProgramsTab() {
         return `
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-gray-800">Degree Programs</h2>
-                <button onclick="openAddProgramModal()" class="btn btn-primary">Add Program</button>
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                    <h2 class="text-2xl font-black text-gray-800 tracking-tight">Academic Programs</h2>
+                    <p class="text-sm text-gray-500 font-medium">Define and modify course degree structures</p>
+                </div>
+                ${UI.button({
+            label: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add Program',
+            onClick: 'openAddProgramModal()'
+        })}
             </div>
-            <div class="bg-white rounded-xl shadow border overflow-hidden">
-                <table class="min-w-full divide-y">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-bold uppercase">Code</th>
-                            <th class="px-6 py-3 text-left text-xs font-bold uppercase">Name</th>
-                            <th class="px-6 py-3 text-left text-xs font-bold uppercase">Department</th>
-                            <th class="px-6 py-3 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y">
-                        ${this.state.programs.map(p => `
-                            <tr>
-                                <td class="px-6 py-4 font-bold text-blue-600">${p.code}</td>
-                                <td class="px-6 py-4 text-sm">${p.name}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">${p.department || 'General'}</td>
-                                <td class="px-6 py-4 text-right">
-                                    <button onclick="openEditProgramModal('${p.id}')" class="text-gray-600 mr-2">Edit</button>
-                                    <button onclick="deleteProgram('${p.id}')" class="text-red-500">Delete</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+
+            <div class="animate-in fade-in duration-500">
+                ${UI.table({
+            headers: ['Program Code', 'Full Description', 'School / Department', 'Actions'],
+            rows: this.state.programs.map(p => [
+                `<span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-black border border-blue-100">${p.code}</span>`,
+                `<div class="font-bold text-gray-800 text-sm">${p.name}</div>`,
+                `<div class="text-xs font-black text-gray-400 uppercase tracking-widest">${p.department || 'Academic Affairs'}</div>`,
+                `<div class="flex gap-2 justify-end">
+                            ${UI.button({ label: 'Edit', type: 'ghost', size: 'sm', onClick: `openEditProgramModal('${p.id}')` })}
+                            ${UI.button({ label: 'Delete', type: 'danger', size: 'sm', onClick: `deleteProgram('${p.id}')` })}
+                        </div>`
+            ])
+        })}
             </div>
         `;
     },
 
     openAddProgramModal() {
         const modal = new Modal({
-            title: 'Add Program',
+            title: 'Create Degree Program',
             content: this.getProgramForm(),
+            size: 'md',
             actions: [
                 { label: 'Cancel', onClick: (m) => m.close() },
-                {
-                    label: 'Create', primary: true,
-                    onClick: async (m) => {
-                        const data = {
-                            code: document.getElementById('p-code').value,
-                            name: document.getElementById('p-name').value,
-                            department: document.getElementById('p-dept').value
-                        };
-                        try {
-                            await api.post(endpoints.managePrograms, data);
-                            Toast.success('Program created');
-                            m.close();
-                            await this.ctx.loadPrograms();
-                            this.render();
-                        } catch (e) { ErrorHandler.handle(e); }
-                    }
-                }
+                { label: 'Initialize Program', primary: true, onClick: async (m) => await this.handleSubmit(m) }
             ]
         });
         modal.show();
@@ -81,53 +68,63 @@ export const AdminProgramsModule = {
         if (!program) return;
 
         const modal = new Modal({
-            title: 'Edit Program',
+            title: 'Edit Program Configuration',
             content: this.getProgramForm(program),
+            size: 'md',
             actions: [
                 { label: 'Cancel', onClick: (m) => m.close() },
-                {
-                    label: 'Update', primary: true,
-                    onClick: async (m) => {
-                        const data = {
-                            code: document.getElementById('p-code').value,
-                            name: document.getElementById('p-name').value,
-                            department: document.getElementById('p-dept').value
-                        };
-                        try {
-                            await api.patch(`${endpoints.managePrograms}${id}/`, data);
-                            Toast.success('Program updated');
-                            m.close();
-                            await this.ctx.loadPrograms();
-                            this.render();
-                        } catch (e) { ErrorHandler.handle(e); }
-                    }
-                }
+                { label: 'Save Changes', primary: true, onClick: async (m) => await this.handleSubmit(m, id) }
             ]
         });
         modal.show();
     },
 
+    getProgramForm(p = null) {
+        return `
+            <form id="admin-prog-form" class="space-y-6 p-2">
+                ${UI.field({ label: 'Program Code', id: 'f-code', value: p?.code || '', placeholder: 'e.g. BSIT, BSEE', required: true })}
+                ${UI.field({ label: 'Program Full Name', id: 'f-name', value: p?.name || '', placeholder: 'e.g. Bachelor of Science in...', required: true })}
+                ${UI.field({ label: 'Department / College', id: 'f-dept', value: p?.department || '', placeholder: 'e.g. College of Computing' })}
+            </form>
+        `;
+    },
+
+    async handleSubmit(modal, id = null) {
+        const data = {
+            code: document.getElementById('f-code').value.toUpperCase(),
+            name: document.getElementById('f-name').value,
+            department: document.getElementById('f-dept').value
+        };
+
+        const { isValid, errors } = Validator.validate(data, {
+            code: [Validator.required, Validator.minLength(2)],
+            name: [Validator.required, Validator.minLength(5)]
+        });
+
+        if (!isValid) return Toast.error(Object.values(errors)[0]);
+
+        try {
+            if (id) await api.patch(`${endpoints.managePrograms}${id}/`, data);
+            else await api.post(endpoints.managePrograms, data);
+
+            Toast.success(id ? 'Configuration updated' : 'Program established');
+            modal.close();
+            await this.ctx.loadPrograms();
+            this.render();
+        } catch (e) { ErrorHandler.handle(e); }
+    },
+
     deleteProgram(id) {
         ConfirmModal({
-            title: 'Delete Program', message: 'This will also affect associated subjects and curricula. Continue?', danger: true,
+            title: 'Decommission Program', message: 'This will archive the program and all linked academic tracks. Proceed?', danger: true,
             onConfirm: async () => {
                 try {
                     await api.delete(`${endpoints.managePrograms}${id}/`);
-                    Toast.success('Program deleted');
+                    Toast.success('Program decommissioned');
                     await this.ctx.loadPrograms();
                     this.render();
                 } catch (e) { ErrorHandler.handle(e); }
             }
         });
-    },
-
-    getProgramForm(p = null) {
-        return `
-            <form class="space-y-4">
-                <div><label class="block text-sm">Code</label><input id="p-code" value="${p?.code || ''}" class="form-input"></div>
-                <div><label class="block text-sm">Name</label><input id="p-name" value="${p?.name || ''}" class="form-input"></div>
-                <div><label class="block text-sm">Department</label><input id="p-dept" value="${p?.department || ''}" class="form-input"></div>
-            </form>
-        `;
     }
 };

@@ -87,7 +87,7 @@ function renderAdmissionBanner(user, enrollmentStatus, enrolledUnits) {
           <div class="flex-1">
             <h3 class="text-lg font-semibold text-green-800">Account Approved – Student ID: ${user.student_number}</h3>
             <p class="text-sm text-green-700 mt-2">Your enrollment application has been approved! You can now enroll in subjects.</p>
-            <a href="/subject-enrollment.html" class="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
+            <a href="/pages/subject-enrollment.html" class="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
               ${Icon('plus', { size: 'sm' })}
               Enroll in Subjects
             </a>

@@ -68,7 +68,7 @@ function render() {
             <main class="max-w-7xl mx-auto px-4 py-8">
                 <!-- Breadcrumbs -->
                 <nav class="flex mb-8 text-gray-500 text-sm">
-                    <a href="/registrar-grades.html" class="hover:text-blue-600">Programs</a>
+                    <a href="/pages/registrar/registrar-grades.html" class="hover:text-blue-600">Programs</a>
                     <span class="mx-2">/</span>
                     <a href="#" onclick="history.back(); return false;" class="hover:text-blue-600">${state.programName || 'Sections'}</a>
                     <span class="mx-2">/</span>
@@ -133,7 +133,7 @@ function renderTable() {
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <a href="/registrar-grades-view.html?section_subject_id=${subject.id}&code=${encodeURIComponent(subject.subject_code)}&section=${encodeURIComponent(state.sectionName)}" 
+                            <a href="/pages/registrar/registrar-grades-view.html?section_subject_id=${subject.id}&code=${encodeURIComponent(subject.subject_code)}&section=${encodeURIComponent(state.sectionName)}" 
                                 class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors">
                                 View Grades
                             </a>

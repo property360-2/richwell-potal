@@ -123,7 +123,7 @@ function render() {
           <p class="text-gray-600 mt-1">Search and print student COR documents</p>
         </div>
         <div class="mt-4 md:mt-0">
-          <a href="/registrar-enrollment.html" class="btn-secondary flex items-center gap-2">
+          <a href="/pages/registrar/registrar-enrollment.html" class="btn-secondary flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
             </svg>
@@ -651,7 +651,7 @@ window.logout = function () {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');
   setTimeout(() => {
-    window.location.href = '/login.html';
+    window.location.href = '/pages/auth/login.html';
   }, 1000);
 };
 

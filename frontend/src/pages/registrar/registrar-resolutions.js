@@ -22,16 +22,16 @@ async function init() {
 
   await loadUserProfile();
   if (!state.user) {
-    window.location.href = '/login.html';
+    window.location.href = '/pages/auth/login.html';
     return;
   }
 
   if (state.user.role !== 'REGISTRAR' && state.user.role !== 'HEAD_REGISTRAR' && state.user.role !== 'ADMIN') {
     // Redirect to appropriate dashboard based on role
-    if (state.user.role === 'STUDENT') window.location.href = '/student-dashboard.html';
-    else if (state.user.role === 'PROFESSOR') window.location.href = '/professor-dashboard.html';
-    else if (state.user.role === 'DEPARTMENT_HEAD') window.location.href = '/head-dashboard.html';
-    else window.location.href = '/login.html';
+    if (state.user.role === 'STUDENT') window.location.href = '/pages/student/student-dashboard.html';
+    else if (state.user.role === 'PROFESSOR') window.location.href = '/pages/professor/professor-dashboard.html';
+    else if (state.user.role === 'DEPARTMENT_HEAD') window.location.href = '/pages/head/head-dashboard.html';
+    else window.location.href = '/pages/auth/login.html';
     return;
   }
 

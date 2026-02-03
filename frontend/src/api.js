@@ -72,7 +72,7 @@ export const api = {
                     response = await fetch(url, { ...options, headers });
                 } else {
                     TokenManager.clearTokens();
-                    window.location.href = '/login.html';
+                    window.location.href = '/pages/auth/login.html';
                     return;
                 }
             }
@@ -107,100 +107,84 @@ export const api = {
     },
 
     async get(endpoint) {
-        const response = await this.request(endpoint, { method: 'GET' });
-        if (!response) return null;
-
-        // Handle non-JSON responses gracefully
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.status} ${response.statusText}`);
-            }
-            return null;
+        try {
+            const response = await this.request(endpoint, { method: 'GET' });
+            return await this.handleResponse(response);
+        } catch (error) {
+            return this.handleError(error);
         }
-
-        const result = await response.json();
-
-        // Unwrap standard response envelope success/data
-        if (result && result.success === true && result.data !== undefined) {
-            return result.data;
-        }
-
-        return result;
     },
 
     async post(endpoint, data) {
-        const response = await this.request(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
+        try {
+            const response = await this.request(endpoint, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            return await this.handleResponse(response);
+        } catch (error) {
+            return this.handleError(error);
+        }
+    },
+
+    async handleResponse(response) {
         if (!response) return null;
+
+        const contentType = response.headers.get('content-type');
+        const isJson = contentType && contentType.includes('application/json');
+        const data = isJson ? await response.json() : null;
+
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            const message = typeof errorData.detail === 'string' ? errorData.detail :
-                (typeof errorData.error === 'string' ? errorData.error :
-                    `Server error: ${response.status}`);
-            const error = new Error(message);
+            const error = new Error(data?.detail || data?.error || `Server error: ${response.status}`);
             error.status = response.status;
-            error.data = errorData;
-            error.response = { status: response.status, data: errorData };
+            error.data = data;
             throw error;
         }
-        return response.json();
+
+        // Standardize: always return the payload
+        if (data && data.success === true && data.data !== undefined) return data.data;
+        if (data && data.results !== undefined) return data.results;
+        return data;
+    },
+
+    handleError(error) {
+        console.error('Handled API Error:', error);
+        // Throw it back for the module to catch if needed, 
+        // but can be extended here for global logging
+        throw error;
     },
 
     async put(endpoint, data) {
-        const response = await this.request(endpoint, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-        if (!response) return null;
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            const message = typeof errorData.detail === 'string' ? errorData.detail :
-                (typeof errorData.error === 'string' ? errorData.error :
-                    `Server error: ${response.status}`);
-            const error = new Error(message);
-            error.status = response.status;
-            error.data = errorData;
-            error.response = { status: response.status, data: errorData };
-            throw error;
+        try {
+            const response = await this.request(endpoint, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+            return await this.handleResponse(response);
+        } catch (error) {
+            return this.handleError(error);
         }
-        return response.json();
     },
 
     async patch(endpoint, data) {
-        const response = await this.request(endpoint, {
-            method: 'PATCH',
-            body: JSON.stringify(data)
-        });
-        if (!response) return null;
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            const message = typeof errorData.detail === 'string' ? errorData.detail :
-                (typeof errorData.error === 'string' ? errorData.error :
-                    `Server error: ${response.status}`);
-            const error = new Error(message);
-            error.status = response.status;
-            error.data = errorData;
-            error.response = { status: response.status, data: errorData };
-            throw error;
+        try {
+            const response = await this.request(endpoint, {
+                method: 'PATCH',
+                body: JSON.stringify(data)
+            });
+            return await this.handleResponse(response);
+        } catch (error) {
+            return this.handleError(error);
         }
-        return response.json();
     },
 
     async delete(endpoint) {
-        const response = await this.request(endpoint, { method: 'DELETE' });
-        if (!response.ok && response.status !== 204) {
-            const errorData = await response.json().catch(() => ({}));
-            const detail = errorData.detail || errorData.error || errorData.message || `Server error: ${response.status}`;
-            const errorMessage = typeof detail === 'object' ? JSON.stringify(detail) : detail;
-            const error = new Error(errorMessage);
-            error.status = response.status;
-            error.data = errorData;
-            throw error;
+        try {
+            const response = await this.request(endpoint, { method: 'DELETE' });
+            return await this.handleResponse(response);
+        } catch (error) {
+            return this.handleError(error);
         }
-        return response;
     },
 
     async postFormData(endpoint, formData) {

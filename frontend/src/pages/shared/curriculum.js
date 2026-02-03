@@ -153,7 +153,7 @@ function render() {
 
 function renderHeader() {
   const isRegistrar = ['REGISTRAR', 'HEAD_REGISTRAR'].includes(state.user?.role);
-  const dashboardLink = isRegistrar ? '/registrar-dashboard.html' : '/curriculum.html';
+  const dashboardLink = isRegistrar ? '/pages/registrar/registrar-dashboard.html' : '/pages/student/curriculum.html';
 
   return `
     <header class="bg-white/80 backdrop-blur-xl border-b border-gray-200 sticky top-0 z-40">
@@ -168,13 +168,13 @@ function renderHeader() {
         
         <nav class="hidden md:flex items-center gap-2">
           ${isRegistrar ? `
-            <a href="/registrar-dashboard.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Dashboard</a>
-            <a href="/registrar-cor.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">COR</a>
+            <a href="/pages/registrar/registrar-dashboard.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Dashboard</a>
+            <a href="/pages/registrar/registrar-cor.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">COR</a>
           ` : ''}
-          <a href="/admission-dashboard.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Admissions</a>
-          <a href="/curriculum.html" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-lg font-medium">Curriculum</a>
-          <a href="/sections.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Sections</a>
-          <a href="/schedule.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Schedule</a>
+          <a href="/pages/admission/admission-dashboard.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Admissions</a>
+          <a href="/pages/student/curriculum.html" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-lg font-medium">Curriculum</a>
+          <a href="/pages/student/sections.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Sections</a>
+          <a href="/pages/student/schedule.html" class="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">Schedule</a>
         </nav>
         
         <div class="flex items-center gap-4">
@@ -772,7 +772,7 @@ window.logout = function () {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');
   setTimeout(() => {
-    window.location.href = '/login.html';
+    window.location.href = '/pages/auth/login.html';
   }, 1000);
 };
 

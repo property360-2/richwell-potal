@@ -145,9 +145,9 @@ function render() {
       
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        ${renderStatCard('Total Students', state.stats.totalStudents, 'blue', 'users', '/registrar-students.html')}
-        ${renderStatCard('Pending COR', state.stats.pendingCOR, 'green', 'document', '/registrar-cor.html')}
-        ${renderStatCard('Expiring INC', state.stats.expiringINC, state.stats.expiringINC > 0 ? 'orange' : 'yellow', 'alert', '/registrar-inc.html')}
+        ${renderStatCard('Total Students', state.stats.totalStudents, 'blue', 'users', '/pages/registrar/registrar-students.html')}
+        ${renderStatCard('Pending COR', state.stats.pendingCOR, 'green', 'document', '/pages/registrar/registrar-cor.html')}
+        ${renderStatCard('Expiring INC', state.stats.expiringINC, state.stats.expiringINC > 0 ? 'orange' : 'yellow', 'alert', '/pages/registrar/registrar-inc.html')}
       </div>
       
       <!-- Quick Actions -->
@@ -155,7 +155,7 @@ function render() {
 
 
         <!-- Subject Management Card -->
-        <a href="/registrar-subjects.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-purple-200">
+        <a href="/pages/registrar/registrar-subjects.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-purple-200">
           <div class="flex items-start gap-4">
             <div class="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
               <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -173,7 +173,7 @@ function render() {
         </a>
         
         <!-- Semester Management Card -->
-        <a href="/registrar-semesters.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-orange-200">
+        <a href="/pages/registrar/registrar-semesters.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-orange-200">
           <div class="flex items-start gap-4">
             <div class="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
               <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -195,7 +195,7 @@ function render() {
 
 
         <!-- Schedule Management Card -->
-        <a href="/schedule.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-violet-200">
+        <a href="/pages/student/schedule.html" class="card hover:shadow-xl transition-all group cursor-pointer border-2 border-transparent hover:border-violet-200">
           <div class="flex items-start gap-4">
             <div class="w-14 h-14 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
               <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -217,7 +217,7 @@ function render() {
       <div class="card">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-bold text-gray-800">Recent Students</h2>
-          <a href="/registrar-cor.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View All →</a>
+          <a href="/pages/registrar/registrar-cor.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View All →</a>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full">

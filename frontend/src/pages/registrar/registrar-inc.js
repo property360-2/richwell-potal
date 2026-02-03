@@ -417,7 +417,7 @@ window.confirmProcess = confirmProcess;
 
 window.logout = function () {
     TokenManager.clearTokens();
-    window.location.href = '/login.html';
+    window.location.href = '/pages/auth/login.html';
 };
 
 // Initialize

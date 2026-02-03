@@ -55,7 +55,7 @@ function init() {
           </form>
 
           <div class="mt-6 text-center">
-            <a href="/login.html" class="text-sm text-blue-300 hover:text-white transition-colors">
+            <a href="/pages/login.html" class="text-sm text-blue-300 hover:text-white transition-colors">
               ← Back to Login
             </a>
           </div>
@@ -104,7 +104,7 @@ async function handleSubmit(e) {
 
             // Redirect to login after 3 seconds
             setTimeout(() => {
-                window.location.href = '/login.html';
+                window.location.href = '/pages/auth/login.html';
             }, 3000);
         } else {
             Toast.error(data.message || 'Failed to send reset email');

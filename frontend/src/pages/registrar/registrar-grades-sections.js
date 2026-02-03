@@ -92,7 +92,7 @@ function render() {
             <main class="max-w-7xl mx-auto px-4 py-8">
                 <!-- Breadcrumbs -->
                 <nav class="flex mb-8 text-gray-500 text-sm">
-                    <a href="/registrar-grades.html" class="hover:text-blue-600">Programs</a>
+                    <a href="/pages/registrar/registrar-grades.html" class="hover:text-blue-600">Programs</a>
                     <span class="mx-2">/</span>
                     <span class="text-gray-900 font-semibold">${state.programName || 'Sections'}</span>
                 </nav>
@@ -153,7 +153,7 @@ function renderTable() {
             </thead>
             <tbody class="bg-white divide-y divide-gray-200 hover:bg-gray-50">
                 ${state.sections.map(section => `
-                    <tr class="hover:bg-blue-50/50 transition-colors cursor-pointer" onclick="window.location.href='/registrar-grades-subjects.html?section_id=${section.id}&section_name=${encodeURIComponent(section.name)}&program_name=${encodeURIComponent(state.programName)}'">
+                    <tr class="hover:bg-blue-50/50 transition-colors cursor-pointer" onclick="window.location.href='/pages/registrar/registrar-grades-subjects.html?section_id=${section.id}&section_name=${encodeURIComponent(section.name)}&program_name=${encodeURIComponent(state.programName)}'">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
@@ -172,7 +172,7 @@ function renderTable() {
                             ${section.enrolled_count || '-'}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <a href="/registrar-grades-subjects.html?section_id=${section.id}&section_name=${encodeURIComponent(section.name)}&program_name=${encodeURIComponent(state.programName)}" 
+                            <a href="/pages/registrar/registrar-grades-subjects.html?section_id=${section.id}&section_name=${encodeURIComponent(section.name)}&program_name=${encodeURIComponent(state.programName)}" 
                                 class="text-blue-600 hover:text-blue-900 flex items-center justify-end gap-1">
                                 View Subjects
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

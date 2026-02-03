@@ -136,7 +136,7 @@ function render() {
                   <input type="checkbox" id="remember" name="remember" class="w-4 h-4 text-blue-600 bg-gray-50 border-gray-300 rounded focus:ring-blue-500">
                   <span class="ml-2 text-sm text-gray-600">Remember me</span>
                 </label>
-                <a href="/forgot-password.html" class="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors">Forgot password?</a>
+                <a href="/pages/forgot-password.html" class="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors">Forgot password?</a>
               </div>
               
               <button 

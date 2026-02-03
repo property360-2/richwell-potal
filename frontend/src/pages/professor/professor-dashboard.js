@@ -145,7 +145,7 @@ function renderQuickActions() {
         <h3 class="font-bold text-gray-800">Quick Actions</h3>
       </div>
       <div class="p-4 grid grid-cols-1 gap-3">
-        <a href="/professor-grades.html" class="flex items-center gap-3 p-3 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors group">
+        <a href="/pages/professor/professor-grades.html" class="flex items-center gap-3 p-3 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors group">
           <div class="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
             ${Icon('book', { size: 'sm' })}
           </div>
@@ -155,7 +155,7 @@ function renderQuickActions() {
           </div>
         </a>
         
-        <a href="/professor-grades.html" class="flex items-center gap-3 p-3 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors group">
+        <a href="/pages/professor/professor-grades.html" class="flex items-center gap-3 p-3 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors group">
           <div class="w-10 h-10 rounded-lg bg-purple-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
             ${Icon('history', { size: 'sm' })}
           </div>
@@ -165,7 +165,7 @@ function renderQuickActions() {
           </div>
         </a>
         
-        <a href="/professor-schedule.html" class="flex items-center gap-3 p-3 rounded-xl bg-green-50 text-green-700 hover:bg-green-100 transition-colors group">
+        <a href="/pages/professor/professor-schedule.html" class="flex items-center gap-3 p-3 rounded-xl bg-green-50 text-green-700 hover:bg-green-100 transition-colors group">
           <div class="w-10 h-10 rounded-lg bg-green-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
             ${Icon('calendar', { size: 'sm' })}
           </div>
@@ -314,5 +314,5 @@ document.addEventListener('DOMContentLoaded', init);
 
 window.logout = function () {
   TokenManager.clearTokens();
-  window.location.href = '/login.html';
+  window.location.href = '/pages/auth/login.html';
 };

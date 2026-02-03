@@ -368,7 +368,7 @@ function renderSectionDetails() {
               </svg>
               Edit
             </button>
-            <a href="/schedule.html?section=${section.id}" class="btn-primary text-sm">
+            <a href="/pages/student/schedule.html?section=${section.id}" class="btn-primary text-sm">
               <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
               </svg>
@@ -600,7 +600,7 @@ window.openScheduleModal = function (sectionSubjectId) {
   localStorage.setItem('schedule_section_id', state.selectedSection.id);
   localStorage.setItem('schedule_section_subject_id', sectionSubjectId);
 
-  window.location.href = '/schedule.html';
+  window.location.href = '/pages/student/schedule.html';
 };
 
 window.removeAssignment = async function (id) {
@@ -626,7 +626,7 @@ window.logout = function () {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');
   setTimeout(() => {
-    window.location.href = '/login.html';
+    window.location.href = '/pages/auth/login.html';
   }, 1000);
 };
 

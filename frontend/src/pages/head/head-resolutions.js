@@ -22,7 +22,7 @@ async function init() {
 
     await loadUserProfile();
     if (!state.user) {
-        window.location.href = '/login.html';
+        window.location.href = '/pages/auth/login.html';
         return;
     }
 
@@ -33,11 +33,11 @@ async function init() {
         console.warn('Unauthorized role access to Head Resolutions:', role);
 
         // Redirect based on role
-        if (role === 'STUDENT') window.location.href = '/student-dashboard.html';
-        else if (role === 'PROFESSOR') window.location.href = '/professor-dashboard.html';
-        else if (role === 'REGISTRAR' || role === 'HEAD_REGISTRAR') window.location.href = '/registrar-dashboard.html';
-        else if (role === 'CASHIER') window.location.href = '/cashier-dashboard.html';
-        else window.location.href = '/login.html';
+        if (role === 'STUDENT') window.location.href = '/pages/student/student-dashboard.html';
+        else if (role === 'PROFESSOR') window.location.href = '/pages/professor/professor-dashboard.html';
+        else if (role === 'REGISTRAR' || role === 'HEAD_REGISTRAR') window.location.href = '/pages/registrar/registrar-dashboard.html';
+        else if (role === 'CASHIER') window.location.href = '/pages/cashier/cashier-dashboard.html';
+        else window.location.href = '/pages/auth/login.html';
         return;
     }
 

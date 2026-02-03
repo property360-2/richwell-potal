@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grade Management - Professor Portal</title>
+    <link rel="stylesheet" href="/src/style.css">
+    <style>
+        /* Grade input styling */
+        .grade-input {
+            width: 80px;
+            padding: 0.5rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            text-align: center;
+            font-weight: 600;
+        }
+        .grade-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+        .grade-input.modified {
+            background-color: #fef3c7;
+            border-color: #f59e0b;
+        }
+        .grade-input.passed {
+            color: #059669;
+        }
+        .grade-input.failed {
+            color: #dc2626;
+        }
+        .status-select {
+            padding: 0.375rem 0.75rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+        .status-select.modified {
+            background-color: #fef3c7;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="flex items-center justify-center min-h-screen">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+    </div>
+    <script type="module" src="../../src/pages/professor/professor-grades.js"></script>
+</body>
+</html>

@@ -76,7 +76,7 @@ function render() {
             <main class="max-w-7xl mx-auto px-4 py-8">
                 <!-- Breadcrumbs -->
                 <nav class="flex mb-8 text-gray-500 text-sm">
-                    <a href="/registrar-grades.html" class="hover:text-blue-600">Programs</a>
+                    <a href="/pages/registrar/registrar-grades.html" class="hover:text-blue-600">Programs</a>
                     <span class="mx-2">/</span>
                     <a href="#" onclick="history.go(-2); return false;" class="hover:text-blue-600">Sections</a>
                     <span class="mx-2">/</span>

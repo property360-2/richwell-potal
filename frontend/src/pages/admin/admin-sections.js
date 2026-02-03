@@ -39,7 +39,7 @@ async function init() {
   // Check if user is admin
   if (state.user?.role !== 'ADMIN') {
     Toast.error('Access denied. Admin only.');
-    window.location.href = '/login.html';
+    window.location.href = '/pages/auth/login.html';
     return;
   }
 
@@ -449,7 +449,7 @@ window.logout = function() {
   TokenManager.clearTokens();
   Toast.success('Logged out successfully');
   setTimeout(() => {
-    window.location.href = '/login.html';
+    window.location.href = '/pages/auth/login.html';
   }, 1000);
 };
 

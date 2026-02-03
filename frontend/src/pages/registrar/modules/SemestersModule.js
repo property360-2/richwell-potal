@@ -2,11 +2,18 @@ import { api, endpoints } from '../../../api.js';
 import { Toast } from '../../../components/Toast.js';
 import { ErrorHandler } from '../../../utils/errorHandler.js';
 import { Modal, ConfirmModal } from '../../../components/Modal.js';
+import { UI } from '../../../components/UI.js';
+import { Validator } from '../../../utils/validation.js';
 import { formatDate } from '../../../utils.js';
 
+/**
+ * Semesters Module for Registrar Academic Page
+ * Refactored using Atomic UI Components & Validation Utility
+ */
 export const SemestersModule = {
     init(ctx) {
         this.ctx = ctx;
+        // Register Global Handlers
         window.handleSemesterSearch = (q) => this.handleSemesterSearch(q);
         window.openAddSemesterModal = () => this.openAddSemesterModal();
         window.openEditSemesterModal = (id) => this.openEditSemesterModal(id);
@@ -18,55 +25,36 @@ export const SemestersModule = {
     get render() { return this.ctx.render; },
 
     renderSemestersTab() {
-        const semesters = this.state.semesters.filter(s =>
+        const filtered = this.state.semesters.filter(s =>
             s.name.toLowerCase().includes((this.state.semesterSearch || '').toLowerCase()) ||
             s.academic_year.includes(this.state.semesterSearch || '')
         );
 
         return `
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-              <div>
-                <h2 class="text-xl font-bold text-gray-800">Academic Semesters</h2>
-                <p class="text-sm text-gray-600 mt-1">Manage academic calendars and active periods</p>
-              </div>
-              <button onclick="openAddSemesterModal()" class="btn btn-primary flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                Add Semester
-              </button>
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                    <h2 class="text-2xl font-black text-gray-800">Academic Calendar</h2>
+                    <p class="text-sm text-gray-500 font-medium">Configure active semesters and enrollment periods</p>
+                </div>
+                ${UI.button({
+            label: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Create Semester',
+            onClick: 'openAddSemesterModal()'
+        })}
             </div>
 
-            <div class="bg-white rounded-lg shadow border overflow-hidden">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Semester</th>
-                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Academic Year</th>
-                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Duration</th>
-                            <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Status</th>
-                            <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        ${semesters.map(s => `
-                            <tr class="${s.is_active ? 'bg-blue-50/30' : ''}">
-                                <td class="px-6 py-4 font-bold text-gray-900">${s.name}</td>
-                                <td class="px-6 py-4 text-sm text-gray-600">${s.academic_year}</td>
-                                <td class="px-6 py-4 text-xs text-gray-500">${formatDate(s.start_date)} - ${formatDate(s.end_date)}</td>
-                                <td class="px-6 py-4 text-center">
-                                    ${s.is_active ?
-                '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">ACTIVE</span>' :
-                '<span class="px-2 py-1 bg-gray-100 text-gray-400 rounded-full text-[10px] font-bold">INACTIVE</span>'}
-                                </td>
-                                <td class="px-6 py-4 text-right text-sm">
-                                    ${!s.is_active ? `<button onclick="setAsActiveSemester('${s.id}')" class="text-blue-600 mr-3">Set Active</button>` : ''}
-                                    <button onclick="openEditSemesterModal('${s.id}')" class="text-gray-500 mr-3">Edit</button>
-                                    <button onclick="deleteSemester('${s.id}')" class="text-red-500">Delete</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
+            ${UI.table({
+            headers: ['Semester Name', 'Academic Year', 'Schedule', 'Status', 'Actions'],
+            rows: filtered.map(s => [
+                `<div class="font-black text-gray-900">${s.name}</div>`,
+                `<div class="font-bold text-gray-600">${s.academic_year}</div>`,
+                `<div class="text-xs text-gray-400 font-medium">${formatDate(s.start_date)} &mdash; ${formatDate(s.end_date)}</div>`,
+                s.is_active ? UI.badge('Session Active', 'info') : UI.badge('Closed', 'default'),
+                `<div class="flex gap-2 justify-end">
+                        ${!s.is_active ? UI.button({ label: 'Activate', type: 'secondary', size: 'sm', onClick: `setAsActiveSemester('${s.id}')` }) : ''}
+                        ${UI.button({ label: 'Edit', type: 'ghost', size: 'sm', onClick: `openEditSemesterModal('${s.id}')` })}
+                    </div>`
+            ])
+        })}
         `;
     },
 
@@ -77,54 +65,94 @@ export const SemestersModule = {
 
     openAddSemesterModal() {
         const modal = new Modal({
-            title: 'Add Semester',
+            title: 'Initialize New Semester',
             content: this.getSemesterForm(),
+            size: 'md',
             actions: [
                 { label: 'Cancel', onClick: (m) => m.close() },
-                {
-                    label: 'Create', primary: true,
-                    onClick: async (m) => {
-                        const data = {
-                            name: document.getElementById('sem-name').value,
-                            academic_year: document.getElementById('sem-ay').value,
-                            start_date: document.getElementById('sem-start').value,
-                            end_date: document.getElementById('sem-end').value,
-                            is_active: document.getElementById('sem-active').checked
-                        };
-                        try {
-                            await api.post(endpoints.manageSemesters, data);
-                            Toast.success('Semester created');
-                            m.close();
-                            await this.ctx.loadSemesters();
-                            this.render();
-                        } catch (e) { ErrorHandler.handle(e); }
-                    }
-                }
+                { label: 'Create Semester', primary: true, onClick: async (m) => await this.handleSubmit(m) }
             ]
         });
         modal.show();
     },
 
-    async setAsActiveSemester(id) {
+    async openEditSemesterModal(id) {
         try {
-            await api.post(`${endpoints.manageSemesters}${id}/set-active/`);
-            Toast.success('Active semester updated');
+            const sem = this.state.semesters.find(s => s.id === id);
+            const modal = new Modal({
+                title: 'Edit Academic Period',
+                content: this.getSemesterForm(sem),
+                size: 'md',
+                actions: [
+                    { label: 'Cancel', onClick: (m) => m.close() },
+                    { label: 'Update Period', primary: true, onClick: async (m) => await this.handleSubmit(m, id) }
+                ]
+            });
+            modal.show();
+        } catch (e) { ErrorHandler.handle(e); }
+    },
+
+    getSemesterForm(s = null) {
+        return `
+            <form id="sem-form" class="space-y-6 p-2">
+                ${UI.field({ label: 'Semester Name', id: 'f-name', value: s?.name || '', placeholder: 'e.g. 1st Semester 2024', required: true })}
+                ${UI.field({ label: 'Academic Year', id: 'f-ay', value: s?.academic_year || '', placeholder: 'e.g. 2023-2024', required: true })}
+                <div class="grid grid-cols-2 gap-6">
+                    ${UI.field({ label: 'Start Date', id: 'f-start', type: 'date', value: s?.start_date || '', required: true })}
+                    ${UI.field({ label: 'End Date', id: 'f-end', type: 'date', value: s?.end_date || '', required: true })}
+                </div>
+                <div class="flex items-center gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100/50">
+                    <input type="checkbox" id="f-active" ${s?.is_active ? 'checked' : ''} class="w-5 h-5 rounded-md border-gray-300 text-blue-600">
+                    <div>
+                        <div class="font-bold text-gray-800 text-sm">Set as Live Session</div>
+                        <div class="text-[10px] text-gray-400 font-black uppercase tracking-widest">This will be the default for enrollment</div>
+                    </div>
+                </div>
+            </form>
+        `;
+    },
+
+    async handleSubmit(modal, id = null) {
+        const data = {
+            name: document.getElementById('f-name').value,
+            academic_year: document.getElementById('f-ay').value,
+            start_date: document.getElementById('f-start').value,
+            end_date: document.getElementById('f-end').value,
+            is_active: document.getElementById('f-active').checked
+        };
+
+        const { isValid, errors } = Validator.validate(data, {
+            name: [Validator.required],
+            academic_year: [Validator.required],
+            start_date: [Validator.required],
+            end_date: [Validator.required]
+        });
+
+        if (!isValid) return Toast.error(Object.values(errors)[0]);
+
+        try {
+            if (id) await api.patch(`${endpoints.manageSemesters}${id}/`, data);
+            else await api.post(endpoints.manageSemesters, data);
+
+            Toast.success(id ? 'Calendar updated' : 'Semester added');
+            modal.close();
             await this.ctx.loadSemesters();
             this.render();
         } catch (e) { ErrorHandler.handle(e); }
     },
 
-    getSemesterForm(sem = null) {
-        return `
-            <form id="sem-form" class="space-y-4">
-                <div><label class="block text-sm">Semester Name</label><input type="text" id="sem-name" value="${sem?.name || ''}" class="form-input" placeholder="e.g. 1st Semester"></div>
-                <div><label class="block text-sm">Academic Year</label><input type="text" id="sem-ay" value="${sem?.academic_year || ''}" class="form-input" placeholder="e.g. 2023-2024"></div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-sm">Start Date</label><input type="date" id="sem-start" value="${sem?.start_date || ''}" class="form-input"></div>
-                    <div><label class="block text-sm">End Date</label><input type="date" id="sem-end" value="${sem?.end_date || ''}" class="form-input"></div>
-                </div>
-                <label class="flex items-center gap-2"><input type="checkbox" id="sem-active" ${sem?.is_active ? 'checked' : ''}> Set as Active</label>
-            </form>
-        `;
+    async setAsActiveSemester(id) {
+        ConfirmModal({
+            title: 'Switch Active Session',
+            message: 'Are you sure you want to make this the active semester? This will update the default term for all users.',
+            onConfirm: async () => {
+                try {
+                    await api.post(`${endpoints.manageSemesters}${id}/set-active/`);
+                    Toast.success('Now active');
+                    await this.ctx.loadSemesters();
+                    this.render();
+                } catch (e) { ErrorHandler.handle(e); }
+            }
+        });
     }
 };

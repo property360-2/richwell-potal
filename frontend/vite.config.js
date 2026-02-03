@@ -4,19 +4,27 @@ import { resolve } from 'path'
 import os from 'os'
 import fs from 'fs'
 
-// Helper to get all HTML files as entry points for the build
+// Helper to get all HTML files recursively as entry points for the build
 function getHtmlEntries() {
-    const root = resolve(__dirname)
-    const files = fs.readdirSync(root)
+    const pagesDir = resolve(__dirname)
     const entries = {}
 
-    files.forEach(file => {
-        if (file.endsWith('.html')) {
-            const name = file.split('.')[0]
-            entries[name] = resolve(__dirname, file)
-        }
-    })
+    function findHtmlFiles(dir, prefix = '') {
+        const files = fs.readdirSync(dir)
+        files.forEach(file => {
+            const fullPath = resolve(dir, file)
+            const stat = fs.statSync(fullPath)
 
+            if (stat.isDirectory() && file !== 'node_modules' && file !== 'dist' && file !== 'public') {
+                findHtmlFiles(fullPath, prefix + file + '/')
+            } else if (file.endsWith('.html')) {
+                const name = (prefix + file.split('.')[0]).replace(/\//g, '_')
+                entries[name] = fullPath
+            }
+        })
+    }
+
+    findHtmlFiles(pagesDir)
     return entries
 }
 

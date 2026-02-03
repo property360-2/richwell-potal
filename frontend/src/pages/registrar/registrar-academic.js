@@ -1,13 +1,12 @@
 import '../../style.css';
 import { api, endpoints, TokenManager } from '../../api.js';
-import { requireAuth, debounce, getSubjectColor, formatTime, setButtonLoading } from '../../utils.js';
+import { requireAuth } from '../../utils.js';
 import { createHeader } from '../../components/header.js';
-import { Toast } from '../../components/Toast.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { LoadingOverlay } from '../../components/Spinner.js';
 import { createTabs, updateHash } from '../../components/tabs.js';
 
-// Import Modules
+// Import Refactored Modules
 import { AcademicService } from './AcademicService.js';
 import { ProgramsModule } from './modules/ProgramsModule.js';
 import { ProfessorsModule } from './modules/ProfessorsModule.js';
@@ -23,6 +22,7 @@ const TABS = {
   SEMESTERS: 'semesters'
 };
 
+// Application State
 const state = {
   user: null,
   loading: true,
@@ -35,7 +35,7 @@ const state = {
   semesters: [],
   activeSemester: null,
 
-  // Search/Filter states
+  // UI Filters
   programSearchQuery: '',
   professorSearch: '',
   roomSearch: '',
@@ -45,12 +45,13 @@ const state = {
   sectionFilterYear: 'all',
 
   // Shared states for modules
-  profSubjectState: { selected: [], results: [], search: '' },
+  profSubjectState: { selected: [] },
   selectedSection: null,
   detailedSubjects: [],
   sectionSchedule: [],
 };
 
+// Context Object passed to modules
 const ctx = {
   state,
   service: AcademicService,
@@ -68,7 +69,6 @@ const ctx = {
 async function init() {
   if (!requireAuth()) return;
 
-  // Load initial data
   state.loading = true;
   render();
 
@@ -82,7 +82,10 @@ async function init() {
       ctx.loadSemesters()
     ]);
 
-    // Init Modules
+    // Initial load for first tab
+    await ctx.loadPrograms();
+
+    // Initialize Modules
     ProgramsModule.init(ctx);
     ProfessorsModule.init(ctx);
     RoomsModule.init(ctx);
@@ -92,62 +95,73 @@ async function init() {
     const hash = window.location.hash.slice(1);
     if (hash && Object.values(TABS).includes(hash)) {
       state.activeTab = hash;
+      await switchTab(hash);
     }
 
     state.loading = false;
     render();
   } catch (e) {
-    ErrorHandler.handle(e, 'Initializing');
+    ErrorHandler.handle(e, 'Initializing Academic Portal');
   }
 
   window.addEventListener('hashchange', () => {
-    const newHash = window.location.hash.slice(1);
-    if (newHash && Object.values(TABS).includes(newHash)) {
-      switchTab(newHash);
+    const hash = window.location.hash.slice(1);
+    if (hash && Object.values(TABS).includes(hash) && hash !== state.activeTab) {
+      switchTab(hash);
     }
   });
 }
 
-window.switchTab = function (tabId) {
+window.switchTab = async function (tabId) {
   state.activeTab = tabId;
   state.subView = 'list';
   updateHash(tabId);
 
-  // Load tab-specific data
-  if (tabId === TABS.PROFESSORS) ctx.loadProfessors().then(() => render());
-  else if (tabId === TABS.ROOMS) ctx.loadRooms().then(() => render());
-  else if (tabId === TABS.SECTIONS) ctx.loadSections().then(() => render());
-  else render();
+  // Tab-specific lazy loading
+  try {
+    if (tabId === TABS.PROFESSORS) await ctx.loadProfessors();
+    else if (tabId === TABS.ROOMS) await ctx.loadRooms();
+    else if (tabId === TABS.SECTIONS) await ctx.loadSections();
+    else if (tabId === TABS.PROGRAMS) await ctx.loadPrograms();
+  } catch (e) {
+    ErrorHandler.handle(e);
+  }
+
+  render();
 };
 
 function render() {
   const app = document.getElementById('app');
   if (state.loading) {
-    app.innerHTML = LoadingOverlay('Loading academic structure...');
+    app.innerHTML = LoadingOverlay('Assembling academic data...');
     return;
   }
 
   app.innerHTML = `
     ${createHeader({ role: 'REGISTRAR', activePage: 'registrar-academic', user: state.user })}
-    <main class="max-w-7xl mx-auto px-4 py-8">
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-800">Academic Structure</h1>
-        <p class="text-gray-600 mt-1">Manage programs, subjects, sections, and faculty assignments</p>
-      </div>
+    <main class="max-w-7xl mx-auto px-4 py-12">
+      <header class="mb-10">
+        <div class="flex items-center gap-3 mb-2">
+            <span class="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Registrar</span>
+            <span class="text-sm text-gray-400 font-bold tracking-tight">${state.activeSemester?.name || 'Academic Term'}</span>
+        </div>
+        <h1 class="text-4xl font-black text-gray-900 tracking-tight">Academic Structure</h1>
+        <p class="text-gray-500 font-medium mt-2">Centralized management for programs, faculty, facilities, and class sections.</p>
+      </header>
 
       ${createTabs({
     tabs: [
       { id: TABS.PROGRAMS, label: 'Programs' },
-      { id: TABS.PROFESSORS, label: 'Professors' },
-      { id: TABS.ROOMS, label: 'Rooms' },
+      { id: TABS.PROFESSORS, label: 'Faculty' },
+      { id: TABS.ROOMS, label: 'Facilities' },
       { id: TABS.SECTIONS, label: 'Sections' },
-      { id: TABS.SEMESTERS, label: 'Semesters' }
+      { id: TABS.SEMESTERS, label: 'Calendar' }
     ],
     activeTab: state.activeTab,
     onTabChange: 'switchTab'
   })}
 
-      <div class="mt-8">
+      <div class="mt-10 animate-in fade-in duration-500 slide-in-from-bottom-2">
         ${renderTabContent()}
       </div>
     </main>
@@ -159,16 +173,10 @@ function renderTabContent() {
     case TABS.PROGRAMS: return ProgramsModule.renderProgramsTab();
     case TABS.PROFESSORS: return ProfessorsModule.renderProfessorsTab();
     case TABS.ROOMS: return RoomsModule.renderRoomsTab();
-    case TABS.SECTIONS: return state.subView === 'detail' ? SectionsModule.renderSectionDetail ? SectionsModule.renderSectionDetail() : 'Detail view not yet implemented in module' : SectionsModule.renderSectionsTab();
+    case TABS.SECTIONS: return SectionsModule.renderSectionsTab();
     case TABS.SEMESTERS: return SemestersModule.renderSemestersTab();
     default: return ProgramsModule.renderProgramsTab();
   }
 }
-
-// Global helpers that might be needed by modules (if not already handled)
-window.debounce = debounce;
-window.getSubjectColor = getSubjectColor;
-window.formatTime = formatTime;
-window.setButtonLoading = setButtonLoading;
 
 init();
