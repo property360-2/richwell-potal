@@ -105,6 +105,7 @@ class Enrollment(BaseModel):
         HOLD = 'HOLD', 'On Hold'
         COMPLETED = 'COMPLETED', 'Completed'
         REJECTED = 'REJECTED', 'Rejected'
+        ADMITTED = 'ADMITTED', 'Admitted (No Subject Enrollment)'
     
     class CreatedVia(models.TextChoices):
         ONLINE = 'ONLINE', 'Online Enrollment'
@@ -177,6 +178,27 @@ class Enrollment(BaseModel):
     def is_fully_paid(self):
         """Whether all payment buckets are fully paid."""
         return not self.payment_buckets.filter(is_fully_paid=False).exists()
+    
+    @property
+    def is_admitted(self):
+        """Whether student is in ADMITTED status (paid but no subject enrollment)."""
+        return self.status == self.Status.ADMITTED
+    
+    @property
+    def has_subject_enrollments(self):
+        """Whether this enrollment has any active subject enrollments."""
+        return self.subject_enrollments.filter(
+            is_deleted=False,
+            status__in=['ENROLLED', 'PENDING', 'PENDING_PAYMENT', 'PENDING_HEAD']
+        ).exists()
+    
+    @property
+    def can_be_marked_admitted(self):
+        """
+        Check if enrollment can be marked as ADMITTED.
+        True if: Student has paid initial fee but has no subject enrollments.
+        """
+        return self.first_month_paid and not self.has_subject_enrollments
 
 
 class MonthlyPaymentBucket(BaseModel):

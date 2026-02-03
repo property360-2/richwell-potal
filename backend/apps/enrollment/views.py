@@ -467,10 +467,19 @@ class ApplicantListView(APIView):
     def get(self, request, *args, **kwargs):
         status = request.query_params.get('status', 'PENDING')
         
-        # Filter enrollments
-        enrollments = Enrollment.objects.filter(
-            status=status
-        ).select_related('student', 'semester', 'student__student_profile', 'student__student_profile__program')
+        # Filter enrollments - support 'all' or comma-separated statuses
+        if status.lower() == 'all':
+            enrollments = Enrollment.objects.all()
+        elif ',' in status:
+            # Support comma-separated statuses like ACTIVE,ADMITTED
+            status_list = [s.strip() for s in status.split(',')]
+            enrollments = Enrollment.objects.filter(status__in=status_list)
+        else:
+            enrollments = Enrollment.objects.filter(status=status)
+        
+        enrollments = enrollments.select_related(
+            'student', 'semester', 'student__student_profile', 'student__student_profile__program'
+        )
         
         data = []
         for enrollment in enrollments:
@@ -485,13 +494,19 @@ class ApplicantListView(APIView):
                 'email': student.email,
                 'status': enrollment.status,
                 'created_at': enrollment.created_at,
+                'year_level': profile.year_level if profile else 1,
                 'program': {
                     'code': profile.program.code if profile and profile.program else 'N/A',
                     'name': profile.program.name if profile and profile.program else 'N/A'
                 } if profile else None,
                 'contact_number': profile.contact_number if profile else '',
                 'address': profile.address if profile else '',
-                'student_id': str(student.id)
+                'student_id': str(student.id),
+                # Additional fields for admission dashboard
+                'first_month_paid': enrollment.first_month_paid,
+                'has_subject_enrollments': enrollment.has_subject_enrollments,
+                'can_be_marked_admitted': enrollment.can_be_marked_admitted,
+                'subject_enrollment_count': enrollment.subject_enrollments.filter(is_deleted=False, status__in=['ENROLLED', 'PENDING', 'PENDING_PAYMENT', 'PENDING_HEAD']).count(),
             })
             
         return Response(data)
@@ -752,8 +767,40 @@ class ApplicantUpdateView(APIView):
                 "message": "Applicant rejected",
                 "data": {"status": "REJECTED"}
             })
+        
+        elif action == 'admit':
+            # ADMITTED status: Student paid initial fee and was approved but didn't enroll in subjects
+            # during the enrollment period. They are considered "admitted" but not fully enrolled.
+            if not student_number:
+                return Response({"error": "Student ID is required for admission"}, status=400)
             
-        return Response({"error": "Invalid action"}, status=400)
+            # Check unique student number
+            if User.objects.filter(student_number=student_number).exclude(pk=enrollment.student.pk).exists():
+                return Response({"error": "Student ID already exists"}, status=400)
+            
+            try:
+                with transaction.atomic():
+                    # Update Student User with assigned student number
+                    student = enrollment.student
+                    student.student_number = student_number
+                    student.save()
+                    
+                    # Update Enrollment to ADMITTED status
+                    enrollment.status = 'ADMITTED'
+                    enrollment.save()
+                    
+                    return Response({
+                        "success": True,
+                        "message": f"Student {student_number} marked as Admitted (paid but no subject enrollment)",
+                        "data": {
+                            "status": "ADMITTED",
+                            "student_number": student_number
+                        }
+                    })
+            except Exception as e:
+                return Response({"error": str(e)}, status=500)
+            
+        return Response({"error": "Invalid action. Use 'accept', 'reject', or 'admit'"}, status=400)
 
 
 DocumentVerifyView = SimplePOSTView

@@ -13,6 +13,7 @@ export const NAV_CONFIG = {
   registrar: [
     { label: 'Dashboard', href: '/registrar-dashboard.html', page: 'registrar-dashboard' },
     { label: 'Students', href: '/registrar-students.html', page: 'registrar-students' },
+    { label: 'All Students', href: '/all-students.html', page: 'all-students' },
     { label: 'Academic', href: '/registrar-academic.html', page: 'registrar-academic' },
     { label: 'Resolutions', href: '/registrar-resolutions.html', page: 'registrar-resolutions' },
     { label: 'Grades', href: '/registrar-grades.html', page: 'grades' },
@@ -37,7 +38,8 @@ export const NAV_CONFIG = {
 
   admission: [
     { label: 'Dashboard', href: '/admission-dashboard.html', page: 'admission-dashboard' },
-    { label: 'Applicants', href: '/applicant-approval.html', page: 'applicant-approval' }
+    { label: 'Applicants', href: '/applicant-approval.html', page: 'applicant-approval' },
+    { label: 'All Students', href: '/all-students.html', page: 'all-students' }
   ],
 
   admin: [
