@@ -1,7 +1,7 @@
-import '../../../../style.css';
-import { api, endpoints, TokenManager } from '../../../../api.js';
-import { validateEmail, redirectByRole, setButtonLoading } from '../../../../utils.js';
-import { Toast } from '../../../../components/Toast.js';
+import '../../style.css';
+import { api, endpoints, TokenManager } from '../../api.js';
+import { validateEmail, redirectByRole, setButtonLoading } from '../../utils.js';
+import { Toast } from '../../components/Toast.js';
 
 function init() {
   // Check if already logged in

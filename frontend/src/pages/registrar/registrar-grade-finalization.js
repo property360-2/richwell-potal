@@ -4,16 +4,16 @@
  * Allows registrar to view sections with submitted grades and finalize them.
  * Finalization locks the grades.
  */
-import '../../../style.css';
-import { api, endpoints, TokenManager } from '../../../api.js';
-import { requireAuth } from '../../../utils.js';
-import { createHeader } from '../../../components/header.js';
-import { ErrorHandler } from '../../../utils/errorHandler.js';
-import { LoadingOverlay } from '../../../components/Spinner.js';
-import { renderBadge } from '../../../atoms/badges/Badge.js';
-import { showToast } from '../../../components/Toast.js';
-import { Icon } from '../../../atoms/icons/Icon.js';
-import { renderEmptyState } from '../../../organisms/layout/EmptyState.js';
+import '../../style.css';
+import { api, endpoints, TokenManager } from '../../api.js';
+import { requireAuth } from '../../utils.js';
+import { createHeader } from '../../components/header.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { LoadingOverlay } from '../../components/Spinner.js';
+import { renderBadge } from '../../atoms/badges/Badge.js';
+import { showToast } from '../../components/Toast.js';
+import { Icon } from '../../atoms/icons/Icon.js';
+import { renderEmptyState } from '../../organisms/layout/EmptyState.js';
 
 // ============================================================
 // STATE

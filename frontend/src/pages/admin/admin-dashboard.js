@@ -1,9 +1,9 @@
-import '../../../../style.css';
-import { createHeader } from '../../../../components/header.js';
-import { api, endpoints, TokenManager } from '../../../../api.js';
-import { requireAuth } from '../../../../utils.js';
-import { ErrorHandler } from '../../../../utils/errorHandler.js';
-import { Toast } from '../../../../components/Toast.js';
+import '../../style.css';
+import { createHeader } from '../../components/header.js';
+import { api, endpoints, TokenManager } from '../../api.js';
+import { requireAuth } from '../../utils.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { Toast } from '../../components/Toast.js';
 
 // State
 const state = {

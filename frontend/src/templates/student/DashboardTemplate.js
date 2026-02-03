@@ -5,11 +5,11 @@
  * Uses atomic components to replace the monolithic render function.
  */
 
-import { BaseComponent, SIS, mountComponents } from '../../../core/index.js';
-import { Icon, LoadingOverlay } from '../../../atoms/index.js';
-import { renderStatCard, renderStatCardGrid, renderAlert, renderBanner } from '../../../molecules/index.js';
-import { renderPageHeader } from '../../../organisms/index.js';
-import { renderPaymentBuckets } from '../../../organisms/domain/payments/PaymentBuckets.js';
+import { BaseComponent, SIS, mountComponents } from '../../core/index.js';
+import { Icon, LoadingOverlay } from '../../atoms/index.js';
+import { renderStatCard, renderStatCardGrid, renderAlert, renderBanner } from '../../molecules/index.js';
+import { renderPageHeader } from '../../organisms/index.js';
+import { renderPaymentBuckets } from '../../organisms/domain/payments/PaymentBuckets.js';
 
 /**
  * Render dashboard stat cards

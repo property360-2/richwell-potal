@@ -3,23 +3,23 @@
  * 
  * Refactored to use modular components from the atomic architecture.
  */
-import '../../../style.css';
-import { api, endpoints, TokenManager } from '../../../api.js';
-import { requireAuth, formatDate } from '../../../utils.js';
-import { createHeader } from '../../../components/header.js';
-import { Toast } from '../../../components/Toast.js';
-import { ErrorHandler } from '../../../utils/errorHandler.js';
-import { LoadingOverlay } from '../../../components/Spinner.js';
-import { Modal, ConfirmModal } from '../../../components/Modal.js';
-import { createTabs, updateHash } from '../../../components/tabs.js';
+import '../../style.css';
+import { api, endpoints, TokenManager } from '../../api.js';
+import { requireAuth, formatDate } from '../../utils.js';
+import { createHeader } from '../../components/header.js';
+import { Toast } from '../../components/Toast.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { LoadingOverlay } from '../../components/Spinner.js';
+import { Modal, ConfirmModal } from '../../components/Modal.js';
+import { createTabs, updateHash } from '../../components/tabs.js';
 
 // Import modular components
-import { renderScheduleGrid, DAYS, TIME_SLOTS, formatTime } from '../../../organisms/tables/ScheduleGrid.js';
-import { renderPageHeader } from '../../../organisms/layout/PageHeader.js';
-import { renderEmptyState, EmptyStatePresets } from '../../../organisms/layout/EmptyState.js';
-import { renderFilterPanel } from '../../../organisms/filters/FilterPanel.js';
-import { renderBadge, renderStatusBadge } from '../../../atoms/badges/Badge.js';
-import { Icon } from '../../../atoms/icons/Icon.js';
+import { renderScheduleGrid, DAYS, TIME_SLOTS, formatTime } from '../../organisms/tables/ScheduleGrid.js';
+import { renderPageHeader } from '../../organisms/layout/PageHeader.js';
+import { renderEmptyState, EmptyStatePresets } from '../../organisms/layout/EmptyState.js';
+import { renderFilterPanel } from '../../organisms/filters/FilterPanel.js';
+import { renderBadge, renderStatusBadge } from '../../atoms/badges/Badge.js';
+import { Icon } from '../../atoms/icons/Icon.js';
 
 // Tab constants
 const TABS = {

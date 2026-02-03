@@ -1,11 +1,11 @@
-import '../../../style.css';
-import { api, endpoints } from '../../../api.js';
-import { requireAuth, formatDate } from '../../../utils.js';
-import { createHeader } from '../../../components/header.js';
-import { Toast } from '../../../components/Toast.js';
-import { ErrorHandler } from '../../../utils/errorHandler.js';
-import { LoadingOverlay } from '../../../components/Spinner.js';
-import { Modal } from '../../../components/Modal.js';
+import '../../style.css';
+import { api, endpoints } from '../../api.js';
+import { requireAuth, formatDate } from '../../utils.js';
+import { createHeader } from '../../components/header.js';
+import { Toast } from '../../components/Toast.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { LoadingOverlay } from '../../components/Spinner.js';
+import { Modal } from '../../components/Modal.js';
 
 const state = {
     user: null,

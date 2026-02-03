@@ -1,11 +1,11 @@
-import '../../../style.css';
-import { api, endpoints, TokenManager } from '../../../api.js';
-import { requireAuth } from '../../../utils.js';
-import { createHeader } from '../../../components/header.js';
-import { Toast } from '../../../components/Toast.js';
-import { ErrorHandler } from '../../../utils/errorHandler.js';
-import { LoadingOverlay } from '../../../components/Spinner.js';
-import { ConfirmModal, AlertModal } from '../../../components/Modal.js';
+import '../../style.css';
+import { api, endpoints, TokenManager } from '../../api.js';
+import { requireAuth } from '../../utils.js';
+import { createHeader } from '../../components/header.js';
+import { Toast } from '../../components/Toast.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { LoadingOverlay } from '../../components/Spinner.js';
+import { ConfirmModal, AlertModal } from '../../components/Modal.js';
 
 // State management
 const state = {

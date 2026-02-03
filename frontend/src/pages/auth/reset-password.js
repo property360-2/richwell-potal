@@ -1,7 +1,7 @@
-import '../../../../style.css';
-import { api, endpoints } from '../../../../api.js';
-import { getQueryParam, setButtonLoading } from '../../../../utils.js';
-import { Toast } from '../../../../components/Toast.js';
+import '../../style.css';
+import { api, endpoints } from '../../api.js';
+import { getQueryParam, setButtonLoading } from '../../utils.js';
+import { Toast } from '../../components/Toast.js';
 
 let resetToken = null;
 

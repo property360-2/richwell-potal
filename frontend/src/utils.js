@@ -311,3 +311,33 @@ export const ErrorHandler = {
         Toast.error(`${context}: ${message}`);
     }
 };
+
+/**
+ * Get color for subject code
+ */
+export function getSubjectColor(subjectCode) {
+    const COLORS = [
+        'bg-blue-100 border-blue-400 text-blue-800',
+        'bg-green-100 border-green-400 text-green-800',
+        'bg-purple-100 border-purple-400 text-purple-800',
+        'bg-orange-100 border-orange-400 text-orange-800',
+        'bg-pink-100 border-pink-400 text-pink-800',
+        'bg-teal-100 border-teal-400 text-teal-800',
+        'bg-indigo-100 border-indigo-400 text-indigo-800',
+        'bg-red-100 border-red-400 text-red-800'
+    ];
+    const hash = (subjectCode || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return COLORS[hash % COLORS.length];
+}
+
+/**
+ * Format 24h time to 12h
+ */
+export function formatTime(time24) {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}${ampm}`;
+}

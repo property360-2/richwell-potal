@@ -1,7 +1,7 @@
-import '../../../style.css';
-import { createHeader } from '../../../components/header.js';
-import { requireAuth, redirectByRole, formatDate, createSpinner, ErrorHandler } from '../../../utils.js';
-import { api, endpoints } from '../../../api.js';
+import '../../style.css';
+import { createHeader } from '../../components/header.js';
+import { requireAuth, redirectByRole, formatDate, createSpinner, ErrorHandler } from '../../utils.js';
+import { api, endpoints } from '../../api.js';
 
 // State definition
 const state = {

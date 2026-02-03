@@ -1,13 +1,13 @@
-import '../../../style.css';
-import { api, endpoints, TokenManager } from '../../../api.js';
-import { requireAuth } from '../../../utils.js';
-import { createHeader } from '../../../components/header.js';
-import { Toast } from '../../../components/Toast.js';
-import { ErrorHandler } from '../../../utils/errorHandler.js';
-import { LoadingOverlay } from '../../../components/Spinner.js';
-import { Modal } from '../../../components/Modal.js';
-import { createSearchInput } from '../../../components/SearchInput.js';
-import { EmptyState, EmptyStateIcons } from '../../../components/EmptyState.js';
+import '../../style.css';
+import { api, endpoints, TokenManager } from '../../api.js';
+import { requireAuth } from '../../utils.js';
+import { createHeader } from '../../components/header.js';
+import { Toast } from '../../components/Toast.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { LoadingOverlay } from '../../components/Spinner.js';
+import { Modal } from '../../components/Modal.js';
+import { SearchInput, initSearch } from '../../components/SearchInput.js';
+import { EmptyState, EmptyStateIcons } from '../../components/EmptyState.js';
 
 // State
 const state = {
@@ -136,29 +136,31 @@ function render() {
   // Initialize search input after render
   const searchContainer = document.getElementById('search-container');
   if (searchContainer) {
-    const searchInput = createSearchInput({
+    searchContainer.innerHTML = SearchInput({
       placeholder: 'Search by student number or name...',
-      onSearch: (query) => {
-        state.searchQuery = query;
-        const displayStudents = query.trim()
-          ? state.allStudents.filter(student =>
-            student.student_number.toLowerCase().includes(query.toLowerCase()) ||
-            student.full_name.toLowerCase().includes(query.toLowerCase()) ||
-            student.first_name.toLowerCase().includes(query.toLowerCase()) ||
-            student.last_name.toLowerCase().includes(query.toLowerCase())
-          )
-          : state.allStudents;
-        state.searchResults = displayStudents;
-
-        // Re-render student list
-        const tableContainer = document.querySelector('.overflow-x-auto')?.parentElement;
-        if (tableContainer) {
-          const listHtml = renderStudentsList();
-          tableContainer.innerHTML = listHtml;
-        }
-      }
+      onSearch: 'handleSearch' // SearchInput expects a global function name
     });
-    searchContainer.appendChild(searchInput);
+    // Need to define handleSearch on window if it's used by oninput
+    window.handleSearch = (query) => {
+      state.searchQuery = query;
+      const displayStudents = query.trim()
+        ? state.allStudents.filter(student =>
+          student.student_number.toLowerCase().includes(query.toLowerCase()) ||
+          student.full_name.toLowerCase().includes(query.toLowerCase()) ||
+          student.first_name.toLowerCase().includes(query.toLowerCase()) ||
+          student.last_name.toLowerCase().includes(query.toLowerCase())
+        )
+        : state.allStudents;
+      state.searchResults = displayStudents;
+
+      // Re-render student list
+      const tableContainer = document.querySelector('.overflow-x-auto')?.parentElement;
+      if (tableContainer) {
+        const listHtml = renderStudentsList();
+        tableContainer.innerHTML = listHtml;
+      }
+    };
+    initSearch(); // Ensure debounceSearch is available
   }
 }
 

@@ -1,8 +1,8 @@
-import '../../../style.css';
-import { api, endpoints } from '../../../api.js';
-import { requireAuth } from '../../../utils.js';
-import { createHeader } from '../../../components/header.js';
-import { LoadingOverlay } from '../../../components/Spinner.js';
+import '../../style.css';
+import { api, endpoints } from '../../api.js';
+import { requireAuth } from '../../utils.js';
+import { createHeader } from '../../components/header.js';
+import { LoadingOverlay } from '../../components/Spinner.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 
