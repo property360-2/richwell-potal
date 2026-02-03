@@ -43,14 +43,15 @@ export const SemestersModule = {
             </div>
 
             ${UI.table({
-            headers: ['Semester Name', 'Academic Year', 'Schedule', 'Status', 'Actions'],
+            headers: ['Semester Name', 'Academic Year', 'Schedule', 'Enrollment Period', 'Status', 'Actions'],
             rows: filtered.map(s => [
                 `<div class="font-black text-gray-900">${s.name}</div>`,
                 `<div class="font-bold text-gray-600">${s.academic_year}</div>`,
                 `<div class="text-xs text-gray-400 font-medium">${formatDate(s.start_date)} &mdash; ${formatDate(s.end_date)}</div>`,
-                s.is_active ? UI.badge('Session Active', 'info') : UI.badge('Closed', 'default'),
+                `<div class="text-xs text-gray-500 font-medium">${s.enrollment_start_date && s.enrollment_end_date ? `${formatDate(s.enrollment_start_date)} &mdash; ${formatDate(s.enrollment_end_date)}` : '<span class="text-gray-400">Not set</span>'}</div>`,
+                this.getStatusBadge(s),
                 `<div class="flex gap-2 justify-end">
-                        ${!s.is_active ? UI.button({ label: 'Activate', type: 'secondary', size: 'sm', onClick: `setAsActiveSemester('${s.id}')` }) : ''}
+                        ${!s.is_current ? UI.button({ label: 'Activate', type: 'secondary', size: 'sm', onClick: `setAsActiveSemester('${s.id}')` }) : ''}
                         ${UI.button({ label: 'Edit', type: 'ghost', size: 'sm', onClick: `openEditSemesterModal('${s.id}')` })}
                     </div>`
             ])
@@ -61,6 +62,21 @@ export const SemestersModule = {
     handleSemesterSearch(q) {
         this.state.semesterSearch = q;
         this.render();
+    },
+
+    getStatusBadge(semester) {
+        const statusMap = {
+            'SETUP': { label: 'Setup', type: 'default' },
+            'ENROLLMENT_OPEN': { label: 'Enrollment Open', type: 'success' },
+            'ENROLLMENT_CLOSED': { label: 'Enrollment Closed', type: 'warning' },
+            'GRADING_OPEN': { label: 'Grading Open', type: 'info' },
+            'GRADING_CLOSED': { label: 'Grading Closed', type: 'default' },
+            'ARCHIVED': { label: 'Archived', type: 'default' }
+        };
+
+        const status = statusMap[semester.status] || { label: semester.status, type: 'default' };
+        const currentBadge = semester.is_current ? UI.badge('Active', 'info') + ' ' : '';
+        return currentBadge + UI.badge(status.label, status.type);
     },
 
     openAddSemesterModal() {
@@ -101,11 +117,18 @@ export const SemestersModule = {
                     ${UI.field({ label: 'Start Date', id: 'f-start', type: 'date', value: s?.start_date || '', required: true })}
                     ${UI.field({ label: 'End Date', id: 'f-end', type: 'date', value: s?.end_date || '', required: true })}
                 </div>
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700">Enrollment Period</label>
+                    <div class="grid grid-cols-2 gap-6">
+                        ${UI.field({ label: 'Enrollment Start', id: 'f-enroll-start', type: 'date', value: s?.enrollment_start_date || '' })}
+                        ${UI.field({ label: 'Enrollment End', id: 'f-enroll-end', type: 'date', value: s?.enrollment_end_date || '' })}
+                    </div>
+                </div>
                 <div class="flex items-center gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100/50">
-                    <input type="checkbox" id="f-active" ${s?.is_active ? 'checked' : ''} class="w-5 h-5 rounded-md border-gray-300 text-blue-600">
+                    <input type="checkbox" id="f-active" ${s?.is_current ? 'checked' : ''} class="w-5 h-5 rounded-md border-gray-300 text-blue-600">
                     <div>
-                        <div class="font-bold text-gray-800 text-sm">Set as Live Session</div>
-                        <div class="text-[10px] text-gray-400 font-black uppercase tracking-widest">This will be the default for enrollment</div>
+                        <div class="font-bold text-gray-800 text-sm">Set as Active Session</div>
+                        <div class="text-[10px] text-gray-400 font-black uppercase tracking-widest">This will be the current semester for enrollment</div>
                     </div>
                 </div>
             </form>
@@ -118,7 +141,9 @@ export const SemestersModule = {
             academic_year: document.getElementById('f-ay').value,
             start_date: document.getElementById('f-start').value,
             end_date: document.getElementById('f-end').value,
-            is_active: document.getElementById('f-active').checked
+            enrollment_start_date: document.getElementById('f-enroll-start').value || null,
+            enrollment_end_date: document.getElementById('f-enroll-end').value || null,
+            is_current: document.getElementById('f-active').checked
         };
 
         const { isValid, errors } = Validator.validate(data, {
@@ -131,8 +156,8 @@ export const SemestersModule = {
         if (!isValid) return Toast.error(Object.values(errors)[0]);
 
         try {
-            if (id) await api.patch(`${endpoints.manageSemesters}${id}/`, data);
-            else await api.post(endpoints.manageSemesters, data);
+            if (id) await api.patch(`${endpoints.semesters}${id}/`, data);
+            else await api.post(endpoints.semesters, data);
 
             Toast.success(id ? 'Calendar updated' : 'Semester added');
             modal.close();
@@ -147,7 +172,7 @@ export const SemestersModule = {
             message: 'Are you sure you want to make this the active semester? This will update the default term for all users.',
             onConfirm: async () => {
                 try {
-                    await api.post(`${endpoints.manageSemesters}${id}/set-active/`);
+                    await api.post(endpoints.activateTerm(id));
                     Toast.success('Now active');
                     await this.ctx.loadSemesters();
                     this.render();

@@ -3,9 +3,10 @@ Academics views - Program, Subject, Section, and Scheduling endpoints.
 EPIC 2: Curriculum, Subjects & Section Scheduling
 """
 
+import uuid
 from django.db import transaction, models
 from django.db.models import Q
-from rest_framework import generics, viewsets, status
+from rest_framework import generics, viewsets, status, filters
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -215,6 +216,8 @@ class SubjectViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         program_id = self.request.query_params.get('program')
         search_query = self.request.query_params.get('search')
+        year_level = self.request.query_params.get('year_level')
+        semester_number = self.request.query_params.get('semester_number')
 
         if program_id:
             # Filter by subjects that include this program (multi-program support)
@@ -224,6 +227,12 @@ class SubjectViewSet(viewsets.ModelViewSet):
                 Q(programs__id=program_id) | 
                 Q(curriculum_assignments__curriculum__program_id=program_id)
             ).distinct()
+        
+        if year_level:
+            queryset = queryset.filter(year_level=year_level)
+            
+        if semester_number:
+            queryset = queryset.filter(semester_number=semester_number)
         
         if search_query:
             queryset = queryset.filter(
@@ -299,6 +308,16 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'message': f'Prerequisite {prereq.code} removed from {subject.code}',
             'prerequisites': [p.code for p in subject.prerequisites.all()]
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='check-duplicate')
+    def check_duplicate(self, request):
+        """Check if subject code already exists."""
+        code = request.query_params.get('code')
+        if not code:
+            return Response({'error': 'Code parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        duplicate = Subject.objects.filter(code__iexact=code, is_deleted=False).exists()
+        return Response({'duplicate': duplicate})
 
 
 class RoomViewSet(viewsets.ModelViewSet):
@@ -394,6 +413,9 @@ class SectionViewSet(viewsets.ModelViewSet):
     """
     queryset = Section.objects.filter(is_deleted=False)
     permission_classes = [IsRegistrarOrAdmin]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['name', 'year_level', 'program__code']
+    ordering = ['name']
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -406,12 +428,31 @@ class SectionViewSet(viewsets.ModelViewSet):
         # Filter by semester
         semester_id = self.request.query_params.get('semester')
         if semester_id:
-            queryset = queryset.filter(semester_id=semester_id)
+            try:
+                uuid.UUID(semester_id)
+                queryset = queryset.filter(semester_id=semester_id)
+            except (ValueError, TypeError):
+                # If not a valid UUID (like 'undefined'), return empty or ignore
+                queryset = queryset.none()
         
         # Filter by program
         program_id = self.request.query_params.get('program')
         if program_id:
-            queryset = queryset.filter(program_id=program_id)
+            try:
+                uuid.UUID(program_id)
+                queryset = queryset.filter(program_id=program_id)
+            except (ValueError, TypeError):
+                pass
+
+        # Filter by year level
+        year_level = self.request.query_params.get('year_level')
+        if year_level:
+            queryset = queryset.filter(year_level=year_level)
+
+        # Search by name
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(name__icontains=search)
         
         return queryset.select_related('program', 'semester').prefetch_related(
             'section_subjects__subject',
@@ -443,6 +484,39 @@ class SectionViewSet(viewsets.ModelViewSet):
         """Soft delete."""
         instance.is_deleted = True
         instance.save()
+
+    @action(detail=False, methods=['post'], url_path='validate-names')
+    def validate_names(self, request):
+        """
+        Validate a list of section names against the database for duplicates.
+        Payload: { "names": ["Name-1", "Name-2"], "semester_id": "uuid" }
+        """
+        names = request.data.get('names', [])
+        semester_id = request.data.get('semester_id')
+        
+        if not names or not semester_id:
+            return Response(
+                {'error': 'Names list and semester_id are required.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            # Check for duplicates in Active sections
+            active_duplicates = list(Section.objects.filter(
+                semester_id=semester_id,
+                name__in=names,
+                is_deleted=False
+            ).values_list('name', flat=True))
+            
+            # Identify available names
+            available = [n for n in names if n not in active_duplicates]
+            
+            return Response({
+                'duplicates': active_duplicates,
+                'available': available
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @extend_schema(
         summary="Bulk Create Sections",
@@ -891,7 +965,7 @@ class ScheduleSlotViewSet(viewsets.ModelViewSet):
     permission_classes = [IsRegistrarOrAdmin]
     
     def get_serializer_class(self):
-        if self.action == 'create':
+        if self.action in ['create', 'update', 'partial_update']:
             return ScheduleSlotCreateSerializer
         return ScheduleSlotSerializer
     
@@ -901,6 +975,14 @@ class ScheduleSlotViewSet(viewsets.ModelViewSet):
         section_subject_id = self.request.query_params.get('section_subject')
         if section_subject_id:
             queryset = queryset.filter(section_subject_id=section_subject_id)
+            
+        room = self.request.query_params.get('room')
+        if room:
+            queryset = queryset.filter(room=room)
+            
+        semester_id = self.request.query_params.get('semester')
+        if semester_id:
+            queryset = queryset.filter(section_subject__section__semester_id=semester_id)
         
         return queryset.select_related(
             'section_subject__subject',
@@ -1591,9 +1673,22 @@ class ProfessorViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         from apps.accounts.models import User
-        return User.objects.filter(
-            role='PROFESSOR', is_active=True
-        ).order_by('last_name', 'first_name')
+        from django.db.models import Q
+        
+        queryset = User.objects.filter(role='PROFESSOR', is_active=True)
+        search = self.request.query_params.get('search')
+        
+        if search:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(professor_profile__specialization__icontains=search) |
+                Q(professor_profile__assigned_subjects__code__icontains=search) |
+                Q(professor_profile__assigned_subjects__title__icontains=search)
+            ).distinct()
+            
+        return queryset.order_by('last_name', 'first_name')
 
     def get_serializer_class(self):
         if self.action == 'retrieve':

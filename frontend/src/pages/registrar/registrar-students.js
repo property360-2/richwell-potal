@@ -6,6 +6,7 @@ import { Toast } from '../../components/Toast.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { LoadingOverlay } from '../../components/Spinner.js';
 import { Modal } from '../../components/Modal.js';
+import { ResolutionsModule } from './modules/ResolutionsModule.js';
 
 const state = {
     user: null,
@@ -29,11 +30,23 @@ const state = {
 
     activeModalTab: 'profile', // profile, enrollment, history, credits
     selectedStudent: null,
-    allSubjects: [] // For crediting dropdown
+    allSubjects: [], // For crediting dropdown
+
+    // Tab support
+    activeTab: 'students', // students, resolutions
+    resolutions: [],
+    selectedResolution: null,
+    resolutionsLoading: false
 };
 
 async function init() {
     if (!requireAuth()) return;
+
+    // Initialize Resolutions Module
+    ResolutionsModule.init({
+        state,
+        render: () => render()
+    });
 
     // Load initial data
     try {
@@ -49,7 +62,14 @@ async function init() {
         const subjectsResponse = await api.get(endpoints.academicSubjects);
         state.allSubjects = subjectsResponse.results || subjectsResponse || [];
 
-        await loadStudents();
+        // Check if tab is resolutions from URL
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get('tab');
+        if (tabParam === 'resolutions') {
+            await switchTab('resolutions');
+        } else {
+            await loadStudents();
+        }
 
     } catch (error) {
         ErrorHandler.handle(error, 'Initializing page');
@@ -57,6 +77,24 @@ async function init() {
         state.loading = false;
         render();
     }
+}
+
+async function switchTab(tabId) {
+    state.activeTab = tabId;
+    if (tabId === 'resolutions') {
+        state.resolutionsLoading = true;
+        render();
+        await ResolutionsModule.loadResolutions();
+        state.resolutionsLoading = false;
+    } else {
+        await loadStudents();
+    }
+    render();
+
+    // Update URL without reload
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabId);
+    window.history.pushState({}, '', url);
 }
 
 async function loadStudents(url = null) {
@@ -130,14 +168,38 @@ function render() {
                     <h1 class="text-3xl font-bold text-gray-800">Student Management</h1>
                     <p class="text-gray-600 mt-1">View, manage, and enroll students</p>
                 </div>
-                <button onclick="openAddStudentModal()" class="btn btn-primary flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                    </svg>
-                    Add Student
-                </button>
+                ${state.activeTab === 'students' ? `
+                    <button onclick="openAddStudentModal()" class="btn btn-primary flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Add Student
+                    </button>
+                ` : ''}
+            </div>
+
+            <!-- Tabs -->
+            <div class="border-b border-gray-200 mb-6">
+                <nav class="-mb-px flex space-x-8">
+                    <button onclick="switchTab('students')" 
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${state.activeTab === 'students' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
+                        Students Masterlist
+                    </button>
+                    <button onclick="switchTab('resolutions')" 
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${state.activeTab === 'resolutions' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
+                        Grade Resolutions
+                        ${state.resolutions.length > 0 ? `<span class="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full font-bold">${state.resolutions.length}</span>` : ''}
+                    </button>
+                </nav>
             </div>
             
+            ${state.activeTab === 'students' ? renderStudentsList() : ResolutionsModule.renderResolutionsTab()}
+        </main>
+    `;
+}
+
+function renderStudentsList() {
+    return `
             <!-- Filters -->
             <div class="bg-white p-4 rounded-lg shadow mb-6 border border-gray-100">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -229,7 +291,6 @@ function render() {
                 <!-- Pagination -->
                 ${renderPagination()}
             </div>
-        </main>
     `;
 }
 
@@ -238,30 +299,30 @@ function renderPagination() {
     if (!next && !previous) return '';
 
     return `
-        <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                    <p class="text-sm text-gray-700">
-                        Showing requirements...
-                        <span class="font-medium">${count}</span> results
-                    </p>
-                </div>
-                <div>
-                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                        <button onclick="loadStudents('${previous}')" 
-                                ${!previous ? 'disabled' : ''}
-                                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${!previous ? 'opacity-50 cursor-not-allowed' : ''}">
-                            Previous
-                        </button>
-                        <button onclick="loadStudents('${next}')" 
-                                ${!next ? 'disabled' : ''}
-                                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${!next ? 'opacity-50 cursor-not-allowed' : ''}">
-                            Next
-                        </button>
-                    </nav>
-                </div>
+    < div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6" >
+        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+                <p class="text-sm text-gray-700">
+                    Showing students...
+                    <span class="font-medium">${count}</span> results
+                </p>
+            </div>
+            <div>
+                <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button onclick="loadStudents('${previous}')"
+                        ${!previous ? 'disabled' : ''}
+                        class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${!previous ? 'opacity-50 cursor-not-allowed' : ''}">
+                        Previous
+                    </button>
+                    <button onclick="loadStudents('${next}')"
+                        ${!next ? 'disabled' : ''}
+                        class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${!next ? 'opacity-50 cursor-not-allowed' : ''}">
+                        Next
+                    </button>
+                </nav>
             </div>
         </div>
+        </div >
     `;
 }
 
@@ -284,6 +345,8 @@ window.applyFilters = () => {
     render();
 };
 
+window.switchTab = (tabId) => switchTab(tabId);
+
 window.loadStudents = (url) => loadStudents(url).then(render);
 
 // ===================================
@@ -293,7 +356,7 @@ window.openAddStudentModal = () => {
     const modal = new Modal({
         title: 'Add New Student',
         content: `
-            <form id="add-student-form" class="space-y-4">
+    < form id = "add-student-form" class="space-y-4" >
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">First Name *</label>
@@ -370,8 +433,8 @@ window.openAddStudentModal = () => {
                         </div>
                     </div>
                 </div>
-            </form>
-        `,
+            </form >
+    `,
         actions: [
             { label: 'Cancel', onClick: (m) => m.close() },
             {
@@ -394,7 +457,7 @@ window.openAddStudentModal = () => {
 
                     try {
                         const response = await api.post(endpoints.registrarStudents, data);
-                        Toast.success(`Student created: ${response.student_number}`);
+                        Toast.success(`Student created: ${response.student_number} `);
                         m.close();
                         loadStudents();
                         render();
@@ -445,7 +508,7 @@ window.renderNewStudentCredits = function () {
     if (!list) return;
 
     list.innerHTML = state.newStudentCredits.map((c, index) => `
-        <div class="flex items-center justify-between bg-gray-50 px-2 py-1 rounded text-xs border">
+    <div class="flex items-center justify-between bg-gray-50 px-2 py-1 rounded text-xs border">
             <span><span class="font-bold">${c.code}</span> ${c.grade ? `(Grade: ${c.grade})` : ''}</span>
             <button type="button" onclick="removeSubjectFromNewStudent(${index})" class="text-red-500 hover:text-red-700">
                 &times;
@@ -480,7 +543,7 @@ function renderStudentModal() {
 
     if (state.activeModalTab === 'profile') {
         content = `
-            <div class="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+    <div class="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
                 <div>
                     <p class="text-gray-500">Student Number</p>
                     <p class="font-bold">${s.student_number}</p>
@@ -505,7 +568,7 @@ function renderStudentModal() {
                     <p class="text-gray-500">Curriculum</p>
                     <p class="font-bold">${s.curriculum_code || 'N/A'}</p>
                 </div>
-                <!-- Personal Info -->
+                <!--Personal Information-- >
                  <div class="col-span-2 mt-4 pt-4 border-t border-gray-100">
                     <h4 class="font-bold text-gray-700 mb-2">Personal Information</h4>
                 </div>
@@ -526,25 +589,26 @@ function renderStudentModal() {
                         <p class="text-gray-500">Previous School</p>
                         <p class="font-bold">${s.previous_school || '-'}</p>
                     </div>
-                ` : ''}
+                ` : ''
+            }
             </div>
-        `;
+    `;
     } else if (state.activeModalTab === 'enrollment') {
         const enrollments = s.current_enrollment || [];
         content = `
-             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Code</th>
-                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Title</th>
-                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Section</th>
-                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Units</th>
-                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        ${enrollments.length > 0 ? enrollments.map(e => `
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Code</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Title</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Section</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Units</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                ${enrollments.length > 0 ? enrollments.map(e => `
                             <tr>
                                 <td class="px-4 py-2 font-medium">${e.subject_code}</td>
                                 <td class="px-4 py-2 text-gray-600">${e.subject_title}</td>
@@ -553,13 +617,13 @@ function renderStudentModal() {
                                 <td class="px-4 py-2"><span class="px-2 text-xs rounded-full bg-blue-50 text-blue-700">${e.status}</span></td>
                             </tr>
                         `).join('') : `<tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">No active enrollment</td></tr>`}
-                    </tbody>
-                </table>
-             </div>
-        `;
+            </tbody>
+        </table>
+            </div>
+    `;
     } else if (state.activeModalTab === 'credits') {
         content = `
-            <div class="space-y-4">
+    <div class="space-y-4">
                 <div class="flex items-center justify-between">
                     <h4 class="font-bold text-gray-700">Manually Credited Subjects</h4>
                     <button onclick="openAddCreditModal('${s.id}')" class="btn btn-primary btn-sm">Add Credit</button>
@@ -568,33 +632,33 @@ function renderStudentModal() {
                     ${renderCreditsList(s.id)}
                 </div>
             </div>
-        `;
+    `;
     }
 
     const modal = new Modal({
-        title: `Student Details: ${s.last_name}, ${s.first_name}`,
+        title: `Student Details: ${s.last_name}, ${s.first_name} `,
         content: `
-            <div class="border-b border-gray-200 mb-4">
-                <nav class="-mb-px flex space-x-8">
-                    <button onclick="switchStudentTab('profile')" 
-                            class="${state.activeModalTab === 'profile' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                        Profile
-                    </button>
-                    <button onclick="switchStudentTab('enrollment')"
-                            class="${state.activeModalTab === 'enrollment' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                        Current Enrollment (COR)
-                    </button>
-                    <button onclick="switchStudentTab('history')"
-                            class="${state.activeModalTab === 'history' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                        Academic History (TOR)
-                    </button>
-                    ${s.is_transferee ? `
+    <div class="border-b border-gray-200 mb-4">
+        <nav class="-mb-px flex space-x-8">
+            <button onclick="switchStudentTab('profile')"
+                class="${state.activeModalTab === 'profile' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                Profile
+            </button>
+            <button onclick="switchStudentTab('enrollment')"
+                class="${state.activeModalTab === 'enrollment' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                Current Enrollment (COR)
+            </button>
+            <button onclick="switchStudentTab('history')"
+                class="${state.activeModalTab === 'history' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                Academic History (TOR)
+            </button>
+            ${s.is_transferee ? `
                     <button onclick="switchStudentTab('credits')"
                             class="${state.activeModalTab === 'credits' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                         Credited Subjects
                     </button>
                     ` : ''}
-                </nav>
+        </nav>
             </div>
             <div>
                 ${content}
@@ -602,7 +666,7 @@ function renderStudentModal() {
             <div class="mt-6 flex justify-end gap-2">
                 <button onclick="window.print()" class="btn btn-outline-secondary text-sm">Print / Save PDF</button>
             </div>
-        `,
+`,
         actions: [],
         size: 'lg'
     });

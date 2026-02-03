@@ -136,6 +136,17 @@ class Subject(BaseModelWithActiveManager):
         validators=[MinValueValidator(1), MaxValueValidator(3)],
         help_text='Recommended semester (1 = First, 2 = Second, 3 = Summer)'
     )
+    CLASSIFICATION_CHOICES = [
+        ('MAJOR', 'Major Subject'),
+        ('MINOR', 'Minor Subject')
+    ]
+
+    classification = models.CharField(
+        max_length=20,
+        choices=CLASSIFICATION_CHOICES,
+        default='MINOR',
+        help_text='Subject classification'
+    )
     allow_multiple_sections = models.BooleanField(
         default=False,
         help_text='Whether a student can enroll in multiple sections (for irregular students)'
@@ -432,6 +443,12 @@ class ScheduleSlot(BaseModelWithActiveManager):
         max_length=50,
         blank=True,
         help_text='Room number or name'
+    )
+    color = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text='Custom CSS class or hex color for visual coding'
     )
     
     class Meta:

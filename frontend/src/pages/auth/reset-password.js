@@ -125,7 +125,7 @@ function showResetForm(email) {
           </form>
 
           <div class="mt-6 text-center">
-            <a href="/pages/login.html" class="text-sm text-blue-300 hover:text-white transition-colors">
+            <a href="/pages/auth/login.html" class="text-sm text-blue-300 hover:text-white transition-colors">
               ← Back to Login
             </a>
           </div>
@@ -242,7 +242,7 @@ function showError(message) {
           <h2 class="text-2xl font-bold text-white mb-2">Link Invalid</h2>
           <p class="text-blue-200 mb-6">${message}</p>
           <a 
-            href="/pages/forgot-password.html" 
+            href="/pages/auth/forgot-password.html" 
             class="inline-block py-3 px-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all"
           >
             Request New Reset Link

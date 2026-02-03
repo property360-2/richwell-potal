@@ -20,20 +20,27 @@ class SubjectSerializer(serializers.ModelSerializer):
 
     program_code = serializers.CharField(source='program.code', read_only=True)
     program_codes = serializers.SerializerMethodField()
+    curriculum_codes = serializers.SerializerMethodField()
     prerequisites = SubjectMinimalSerializer(many=True, read_only=True)
     inc_expiry_months = serializers.IntegerField(source='get_inc_expiry_months', read_only=True)
+
+    classification_display = serializers.CharField(source='get_classification_display', read_only=True)
 
     def get_program_codes(self, obj):
         """Get all program codes this subject belongs to"""
         return [p.code for p in obj.programs.all()]
 
+    def get_curriculum_codes(self, obj):
+        """Get all curriculum codes this subject belongs to"""
+        return list(obj.curriculum_assignments.filter(is_deleted=False).values_list('curriculum__code', flat=True).distinct())
+
     class Meta:
         model = Subject
         fields = [
             'id', 'code', 'title', 'description', 'units',
-            'is_major', 'year_level', 'semester_number',
+            'is_major', 'year_level', 'semester_number', 'classification', 'classification_display',
             'allow_multiple_sections', 'program_code', 'program_codes',
-            'prerequisites', 'inc_expiry_months', 'syllabus'
+            'curriculum_codes', 'prerequisites', 'inc_expiry_months', 'syllabus'
         ]
 
 
@@ -111,7 +118,7 @@ class SubjectCreateSerializer(serializers.ModelSerializer):
         model = Subject
         fields = [
             'program', 'code', 'title', 'description', 'units',
-            'is_major', 'year_level', 'semester_number',
+            'is_major', 'year_level', 'semester_number', 'classification',
             'allow_multiple_sections', 'prerequisite_ids', 'program_ids',
             'syllabus'
         ]
@@ -213,15 +220,17 @@ class ScheduleSlotSerializer(serializers.ModelSerializer):
     
     day_display = serializers.CharField(source='get_day_display', read_only=True)
     professor_name = serializers.CharField(source='professor.get_full_name', read_only=True)
-    section_name = serializers.CharField(source='section_subject.section.name', read_only=True)
+    section = serializers.CharField(source='section_subject.section.name', read_only=True)
     subject_code = serializers.CharField(source='section_subject.subject.code', read_only=True)
+    subject_title = serializers.CharField(source='section_subject.subject.title', read_only=True)
+    subject_id = serializers.UUIDField(source='section_subject.subject.id', read_only=True)
     
     class Meta:
         model = ScheduleSlot
         fields = [
             'id', 'section_subject', 'day', 'day_display',
             'start_time', 'end_time', 'room', 'professor', 'professor_name',
-            'section_name', 'subject_code'
+            'section', 'subject_code', 'subject_title', 'subject_id', 'color'
         ]
         read_only_fields = ['id']
     
@@ -256,50 +265,122 @@ class ScheduleSlotCreateSerializer(serializers.ModelSerializer):
         model = ScheduleSlot
         fields = [
             'section_subject', 'day', 'start_time', 'end_time', 'room', 'professor',
-            'override_conflict', 'override_reason'
+            'override_conflict', 'override_reason', 'color'
         ]
+    
+    def validate_section_subject(self, value):
+        """Validate that section_subject exists and is not deleted."""
+        if not value:
+            raise serializers.ValidationError("Section subject assignment is required")
+        
+        if value.is_deleted:
+            raise serializers.ValidationError("This section subject assignment has been deleted")
+        
+        return value
     
     def validate(self, attrs):
         """Validate time range and check for conflicts."""
         from .services import SchedulingService
         
-        start_time = attrs.get('start_time')
-        end_time = attrs.get('end_time')
+        instance = getattr(self, 'instance', None)
+        
+        start_time = attrs.get('start_time') or (instance.start_time if instance else None)
+        end_time = attrs.get('end_time') or (instance.end_time if instance else None)
         override = attrs.pop('override_conflict', False)
         override_reason = attrs.pop('override_reason', '')
         
-        if start_time >= end_time:
+        # Validate time range
+        if start_time and end_time and start_time >= end_time:
             raise serializers.ValidationError({
                 'end_time': 'End time must be after start time'
             })
         
-        section_subject = attrs.get('section_subject')
-        day = attrs.get('day')
-        room = attrs.get('room')
+        # Validate required fields
+        section_subject = attrs.get('section_subject') or (instance.section_subject if instance else None)
+        if not section_subject:
+            raise serializers.ValidationError({
+                'section_subject': 'Section subject assignment is required'
+            })
+        
+        day = attrs.get('day') or (instance.day if instance else None)
+        if not day:
+            raise serializers.ValidationError({
+                'day': 'Day is required'
+            })
+        
+        # Handle room explicitly: if 'room' is in attrs, use it (could be empty string/None for clearing).
+        # If not in attrs, use instance.room.
+        if 'room' in attrs:
+            room = attrs.get('room')
+        else:
+            room = instance.room if instance else None
+            
         semester = section_subject.section.semester
         
         # Priority: explicit slot professor -> section_subject.professor
-        professor = attrs.get('professor') or section_subject.professor
+        prof_attr = attrs.get('professor')
+        if prof_attr is not None: # Explicitly set in request
+            professor = prof_attr
+        elif instance and 'professor' not in attrs: # Not in request, use instance
+            professor = instance.professor
+        else:
+            professor = None
+            
+        # Fallback to section subject professor
+        if not professor:
+            professor = section_subject.professor
         
-        # Check professor conflict
+        # Exclude current slot from conflict check if updating
+        exclude_id = instance.id if instance else None
+
+        # Check professor conflict with detailed error message
         if professor:
             has_conflict, conflict = SchedulingService.check_professor_conflict(
-                professor, day, start_time, end_time, semester
+                professor, day, start_time, end_time, semester, exclude_slot_id=exclude_id
             )
             if has_conflict and not override:
+                # Enhanced error message with more details
+                conflict_msg = f'Professor {professor.get_full_name()} is already scheduled: {conflict}'
                 raise serializers.ValidationError({
-                    'professor': f'Professor has a schedule conflict: {conflict}'
+                    'professor': conflict_msg,
+                    'conflict_details': {
+                        'type': 'professor',
+                        'resource': professor.get_full_name(),
+                        'conflict': str(conflict)
+                    }
                 })
             elif has_conflict and override:
                 attrs['_override_reason'] = override_reason
+                
+            # Check professional warnings
+            warnings = SchedulingService.check_professor_warnings(
+                professor, day, start_time, end_time, semester
+            )
+            if warnings and not override:
+                raise serializers.ValidationError({
+                    'professor': warnings[0],
+                    'warning_type': 'workload'
+                })
         
-        # Check room conflict (warning only)
+        # Check room conflict with detailed error message
         if room:
             has_conflict, conflict = SchedulingService.check_room_conflict(
-                room, day, start_time, end_time, semester
+                room, day, start_time, end_time, semester, exclude_slot_id=exclude_id
             )
-            if has_conflict:
+            if has_conflict and not override:
+                # Enhanced error message with more details
+                conflict_msg = f'Room {room} is already occupied: {conflict}'
+                raise serializers.ValidationError({
+                    'room': conflict_msg,
+                    'conflict_details': {
+                        'type': 'room',
+                        'resource': room,
+                        'conflict': str(conflict)
+                    }
+                })
+            elif has_conflict and override:
                 attrs['_room_conflict'] = str(conflict)
+                attrs['_override_reason'] = override_reason
         
         return attrs
 

@@ -55,7 +55,7 @@ function init() {
           </form>
 
           <div class="mt-6 text-center">
-            <a href="/pages/login.html" class="text-sm text-blue-300 hover:text-white transition-colors">
+            <a href="/pages/auth/login.html" class="text-sm text-blue-300 hover:text-white transition-colors">
               ← Back to Login
             </a>
           </div>

@@ -5,6 +5,8 @@ import { createHeader } from '../../components/header.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { LoadingOverlay } from '../../components/Spinner.js';
 import { createTabs, updateHash } from '../../components/tabs.js';
+import { renderScheduleGrid } from '../../organisms/tables/ScheduleGrid.js';
+
 
 // Import Refactored Modules
 import { AcademicService } from './AcademicService.js';
@@ -34,6 +36,8 @@ const state = {
   sections: [],
   semesters: [],
   activeSemester: null,
+  activeProgramCurricula: [],
+  activeProgramSubjects: [],
 
   // UI Filters
   programSearchQuery: '',
@@ -43,9 +47,15 @@ const state = {
   semesterSearch: '',
   sectionFilterProgram: 'all',
   sectionFilterYear: 'all',
+  sectionSortBy: 'name',
+  sectionSortOrder: 'asc',
 
   // Shared states for modules
   profSubjectState: { selected: [] },
+  programDetailTab: 'subjects',
+  programSubjectSearch: '',
+  programSubjectSortBy: 'code',
+  programSubjectSortOrder: 'asc',
   selectedSection: null,
   detailedSubjects: [],
   sectionSchedule: [],
@@ -55,14 +65,39 @@ const state = {
 const ctx = {
   state,
   service: AcademicService,
+  api,
+  endpoints,
   render: () => render(),
+  renderRoomScheduleGrid: (slots) => renderScheduleGrid({ slots, emptyMessage: 'Facility is free for the entire week' }),
   loadPrograms: async () => { state.programs = await AcademicService.loadPrograms(); },
-  loadProfessors: async () => { state.professors = await AcademicService.loadProfessors(); },
+  loadProfessors: async (search) => { state.professors = await AcademicService.loadProfessors(search); },
   loadRooms: async () => { state.rooms = await AcademicService.loadRooms(); },
-  loadSections: async () => { state.sections = await AcademicService.loadSections({ semester: state.activeSemester?.id }); },
+  loadSections: async () => {
+    if (!state.activeSemester) {
+      console.warn('No active semester selected for section loading');
+      state.sections = [];
+      return;
+    }
+    const params = {
+      semester: state.activeSemester.id,
+      search: state.sectionSearch || '',
+      year_level: state.sectionFilterYear === 'all' ? '' : state.sectionFilterYear,
+      program: state.sectionFilterProgram === 'all' ? '' : state.sectionFilterProgram,
+      ordering: state.sectionSortOrder === 'desc' ? `-${state.sectionSortBy}` : state.sectionSortBy
+    };
+    state.sections = await AcademicService.loadSections(params);
+  },
   loadSemesters: async () => {
     state.semesters = await AcademicService.loadSemesters();
-    state.activeSemester = state.semesters.find(s => s.is_active);
+    state.activeSemester = state.semesters.find(s => s.is_active) || state.semesters[0];
+  },
+  loadCurricula: async (programId) => { state.activeProgramCurricula = await AcademicService.loadCurricula(programId); },
+  loadSubjects: async (programId) => {
+    state.activeProgramSubjects = await AcademicService.loadSubjects({
+      program: programId,
+      search: state.programSubjectSearch || '',
+      ordering: state.programSubjectSortOrder === 'desc' ? `-${state.programSubjectSortBy}` : state.programSubjectSortBy
+    });
   }
 };
 
@@ -121,12 +156,29 @@ window.switchTab = async function (tabId) {
   try {
     if (tabId === TABS.PROFESSORS) await ctx.loadProfessors();
     else if (tabId === TABS.ROOMS) await ctx.loadRooms();
-    else if (tabId === TABS.SECTIONS) await ctx.loadSections();
+    else if (tabId === TABS.SECTIONS) {
+      await Promise.all([
+        ctx.loadSections(),
+        ctx.loadRooms(),
+        ctx.loadProfessors()
+      ]);
+    }
     else if (tabId === TABS.PROGRAMS) await ctx.loadPrograms();
   } catch (e) {
     ErrorHandler.handle(e);
   }
 
+  render();
+};
+
+window.switchSemester = async function (id) {
+  state.activeSemester = state.semesters.find(s => s.id === id);
+  if (state.activeTab === TABS.SECTIONS) {
+    state.loading = true;
+    render();
+    await ctx.loadSections();
+    state.loading = false;
+  }
   render();
 };
 
@@ -143,7 +195,11 @@ function render() {
       <header class="mb-10">
         <div class="flex items-center gap-3 mb-2">
             <span class="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Registrar</span>
-            <span class="text-sm text-gray-400 font-bold tracking-tight">${state.activeSemester?.name || 'Academic Term'}</span>
+            <select onchange="switchSemester(this.value)" class="bg-transparent text-sm text-gray-500 font-black tracking-tight border-none outline-none focus:ring-0 cursor-pointer hover:bg-gray-100 rounded px-2 py-1 transition-all">
+                ${state.semesters.map(s => `
+                    <option value="${s.id}" ${state.activeSemester?.id === s.id ? 'selected' : ''} class="text-gray-900">${s.name}</option>
+                `).join('')}
+            </select>
         </div>
         <h1 class="text-4xl font-black text-gray-900 tracking-tight">Academic Structure</h1>
         <p class="text-gray-500 font-medium mt-2">Centralized management for programs, faculty, facilities, and class sections.</p>

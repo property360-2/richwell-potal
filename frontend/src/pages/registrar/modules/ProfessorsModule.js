@@ -21,6 +21,7 @@ export const ProfessorsModule = {
         window.toggleProfPassword = (checked) => this.toggleProfPassword(checked);
         window.removeProfessorSubject = (id) => this.removeProfessorSubject(id);
         window.addProfessorSubject = (id, code, title) => this.addProfessorSubject(id, code, title);
+        window.checkProfessorDuplicate = () => this.checkProfessorDuplicate();
     },
 
     get state() { return this.ctx.state; },
@@ -77,18 +78,20 @@ export const ProfessorsModule = {
     },
 
     getFilteredProfessors() {
-        if (!this.state.professorSearch) return this.state.professors;
-        const q = this.state.professorSearch.toLowerCase();
-        return this.state.professors.filter(p =>
-            p.full_name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)
-        );
+        return this.state.professors;
     },
 
     handleProfessorSearch(query) {
-        this.ctx.state.professorSearch = query;
-        this.render();
-        const input = document.getElementById('prof-search');
-        if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+        if (!this.debouncedSearch) {
+            this.debouncedSearch = debounce(async (q) => {
+                this.ctx.state.professorSearch = q;
+                await this.ctx.loadProfessors(q);
+                this.render();
+                const input = document.getElementById('prof-search');
+                if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+            }, 500);
+        }
+        this.debouncedSearch(query);
     },
 
     toggleProfPassword(checked) {
@@ -110,7 +113,7 @@ export const ProfessorsModule = {
             ]
         });
         modal.show();
-        setTimeout(() => this.setupProfessorSubjectSearch(), 100);
+        setTimeout(() => this.setupFormEvents(), 100);
     },
 
     async openEditProfessorModal(id) {
@@ -131,7 +134,7 @@ export const ProfessorsModule = {
                 ]
             });
             modal.show();
-            setTimeout(() => this.setupProfessorSubjectSearch(), 100);
+            setTimeout(() => this.setupFormEvents(), 100);
         } catch (e) { ErrorHandler.handle(e); }
     },
 
@@ -145,7 +148,18 @@ export const ProfessorsModule = {
                     ${UI.field({ label: 'First Name', id: 'f-first', value: p?.first_name || '', required: true })}
                     ${UI.field({ label: 'Last Name', id: 'f-last', value: p?.last_name || '', required: true })}
                 </div>
-                ${UI.field({ label: 'Email Address', id: 'f-email', value: p?.email || '', type: 'email', required: true, placeholder: 'professor@school.edu' })}
+                <p id="name-dup-warning" class="hidden text-xs text-red-500 font-bold -mt-4 mb-2 flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    Warning: A professor with this name already exists.
+                </p>
+                <div>
+                 <div>
+                    ${UI.field({ label: 'Email Address', id: 'f-email', value: p?.email || '', type: 'email', required: true, placeholder: 'professor@school.edu' })}
+                    <p id="dup-warning" class="hidden text-xs text-red-500 font-bold mt-1 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Warning: This email is already registered in the system.
+                   </p>
+                </div>
                 
                 <div class="grid grid-cols-2 gap-6">
                     ${UI.field({
@@ -195,29 +209,70 @@ export const ProfessorsModule = {
         `;
     },
 
-    setupProfessorSubjectSearch() {
+    setupFormEvents() {
+        // Subject Search
         const input = document.getElementById('prof-subject-search');
-        if (!input) return;
+        if (input) {
+            if (!this.debouncedSubjectSearch) {
+                this.debouncedSubjectSearch = debounce(async (e) => {
+                    await this.handleSubjectSearch(e);
+                }, 300);
+            }
+            input.oninput = this.debouncedSubjectSearch;
+        }
 
-        input.oninput = debounce(async (e) => {
-            const query = e.target.value.trim();
-            const dropdown = document.getElementById('prof-subject-dropdown');
-            if (query.length < 2) { dropdown.classList.add('hidden'); return; }
+        // Subject Removal Delegation
+        const subjectContainer = document.getElementById('prof-selected-subjects');
+        if (subjectContainer) {
+            subjectContainer.onclick = (e) => {
+                const btn = e.target.closest('button[data-remove-id]');
+                if (btn) {
+                    this.removeProfessorSubject(btn.dataset.removeId);
+                }
+            };
+        }
 
-            try {
-                const results = await api.get(`${endpoints.manageSubjects}?search=${encodeURIComponent(query)}`);
-                const subjects = results.filter(s => !this.state.profSubjectState.selected.some(sel => sel.id === s.id)).slice(0, 8);
+        // Duplicate Check Listeners
+        if (!this.debouncedCheckDuplicate) {
+            this.debouncedCheckDuplicate = debounce(async (e) => {
+                await this.checkProfessorDuplicate();
+            }, 500);
+        }
 
-                dropdown.innerHTML = subjects.map(s => `
-                    <div class="px-4 py-3 hover:bg-blue-50 cursor-pointer text-sm border-b border-gray-50 last:border-0 transition-colors" 
-                         onclick="addProfessorSubject('${s.id}', '${s.code}', '${s.title.replace(/'/g, "\\'")}')">
-                        <span class="font-black text-blue-600 mr-2">${s.code}</span>
-                        <span class="text-gray-600">${s.title}</span>
-                    </div>
-                `).join('');
-                dropdown.classList.toggle('hidden', subjects.length === 0);
-            } catch (e) { console.error(e); }
-        }, 300);
+        const duplicateHandler = this.debouncedCheckDuplicate;
+        ['f-first', 'f-last', 'f-email'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.oninput = duplicateHandler;
+        });
+    },
+
+    async handleSubjectSearch(e) {
+        const query = e.target.value.trim();
+        const dropdown = document.getElementById('prof-subject-dropdown');
+        if (query.length < 2) { dropdown.classList.add('hidden'); return; }
+
+        try {
+            const response = await this.ctx.api.get(`${this.ctx.endpoints.manageSubjects}?search=${encodeURIComponent(query)}`);
+            const results = response.results || response || [];
+            const subjects = results.filter(s => !this.state.profSubjectState.selected.some(sel => sel.id === s.id)).slice(0, 8);
+
+            dropdown.innerHTML = subjects.map(s => `
+                <div class="px-4 py-3 hover:bg-blue-50 cursor-pointer text-sm border-b border-gray-50 last:border-0 transition-colors">
+                    <span class="font-black text-blue-600 mr-2">${s.code}</span>
+                    <span class="text-gray-600">${s.title}</span>
+                    <span class="hidden" data-id="${s.id}" data-code="${s.code}" data-title="${s.title.replace(/'/g, "\\'")}"></span> 
+                </div>
+            `).join('');
+
+            dropdown.querySelectorAll('div').forEach(div => {
+                div.onclick = () => {
+                    const data = div.querySelector('span[data-id]');
+                    this.addProfessorSubject(data.dataset.id, data.dataset.code, data.dataset.title);
+                };
+            });
+
+            dropdown.classList.toggle('hidden', subjects.length === 0);
+        } catch (e) { console.error(e); }
     },
 
     addProfessorSubject(id, code, title) {
@@ -241,7 +296,7 @@ export const ProfessorsModule = {
         container.innerHTML = this.state.profSubjectState.selected.map(s => `
             <div class="bg-gray-100 text-gray-700 text-xs font-black pl-3 pr-2 py-1.5 rounded-lg flex items-center gap-2 border border-gray-200 animate-in fade-in zoom-in duration-200">
                 ${s.code}
-                <button type="button" onclick="removeProfessorSubject('${s.id}')" class="text-gray-400 hover:text-red-500 transition-colors">&times;</button>
+                <button type="button" data-remove-id="${s.id}" class="text-gray-400 hover:text-red-500 transition-colors">&times;</button>
             </div>
         `).join('') || '<span class="text-gray-400 text-[10px] uppercase font-bold tracking-widest ml-1">No subjects assigned yet</span>';
     },
@@ -304,5 +359,58 @@ export const ProfessorsModule = {
                 } catch (e) { ErrorHandler.handle(e); }
             }
         });
-    }
+    },
+
+    async checkProfessorDuplicate() {
+        const email = document.getElementById('f-email')?.value.trim() || '';
+        const firstName = document.getElementById('f-first')?.value.trim() || '';
+        const lastName = document.getElementById('f-last')?.value.trim() || '';
+
+        console.log('Checking duplicates for:', { email, firstName, lastName });
+
+        const emailWarning = document.getElementById('dup-warning');
+        const nameWarning = document.getElementById('name-dup-warning');
+        const btn = document.querySelector('.modal-footer .btn-primary');
+
+        // Reset Warnings
+        if (emailWarning) emailWarning.classList.add('hidden');
+        if (nameWarning) nameWarning.classList.add('hidden');
+        // Do not enable button yet, wait for checks. 
+        // We only DISABLE if duplicates found. Enabling is default state if no duplicates.
+        // However, if we enable here, we might race with previous checks? No, debounce handles that.
+        if (btn) btn.disabled = false;
+
+        let isDuplicate = false;
+
+        // Check Email - ONLY if email is provided
+        if (email && (!this.state.editingProfessor || this.state.editingProfessor.email !== email)) {
+            const emailDuplicate = await this.ctx.service.checkProfessorEmailDuplicate(email);
+            if (emailDuplicate) {
+                if (emailWarning) emailWarning.classList.remove('hidden');
+                isDuplicate = true;
+                console.log('Email duplicate found');
+            }
+        }
+
+        // Check Name - ONLY if both names provided
+        if (firstName && lastName) {
+            // Skip check if editing and name hasn't changed
+            const isSameName = this.state.editingProfessor &&
+                this.state.editingProfessor.first_name === firstName &&
+                this.state.editingProfessor.last_name === lastName;
+
+            if (!isSameName) {
+                const nameDuplicate = await this.ctx.service.checkProfessorNameDuplicate(firstName, lastName);
+                if (nameDuplicate) {
+                    if (nameWarning) nameWarning.classList.remove('hidden');
+                    isDuplicate = true;
+                    console.log('Name duplicate found');
+                }
+            }
+        }
+
+        if (btn && isDuplicate) btn.disabled = true;
+    },
 };
+
+

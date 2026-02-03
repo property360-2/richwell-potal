@@ -49,13 +49,30 @@ export const UI = {
     /**
      * Standard Table Container
      */
-    table({ headers, rows, className = '' }) {
+    table({ headers, rows, className = '', sortBy = '', sortOrder = 'asc', onSort = '' }) {
+        const renderHeader = (h) => {
+            if (typeof h === 'string') return h;
+            if (!h.sortable || !onSort) return h.label;
+
+            const isCurrent = sortBy === h.key;
+            const icon = isCurrent
+                ? (sortOrder === 'asc' ? '↓' : '↑')
+                : '⇅';
+
+            return `
+                <button onclick="${onSort}('${h.key}')" class="flex items-center gap-1 hover:text-blue-600 transition-colors">
+                    ${h.label}
+                    <span class="text-[8px] ${isCurrent ? 'text-blue-600' : 'text-gray-300'}">${icon}</span>
+                </button>
+            `;
+        };
+
         return `
             <div class="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200 ${className}">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50/50">
                         <tr>
-                            ${headers.map(h => `<th class="px-6 py-4 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">${h}</th>`).join('')}
+                            ${headers.map(h => `<th class="px-6 py-4 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">${renderHeader(h)}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white">
@@ -93,24 +110,24 @@ export const UI = {
     /**
      * Form Field
      */
-    field({ label, id, type = 'text', value = '', placeholder = '', required = false, options = [] }) {
+    field({ label, id, type = 'text', value = '', placeholder = '', required = false, options = [], attrs = '' }) {
         let inputHtml = '';
         const commonClasses = 'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm outline-none';
 
         if (type === 'select') {
             inputHtml = `
-                <select id="${id}" ${required ? 'required' : ''} class="${commonClasses}">
+                <select id="${id}" ${required ? 'required' : ''} ${attrs} class="${commonClasses}">
                     ${options.map(opt => `<option value="${opt.value}" ${opt.value === value ? 'selected' : ''}>${opt.label}</option>`).join('')}
                 </select>
             `;
         } else if (type === 'textarea') {
-            inputHtml = `<textarea id="${id}" placeholder="${placeholder}" ${required ? 'required' : ''} class="${commonClasses} min-h-[100px]">${value}</textarea>`;
+            inputHtml = `<textarea id="${id}" placeholder="${placeholder}" ${required ? 'required' : ''} ${attrs} class="${commonClasses} min-h-[100px]">${value}</textarea>`;
         } else {
-            inputHtml = `<input type="${type}" id="${id}" value="${value}" placeholder="${placeholder}" ${required ? 'required' : ''} class="${commonClasses}">`;
+            inputHtml = `<input type="${type}" id="${id}" value="${value}" placeholder="${placeholder}" ${required ? 'required' : ''} ${attrs} class="${commonClasses}">`;
         }
 
         return `
-            <div class="space-y-1.5">
+            <div class="space-y-1.5 container-${id}">
                 <label for="${id}" class="block text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">${label}</label>
                 ${inputHtml}
             </div>

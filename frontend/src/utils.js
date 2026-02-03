@@ -125,19 +125,31 @@ export function createSpinner(size = 'md') {
  * Role-based redirect
  */
 export function redirectByRole(role) {
+    if (!role) {
+        window.location.href = '/pages/auth/login.html';
+        return;
+    }
+
+    const normalizedRole = role.toUpperCase().trim();
+
     const routes = {
-        STUDENT: '/pages/student/student-dashboard.html',
-        ADMISSION_STAFF: '/pages/admission/admission-dashboard.html',
-        ADMIN: '/pages/admin/admin-dashboard.html',
-        REGISTRAR: '/pages/registrar/registrar-dashboard.html',
-        HEAD_REGISTRAR: '/pages/registrar/registrar-dashboard.html',
-        DEPARTMENT_HEAD: '/pages/head/head-dashboard.html',
-        CASHIER: '/pages/cashier/cashier-dashboard.html',
-        PROFESSOR: '/pages/professor/professor-dashboard.html'
+        'STUDENT': '/pages/student/student-dashboard.html',
+        'ADMISSION_STAFF': '/pages/admission/admission-dashboard.html',
+        'ADMIN': '/pages/admin/admin-dashboard.html',
+        'REGISTRAR': '/pages/registrar/registrar-dashboard.html',
+        'HEAD_REGISTRAR': '/pages/registrar/registrar-dashboard.html',
+        'DEPARTMENT_HEAD': '/pages/head/head-dashboard.html',
+        'CASHIER': '/pages/cashier/cashier-dashboard.html',
+        'PROFESSOR': '/pages/professor/professor-dashboard.html'
     };
 
-    const route = routes[role] || '/pages/student/student-dashboard.html';
-    window.location.href = route;
+    const route = routes[normalizedRole];
+
+    if (route) {
+        window.location.href = route;
+    } else {
+        window.location.href = '/pages/student/student-dashboard.html';
+    }
 }
 
 /**

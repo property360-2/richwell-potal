@@ -57,7 +57,7 @@ export class Modal {
   getModalContent() {
     return `
       <!-- Backdrop -->
-      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity modal-backdrop"></div>
+      <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity modal-backdrop"></div>
 
       <!-- Modal Container -->
       <div class="flex items-center justify-center min-h-screen p-4">

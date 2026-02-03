@@ -136,7 +136,7 @@ function render() {
                   <input type="checkbox" id="remember" name="remember" class="w-4 h-4 text-blue-600 bg-gray-50 border-gray-300 rounded focus:ring-blue-500">
                   <span class="ml-2 text-sm text-gray-600">Remember me</span>
                 </label>
-                <a href="/pages/forgot-password.html" class="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors">Forgot password?</a>
+                <a href="/pages/auth/forgot-password.html" class="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors">Forgot password?</a>
               </div>
               
               <button 
@@ -220,14 +220,14 @@ async function handleLogin(e) {
       // Check if student account is pending approval
       if (data.user.role === 'STUDENT' && data.user.enrollment_status === 'PENDING') {
         Toast.warning('Your account is pending approval. Please wait for the Admissions Office to review your application.');
-        resetLoginButton();
+        setButtonLoading(loginBtn, false);
         return;
       }
 
       // Check if student account was rejected
       if (data.user.role === 'STUDENT' && data.user.enrollment_status === 'REJECTED') {
         Toast.error('Your application has been rejected. Please contact the Admissions Office.');
-        resetLoginButton();
+        setButtonLoading(loginBtn, false);
         return;
       }
 
@@ -238,9 +238,7 @@ async function handleLogin(e) {
       Toast.success('Login successful!');
 
       // Redirect based on role
-      setTimeout(() => {
-        redirectByRole(data.user.role);
-      }, 1000);
+      redirectByRole(data.user.role);
     } else {
       const error = await response.json();
       Toast.error(error.detail || 'Invalid email or password');
