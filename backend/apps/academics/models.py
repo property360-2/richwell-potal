@@ -360,7 +360,8 @@ class SectionSubject(BaseModelWithActiveManager):
         """Number of students enrolled in this specific subject offering."""
         from apps.enrollment.models import SubjectEnrollment
         return SubjectEnrollment.objects.filter(
-            section_subject=self,
+            subject=self.subject,
+            section=self.section,
             status__in=['ENROLLED', 'PENDING']
         ).count()
 

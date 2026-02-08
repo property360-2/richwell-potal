@@ -6,13 +6,14 @@ import { api, endpoints } from '../../api.js';
  */
 export const EnrollmentService = {
     async loadEnrollmentData() {
+        console.log('EnrollmentService.loadEnrollmentData called (v2)');
         try {
             const [me, activeSem, student, enrollmentStatus, fees] = await Promise.all([
-                api.get(endpoints.me),
-                api.get(`${endpoints.manageSemesters}active/`),
-                api.get(`${endpoints.students}me/`),
-                api.get(`${endpoints.enrollments}my-enrollment-status/`),
-                api.get(`${endpoints.studentFees}my-balances/`)
+                api.get(endpoints.accounts.profile),
+                api.get(endpoints.activeSemester),
+                api.get(endpoints.accounts.profile), // User profile contains curriculum info
+                api.get(endpoints.myEnrollment),
+                api.get(endpoints.myPayments)
             ]);
 
             const semesterId = activeSem?.id;
@@ -20,9 +21,9 @@ export const EnrollmentService = {
 
             // Load subjects and sections once we have the necessary IDs
             const [recommended, available, enrolled] = await Promise.all([
-                curriculumId ? api.get(`${endpoints.curricula}${curriculumId}/recommended-subjects/?semester=${semesterId}`) : Promise.resolve([]),
-                api.get(`${endpoints.subjects}available/?semester=${semesterId}`),
-                api.get(`${endpoints.enrollments}my-subjects/?semester=${semesterId}`)
+                api.get(endpoints.recommendedSubjects),
+                api.get(endpoints.availableSubjects),
+                api.get(endpoints.myEnrollments)
             ]);
 
             return {
@@ -42,15 +43,17 @@ export const EnrollmentService = {
     },
 
     async enrollSubjects(payload) {
-        return api.post(`${endpoints.enrollments}bulk-enroll/`, payload);
+        // payload usually { subject_id, section_id }
+        return api.post(endpoints.enrollSubject, payload);
     },
 
     async unenrollSubject(enrollmentId) {
-        return api.delete(`${endpoints.enrollments}${enrollmentId}/`);
+        return api.post(endpoints.dropSubject(enrollmentId));
     },
 
     async getSubjectSections(subjectId, semesterId) {
-        const resp = await api.get(`${endpoints.sections}available/?subject=${subjectId}&semester=${semesterId}`);
-        return resp.results || resp || [];
+        // Query sections for this subject and semester
+        // Assuming standard list endpoint with filters
+        return api.get(`${endpoints.sections}?subject=${subjectId}&semester=${semesterId}`);
     }
 };

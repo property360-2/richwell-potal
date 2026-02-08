@@ -44,6 +44,7 @@ async function checkEnrollmentStatus() {
       state.enrollmentEnabled = data.enrollment_enabled !== false;
       state.semesterInfo = {
         name: data.semester_name || 'Current Semester',
+        academicYear: data.academic_year || '',
         startDate: data.enrollment_start_date,
         endDate: data.enrollment_end_date
       };
@@ -190,8 +191,9 @@ function renderCurrentStep() {
 
 // Step 1: Personal Information
 function renderStep1() {
-  const { name, endDate } = state.semesterInfo;
+  const { name, academicYear, endDate } = state.semesterInfo;
   const formattedEndDate = endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  const displaySemester = academicYear ? `${academicYear} ${name}` : name;
 
   return `
     <div class="fade-in">
@@ -203,8 +205,9 @@ function renderStep1() {
             </svg>
           </div>
           <div>
-            <p class="text-[13px] font-bold text-blue-900 tracking-tight leading-tight">Ongoing Enrollment: ${name}</p>
-            ${formattedEndDate ? `<p class="text-[11px] font-medium text-blue-600 mt-0.5 uppercase tracking-wider">Available until ${formattedEndDate}</p>` : ''}
+            <p class="text-[13px] font-bold text-blue-900 tracking-tight leading-tight">
+              Ongoing Enrollment for ${displaySemester} ${formattedEndDate ? `until ${formattedEndDate}` : ''}
+            </p>
           </div>
         </div>
       ` : ''}

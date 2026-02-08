@@ -150,7 +150,14 @@ export const SemestersModule = {
             name: [Validator.required],
             academic_year: [Validator.required],
             start_date: [Validator.required],
-            end_date: [Validator.required]
+            end_date: [Validator.required, (v) => new Date(v) > new Date(data.start_date) || "End date must be after start date"],
+            enrollment_end_date: [
+                (v) => !v || !data.enrollment_start_date || new Date(v) > new Date(data.enrollment_start_date) || "Enrollment end must be after start",
+                (v) => !v || !data.end_date || new Date(v) <= new Date(data.end_date) || "Enrollment must end before or on semester end"
+            ],
+            enrollment_start_date: [
+                (v) => !v || !data.end_date || new Date(v) < new Date(data.end_date) || "Enrollment start must be before semester end"
+            ]
         });
 
         if (!isValid) return Toast.error(Object.values(errors)[0]);

@@ -70,7 +70,19 @@ class Semester(BaseModel):
 
     @property
     def is_enrollment_open(self):
-        return self.status == self.TermStatus.ENROLLMENT_OPEN
+        """
+        Check if enrollment is open based on status AND dates.
+        """
+        if self.status != self.TermStatus.ENROLLMENT_OPEN:
+            return False
+            
+        # If dates are set, enforce them
+        if self.enrollment_start_date and self.enrollment_end_date:
+            from django.utils import timezone
+            today = timezone.now().date()
+            return self.enrollment_start_date <= today <= self.enrollment_end_date
+            
+        return True
 
     @property
     def is_grading_open(self):
@@ -85,10 +97,30 @@ class Semester(BaseModel):
     def __str__(self):
         return f"{self.name} {self.academic_year}"
     
+    def clean(self):
+        """
+        Validate semester integrity.
+        """
+        from django.core.exceptions import ValidationError
+        
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValidationError({'end_date': 'End date must be after start date.'})
+            
+        if self.enrollment_start_date and self.enrollment_end_date:
+            if self.enrollment_start_date > self.enrollment_end_date:
+                raise ValidationError({'enrollment_end_date': 'Enrollment end date must be after start date.'})
+                
+        if self.enrollment_start_date and self.end_date and self.enrollment_start_date > self.end_date:
+             raise ValidationError({'enrollment_start_date': 'Enrollment start must be before semester ends.'})
+             
+        if self.enrollment_end_date and self.end_date and self.enrollment_end_date > self.end_date:
+             raise ValidationError({'enrollment_end_date': 'Enrollment must end before or on semester end date.'})
+
     def save(self, *args, **kwargs):
-        # Ensure only one semester is marked as current
+        self.clean()
         if self.is_current:
-            Semester.objects.filter(is_current=True).exclude(pk=self.pk).update(is_current=False)
+            # Atomic update: Reset other active semesters
+            Semester.objects.exclude(pk=self.pk).update(is_current=False)
         super().save(*args, **kwargs)
 
 

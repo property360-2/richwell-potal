@@ -316,7 +316,7 @@ window.submitIdAssignment = async function () {
       student_number: idNumber
     });
 
-    if (response && (response.success || response.data)) {
+    if (response) {
       Toast.success(`${applicant.first_name} approved! ID: ${idNumber}`);
 
       // Update UI
@@ -324,11 +324,6 @@ window.submitIdAssignment = async function () {
       applicant.student_number = idNumber;
       state.showIdAssignmentModal = false;
       render();
-    } else if (response && response.error) {
-      state.idNumberError = response.error;
-      render();
-    } else {
-      throw new Error('Approval failed');
     }
   } catch (error) {
     ErrorHandler.handle(error, 'Approving applicant');
@@ -348,12 +343,10 @@ window.rejectApplicant = async function (applicantId) {
       action: 'reject'
     });
 
-    if (response && (response.success || response.data)) {
+    if (response) {
       Toast.warning(`${applicant.first_name} has been rejected.`);
       applicant.status = 'REJECTED';
       render();
-    } else if (response && response.error) {
-      Toast.error(response.error);
     }
   } catch (error) {
     ErrorHandler.handle(error, 'Rejecting applicant');

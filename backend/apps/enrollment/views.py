@@ -224,10 +224,15 @@ class EnrollmentStatusView(APIView):
     permission_classes = []  # No authentication required
     
     def get(self, request, *args, **kwargs):
-        from apps.enrollment.models import Semester
         semester = Semester.objects.filter(is_current=True).first()
         enabled = semester.is_enrollment_open if semester else False
-        return Response({"enrollment_enabled": enabled})
+        return Response({
+            "enrollment_enabled": enabled,
+            "semester_name": semester.name if semester else None,
+            "academic_year": semester.academic_year if semester else None,
+            "enrollment_start_date": semester.enrollment_start_date if semester else None,
+            "enrollment_end_date": semester.enrollment_end_date if semester else None
+        })
 
 
 class CheckEmailAvailabilityView(APIView):
@@ -934,33 +939,40 @@ class RecommendedSubjectsView(APIView):
                          date_str = last_enrollment.retake_eligibility_date.strftime('%b %d, %Y') if last_enrollment.retake_eligibility_date else 'Unknown'
                          retake_blocked_reason = f"Retake blocked until {date_str}"
 
+            # Define Freshman Status once
+            is_freshman_first_sem = (profile.year_level == 1) and ("1st" in active_semester.name or "First" in active_semester.name)
+
             valid_sections = []
             for ss in section_subjects:
                 allowed = False
                 
-                # Rule 3: Overloaded (Overvolumed)
-                # Can enroll in subjects from ANY section
+                # Rule 1: Overloaded (Overvolumed)
                 if is_overloaded:
                      allowed = True
                 
                 # Rule 2: Irregular
-                # - Subjects from Home Section
-                # - Retake subjects from OTHER sections
                 elif is_irregular:
                     if ss.section == home_section:
                         allowed = True
                     elif is_retake:
                         allowed = True
                 
-                # Rule 1: Regular
-                # - ONLY enroll in subjects offered by their Home Section
-                # - Robust check: Match by ID or Name (handles semester mismatches)
+                # Rule 3: Regular Freshman (Year 1 Sem 1)
+                elif is_freshman_first_sem:
+                    # If Home Section is ASSIGNED -> Restrict to it
+                    if home_section:
+                        if ss.section == home_section:
+                            allowed = True
+                        elif home_section and ss.section.name == home_section.name:
+                             allowed = True
+                    # If NO Home Section -> First Come First Serve (Enable All)
+                    else:
+                        allowed = True
+
+                # Rule 4: Current Students (Year > 1 OR Year 1 Sem 2) -> Open Choice
                 else:
-                    if ss.section == home_section:
-                        allowed = True
-                    elif home_section and ss.section.name == home_section.name:
-                        allowed = True
-                
+                    allowed = True
+
                 if allowed:
                     valid_sections.append(ss)
 
@@ -1104,9 +1116,13 @@ class AvailableSubjectsView(APIView):
                         allowed = True
                     elif is_retake:
                         allowed = True
-                # Rule 1: Regular
-                # - ONLY enroll in subjects offered by their Home Section
-                # - Robust check: Match by ID or Name (handles semester mismatches)
+                # Rule 3: Current Students (Year > 1 OR Year 1 Sem 2)
+                # Open Choice ("At Will")
+                elif not ((profile.year_level == 1) and ("1st" in active_semester.name or "First" in active_semester.name)):
+                     allowed = True
+                
+                # Rule 4: Regular Freshman (Year 1 Sem 1)
+                # Restricted to Home Section
                 else:
                     if ss.section == home_section:
                         allowed = True
@@ -1448,11 +1464,26 @@ class EnrollSubjectView(APIView):
                     ).exists():
                          return Response({"error": f"Subject {subject.code} is not in your assigned curriculum ({profile.curriculum.name})"}, status=400)
 
-                # 7. ENFORCE RULES (Regular/Irregular/Overload)
+                # 7. ENFORCE RULES (Year 1 Sem 1 vs Current/Year 1 Sem 2)
                 home_section = profile.home_section
                 is_irregular = profile.is_irregular
                 is_overloaded = profile.overload_approved
                 
+                # Determine Student Type
+                is_freshman_first_sem = (profile.year_level == 1) and "1st" in semester.name 
+                # Note: Relying on semester name "1st" is fragile but common. Better: semester.semester_number == 1 if available in model?
+                # Let's check if Semester has semester_number or similar. It doesn't in models.py shown earlier.
+                # Alternative: Check if student has ANY passed subjects? Freshman usually has 0 passed.
+                # However, user specified "1st year and 2nd semester" can choose.
+                # So we must detect semester. 
+                # Semester model has `name` like "1st Semester". Let's use that for now.
+                
+                if "1st" in semester.name or "First" in semester.name:
+                    is_freshman_first_sem = (profile.year_level == 1)
+                else:
+                     # 2nd Semester or Summer -> Year 1 students are considered "Current" flow-wise
+                    is_freshman_first_sem = False
+
                 allowed = False
                 
                 # Check for Retake Status
@@ -1468,25 +1499,39 @@ class EnrollSubjectView(APIView):
                      date_str = last_enrollment.retake_eligibility_date.strftime('%b %d, %Y') if last_enrollment.retake_eligibility_date else 'Unknown'
                      return Response({"error": f"You cannot retake this subject until {date_str}"}, status=403)
 
+                # =========================================================
+                # RULE IMPLEMENTATION
+                # =========================================================
+                
+                # 1. Overloaded Students -> Always Allowed (Override)
                 if is_overloaded:
                     allowed = True
-                elif is_irregular:
-                    # Irregular: Home Section OR Retake (Any)
-                    if section == home_section:
-                        allowed = True
-                    elif is_retake:
-                        allowed = True
-                    else:
-                         return Response({"error": "Irregular students can only take new subjects from their Home Section"}, status=403)
-                else:
-                    # Regular: Home Section ONLY
-                    if not home_section:
-                        return Response({"error": "You do not have an assigned Home Section"}, status=400)
                     
-                    if section == home_section:
-                        allowed = True
+                # 2. Year 1 Sem 1 (Freshman) -> Restricted to Home Section
+                elif is_freshman_first_sem:
+                    if is_irregular:
+                         # Irregular Freshman? (Possible if late enrollee/transferee)
+                         # Home Section OR Retake
+                        if section == home_section:
+                            allowed = True
+                        elif is_retake: 
+                            allowed = True
+                        else:
+                             return Response({"error": "Freshmen (Irregular) can only take new subjects from their assigned Home Section"}, status=403)
                     else:
-                        return Response({"error": "Regular students must enroll in their Home Section"}, status=403)
+                        # Regular Freshman -> STRICTLY Home Section
+                        if not home_section:
+                            return Response({"error": "You do not have an assigned Home Section. Please contact the Registrar."}, status=400)
+                        
+                        if section == home_section:
+                            allowed = True
+                        else:
+                            return Response({"error": "Freshmen are restricted to their assigned Block Section (Queue System)."}, status=403)
+
+                # 3. Current Students (Year > 1 OR Year 1 Sem 2) -> Open Choice ("At Will")
+                else:
+                    # Can choose ANY section provided it's not full (checked later)
+                    allowed = True
                 
                 if not allowed:
                      return Response({"error": "Enrollment not allowed due to section restrictions"}, status=403)

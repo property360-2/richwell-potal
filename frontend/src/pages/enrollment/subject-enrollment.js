@@ -134,7 +134,9 @@ function render() {
   }
 
   // Enrollment Eligibility Logic
-  const isApproved = state.user?.student_number && (state.enrollmentStatus === 'ACTIVE' || state.enrollmentStatus === 'ENROLLED');
+  // Allow ADMITTED and PENDING students with student number to view enrollment
+  const validStatuses = ['ACTIVE', 'ENROLLED', 'ADMITTED', 'PENDING'];
+  const isApproved = state.user?.student_number && validStatuses.includes(state.enrollmentStatus);
   const hasEnrolled = state.enrolledSubjects.length > 0;
 
   app.innerHTML = `

@@ -7,7 +7,7 @@ import { api, endpoints } from '../../api.js';
 export const AdmissionService = {
     async loadApplicants() {
         try {
-            const resp = await api.get(endpoints.studentRegistration);
+            const resp = await api.get(endpoints.applicants);
             return resp.results || resp || [];
         } catch (e) { console.error('Load applicants failed', e); return []; }
     },
@@ -17,14 +17,14 @@ export const AdmissionService = {
     },
 
     async assignId(applicantId, studentId) {
-        return api.post(`${endpoints.studentRegistration}${applicantId}/approve/`, { student_number: studentId });
+        return api.patch(endpoints.applicantUpdate(applicantId), { action: 'accept', student_number: studentId });
     },
 
     async rejectApplicant(applicantId, reason = '') {
-        return api.post(`${endpoints.studentRegistration}${applicantId}/reject/`, { reason });
+        return api.patch(endpoints.applicantUpdate(applicantId), { action: 'reject', reason });
     },
 
-    async verifyDocument(applicantId, docName) {
-        return api.post(`${endpoints.studentRegistration}${applicantId}/verify-document/`, { document_name: docName });
+    async verifyDocument(documentId) {
+        return api.post(endpoints.verifyDocument(documentId));
     }
 };
