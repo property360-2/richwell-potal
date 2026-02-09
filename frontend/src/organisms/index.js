@@ -16,3 +16,11 @@ export { FilterPanel, renderFilterPanel } from './filters/FilterPanel.js';
 // Navigation
 export { Tabs, renderTabs } from './navigation/Tabs.js';
 export { Pagination, renderPagination } from './navigation/Pagination.js';
+
+// Forms
+export { StudentSearch, renderStudentSearch } from './forms/StudentSearch.js';
+export { renderOverrideEnrollmentForm } from './forms/OverrideEnrollmentForm.js';
+
+// Modals
+export { renderIdAssignmentModal } from './modals/IdAssignmentModal.js';
+export { renderChangePasswordModal } from './modals/ChangePasswordModal.js';

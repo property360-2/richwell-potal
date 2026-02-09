@@ -4,6 +4,8 @@
 
 // Cards
 export { StatCard, renderStatCard, renderStatCardGrid } from './cards/StatCard.js';
+export { renderQuickActionCard, renderQuickActionGrid } from './cards/QuickActionCard.js';
+export { renderApplicantCard } from './cards/ApplicantCard.js';
 
 // Forms
 export { FormField, renderFormField, renderFormRow, renderFormSection } from './forms/FormField.js';

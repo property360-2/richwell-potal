@@ -17,6 +17,7 @@ import { renderStatCard, renderStatCardGrid } from '../../molecules/cards/StatCa
 import { renderBanner, renderAlert } from '../../molecules/feedback/Alert.js';
 import { Icon } from '../../atoms/icons/Icon.js';
 import { renderBadge } from '../../atoms/badges/Badge.js';
+import { renderChangePasswordModal } from '../../organisms/index.js';
 
 // State
 const state = {
@@ -236,6 +237,13 @@ function render() {
         </div>
       </div>
     </main>
+
+    ${renderChangePasswordModal({
+    isOpen: state.showChangePasswordModal,
+    onClose: 'closeChangePasswordModal',
+    onSubmit: 'submitPasswordChange',
+    onToggleVisibility: 'togglePasswordVisibility'
+  })}
   `;
 }
 
@@ -390,13 +398,12 @@ function renderPaymentBucket(bucket) {
 
 window.openChangePasswordModal = function () {
   state.showChangePasswordModal = true;
-  renderPasswordModal();
+  render();
 };
 
 window.closeChangePasswordModal = function () {
   state.showChangePasswordModal = false;
-  const modal = document.getElementById('changePasswordModal');
-  if (modal) modal.remove();
+  render();
 };
 
 window.submitPasswordChange = async function (event) {
@@ -447,70 +454,12 @@ window.submitPasswordChange = async function (event) {
   }
 };
 
-function renderPasswordModal() {
-  const existingModal = document.getElementById('changePasswordModal');
-  if (existingModal) existingModal.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'changePasswordModal';
-  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
-  modal.onclick = (e) => { if (e.target === modal) closeChangePasswordModal(); };
-
-  modal.innerHTML = `
-    <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
-      <h3 class="text-xl font-bold text-gray-800 mb-2">Change Password</h3>
-      <p class="text-gray-600 mb-6">Update your login password</p>
-      
-      <form onsubmit="submitPasswordChange(event)">
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-            <div class="relative">
-              <input type="password" id="currentPassword" required
-                     class="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-              <button type="button" onclick="togglePasswordVisibility('currentPassword', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                ${Icon('eye', { size: 'md' })}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-            <div class="relative">
-              <input type="password" id="newPassword" required minlength="6"
-                     class="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-              <button type="button" onclick="togglePasswordVisibility('newPassword', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                ${Icon('eye', { size: 'md' })}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-            <div class="relative">
-              <input type="password" id="confirmPassword" required
-                     class="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-              <button type="button" onclick="togglePasswordVisibility('confirmPassword', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                ${Icon('eye', { size: 'md' })}
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <div class="flex gap-3 mt-6">
-          <button type="button" onclick="closeChangePasswordModal()" class="flex-1 btn-secondary">Cancel</button>
-          <button type="submit" class="flex-1 btn-primary">Update Password</button>
-        </div>
-      </form>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-}
 
 window.togglePasswordVisibility = function (inputId, button) {
   const input = document.getElementById(inputId);
   if (input.type === 'password') {
     input.type = 'text';
-    button.innerHTML = Icon('eye', { size: 'md' }); // Could use eyeOff icon if added
+    button.innerHTML = Icon('eye', { size: 'md' });
   } else {
     input.type = 'password';
     button.innerHTML = Icon('eye', { size: 'md' });

@@ -6,6 +6,7 @@ import { Toast } from '../../components/Toast.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { LoadingOverlay } from '../../components/Spinner.js';
 import { Modal } from '../../components/Modal.js';
+import { renderStudentSearch, renderOverrideEnrollmentForm } from '../../organisms/index.js';
 
 // State
 const state = {
@@ -120,29 +121,12 @@ function render() {
         <!-- Left Column - Student Selection -->
         <div class="space-y-6">
           <!-- Search Card -->
-          <div class="card">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Select Student</h2>
-            <div class="flex gap-3">
-              <div class="flex-1 relative">
-                <input type="text" 
-                       id="studentSearch"
-                       value="${state.searchQuery}"
-                       placeholder="Search by student number or name..."
-                       class="w-full px-4 py-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
-              </div>
-              <button onclick="searchStudent()" class="btn-primary px-6">Search</button>
-            </div>
-            
-            ${state.searchQuery && state.searchResults.length > 0 ? renderSearchResults() :
-      (state.searchQuery && state.searchResults.length === 0 ? `
-                <div class="mt-4 p-4 bg-gray-50 rounded-xl text-center text-gray-500">
-                  No students found matching "${state.searchQuery}". Type at least 2 characters.
-                </div>
-              ` : '')}
-          </div>
+          ${renderStudentSearch({
+    query: state.searchQuery,
+    results: state.searchResults,
+    selectedId: state.selectedStudent?.id,
+    loading: false // We could add loading state if needed
+  })}
           
           <!-- Selected Student Details -->
           ${state.selectedStudent ? renderStudentDetails() : `
@@ -167,7 +151,12 @@ function render() {
             </div>
             
             <!-- Override Form -->
-            ${state.selectedSubject ? renderOverrideForm() : ''}
+            ${state.selectedSubject ? renderOverrideEnrollmentForm({
+    student: state.selectedStudent,
+    subject: state.selectedSubject,
+    selectedSectionId: state.selectedSection,
+    overrideReason: state.overrideReason
+  }) : ''}
           ` : `
             <div class="card text-center py-12">
               <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -184,32 +173,7 @@ function render() {
   attachEventListeners();
 }
 
-function renderSearchResults() {
-  const results = state.searchResults;
 
-  if (results.length === 0) {
-    return `
-      <div class="mt-4 p-4 bg-gray-50 rounded-xl text-center text-gray-500">
-        No students found matching "${state.searchQuery}"
-      </div>
-    `;
-  }
-
-  return `
-    <div class="mt-4 space-y-2">
-      ${results.map(student => `
-        <div onclick="selectStudent('${student.id}')" 
-             class="p-4 bg-gray-50 rounded-xl hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between ${state.selectedStudent?.id === student.id ? 'ring-2 ring-blue-500' : ''}">
-          <div>
-            <p class="font-medium text-gray-800">${student.first_name} ${student.last_name}</p>
-            <p class="text-sm text-gray-500">${student.student_number} • ${student.program.code} Year ${student.year_level}</p>
-          </div>
-          <span class="badge ${student.enrollment_status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}">${student.enrollment_status}</span>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
 
 function renderStudentDetails() {
   const student = state.selectedStudent;
@@ -291,75 +255,7 @@ function renderSubjectOption(subject) {
   `;
 }
 
-function renderOverrideForm() {
-  const subject = state.selectedSubject;
-  const issues = [];
 
-  if (subject.prerequisite) {
-    const hasPrereq = state.selectedStudent.enrolledSubjects.find(s => s.code === subject.prerequisite);
-    if (!hasPrereq) {
-      issues.push(`Missing prerequisite: ${subject.prerequisite}`);
-    }
-  }
-
-  const fullSections = subject.sections.filter(s => s.enrolled >= s.slots);
-  if (fullSections.length > 0) {
-    issues.push(`${fullSections.length} section(s) at full capacity`);
-  }
-
-  if ((state.selectedStudent.totalUnits + subject.units) > 30) {
-    issues.push(`Would exceed 30-unit limit`);
-  }
-
-  return `
-    <div class="card border-2 border-yellow-200">
-      <h3 class="font-bold text-gray-800 mb-4">Override Enrollment</h3>
-      
-      <div class="p-4 bg-blue-50 rounded-xl mb-4">
-        <p class="font-medium text-blue-800">${subject.code} - ${subject.name}</p>
-        <p class="text-sm text-blue-600">${subject.units} units</p>
-      </div>
-      
-      ${issues.length > 0 ? `
-        <div class="p-4 bg-red-50 border border-red-200 rounded-xl mb-4">
-          <p class="font-medium text-red-800 mb-2">⚠️ Override Required</p>
-          <ul class="text-sm text-red-600 space-y-1">
-            ${issues.map(issue => `<li>• ${issue}</li>`).join('')}
-          </ul>
-        </div>
-      ` : ''}
-      
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Select Section</label>
-        <select id="sectionSelect" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          <option value="">Choose a section...</option>
-          ${subject.sections.map(section => `
-            <option value="${section.id}" ${section.enrolled >= section.slots ? 'class="text-red-600"' : ''}>
-              Section ${section.name} - ${section.schedule} (${section.enrolled}/${section.slots}${section.enrolled >= section.slots ? ' FULL' : ''})
-            </option>
-          `).join('')}
-        </select>
-      </div>
-      
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Override Reason <span class="text-red-500">*</span></label>
-        <textarea id="overrideReason"
-                  rows="3"
-                  required
-                  placeholder="Provide justification for this override enrollment..."
-                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"></textarea>
-        <p class="text-xs text-gray-500 mt-1">This reason will be logged for audit purposes</p>
-      </div>
-      
-      <button onclick="confirmOverride()" class="w-full btn-primary bg-yellow-600 hover:bg-yellow-700">
-        <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-        </svg>
-        Override Enroll
-      </button>
-    </div>
-  `;
-}
 
 function getConfirmContent(subject, section) {
   return `

@@ -5,6 +5,8 @@ import { createHeader } from '../../components/header.js';
 import { Toast } from '../../components/Toast.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { LoadingOverlay } from '../../components/Spinner.js';
+import { renderApplicantCard } from '../../molecules/index.js';
+import { renderIdAssignmentModal } from '../../organisms/index.js';
 
 // State
 const state = {
@@ -118,144 +120,17 @@ function render() {
     </main>
 
     <!-- Modal -->
-    ${state.showIdAssignmentModal ? renderIdAssignmentModal() : ''}
+    ${state.showIdAssignmentModal && state.selectedApplicantForId ? renderIdAssignmentModal({
+    applicant: state.selectedApplicantForId,
+    suggestedId: state.suggestedIdNumber,
+    error: state.idNumberError
+  }) : ''}
   `;
 }
 
-function renderApplicantCard(applicant) {
-  const isPending = applicant.status === 'PENDING';
-  const docsComplete = applicant.documents_verified === applicant.documents_total;
 
-  return `
-    <div class="card border-l-4 ${isPending ? 'border-l-yellow-400' : applicant.status === 'ACTIVE' ? 'border-l-green-400' : 'border-l-red-400'}">
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <!-- Applicant Info -->
-        <div class="flex items-center gap-4">
-          <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-lg font-bold">
-            ${(applicant.first_name || 'U')[0]}${(applicant.last_name || 'N')[0]}
-          </div>
-          <div>
-            <h3 class="text-lg font-bold text-gray-800">${applicant.first_name} ${applicant.last_name}</h3>
-            <p class="text-sm text-gray-500">${applicant.student_number} • ${applicant.email}</p>
-            <div class="flex items-center gap-3 mt-1">
-              <span class="text-sm font-medium text-blue-600">${applicant.program.code}</span>
-              <span class="text-xs px-2 py-0.5 rounded-full ${docsComplete ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
-                Docs: ${applicant.documents_verified}/${applicant.documents_total}
-              </span>
-              <span class="badge ${applicant.status === 'PENDING' ? 'badge-warning' : applicant.status === 'ACTIVE' ? 'badge-success' : 'badge-danger'}">
-                ${applicant.status}
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Action Buttons -->
-        <div class="flex items-center gap-3">
-          ${isPending ? `
-            <button onclick="openIdAssignmentModal('${applicant.id}')" 
-                    class="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl transition-colors shadow-lg shadow-green-600/25">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-              </svg>
-              Accept
-            </button>
-            <button onclick="rejectApplicant('${applicant.id}')" 
-                    class="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-200 text-red-600 font-medium rounded-xl hover:bg-red-50 transition-colors">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-              Reject
-            </button>
-          ` : applicant.status === 'ACTIVE' ? `
-            <span class="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-xl font-medium">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-              Approved
-            </span>
-          ` : `
-            <span class="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-xl font-medium">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-              Rejected
-            </span>
-          `}
-        </div>
-      </div>
-    </div>
-  `;
-}
 
-function renderIdAssignmentModal() {
-  if (!state.selectedApplicantForId) return '';
-  const applicant = state.selectedApplicantForId;
 
-  return `
-    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="closeIdAssignmentModal(event)">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
-        <!-- Header -->
-        <div class="sticky top-0 bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-4 flex items-center justify-between rounded-t-2xl">
-          <div>
-            <h2 class="text-xl font-bold">Assign Student ID Number</h2>
-            <p class="text-blue-100 text-sm">${applicant.first_name} ${applicant.last_name}</p>
-          </div>
-          <button onclick="closeIdAssignmentModal()" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Body -->
-        <div class="p-6">
-          <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Student ID Number <span class="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              id="id-number-input"
-              class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all text-lg font-mono"
-              placeholder="Enter student ID"
-              value="${state.suggestedIdNumber}"
-              oninput="handleIdNumberInput(event)"
-            >
-            <p class="text-xs text-gray-500 mt-2">Enter any unique student ID number</p>
-            ${state.idNumberError ? `
-              <p class="text-sm text-red-600 mt-2 flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                ${state.idNumberError}
-              </p>
-            ` : ''}
-          </div>
-
-          <!-- Info Box -->
-          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-            <h4 class="font-semibold text-blue-800 mb-2">Credentials Info</h4>
-            <div class="text-sm text-blue-700 space-y-1">
-              <p><strong>Login Email:</strong> ${applicant.email}</p>
-              <p><strong>Program:</strong> ${applicant.program?.code || 'N/A'}</p>
-              <p><strong>Password:</strong> richwell123 (default)</p>
-            </div>
-          </div>
-
-          <!-- Buttons -->
-          <div class="flex gap-3">
-            <button onclick="closeIdAssignmentModal()" class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors">
-              Cancel
-            </button>
-            <button onclick="submitIdAssignment()" class="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-lg">
-              Approve & Assign ID
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
 
 function formatDate(dateString) {
   const date = new Date(dateString);
