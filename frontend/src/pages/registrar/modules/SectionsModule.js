@@ -80,15 +80,13 @@ export const SectionsModule = {
                     <h2 class="text-2xl font-black text-gray-800">Section Manager</h2>
                     <p class="text-sm text-gray-500 font-medium">Create and schedule class sections for ${this.state.activeSemester?.name || 'Current Term'}</p>
                 </div>
-                ${UI.button({
-            label: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add Section',
-            onClick: 'openAddSectionModal()'
-        })}
-                ${UI.button({
-            label: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg> Bulk Create',
-            type: 'secondary',
+                <div class="flex gap-3">
+                    ${UI.button({
+            label: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg> Bulk Create Sections',
+            type: 'primary',
             onClick: 'openBulkCreateModal()'
         })}
+                </div>
             </div>
 
             <div class="flex flex-col md:flex-row gap-4 mb-6">
@@ -691,22 +689,23 @@ export const SectionsModule = {
 
     openAddSectionModal() {
         const modal = new Modal({
-            title: 'Create Section',
+            title: 'Create Individual Section',
             content: `
                 <form id="section-form" class="space-y-6">
-                    ${UI.field({ label: 'Section Label', id: 'f-name', placeholder: 'e.g. BSIT-4A, CS-101', required: true })}
+                    ${UI.field({ label: 'Section Label', id: 'f-name', placeholder: 'e.g. BSIT-4A', required: true, attrs: 'autofocus' })}
                     <div class="grid grid-cols-2 gap-6">
                          ${UI.field({
                 label: 'Program',
                 id: 'f-prog',
                 type: 'select',
-                options: this.state.programs.map(p => ({ value: p.id, label: p.code }))
+                options: [{ value: '', label: 'Select Program' }, ...this.state.programs.map(p => ({ value: p.id, label: p.code }))]
             })}
                          ${UI.field({
-                label: 'Academic Year',
+                label: 'Year Level',
                 id: 'f-year',
                 type: 'select',
                 options: [
+                    { value: '', label: 'Select Year' },
                     { value: 1, label: 'Year 1' },
                     { value: 2, label: 'Year 2' },
                     { value: 3, label: 'Year 3' },
@@ -721,19 +720,47 @@ export const SectionsModule = {
                 {
                     label: 'Create Section', primary: true,
                     onClick: async (m) => {
+                        this.clearFormErrors(['f-name', 'f-prog', 'f-year']);
+
                         const data = {
-                            name: document.getElementById('f-name').value,
+                            name: document.getElementById('f-name').value.trim(),
                             program: document.getElementById('f-prog').value,
-                            year_level: parseInt(document.getElementById('f-year').value),
+                            year_level: document.getElementById('f-year').value,
                             semester: this.state.activeSemester.id
                         };
+
+                        const { isValid, errors } = Validator.validate(data, {
+                            name: [Validator.required, Validator.minLength(2)],
+                            program: [Validator.required],
+                            year_level: [Validator.required]
+                        });
+
+                        if (!isValid) {
+                            Object.entries(errors).forEach(([field, msg]) => {
+                                const id = field === 'name' ? 'f-name' : (field === 'program' ? 'f-prog' : 'f-year');
+                                this.showFieldError(id, msg);
+                            });
+                            return;
+                        }
+
                         try {
+                            // Ensure year_level is int for backend
+                            data.year_level = parseInt(data.year_level);
                             await api.post(endpoints.sections, data);
                             Toast.success('Section created');
                             m.close();
                             await this.ctx.loadSections();
                             this.render();
-                        } catch (e) { ErrorHandler.handle(e); }
+                        } catch (e) {
+                            if (e.data && typeof e.data === 'object') {
+                                Object.entries(e.data).forEach(([field, msgs]) => {
+                                    const id = field === 'name' ? 'f-name' : (field === 'program' ? 'f-prog' : 'f-year');
+                                    this.showFieldError(id, Array.isArray(msgs) ? msgs[0] : msgs);
+                                });
+                            } else {
+                                ErrorHandler.handle(e);
+                            }
+                        }
                     }
                 }
             ]
@@ -750,57 +777,65 @@ export const SectionsModule = {
         const modal = new Modal({
             title: 'Bulk Create Sections',
             content: `
-                <div class="space-y-4">
-                    <p class="text-sm text-gray-500">Automatically generate section names and link curriculum subjects.</p>
+                <div class="space-y-6">
+                    <p class="text-sm text-gray-500">Automatically generate section names and link curriculum subjects based on the selected program and year level.</p>
                     
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Program</label>
-                            <select id="bulk-program" onchange="handleBulkInputs()" class="w-full form-select rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                ${this.state.programs.map(p => `<option value="${p.id}" data-code="${p.code}">${p.code} - ${p.name}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum</label>
-                            <select id="bulk-curriculum" class="w-full form-select rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                <!-- Populated dynamically based on program if needed, for now assuming fetching active -->
-                                <option value="">Auto-detect Active</option>
-                            </select>
-                        </div>
+                        ${UI.field({
+                label: 'Program',
+                id: 'bulk-program',
+                type: 'select',
+                attrs: 'onchange="handleBulkInputs()"',
+                options: this.state.programs.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))
+            })}
+                        ${UI.field({
+                label: 'Curriculum',
+                id: 'bulk-curriculum',
+                type: 'select',
+                options: [{ value: '', label: 'Auto-detect Active' }]
+            })}
                     </div>
 
                     <div class="grid grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
-                            <select id="bulk-year" onchange="handleBulkInputs()" class="w-full form-select rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                <option value="1">1st Year</option>
-                                <option value="2">2nd Year</option>
-                                <option value="3">3rd Year</option>
-                                <option value="4">4th Year</option>
-                                <option value="5">5th Year</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Start Index</label>
-                            <input type="number" id="bulk-start" value="1" min="1" oninput="handleBulkInputs()" class="w-full form-input rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Count</label>
-                            <input type="number" id="bulk-count" value="1" min="1" max="10" oninput="handleBulkInputs()" class="w-full form-input rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
+                        ${UI.field({
+                label: 'Year Level',
+                id: 'bulk-year',
+                type: 'select',
+                attrs: 'onchange="handleBulkInputs()"',
+                options: [
+                    { value: '1', label: '1st Year' },
+                    { value: '2', label: '2nd Year' },
+                    { value: '3', label: '3rd Year' },
+                    { value: '4', label: '4th Year' },
+                    { value: '5', label: '5th Year' }
+                ]
+            })}
+                        ${UI.field({
+                label: 'Start Index',
+                id: 'bulk-start',
+                type: 'number',
+                value: 1,
+                attrs: 'min="1" oninput="handleBulkInputs()"'
+            })}
+                        ${UI.field({
+                label: 'Count',
+                id: 'bulk-count',
+                type: 'number',
+                value: 1,
+                attrs: 'min="1" max="20" oninput="handleBulkInputs()"'
+            })}
                     </div>
                     
-                    <div class="border-t border-gray-100 pt-4">
-                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Generated Names Preview</label>
-                        <div id="bulk-preview" class="space-y-2 max-h-40 overflow-y-auto bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div class="border-t border-gray-100 pt-6">
+                        <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Generated Sections Preview</label>
+                        <div id="bulk-preview" class="space-y-1.5 max-h-48 overflow-y-auto bg-gray-50 p-4 rounded-2xl border border-gray-100">
                             <!-- Preview items -->
                         </div>
-                        <div id="bulk-warning" class="hidden mt-2 p-3 bg-amber-50 text-amber-800 text-xs rounded border border-amber-200 font-medium flex items-start gap-2">
+                        <div id="bulk-warning" class="hidden mt-3 p-3 bg-red-50 text-red-700 text-[11px] rounded-xl border border-red-100 font-bold flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
                             <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                            <span></span>
+                            <span id="bulk-warning-text"></span>
                         </div>
                     </div>
-
                 </div>
             `,
             actions: [
@@ -816,22 +851,15 @@ export const SectionsModule = {
 
         modal.show();
 
-        // Initial populate of curriculum (if possible) and preview
         this.updateBulkCurriculumOptions();
         this.handleBulkInputs();
     },
 
     async updateBulkCurriculumOptions() {
-        // Fetch curricula for selected program if needed
-        const programId = document.getElementById('bulk-program').value;
+        const programId = document.getElementById('bulk-program')?.value;
         if (!programId) return;
 
-        // Ideally we cache this or have it.
-        // For simplicity, we'll try to use existing loaded curricula if available, or fetch.
-        // If not available, we might assume there's only one active.
-        // Let's populate the dropdown if we can. Note: We might need an API call here.
         try {
-            // Re-using loadCurricula logic if exposed, otherwise simple fetch
             const res = await api.get(`${endpoints.curricula}?program=${programId}&is_active=true`);
             const select = document.getElementById('bulk-curriculum');
             if (select && res.results && res.results.length > 0) {
@@ -839,25 +867,26 @@ export const SectionsModule = {
             } else if (select) {
                 select.innerHTML = '<option value="">No active curriculum found</option>';
             }
-        } catch (e) { console.error('Error loading curricula', e); }
+        } catch (e) {
+            console.error('Error loading curricula', e);
+        }
     },
 
     async handleBulkInputs() {
-        const programEl = document.getElementById('bulk-program');
-        if (!programEl) return;
+        const programId = document.getElementById('bulk-program')?.value;
+        if (!programId) return;
 
-        const programCode = programEl.options[programEl.selectedIndex]?.dataset.code || 'PROG';
+        const program = this.state.programs.find(p => p.id === programId);
+        const programCode = program ? program.code : 'PROG';
         const year = document.getElementById('bulk-year').value;
         const startIndex = parseInt(document.getElementById('bulk-start').value) || 1;
         const count = parseInt(document.getElementById('bulk-count').value) || 1;
 
-        // Generate names
         const names = [];
         for (let i = 0; i < count; i++) {
             names.push(`${programCode} ${year}-${startIndex + i}`);
         }
 
-        // Update UI Preview (Loading state)
         const previewEl = document.getElementById('bulk-preview');
         if (previewEl) {
             previewEl.innerHTML = names.map(n => `
@@ -874,7 +903,6 @@ export const SectionsModule = {
         const warningEl = document.getElementById('bulk-warning');
         if (warningEl) warningEl.classList.add('hidden');
 
-        // Debounce Validation
         if (this.bulkValidationTimeout) clearTimeout(this.bulkValidationTimeout);
         this.bulkValidationTimeout = setTimeout(async () => {
             await this.validateBulkNames(names);
@@ -899,12 +927,13 @@ export const SectionsModule = {
                     const isDup = duplicates.includes(n);
                     if (isDup) hasError = true;
                     return `
-                    <div class="flex items-center justify-between text-sm p-1 border-b border-gray-100 last:border-0">
-                        <span class="font-mono font-bold ${isDup ? 'text-red-600' : 'text-green-700'}">${n}</span>
-                        ${isDup
+                        <div class="flex items-center justify-between text-sm p-1 border-b border-gray-100 last:border-0">
+                            <span class="font-mono font-bold ${isDup ? 'text-red-600' : 'text-green-700'}">${n}</span>
+                            ${isDup
                             ? '<span class="text-xs font-bold text-red-500 flex items-center gap-1">❌ Duplicate</span>'
-                            : '<span class="text-xs font-bold text-green-500 flex items-center gap-1">✓ Available</span>'}
-                    </div>
+                            : '<span class="text-xs font-bold text-green-500 flex items-center gap-1">✓ Available</span>'
+                        }
+                        </div>
                     `;
                 }).join('');
             }
@@ -914,7 +943,8 @@ export const SectionsModule = {
 
             if (hasError) {
                 if (warningEl) {
-                    warningEl.querySelector('span').textContent = 'Professional Warning: Some generated section names already exist active in this semester. You cannot create duplicates.';
+                    const warningText = document.getElementById('bulk-warning-text');
+                    if (warningText) warningText.textContent = 'Some generated section names already exist in this semester. Duplicate sections are not allowed.';
                     warningEl.classList.remove('hidden');
                 }
                 if (confirmBtn) confirmBtn.disabled = true;
@@ -922,10 +952,6 @@ export const SectionsModule = {
                 if (warningEl) warningEl.classList.add('hidden');
                 if (confirmBtn) confirmBtn.disabled = false;
             }
-
-            // Also re-trigger update curriculum if program changes (though handleBulkInputs is called on program change too)
-            // But checking curriculum validity is separate.
-
         } catch (e) {
             console.error(e);
             const previewEl = document.getElementById('bulk-preview');
@@ -934,23 +960,51 @@ export const SectionsModule = {
     },
 
     async executeBulkCreate(modal) {
+        this.clearFormErrors(['bulk-program', 'bulk-curriculum', 'bulk-year', 'bulk-start', 'bulk-count']);
+
         const programId = document.getElementById('bulk-program').value;
         const curriculumId = document.getElementById('bulk-curriculum').value;
-        const year = document.getElementById('bulk-year').value;
-        const startIndex = parseInt(document.getElementById('bulk-start').value);
-        const count = parseInt(document.getElementById('bulk-count').value);
+        const yearLevel = document.getElementById('bulk-year').value;
+        const startIndex = document.getElementById('bulk-start').value;
+        const count = document.getElementById('bulk-count').value;
 
-        const programEl = document.getElementById('bulk-program');
-        const programCode = programEl.options[programEl.selectedIndex]?.dataset.code;
+        const data = {
+            program: programId,
+            curriculum: curriculumId,
+            year: yearLevel,
+            start: startIndex,
+            count: count
+        };
 
-        if (!curriculumId) {
-            Toast.error('Please select a curriculum');
+        const { isValid, errors } = Validator.validate(data, {
+            program: [Validator.required],
+            curriculum: [Validator.required],
+            year: [Validator.required],
+            start: [Validator.required],
+            count: [Validator.required]
+        });
+
+        if (!isValid) {
+            let firstId = null;
+            Object.entries(errors).forEach(([field, msg]) => {
+                const id = `bulk-${field}`;
+                this.showFieldError(id, msg);
+                if (!firstId) firstId = id;
+            });
+            if (firstId) document.getElementById(firstId)?.focus();
+            Toast.error('Please fix the configuration errors');
             return;
         }
 
+        const program = this.state.programs.find(p => p.id === programId);
+        const programCode = program ? program.code : 'PROG';
+
         const names = [];
-        for (let i = 0; i < count; i++) {
-            names.push(`${programCode} ${year}-${startIndex + i}`);
+        const startNum = parseInt(startIndex);
+        const countNum = parseInt(count);
+
+        for (let i = 0; i < countNum; i++) {
+            names.push(`${programCode} ${yearLevel}-${startNum + i}`);
         }
 
         try {
@@ -958,7 +1012,7 @@ export const SectionsModule = {
                 program: programId,
                 curriculum: curriculumId,
                 semester: this.state.activeSemester.id,
-                year_level: parseInt(year),
+                year_level: parseInt(yearLevel),
                 section_names: names,
                 capacity: 40 // Default
             });
@@ -976,7 +1030,7 @@ export const SectionsModule = {
         const modal = new Modal({
             title: 'Add Student to Section',
             content: `
-                <div class="space-y-4">
+    < div class="space-y-4" >
                     <p class="text-sm text-gray-500">Search for students to add to <strong>${this.state.selectedSection.name}</strong>.</p>
                     
                     <div class="relative group">
@@ -989,8 +1043,8 @@ export const SectionsModule = {
                     <div id="student-search-results" class="space-y-2 max-h-60 overflow-y-auto min-h-[100px]">
                         <div class="p-8 text-center text-gray-400 text-sm">Type to search students...</div>
                     </div>
-                </div>
-            `,
+                </div >
+    `,
             actions: [{ label: 'Close', onClick: (m) => m.close() }]
         });
         modal.show();
@@ -1007,7 +1061,7 @@ export const SectionsModule = {
 
             try {
                 // Filter where section is null ideally, but simple search first
-                const res = await api.get(`${endpoints.registrarStudents}?search=${q}`);
+                const res = await api.get(`${endpoints.registrarStudents}?search = ${q} `);
                 const students = res.results || res;
 
                 if (students.length === 0) {
@@ -1021,11 +1075,11 @@ export const SectionsModule = {
                     // Note: API might not return section_details, simplified assumption
 
                     return `
-                        <div class="p-3 border rounded-xl flex justify-between items-center hover:bg-gray-50 transition-colors">
-                            <div>
-                                <div class="font-bold text-gray-900 text-sm">${s.last_name}, ${s.first_name}</div>
-                                <div class="text-xs text-gray-500 font-mono">${s.student_number}</div>
-                            </div>
+    < div class="p-3 border rounded-xl flex justify-between items-center hover:bg-gray-50 transition-colors" >
+        <div>
+            <div class="font-bold text-gray-900 text-sm">${s.last_name}, ${s.first_name}</div>
+            <div class="text-xs text-gray-500 font-mono">${s.student_number}</div>
+        </div>
                             
                             ${inSection
                             ? `<span class="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded">In ${sectionName}</span>`
@@ -1035,8 +1089,8 @@ export const SectionsModule = {
                                 onClick: `addStudentToSection('${s.id}')`
                             })
                         }
-                        </div>
-                    `;
+                        </div >
+    `;
                 }).join('');
 
             } catch (e) {
@@ -1395,5 +1449,47 @@ export const SectionsModule = {
         });
 
         return { busyProfs, busyRooms };
+    },
+
+    showFieldError(id, message) {
+        const input = document.getElementById(id);
+        const errorDiv = document.getElementById(`error-${id}`) || this.createErrorDiv(id);
+
+        if (input) {
+            input.classList.add('border-red-500', 'bg-red-50', 'ring-red-50');
+            input.classList.remove('border-gray-200', 'bg-gray-50');
+        }
+
+        if (errorDiv) {
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    },
+
+    clearFormErrors(fieldIds) {
+        fieldIds.forEach(id => {
+            const input = document.getElementById(id);
+            const errorDiv = document.getElementById(`error-${id}`);
+
+            if (input) {
+                input.classList.remove('border-red-500', 'bg-red-50', 'ring-red-50');
+                input.classList.add('border-gray-200', 'bg-gray-50');
+            }
+
+            if (errorDiv) {
+                errorDiv.classList.add('hidden');
+            }
+        });
+    },
+
+    createErrorDiv(inputId) {
+        const input = document.getElementById(inputId);
+        if (!input) return null;
+
+        const div = document.createElement('div');
+        div.id = `error-${inputId}`;
+        div.className = 'text-[10px] font-bold text-red-500 mt-1 animate-in fade-in slide-in-from-top-1';
+        input.parentNode.appendChild(div);
+        return div;
     }
 };

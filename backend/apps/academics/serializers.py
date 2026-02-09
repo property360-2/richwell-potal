@@ -7,6 +7,13 @@ from rest_framework import serializers
 from .models import Room, Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion, Curriculum, CurriculumSubject
 
 
+class ProgramMinimalSerializer(serializers.ModelSerializer):
+    """Minimal program serializer for nested use."""
+    class Meta:
+        model = Program
+        fields = ['id', 'code', 'name']
+
+
 class SubjectMinimalSerializer(serializers.ModelSerializer):
     """Minimal subject serializer for nested use."""
     
@@ -21,6 +28,7 @@ class SubjectSerializer(serializers.ModelSerializer):
     program_code = serializers.CharField(source='program.code', read_only=True)
     program_codes = serializers.SerializerMethodField()
     curriculum_codes = serializers.SerializerMethodField()
+    curriculum_list = serializers.SerializerMethodField()
     prerequisites = SubjectMinimalSerializer(many=True, read_only=True)
     inc_expiry_months = serializers.IntegerField(source='get_inc_expiry_months', read_only=True)
 
@@ -34,13 +42,17 @@ class SubjectSerializer(serializers.ModelSerializer):
         """Get all curriculum codes this subject belongs to"""
         return list(obj.curriculum_assignments.filter(is_deleted=False).values_list('curriculum__code', flat=True).distinct())
 
+    def get_curriculum_list(self, obj):
+        """Get list of curriculum objects (id, code) this subject belongs to"""
+        return list(obj.curriculum_assignments.filter(is_deleted=False).values('curriculum_id', 'curriculum__code').distinct())
+
     class Meta:
         model = Subject
         fields = [
             'id', 'code', 'title', 'description', 'units',
             'is_major', 'year_level', 'semester_number', 'classification', 'classification_display',
             'allow_multiple_sections', 'program_code', 'program_codes',
-            'curriculum_codes', 'prerequisites', 'inc_expiry_months', 'syllabus'
+            'curriculum_codes', 'curriculum_list', 'prerequisites', 'inc_expiry_months', 'syllabus'
         ]
 
 
@@ -674,6 +686,13 @@ class ProfessorProfileSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
+    programs = ProgramMinimalSerializer(many=True, read_only=True)
+    program_codes = serializers.SerializerMethodField()
+    program_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False
+    )
 
     class Meta:
         from apps.accounts.models import ProfessorProfile
@@ -681,8 +700,12 @@ class ProfessorProfileSerializer(serializers.ModelSerializer):
         fields = [
             'department', 'office_location', 'specialization',
             'max_teaching_hours', 'assigned_subjects', 'assigned_subject_ids',
+            'programs', 'program_codes', 'program_ids',
             'is_active'
         ]
+
+    def get_program_codes(self, obj):
+        return list(obj.programs.values_list('code', flat=True))
 
 class ProfessorSerializer(serializers.ModelSerializer):
     """Basic serializer for professor listing and creation."""
@@ -729,9 +752,13 @@ class ProfessorSerializer(serializers.ModelSerializer):
         )
         
         # Create profile
+        program_ids = profile_data.pop('program_ids', None)
         profile = ProfessorProfile.objects.create(user=user, **profile_data)
         if assigned_subject_ids:
             profile.assigned_subjects.set(assigned_subject_ids)
+        
+        if program_ids:
+            profile.programs.set(program_ids)
 
         # Attach temp_password so it's included in the response ONLY if generated
         if is_generated:
@@ -774,12 +801,16 @@ class ProfessorSerializer(serializers.ModelSerializer):
 
         # Update or create Profile
         profile, created = ProfessorProfile.objects.get_or_create(user=instance)
+        program_ids = profile_data.pop('program_ids', None)
         for attr, value in profile_data.items():
             setattr(profile, attr, value)
         
         if assigned_subject_ids is not None:
             profile.assigned_subjects.set(assigned_subject_ids)
             
+        if program_ids is not None:
+            profile.programs.set(program_ids)
+
         profile.save()
 
         return instance

@@ -52,6 +52,7 @@ const state = {
 
   // Shared states for modules
   profSubjectState: { selected: [] },
+  profProgramState: { selected: [] },
   programDetailTab: 'subjects',
   programSubjectSearch: '',
   programSubjectSortBy: 'code',

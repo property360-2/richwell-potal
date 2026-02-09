@@ -36,6 +36,13 @@ class CurriculumService:
         if subject.id == prerequisite.id:
             return False, "A subject cannot be its own prerequisite"
         
+        # Check if they share at least one program
+        subject_programs = set(subject.programs.values_list('id', flat=True))
+        prereq_programs = set(prerequisite.programs.values_list('id', flat=True))
+        
+        if not subject_programs.intersection(prereq_programs):
+            return False, f"Prerequisite {prerequisite.code} belongs to a different program and cannot be added"
+        
         # Add the prerequisite
         subject.prerequisites.add(prerequisite)
         
@@ -552,6 +559,7 @@ class SchedulingService:
             schedule.append({
                 'id': str(slot.id),
                 'day': slot.day,
+                'day_display': slot.get_day_display(),
                 'subject': {
                     'code': slot.section_subject.subject.code,
                     'title': slot.section_subject.subject.title,

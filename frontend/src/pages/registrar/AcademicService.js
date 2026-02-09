@@ -55,6 +55,18 @@ export const AcademicService = {
         } catch (e) { console.error(e); return false; }
     },
 
+    async loadProfessorDetail(id) {
+        try {
+            return await api.get(endpoints.professorDetail(id));
+        } catch (e) { console.error('Load professor detail failed', e); throw e; }
+    },
+
+    async loadProfessorSchedule(profId, semesterId) {
+        try {
+            return await api.get(endpoints.professorSchedule(profId, semesterId));
+        } catch (e) { console.error('Load professor schedule failed', e); return []; }
+    },
+
     async loadCurricula(programId = null) {
         try {
             const url = programId ? `${endpoints.curricula}?program=${programId}` : endpoints.curricula;

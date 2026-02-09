@@ -372,6 +372,12 @@ class ProfessorProfile(BaseModel):
     )
 
     department = models.CharField(max_length=100, blank=True)
+    programs = models.ManyToManyField(
+        'academics.Program',
+        related_name='professors',
+        blank=True,
+        help_text='Programs/Departments this professor belongs to or teaches in'
+    )
     office_location = models.CharField(max_length=100, blank=True)
     specialization = models.CharField(max_length=200, blank=True)
     max_teaching_hours = models.PositiveIntegerField(

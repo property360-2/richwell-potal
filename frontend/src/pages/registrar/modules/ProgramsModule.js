@@ -336,9 +336,14 @@ export const ProgramsModule = {
                 }
                 </div>`,
                 `<div class="flex flex-wrap gap-1">
-                    ${s.curriculum_codes && s.curriculum_codes.length > 0
-                    ? s.curriculum_codes.map(c => `<span class="px-1.5 py-0.5 rounded bg-blue-50 text-[9px] font-bold text-blue-700 border border-blue-100">${c}</span>`).join('')
-                    : '<span class="text-[10px] text-gray-400 font-medium">Standard</span>'
+                    ${s.curriculum_list && s.curriculum_list.length > 0
+                    ? s.curriculum_list.map(c => `
+                        <button onclick="viewCurriculumStructure('${c.curriculum_id}', '${c['curriculum__code']}')" 
+                                class="px-1.5 py-0.5 rounded bg-blue-50 text-[9px] font-bold text-blue-700 border border-blue-100 hover:bg-blue-600 hover:text-white hover:scale-105 transition-all">
+                            ${c['curriculum__code']}
+                        </button>
+                      `).join('')
+                    : '<span class="text-[10px] text-gray-400 font-medium whitespace-nowrap">Standard</span>'
                 }
                 </div>`,
                 `<span class="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${this.getClassificationStyle(s.classification)}">
@@ -393,7 +398,12 @@ export const ProgramsModule = {
                                                 </div>
                                             </div>`,
                     `<div class="flex flex-wrap gap-1">
-                                                ${(s.curriculum_codes || []).map(c => `<span class="px-1.5 py-0.5 rounded bg-blue-50 text-[9px] font-bold text-blue-600 border border-blue-100">${c}</span>`).join('') || '<span class="text-[10px] text-gray-300">Standard</span>'}
+                                                ${(s.curriculum_list || []).map(c => `
+                                                    <button onclick="viewCurriculumStructure('${c.curriculum_id}', '${c['curriculum__code']}')" 
+                                                            class="px-1.5 py-0.5 rounded bg-blue-50 text-[9px] font-bold text-blue-600 border border-blue-100 hover:bg-blue-600 hover:text-white hover:scale-105 transition-all">
+                                                        ${c['curriculum__code']}
+                                                    </button>
+                                                `).join('') || '<span class="text-[10px] text-gray-300">Standard</span>'}
                                             </div>`,
                     `<span class="px-2 py-0.5 rounded bg-gray-50 text-[9px] font-black uppercase tracking-wider ${this.getClassificationStyle(s.classification)}">
                                                 ${s.classification_display || s.classification}
@@ -797,16 +807,22 @@ export const ProgramsModule = {
             <form id="subject-form" class="space-y-6 p-2">
                 <div class="grid grid-cols-2 gap-6">
                     ${UI.field({
-            label: 'Subject Code', id: 's-code', placeholder: 'e.g. CS101', required: true,
+            label: 'Subject Code <span class="text-red-500">*</span>', id: 's-code', placeholder: 'e.g. CS101', required: true,
             attrs: 'oninput="checkSubjectCode(this.value)"'
         })}
-                    ${UI.field({ label: 'Units', id: 's-units', type: 'number', value: 3, required: true })}
+                    ${UI.field({ label: 'Units <span class="text-red-500">*</span>', id: 's-units', type: 'number', value: 3, required: true })}
                 </div>
                 <div id="code-warning" class="hidden -mt-4 mb-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-600 text-[10px] font-bold flex items-center gap-2">
                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"/></svg>
-                    Subject code already exists in the system
+                    <span id="code-warning-text">Subject code already exists in the system</span>
                 </div>
-                ${UI.field({ label: 'Subject Title', id: 's-title', placeholder: 'e.g. Introduction to Computing', required: true })}
+                <div id="code-loading" class="hidden -mt-4 mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-600 text-[10px] font-bold flex items-center gap-2">
+                    <div class="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    Checking code availability...
+                </div>
+
+                ${UI.field({ label: 'Subject Title <span class="text-red-500">*</span>', id: 's-title', placeholder: 'e.g. Introduction to Computing', required: true })}
+                
                 ${UI.field({ label: 'Description', id: 's-desc', type: 'textarea', placeholder: 'Subject description...' })}
                 
                 <div class="grid grid-cols-2 gap-6">
@@ -868,7 +884,10 @@ export const ProgramsModule = {
             return;
         }
 
-        const subjects = await this.ctx.service.loadSubjects({ search: query });
+        const subjects = await this.ctx.service.loadSubjects({
+            search: query,
+            program: this.state.activeProgram?.id
+        });
         const existingIds = this.state.selectedPrerequisites.map(p => p.id);
         const filtered = subjects.filter(s => !existingIds.includes(s.id));
 
@@ -890,14 +909,21 @@ export const ProgramsModule = {
     },
 
     async checkSubjectCode(code) {
+        const loading = document.getElementById('code-loading');
+        this.hideCodeWarning();
+
         if (!code || code.length < 2) {
-            this.hideCodeWarning();
+            if (loading) loading.classList.add('hidden');
             return;
         }
+
+        if (loading) loading.classList.remove('hidden');
 
         if (!this.debouncedCodeCheck) {
             this.debouncedCodeCheck = debounce(async (val) => {
                 const isDuplicate = await this.ctx.service.checkSubjectCodeDuplicate(val);
+                if (loading) loading.classList.add('hidden');
+
                 if (isDuplicate) {
                     this.showCodeWarning();
                 } else {
@@ -966,14 +992,16 @@ export const ProgramsModule = {
     },
 
     async handleSubjectSubmit(modal, programId) {
+        this.clearFormErrors(['s-code', 's-title', 's-units']);
+
         const isGlobal = document.getElementById('s-global').checked;
 
         const data = {
             program: programId,
-            code: document.getElementById('s-code').value.toUpperCase(),
-            title: document.getElementById('s-title').value,
+            code: document.getElementById('s-code').value.toUpperCase().trim(),
+            title: document.getElementById('s-title').value.trim(),
             units: parseInt(document.getElementById('s-units').value),
-            description: document.getElementById('s-desc').value,
+            description: document.getElementById('s-desc').value.trim(),
             year_level: parseInt(document.getElementById('s-year').value),
             semester_number: parseInt(document.getElementById('s-sem').value),
             classification: document.getElementById('s-class').value,
@@ -988,7 +1016,22 @@ export const ProgramsModule = {
         });
 
         if (!isValid) {
-            Toast.error(Object.values(errors)[0]);
+            let firstErrorId = null;
+            Object.entries(errors).forEach(([field, msg]) => {
+                const fieldId = field === 'code' ? 's-code' : (field === 'title' ? 's-title' : 's-units');
+                this.showFieldError(fieldId, msg);
+                if (!firstErrorId) firstErrorId = fieldId;
+            });
+
+            if (firstErrorId) {
+                const el = document.getElementById(firstErrorId);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => el.focus(), 500); // Focus after scroll
+                }
+            }
+
+            Toast.error('Please fix the errors in the form');
             return;
         }
 
@@ -1007,5 +1050,47 @@ export const ProgramsModule = {
             'MINOR': 'bg-gray-50 text-gray-700 border border-gray-200'
         };
         return styles[cls] || styles['MINOR'];
+    },
+
+    showFieldError(id, message) {
+        const input = document.getElementById(id);
+        const errorDiv = document.getElementById(`error-${id}`) || this.createErrorDiv(id);
+
+        if (input) {
+            input.classList.remove('border-gray-200', 'bg-gray-50');
+            input.classList.add('border-red-400', 'bg-red-50/30');
+        }
+
+        if (errorDiv) {
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    },
+
+    clearFormErrors(ids) {
+        ids.forEach(id => {
+            const input = document.getElementById(id);
+            const errorDiv = document.getElementById(`error-${id}`);
+
+            if (input) {
+                input.classList.remove('border-red-400', 'bg-red-50/30');
+                input.classList.add('border-gray-200', 'bg-gray-50');
+            }
+
+            if (errorDiv) {
+                errorDiv.classList.add('hidden');
+            }
+        });
+    },
+
+    createErrorDiv(id) {
+        const input = document.getElementById(id);
+        if (!input) return null;
+
+        const div = document.createElement('div');
+        div.id = `error-${id}`;
+        div.className = 'text-red-500 text-[10px] font-bold ml-1 mt-1';
+        input.parentNode.appendChild(div);
+        return div;
     }
 };

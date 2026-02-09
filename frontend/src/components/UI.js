@@ -49,7 +49,7 @@ export const UI = {
     /**
      * Standard Table Container
      */
-    table({ headers, rows, className = '', sortBy = '', sortOrder = 'asc', onSort = '' }) {
+    table({ headers, rows, className = '', sortBy = '', sortOrder = 'asc', onSort = '', onRowClick = '' }) {
         const renderHeader = (h) => {
             if (typeof h === 'string') return h;
             if (!h.sortable || !onSort) return h.label;
@@ -76,11 +76,18 @@ export const UI = {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white">
-                        ${rows.map(row => `
-                            <tr class="hover:bg-gray-50/50 transition-colors">
-                                ${row.map(cell => `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cell}</td>`).join('')}
-                            </tr>
-                        `).join('')}
+                        ${rows.map((row) => {
+            const cells = Array.isArray(row) ? row : (row.cells || []);
+            const rowId = row.id || '';
+            const clickAttr = onRowClick && rowId ? `onclick="${onRowClick}('${rowId}')"` : '';
+            const cursorClass = onRowClick && rowId ? 'cursor-pointer hover:bg-gray-50/50' : '';
+
+            return `
+                                <tr ${clickAttr} class="${cursorClass} transition-colors">
+                                    ${cells.map(cell => `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cell}</td>`).join('')}
+                                </tr>
+                            `;
+        }).join('')}
                     </tbody>
                 </table>
             </div>

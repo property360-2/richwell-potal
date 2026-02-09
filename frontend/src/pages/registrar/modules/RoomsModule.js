@@ -157,8 +157,10 @@ export const RoomsModule = {
     },
 
     async handleSubmit(modal, id = null) {
+        this.clearFormErrors(['f-name', 'f-cap']);
+
         const data = {
-            name: document.getElementById('f-name').value,
+            name: document.getElementById('f-name').value.trim(),
             capacity: parseInt(document.getElementById('f-cap').value),
             room_type: document.getElementById('f-type').value,
             is_active: document.getElementById('f-active').checked
@@ -169,7 +171,24 @@ export const RoomsModule = {
             capacity: [Validator.required]
         });
 
-        if (!isValid) return Toast.error(Object.values(errors)[0]);
+        if (!isValid) {
+            let firstErrorId = null;
+            Object.entries(errors).forEach(([field, msg]) => {
+                const fieldId = field === 'name' ? 'f-name' : 'f-cap';
+                this.showFieldError(fieldId, msg);
+                if (!firstErrorId) firstErrorId = fieldId;
+            });
+
+            if (firstErrorId) {
+                const el = document.getElementById(firstErrorId);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => el.focus(), 500);
+                }
+            }
+            Toast.error('Please fix the errors in the form');
+            return;
+        }
 
         try {
             if (id) await api.patch(endpoints.room(id), data);
@@ -179,7 +198,59 @@ export const RoomsModule = {
             modal.close();
             await this.ctx.loadRooms();
             this.render();
-        } catch (e) { ErrorHandler.handle(e); }
+        } catch (e) {
+            if (e.data && typeof e.data === 'object') {
+                Object.entries(e.data).forEach(([field, msgs]) => {
+                    const fieldId = field === 'name' ? 'f-name' : (field === 'capacity' ? 'f-cap' : null);
+                    if (fieldId) {
+                        this.showFieldError(fieldId, Array.isArray(msgs) ? msgs[0] : msgs);
+                    }
+                });
+            }
+            ErrorHandler.handle(e);
+        }
+    },
+
+    showFieldError(id, message) {
+        const input = document.getElementById(id);
+        const errorDiv = document.getElementById(`error-${id}`) || this.createErrorDiv(id);
+
+        if (input) {
+            input.classList.remove('border-gray-200', 'bg-gray-50');
+            input.classList.add('border-red-400', 'bg-red-50/30');
+        }
+
+        if (errorDiv) {
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    },
+
+    clearFormErrors(ids) {
+        ids.forEach(id => {
+            const input = document.getElementById(id);
+            const errorDiv = document.getElementById(`error-${id}`);
+
+            if (input) {
+                input.classList.remove('border-red-400', 'bg-red-50/30');
+                input.classList.add('border-gray-200', 'bg-gray-50');
+            }
+
+            if (errorDiv) {
+                errorDiv.classList.add('hidden');
+            }
+        });
+    },
+
+    createErrorDiv(id) {
+        const input = document.getElementById(id);
+        if (!input) return null;
+
+        const div = document.createElement('div');
+        div.id = `error-${id}`;
+        div.className = 'text-[10px] text-red-500 font-bold mt-1 animate-in fade-in slide-in-from-top-1 duration-200';
+        input.parentNode.appendChild(div);
+        return div;
     },
 
     deleteRoom(id) {

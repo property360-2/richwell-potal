@@ -62,9 +62,9 @@ export class ErrorHandler {
    * Parse error into a standardized format
    */
   static parseError(error) {
-    // API Response Error
-    if (error.response) {
-      return this.parseApiError(error.response);
+    // API Response Error (Axios-style or our Custom api.js style)
+    if (error.response || error.status || error.data) {
+      return this.parseApiError(error.response || error);
     }
 
     // Network Error
