@@ -816,6 +816,84 @@ class SectionViewSet(viewsets.ModelViewSet):
         except StudentProfile.DoesNotExist:
              return Response({'error': 'Student not found in this section'}, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=False, methods=['post'], url_path='run-freshman-queue')
+    @extend_schema(
+        summary="Run Freshman Queue",
+        description="Assign freshmen to sections on a first-come, first-served basis",
+        parameters=[
+            OpenApiParameter(name='semester_id', type=uuid.UUID, location='query', required=True),
+            OpenApiParameter(name='program_id', type=uuid.UUID, location='query', required=False),
+        ],
+        tags=["Section Management"]
+    )
+    def run_freshman_queue(self, request):
+        semester_id = request.query_params.get('semester_id') or request.data.get('semester_id')
+        program_id = request.query_params.get('program_id') or request.data.get('program_id')
+        
+        if not semester_id:
+            return Response({'error': 'semester_id is required'}, status=400)
+            
+        from .services_sectioning import SectioningEngine
+        count = SectioningEngine.process_freshman_queue(semester_id, program_id)
+        
+        return Response({
+            'success': True,
+            'message': f'Processed {count} freshmen.',
+            'count': count
+        })
+
+    @action(detail=False, methods=['post'], url_path='run-ml-resectioning')
+    @extend_schema(
+        summary="Run ML Resectioning",
+        description="Run ML-based sectioning for returning students",
+        parameters=[
+            OpenApiParameter(name='semester_id', type=uuid.UUID, location='query', required=True),
+            OpenApiParameter(name='program_id', type=uuid.UUID, location='query', required=True),
+            OpenApiParameter(name='year_level', type=int, location='query', required=True),
+        ],
+        tags=["Section Management"]
+    )
+    def run_ml_resectioning(self, request):
+        semester_id = request.query_params.get('semester_id') or request.data.get('semester_id')
+        program_id = request.query_params.get('program_id') or request.data.get('program_id')
+        year_level = request.query_params.get('year_level') or request.data.get('year_level')
+        
+        if not all([semester_id, program_id, year_level]):
+            return Response({'error': 'semester_id, program_id, and year_level are required'}, status=400)
+            
+        from .services_sectioning import SectioningEngine
+        count = SectioningEngine.run_ml_resectioning(semester_id, program_id, int(year_level))
+        
+        return Response({
+            'success': True,
+            'message': f'Resectioned {count} students.',
+            'count': count
+        })
+
+    @action(detail=False, methods=['post'], url_path='rebalance')
+    @extend_schema(
+        summary="Rebalance Sections",
+        description="Identify and handle underfilled sections",
+        parameters=[
+            OpenApiParameter(name='semester_id', type=uuid.UUID, location='query', required=True),
+        ],
+        tags=["Section Management"]
+    )
+    def rebalance(self, request):
+        semester_id = request.query_params.get('semester_id') or request.data.get('semester_id')
+        
+        if not semester_id:
+            return Response({'error': 'semester_id is required'}, status=400)
+            
+        from .services_sectioning import SectioningEngine
+        actions = SectioningEngine.rebalance_sections(semester_id)
+        
+        return Response({
+            'success': True,
+            'message': f'Rebalancing complete. {len(actions)} actions taken.',
+            'actions': actions
+        })
+
 
 # ============================================================
 # EPIC 2 - Section Subject Management

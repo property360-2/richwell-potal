@@ -157,6 +157,25 @@ class User(AbstractUser):
         except Permission.DoesNotExist:
             return False
 
+    def get_permission_scope(self, permission_code):
+        """
+        Get the fine-grained scope for a specific permission.
+        
+        Args:
+            permission_code: str - Permission code
+            
+        Returns:
+            dict - The scope configuration or empty dict
+        """
+        custom = UserPermission.objects.filter(
+            user=self,
+            permission__code=permission_code
+        ).first()
+        
+        if custom and custom.granted:
+            return custom.scope or {}
+        return {}
+
     def get_effective_permissions(self):
         """Get all effective permissions for user (role defaults + custom grants - custom revokes)"""
         # Get all permissions and filter in Python (SQLite doesn't support contains lookup on JSONField)
@@ -469,6 +488,11 @@ class UserPermission(BaseModel):
         blank=True,
         related_name='permissions_granted',
         help_text='Admin user who granted/revoked this permission'
+    )
+    scope = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Fine-grained scope for this permission (e.g., {"permitted_roles": ["REGISTRAR"]})'
     )
     granted_at = models.DateTimeField(auto_now_add=True)
     reason = models.TextField(

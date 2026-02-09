@@ -4,7 +4,7 @@ Audit views - Audit log endpoints.
 
 from datetime import datetime, timedelta
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Count
 from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -44,14 +44,21 @@ class AuditLogListView(generics.ListAPIView):
         # Admin sees all
         if user.role == 'ADMIN' or user.is_superuser:
             pass  # No filtering
-        # Head-Registrar sees registrar actions, documents, grades
-        elif user.role == 'HEAD_REGISTRAR':
-            queryset = queryset.filter(
-                actor__role__in=['REGISTRAR', 'HEAD_REGISTRAR']
-            )
         else:
-            # Registrar sees only own actions
-            queryset = queryset.filter(actor=user)
+            # Check for fine-grained permission override
+            scope = user.get_permission_scope('audit.view')
+            
+            if scope.get('all_users'):
+                pass  # Granted visibility to everything
+            elif 'roles' in scope:
+                queryset = queryset.filter(actor__role__in=scope['roles'])
+            elif user.role == 'HEAD_REGISTRAR':
+                queryset = queryset.filter(
+                    actor__role__in=['REGISTRAR', 'HEAD_REGISTRAR']
+                )
+            else:
+                # Registrar sees only own actions unless scoped
+                queryset = queryset.filter(actor=user)
 
         # Apply filters
         action = self.request.query_params.get('action')
@@ -133,4 +140,99 @@ class AuditLogFiltersView(APIView):
         return Response({
             'actions': sorted(action_choices, key=lambda x: x['label']),
             'target_models': sorted(list(target_models))
+        })
+
+
+class DashboardAlertsView(APIView):
+    """
+    Get administrative dashboard alerts based on section capacity and system logs.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Get Dashboard Alerts",
+        description="Get alerts for full sections, underfilled sections, and audit log spikes",
+        tags=["Dashboard"]
+    )
+    def get(self, request):
+        user = request.user
+        # Checking role permission or custom grant for dashboard
+        if not (user.role in ['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR'] or user.is_superuser):
+            return Response({"error": "Unauthorized access to dashboard alerts"}, status=403)
+
+        alerts = []
+        
+        # 1. Section Capacity Alerts
+        from apps.academics.models import Section
+        from apps.enrollment.models import Semester
+        
+        active_semester = Semester.objects.filter(is_current=True).first()
+        if active_semester:
+            sections = Section.objects.filter(semester=active_semester, is_deleted=False, is_dissolved=False)
+            
+            for section in sections:
+                count = section.enrolled_count
+                capacity = section.capacity
+                if capacity > 0:
+                    occupancy = float(count) / capacity
+                    if occupancy >= 0.95:
+                        alerts.append({
+                            'level': 'danger',
+                            'type': 'SECTION_FULL',
+                            'message': f"Section {section.name} is nearly full ({count}/{capacity})",
+                            'target_id': str(section.id)
+                        })
+                elif occupancy <= 0.30 and count > 0:
+                        alerts.append({
+                            'level': 'warning',
+                            'type': 'UNDERFILLED',
+                            'message': f"Section {section.name} is underfilled ({count}/{capacity})",
+                            'target_id': str(section.id)
+                        })
+
+            # 2. Overlap / Irregular Conflict Alerts
+            from apps.academics.models import ScheduleSlot
+            conflicts = ScheduleSlot.objects.filter(
+                section_subject__section__semester=active_semester,
+                is_deleted=False
+            ).values('section_subject__section_id', 'day').annotate(
+                slot_count=Count('id')
+            ).filter(slot_count__gt=1)
+            
+            for conf in conflicts:
+                # For each section-day with multiple slots, check for actual overlaps
+                section_id = conf['section_subject__section_id']
+                day = conf['day']
+                slots = list(ScheduleSlot.objects.filter(
+                    section_subject__section_id=section_id,
+                    day=day,
+                    is_deleted=False
+                ).select_related('section_subject__subject', 'section_subject__section'))
+                
+                for i in range(len(slots)):
+                    for j in range(i + 1, len(slots)):
+                        if slots[i].start_time < slots[j].end_time and slots[j].start_time < slots[i].end_time:
+                            alerts.append({
+                                'level': 'warning',
+                                'type': 'IRREGULAR_CONFLICT',
+                                'message': f"Schedule overlap in {slots[i].section_subject.section.name} on {day}: {slots[i].section_subject.subject.code} and {slots[j].section_subject.subject.code}",
+                                'target_id': str(section_id)
+                            })
+                            break # One alert per section-day enough? or maybe per conflict. Let's do break to avoid spam.
+
+        # 3. Audit Spike Alerts
+        one_hour_ago = timezone.now() - timedelta(hours=1)
+        recent_logs_count = AuditLog.objects.filter(timestamp__gte=one_hour_ago).count()
+        if recent_logs_count > 100:
+             alerts.append({
+                'level': 'danger',
+                'type': 'AUDIT_SPIKE',
+                'message': f"High system activity detected: {recent_logs_count} actions in the last hour",
+                'count': recent_logs_count
+            })
+
+        return Response({
+            "success": True,
+            "alerts": alerts,
+            "semester": str(active_semester) if active_semester else None
         })

@@ -98,13 +98,28 @@ class UserProfileSerializer(serializers.ModelSerializer):
     student_profile = StudentProfileSerializer(read_only=True)
     professor_profile = ProfessorProfileSerializer(read_only=True)
     
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    full_name = serializers.CharField(source='get_full_name', read_only=True)
+    effective_permissions = serializers.SerializerMethodField()
+    permission_scopes = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = [
-            'id', 'email', 'first_name', 'last_name', 'role',
-            'student_number', 'student_profile', 'professor_profile', 'created_at'
+            'id', 'email', 'first_name', 'last_name', 'full_name', 'role',
+            'student_number', 'student_profile', 'professor_profile', 'created_at',
+            'effective_permissions', 'permission_scopes'
         ]
         read_only_fields = ['id', 'email', 'role', 'student_number', 'created_at']
+
+    def get_effective_permissions(self, obj):
+        return [p.code for p in obj.get_effective_permissions()]
+
+    def get_permission_scopes(self, obj):
+        # Only return scopes for granted custom permissions
+        perms = UserPermission.objects.filter(user=obj, granted=True)
+        return {p.permission.code: p.scope for p in perms if p.scope}
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
@@ -270,3 +285,32 @@ class StudentDetailSerializer(RegistrarStudentSerializer):
              'status': e.status,
              'units': e.subject.units
          } for e in enrollments]
+
+
+class HigherUserSerializer(serializers.ModelSerializer):
+    """Serializer for managing higher level users (Registrar, Professor, etc.)."""
+    password = serializers.CharField(write_only=True, required=False)
+    
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'role', 
+            'is_active', 'password', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = User.objects.create_user(**validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        user = super().update(instance, validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+        return user

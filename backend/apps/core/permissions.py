@@ -179,11 +179,15 @@ class CanViewAuditLogs(BasePermission):
     message = 'You do not have permission to view audit logs.'
     
     def has_permission(self, request, view):
-        return (
-            request.user and 
-            request.user.is_authenticated and 
-            request.user.role in ['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR']
-        )
+        if not (request.user and request.user.is_authenticated):
+            return False
+            
+        # Role defaults
+        if request.user.role in ['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR']:
+            return True
+            
+        # Check for custom grant
+        return request.user.has_permission('audit.view')
 
 
 class IsAdminOrReadOnly(BasePermission):

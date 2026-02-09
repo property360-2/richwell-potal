@@ -32,4 +32,5 @@ urlpatterns = [
 
 router = DefaultRouter()
 router.register(r'students', views.StudentViewSet, basename='student')
+router.register(r'staff', views.HigherUserViewSet, basename='staff')
 urlpatterns += router.urls

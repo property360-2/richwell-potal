@@ -21,7 +21,8 @@ from .serializers import (
     PermissionCategorySerializer,
     RegistrarStudentSerializer, 
     StudentManualCreateSerializer,
-    StudentDetailSerializer
+    StudentDetailSerializer,
+    HigherUserSerializer
 )
 from apps.audit.models import AuditLog
 from apps.core.permissions import IsRegistrarOrAdmin
@@ -336,6 +337,7 @@ class UpdateUserPermissionView(APIView):
         permission_code = request.data.get('permission_code')
         granted = request.data.get('granted')
         reason = request.data.get('reason', '')
+        scope = request.data.get('scope', {})
 
         if not permission_code or granted is None:
             return Response({
@@ -359,7 +361,8 @@ class UpdateUserPermissionView(APIView):
             defaults={
                 'granted': granted,
                 'granted_by': request.user,
-                'reason': reason
+                'reason': reason,
+                'scope': scope
             }
         )
 
@@ -543,3 +546,48 @@ class StudentViewSet(viewsets.ModelViewSet):
                 {'error': f"An unexpected error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class HigherUserViewSet(viewsets.ModelViewSet):
+    """
+    Admin & Scoped User Management for higher roles.
+    """
+    serializer_class = HigherUserSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'ADMIN' or user.is_superuser:
+            return User.objects.exclude(role='STUDENT').order_by('-created_at')
+        
+        scope = user.get_permission_scope('user.manage')
+        if scope.get('permitted_roles'):
+            return User.objects.filter(role__in=scope['permitted_roles']).exclude(role='ADMIN').order_by('-created_at')
+            
+        return User.objects.none()
+
+    def perform_create(self, serializer):
+        # Validate that the role being created is within the actor's scope
+        role = self.request.data.get('role')
+        user = self.request.user
+        
+        if not (user.role == 'ADMIN' or user.is_superuser):
+            scope = user.get_permission_scope('user.manage')
+            if role not in scope.get('permitted_roles', []):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied(f"You do not have permission to create users with the {role} role.")
+        
+        serializer.save()
+
+    def perform_update(self, serializer):
+        # Similar validation for update
+        role = self.request.data.get('role')
+        user = self.request.user
+        
+        if role and not (user.role == 'ADMIN' or user.is_superuser):
+            scope = user.get_permission_scope('user.manage')
+            if role not in scope.get('permitted_roles', []):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied(f"You do not have permission to change user role to {role}.")
+        
+        serializer.save()
