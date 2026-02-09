@@ -675,3 +675,134 @@ class ProfessorService:
         )
 
         return True, None, assignment
+
+class SectionService:
+    """Service for section management operations."""
+    
+    @staticmethod
+    def bulk_create_sections(data, user=None):
+        """
+        Bulk create sections with curriculum subjects.
+        
+        Args:
+            data: Validated data dictionary containing:
+                  - program, curriculum, semester (IDs)
+                  - section_names (list)
+                  - year_level, capacity
+            user: User object performing the action (for audit log)
+            
+        Returns:
+            dict: {
+                'success': bool,
+                'data': list (created sections) or None,
+                'error': str or None,
+                'warning': str or None
+            }
+        """
+        from apps.academics.models import Program, Curriculum, Section, SectionSubject, CurriculumSubject
+        from apps.enrollment.models import Semester
+        from django.db import IntegrityError
+        import time
+
+        program = Program.objects.get(id=data['program'])
+        curriculum = Curriculum.objects.get(id=data['curriculum'])
+        semester = Semester.objects.get(id=data['semester'])
+        
+        # Check for ACTIVE existing section names in the SAME SEMESTER 
+        active_names = set(Section.objects.filter(
+            semester=semester, 
+            name__in=data['section_names'],
+            is_deleted=False
+        ).values_list('name', flat=True))
+        
+        if active_names:
+            return {
+                'success': False,
+                'error': f"Active sections already exist for this semester: {', '.join(active_names)}"
+            }
+            
+        # Get subjects for this curriculum, year level, and semester number
+        semester_number = 1
+        if "2nd" in semester.name: semester_number = 2
+        elif "Summer" in semester.name: semester_number = 3
+        
+        curriculum_subjects = CurriculumSubject.objects.filter(
+            curriculum=curriculum,
+            year_level=data['year_level'],
+            semester_number=semester_number,
+            is_deleted=False
+        ).select_related('subject')
+        
+        if not curriculum_subjects.exists():
+            return {
+                'success': True, # Not an error, just no subjects to add
+                'data': [], 
+                'warning': f"No subjects found in curriculum for Year {data['year_level']}, Sem {semester_number}"
+            }
+
+        try:
+            with transaction.atomic():
+                # Rename any soft-deleted sections that would cause a unique constraint conflict
+                conflicting_deleted = Section.objects.filter(
+                    semester=semester,
+                    name__in=data['section_names'],
+                    is_deleted=True
+                )
+                for old_sec in conflicting_deleted:
+                    old_sec.name = f"{old_sec.name}_del_{int(time.time())}_{str(old_sec.id)[:4]}"
+                    old_sec.save(update_fields=['name'])
+
+                new_sections = []
+                new_section_subjects = []
+                
+                for name in data['section_names']:
+                    section = Section.objects.create(
+                        name=name,
+                        program=program,
+                        semester=semester,
+                        curriculum=curriculum,
+                        year_level=data['year_level'],
+                        capacity=data['capacity']
+                    )
+                    new_sections.append(section)
+                    
+                    for cs in curriculum_subjects:
+                        new_section_subjects.append(
+                            SectionSubject(
+                                section=section,
+                                subject=cs.subject,
+                                is_tba=True
+                            )
+                        )
+                
+                SectionSubject.objects.bulk_create(new_section_subjects)
+                
+                # Audit log
+                AuditLog.log(
+                    action=AuditLog.Action.SECTION_CREATED,
+                    target_model='Section',
+                    target_id=new_sections[0].id if new_sections else None,
+                    payload={
+                        'count': len(new_sections),
+                        'names': data['section_names'],
+                        'program': program.code,
+                        'is_bulk': True
+                    },
+                    actor=user
+                )
+                
+            return {
+                'success': True,
+                'data': new_sections
+            }
+            
+        except IntegrityError as e:
+            return {
+                'success': False,
+                'error': f"Database error: {str(e)} - A section with this name may already exist."
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"An unexpected error occurred: {str(e)}"
+            }

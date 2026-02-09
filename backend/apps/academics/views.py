@@ -530,113 +530,24 @@ class SectionViewSet(viewsets.ModelViewSet):
         serializer = BulkSectionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        data = serializer.validated_data
-        program = Program.objects.get(id=data['program'])
-        curriculum = Curriculum.objects.get(id=data['curriculum'])
-        from apps.enrollment.models import Semester
-        semester = Semester.objects.get(id=data['semester'])
+        # Use Service Logic
+        from .services import SectionService
+        result = SectionService.bulk_create_sections(data, user=request.user)
         
-        # Check for ACTIVE existing section names in the SAME SEMESTER 
-        # (DB unique_together is ['name', 'semester'], regardless of program)
-        active_names = set(Section.objects.filter(
-            semester=semester, 
-            name__in=data['section_names'],
-            is_deleted=False
-        ).values_list('name', flat=True))
-        
-        if active_names:
-            return Response(
-                {'error': f"Active sections already exist for this semester: {', '.join(active_names)}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if not result['success']:
+            status_code = status.HTTP_400_BAD_REQUEST
+            if "unexpected" in result.get('error', ''):
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+                
+            return Response({'error': result['error']}, status=status_code)
             
-        # Get subjects for this curriculum, year level, and semester number
-        semester_number = 1
-        if "2nd" in semester.name: semester_number = 2
-        elif "Summer" in semester.name: semester_number = 3
-        
-        curriculum_subjects = CurriculumSubject.objects.filter(
-            curriculum=curriculum,
-            year_level=data['year_level'],
-            semester_number=semester_number,
-            is_deleted=False
-        ).select_related('subject')
-        
-        if not curriculum_subjects.exists():
-            return Response(
-                {'warning': f"No subjects found in curriculum for Year {data['year_level']}, Sem {semester_number}"},
-                status=status.HTTP_200_OK
-            )
-
-        from django.db import IntegrityError
-        import time
-        try:
-            with transaction.atomic():
-                # Rename any soft-deleted sections that would cause a unique constraint conflict
-                # This allows reusing names from deleted sections
-                conflicting_deleted = Section.objects.filter(
-                    semester=semester,
-                    name__in=data['section_names'],
-                    is_deleted=True
-                )
-                for old_sec in conflicting_deleted:
-                    old_sec.name = f"{old_sec.name}_del_{int(time.time())}_{str(old_sec.id)[:4]}"
-                    old_sec.save(update_fields=['name'])
-
-                new_sections = []
-                new_section_subjects = []
-                
-                for name in data['section_names']:
-                    section = Section.objects.create(
-                        name=name,
-                        program=program,
-                        semester=semester,
-                        curriculum=curriculum,
-                        year_level=data['year_level'],
-                        capacity=data['capacity']
-                    )
-                    new_sections.append(section)
-                    
-                    for cs in curriculum_subjects:
-                        new_section_subjects.append(
-                            SectionSubject(
-                                section=section,
-                                subject=cs.subject,
-                                is_tba=True
-                            )
-                        )
-                
-                SectionSubject.objects.bulk_create(new_section_subjects)
-                
-                # Audit log
-                AuditLog.log(
-                    action=AuditLog.Action.SECTION_CREATED,
-                    target_model='Section',
-                    target_id=new_sections[0].id if new_sections else None,
-                    payload={
-                        'count': len(new_sections),
-                        'names': data['section_names'],
-                        'program': program.code,
-                        'is_bulk': True
-                    },
-                    actor=request.user
-                )
-                
-            return Response(
-                SectionSerializer(new_sections, many=True).data,
-                status=status.HTTP_201_CREATED
-            )
-        except IntegrityError as e:
-            return Response(
-                {'error': f"Database error: {str(e)} - A section with this name may already exist (possibly deleted)."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        except Exception as e:
-            # Fallback for other issues
-            return Response(
-                {'error': f"An unexpected error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        if result.get('warning'):
+            return Response({'warning': result['warning']}, status=status.HTTP_200_OK)
+            
+        return Response(
+            SectionSerializer(result['data'], many=True).data,
+            status=status.HTTP_201_CREATED
+        )
 
 
     @action(detail=True, methods=['get'], url_path='detailed-view')

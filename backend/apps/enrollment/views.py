@@ -323,100 +323,32 @@ class OnlineEnrollmentView(APIView):
             return Response({"error": "A student with this name is already registered"}, status=400)
         
         try:
-            with transaction.atomic():
-                # Get program
-                try:
-                    program = Program.objects.get(id=data['program_id'])
-                except Program.DoesNotExist:
-                    return Response({"error": "Invalid program"}, status=400)
+            from .services import EnrollmentService
+            
+            service = EnrollmentService()
+            result = service.create_online_enrollment(data)
+            
+            return Response({
+                "success": True,
+                "message": "Enrollment submitted successfully",
+                "credentials": result['credentials'],
+                "tokens": result['tokens'],
+                "user": {
+                    "id": str(result['user'].id),
+                    "email": result['user'].email,
+                    "first_name": result['user'].first_name,
+                    "last_name": result['user'].last_name,
+                    "role": result['user'].role,
+                    "student_number": result['credentials']['student_number'],
+                }
+            }, status=201)
                 
-                # Generate student number (temporary until approved)
-                year = Semester.objects.order_by('-start_date').first()
-                year_str = str(year.start_date.year) if year else "2025"
-                temp_number = f"PENDING-{uuid.uuid4().hex[:8].upper()}"
-                
-                # Create user
-                user = User.objects.create_user(
-                    email=data['email'],
-                    username=data['email'],  # Use email as username to satisfy unique constraint
-                    password=data.get('password', 'richwell123'),  # Default password
-                    first_name=data['first_name'],
-                    last_name=data['last_name'],
-                    student_number=temp_number,
-                    role='STUDENT'
-                )
-                
-                # Get latest active curriculum for the program to bind the student
-                from apps.academics.models import Curriculum
-                active_curriculum = Curriculum.objects.filter(
-                    program=program,
-                    is_active=True
-                ).order_by('-effective_year').first()
-
-                # Create student profile
-                StudentProfile.objects.create(
-                    user=user,
-                    program=program,
-                    curriculum=active_curriculum, # BINDING: Student is now bound to this version
-                    year_level=1,
-                    contact_number=data.get('contact_number', ''),
-                    address=data.get('address', ''),
-                    birthdate=data.get('birthdate')
-                )
-                
-                # Get current semester or create default
-                semester = Semester.objects.filter(is_current=True).first()
-                if not semester:
-                    semester = Semester.objects.order_by('-start_date').first()
-                
-                if semester:
-                    if not semester.is_enrollment_open:
-                        return Response({"error": "Enrollment is currently closed for this semester"}, status=400)
-
-                    # Create enrollment
-                    Enrollment.objects.create(
-                        student=user,
-                        semester=semester,
-                        status='PENDING',
-                        monthly_commitment=data.get('monthly_commitment', 5000),
-                        created_via='ONLINE'
-                    )
-                
-                # Generate JWT tokens
-                from rest_framework_simplejwt.tokens import RefreshToken
-                refresh = RefreshToken.for_user(user)
-                
-                # Add custom claims to match LoginSerializer
-                refresh['email'] = user.email
-                refresh['role'] = user.role
-                refresh['full_name'] = user.get_full_name()
-
-                return Response({
-                    "success": True,
-                    "message": "Enrollment submitted successfully",
-                    "credentials": {
-                        "student_number": temp_number,
-                        "login_email": user.email,
-                        "password": "richwell123"
-                    },
-                    "tokens": {
-                        "refresh": str(refresh),
-                        "access": str(refresh.access_token),
-                    },
-                    "user": {
-                        "id": str(user.id),
-                        "email": user.email,
-                        "first_name": user.first_name,
-                        "last_name": user.last_name,
-                        "role": user.role,
-                        "student_number": temp_number,
-                    }
-                }, status=201)
-                
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return Response({"error": str(e)}, status=500)
+            return Response({"error": "An unexpected error occurred"}, status=500)
 DocumentUploadView = SimplePOSTView
 class EnrollmentDetailView(APIView):
     """

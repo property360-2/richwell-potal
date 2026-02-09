@@ -6,8 +6,9 @@ General:
 - Do not generate partial snippets unless asked
 - Add comments only for important decisions
 - Review for bugs, edge cases, and improvements
-
-Backend (Django):
-- Follow Django best practices (CBVs where appropriate)
-- Prefer clarity over cleverness
-- Respect existing app structure
+- Follow atomic, reusable components (code should be modular and reusable)
+- Follow DRY principle
+- Follow SOLID principle
+- Follow KISS principle
+- Follow YAGNI principle
+- Design components and modules for maximum reusability across projects

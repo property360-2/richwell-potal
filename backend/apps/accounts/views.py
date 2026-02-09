@@ -522,71 +522,24 @@ class StudentViewSet(viewsets.ModelViewSet):
             
         return qs.order_by('user__last_name')
 
-    @db.transaction.atomic
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        data = serializer.validated_data
-        
-        from apps.enrollment.services import EnrollmentService
-        service = EnrollmentService()
-        
-        email = data['email']
-        if User.objects.filter(email=email).exists():
-             return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Generate credentials
-        school_email = service._generate_school_email(data['first_name'], data['last_name'])
-        student_number = service.generate_student_number()
-        password = service._generate_password()
-        
-        user = User.objects.create_user(
-            email=email,
-            password=password,
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            role=User.Role.STUDENT,
-            student_number=student_number,
-            username=school_email
-        )
-        
-        profile = StudentProfile.objects.create(
-            user=user,
-            program=data['program'],
-            curriculum=data.get('curriculum'),
-            year_level=data['year_level'],
-            is_transferee=data.get('is_transferee', False),
-            previous_school=data.get('previous_school', ''),
-            birthdate=data['birthdate'],
-            address=data.get('address', ''),
-            contact_number=data.get('contact_number', ''),
-            status='ACTIVE'
-        )
-        
-        credited_subjects = data.get('credited_subjects', [])
-        if credited_subjects:
-            semester = Semester.objects.filter(is_current=True).first()
-            if not semester:
-                from datetime import date
-                semester = Semester.objects.create(
-                    name="Default", academic_year="2025", 
-                    start_date=date.today(), end_date=date.today(), is_current=True
-                )
-                
-            enrollment = Enrollment.objects.create(
-                student=user,
-                semester=semester,
-                status=Enrollment.Status.ENROLLED,
-                created_via=Enrollment.CreatedVia.TRANSFEREE
+        try:
+            from .services import StudentService
+            profile = StudentService.create_student(
+                data=serializer.validated_data, 
+                registrar=request.user
             )
-            
-            for credit in credited_subjects:
-                 SubjectEnrollment.objects.create(
-                     enrollment=enrollment,
-                     subject_id=credit['subject_id'],
-                     status=SubjectEnrollment.Status.CREDITED,
-                     final_grade=credit.get('grade')
-                 )
-        
-        return Response(RegistrarStudentSerializer(profile).data, status=status.HTTP_201_CREATED)
+            return Response(
+                RegistrarStudentSerializer(profile).data, 
+                status=status.HTTP_201_CREATED
+            )
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {'error': f"An unexpected error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

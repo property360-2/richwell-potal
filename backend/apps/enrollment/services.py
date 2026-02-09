@@ -36,13 +36,13 @@ class EnrollmentService:
         self.payment_months = settings.SYSTEM_CONFIG.get('PAYMENT_MONTHS_PER_SEMESTER', 6)
     
     @transaction.atomic
-    def create_online_enrollment(self, data: dict) -> Enrollment:
+    def create_online_enrollment(self, data: dict) -> Dict:
         """
         Create a complete enrollment from online form submission.
         
         Steps:
-        1. Generate student number
-        2. Create User account
+        1. Generate temp student number
+        2. Create User account (using personal email as username)
         3. Create StudentProfile
         4. Create Enrollment record
         5. Generate 6 payment buckets
@@ -52,32 +52,36 @@ class EnrollmentService:
             data: Validated data from OnlineEnrollmentSerializer
             
         Returns:
-            Enrollment: The created enrollment record
+            Dict: Result dictionary with success, enrollment, and credentials
         """
-        # Get current semester
+        import uuid
+        from rest_framework_simplejwt.tokens import RefreshToken
+        
+        # Get current semester (or default)
         semester = self._get_current_semester()
+        if semester and not semester.is_enrollment_open:
+             raise ValueError("Enrollment is currently closed for this semester")
         
         # Get program
         program = Program.objects.get(id=data['program_id'])
         
-        # student_number will be generated upon Admission approval
-        student_number = None
+        # Generate temporary student number
+        # Format: PENDING-XXXXXXXX (8 chars of UUID)
+        temp_number = f"PENDING-{uuid.uuid4().hex[:8].upper()}"
         
-        # Generate school email as username: first_initial + last_name + random_digits + @richwell.edu.ph
-        school_email = self._generate_school_email(data['first_name'], data['last_name'])
-        
-        # Password is the school email initially (until approved)
-        password = school_email
+        # For Online Applicants: Use personal email as username
+        email = data['email']
+        password = data.get('password', 'richwell123')
         
         # Create User
         user = User.objects.create_user(
-            email=data['email'],  # Keep personal email for contact
+            email=email,
             password=password,
             first_name=data['first_name'],
             last_name=data['last_name'],
             role=User.Role.STUDENT,
-            student_number=student_number,
-            username=school_email  # School email as login username
+            student_number=temp_number,
+            username=email  # Use personal email for initial login
         )
         
         # EPIC 7: Get active curriculum for program
@@ -89,28 +93,29 @@ class EnrollmentService:
         ).order_by('-effective_year').first()
 
         # Create StudentProfile
-        student_profile = StudentProfile.objects.create(
+        # Fix: correctly map fields from data
+        StudentProfile.objects.create(
             user=user,
             program=program,
-            curriculum=active_curriculum,  # EPIC 7: Assign curriculum
+            curriculum=active_curriculum,
             year_level=1,
             middle_name=data.get('middle_name', ''),
             suffix=data.get('suffix', ''),
-            birthdate=data['birthdate'],
-            address=data['address'],
-            contact_number=data['contact_number'],
+            birthdate=data.get('birthdate'),
+            address=data.get('address', ''),
+            contact_number=data.get('contact_number', ''),
             is_transferee=data.get('is_transferee', False),
             previous_school=data.get('previous_school', ''),
             previous_course=data.get('previous_course', '')
         )
         
-        # Create Enrollment - Set to ACTIVE immediately (no admin approval needed)
+        # Create Enrollment - PENDING status
         enrollment = Enrollment.objects.create(
             student=user,
             semester=semester,
-            status=Enrollment.Status.PENDING,  # Wait for Admission approval
+            status=Enrollment.Status.PENDING,
             created_via=Enrollment.CreatedVia.ONLINE,
-            monthly_commitment=data['monthly_commitment']
+            monthly_commitment=data.get('monthly_commitment', 5000)
         )
         
         # Generate payment buckets
@@ -122,29 +127,33 @@ class EnrollmentService:
             target_model='Enrollment',
             target_id=enrollment.id,
             payload={
-                'student_number': student_number,
+                'student_number': temp_number,
                 'program': program.code,
-                'monthly_commitment': str(data['monthly_commitment']),
+                'monthly_commitment': str(enrollment.monthly_commitment),
                 'is_transferee': data.get('is_transferee', False),
                 'created_via': 'ONLINE'
             }
         )
         
-        # Log user creation
-        AuditLog.log(
-            action=AuditLog.Action.USER_CREATED,
-            target_model='User',
-            target_id=user.id,
-            payload={
-                'email': user.email,
-                'role': user.role,
-                'student_number': student_number
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+        refresh['email'] = user.email
+        refresh['role'] = user.role
+        refresh['full_name'] = user.get_full_name()
+        
+        return {
+            "enrollment": enrollment,
+            "user": user,
+            "credentials": {
+                "student_number": temp_number,
+                "login_email": user.email,
+                "password": password
+            },
+            "tokens": {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token)
             }
-        )
-        
-        # TODO: Send welcome email with credentials
-        
-        return enrollment
+        }
     
     @transaction.atomic
     def create_transferee_enrollment(self, registrar: User, data: dict) -> Enrollment:

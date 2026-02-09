@@ -320,7 +320,8 @@ class ProfessorSubmitGradeView(views.APIView):
             )
         
         # Submit the grade
-        result = self._submit_grade(
+        from .services_grading import GradingService
+        result = GradingService.submit_grade(
             subject_enrollment=subject_enrollment,
             grade=data.get('grade'),
             new_status=data.get('status'),
@@ -347,90 +348,6 @@ class ProfessorSubmitGradeView(views.APIView):
         ).exists()
         
         return has_access
-    
-    def _submit_grade(self, subject_enrollment, grade, new_status, remarks, user):
-        """
-        Submit grade and create history entry or resolution request.
-        """
-        semester = subject_enrollment.enrollment.semester
-        is_inc_resolution = subject_enrollment.status == 'INC'
-        is_window_closed = not semester.is_grading_open
-        
-        # If resolving INC or window is closed, create a resolution request for PROFESSORs
-        if (is_inc_resolution or is_window_closed) and user.role == 'PROFESSOR':
-            resolution, created = GradeResolution.objects.get_or_create(
-                subject_enrollment=subject_enrollment,
-                status__in=[GradeResolution.Status.PENDING_REGISTRAR, GradeResolution.Status.PENDING_HEAD],
-                defaults={
-                    'current_grade': subject_enrollment.grade,
-                    'proposed_grade': grade,
-                    'current_status': subject_enrollment.status,
-                    'proposed_status': new_status or subject_enrollment.status,
-                    'reason': remarks or 'INC Resolution',
-                    'requested_by': user,
-                    'status': GradeResolution.Status.PENDING_HEAD
-                }
-            )
-            
-            # If resolution already existed, update it
-            if not created:
-                resolution.proposed_grade = grade
-                resolution.proposed_status = new_status or subject_enrollment.status
-                resolution.reason = remarks or 'INC Resolution'
-                resolution.save()
-            
-            return {
-                'success': True,
-                'is_resolution': True,
-                'subject_enrollment_id': str(subject_enrollment.id),
-                'status': 'PENDING_APPROVAL',
-                'message': 'Grade resolution request submitted for approval'
-            }
-
-        with transaction.atomic():
-            # Store previous values for history
-            previous_grade = subject_enrollment.grade
-            previous_status = subject_enrollment.status
-            
-            # Update grade and status
-            subject_enrollment.grade = grade
-            if new_status:
-                subject_enrollment.status = new_status
-            
-            if remarks:
-                subject_enrollment.remarks = remarks
-            
-            # Set failed_at timestamp if status is FAILED
-            if new_status == 'FAILED' and previous_status != 'FAILED':
-                subject_enrollment.failed_at = timezone.now()
-            
-            # Set inc_marked_at timestamp if status is INC
-            if new_status == 'INC' and previous_status != 'INC':
-                subject_enrollment.inc_marked_at = timezone.now()
-            
-            subject_enrollment.save()
-            
-            # Create grade history entry
-            history = GradeHistory.objects.create(
-                subject_enrollment=subject_enrollment,
-                previous_grade=previous_grade,
-                new_grade=grade,
-                previous_status=previous_status,
-                new_status=new_status or subject_enrollment.status,
-                changed_by=user,
-                change_reason=remarks,
-                is_system_action=False,
-                is_finalization=False
-            )
-            
-            return {
-                'success': True,
-                'subject_enrollment_id': str(subject_enrollment.id),
-                'grade': str(grade) if grade else None,
-                'status': subject_enrollment.status,
-                'grade_history_id': str(history.id),
-                'message': 'Grade submitted successfully'
-            }
 
 
 class BulkGradeSubmissionView(views.APIView):
@@ -495,7 +412,8 @@ class BulkGradeSubmissionView(views.APIView):
                         continue
                     
                     # Submit grade
-                    result = self._submit_grade(
+                    from .services_grading import GradingService
+                    result = GradingService.submit_grade(
                         subject_enrollment=subject_enrollment,
                         grade=grade_data.get('grade'),
                         new_status=grade_data.get('status'),
@@ -533,78 +451,6 @@ class BulkGradeSubmissionView(views.APIView):
             subject=subject,
             is_deleted=False
         ).exists()
-    
-    def _submit_grade(self, subject_enrollment, grade, new_status, remarks, user):
-        """Submit grade and create history entry or resolution request."""
-        semester = subject_enrollment.enrollment.semester
-        is_inc_resolution = subject_enrollment.status == 'INC'
-        is_window_closed = not semester.is_grading_open
-        
-        if (is_inc_resolution or is_window_closed) and user.role == 'PROFESSOR':
-            resolution, created = GradeResolution.objects.get_or_create(
-                subject_enrollment=subject_enrollment,
-                status__in=[GradeResolution.Status.PENDING_REGISTRAR, GradeResolution.Status.PENDING_HEAD],
-                defaults={
-                    'current_grade': subject_enrollment.grade,
-                    'proposed_grade': grade,
-                    'current_status': subject_enrollment.status,
-                    'proposed_status': new_status or subject_enrollment.status,
-                    'reason': remarks or 'INC Resolution',
-                    'requested_by': user,
-                    'status': GradeResolution.Status.PENDING_HEAD
-                }
-            )
-            
-            if not created:
-                resolution.proposed_grade = grade
-                resolution.proposed_status = new_status or subject_enrollment.status
-                resolution.reason = remarks or 'INC Resolution'
-                resolution.save()
-            
-            return {
-                'success': True,
-                'is_resolution': True,
-                'subject_enrollment_id': str(subject_enrollment.id),
-                'status': 'PENDING_APPROVAL'
-            }
-
-        previous_grade = subject_enrollment.grade
-        previous_status = subject_enrollment.status
-        
-        subject_enrollment.grade = grade
-        if new_status:
-            subject_enrollment.status = new_status
-        
-        if remarks:
-            subject_enrollment.remarks = remarks
-        
-        if new_status == 'FAILED' and previous_status != 'FAILED':
-            subject_enrollment.failed_at = timezone.now()
-        
-        if new_status == 'INC' and previous_status != 'INC':
-            subject_enrollment.inc_marked_at = timezone.now()
-        
-        subject_enrollment.save()
-        
-        history = GradeHistory.objects.create(
-            subject_enrollment=subject_enrollment,
-            previous_grade=previous_grade,
-            new_grade=grade,
-            previous_status=previous_status,
-            new_status=new_status or subject_enrollment.status,
-            changed_by=user,
-            change_reason=remarks,
-            is_system_action=False,
-            is_finalization=False
-        )
-        
-        return {
-            'success': True,
-            'subject_enrollment_id': str(subject_enrollment.id),
-            'grade': str(grade) if grade else None,
-            'status': subject_enrollment.status,
-            'grade_history_id': str(history.id)
-        }
 
 
 class GradeHistoryView(generics.ListAPIView):
