@@ -226,6 +226,7 @@ class StudentProfile(BaseModel):
         LOA = 'LOA', 'Leave of Absence'
         WITHDRAWN = 'WITHDRAWN', 'Withdrawn'
         GRADUATED = 'GRADUATED', 'Graduated'
+        INACTIVE = 'INACTIVE', 'Inactive'
 
     class AcademicStatus(models.TextChoices):
         REGULAR = 'REGULAR', 'Regular'
@@ -313,6 +314,10 @@ class StudentProfile(BaseModel):
     is_transferee = models.BooleanField(
         default=False,
         help_text='Whether the student is a transferee'
+    )
+    is_past_student = models.BooleanField(
+        default=False,
+        help_text='Whether the student is a past student (returnee)'
     )
     previous_school = models.CharField(
         max_length=255,

@@ -63,7 +63,7 @@ export class Modal {
       <div class="flex items-center justify-center min-h-screen p-4">
         <!-- Modal Dialog -->
         <div class="${this.getModalSizeClasses()} relative transform transition-all modal-dialog">
-          <div class="bg-white rounded-lg shadow-xl overflow-hidden">
+          <div class="bg-white rounded-lg shadow-xl">
             <!-- Header -->
             ${this.getHeaderHTML()}
 

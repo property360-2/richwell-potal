@@ -162,6 +162,8 @@ class ToastManager {
   }
 
   escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const str = String(text);
     const map = {
       '&': '&amp;',
       '<': '&lt;',
@@ -169,7 +171,7 @@ class ToastManager {
       '"': '&quot;',
       "'": '&#039;'
     };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    return str.replace(/[&<>"']/g, m => map[m]);
   }
 }
 

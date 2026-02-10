@@ -356,7 +356,7 @@ window.openAddStudentModal = () => {
     const modal = new Modal({
         title: 'Add New Student',
         content: `
-    < form id = "add-student-form" class="space-y-4" >
+            <form id="add-student-form" class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">First Name *</label>
@@ -396,44 +396,80 @@ window.openAddStudentModal = () => {
                             ${state.programs.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('')}
                         </select>
                     </div>
-                    <div>
-                         <label class="block text-sm font-medium text-gray-700">Year Level</label>
-                         <select name="year_level" required class="form-select mt-1 block w-full">
-                            <option value="1">1st Year</option>
-                            <option value="2">2nd Year</option>
-                            <option value="3">3rd Year</option>
-                            <option value="4">4th Year</option>
-                         </select>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                             <label class="block text-sm font-medium text-gray-700">Year Level</label>
+                             <select name="year_level" required class="form-select mt-1 block w-full">
+                                <option value="1">1st Year</option>
+                                <option value="2">2nd Year</option>
+                                <option value="3">3rd Year</option>
+                                <option value="4">4th Year</option>
+                             </select>
+                        </div>
+                        <div>
+                             <label class="block text-sm font-medium text-gray-700">Status</label>
+                             <select name="status" required class="form-select mt-1 block w-full">
+                                <option value="ACTIVE" selected>Active</option>
+                                <option value="GRADUATED">Graduated</option>
+                                <option value="INACTIVE">Inactive</option>
+                             </select>
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2 mt-4">
-                    <input type="checkbox" id="is_transferee" name="is_transferee" 
-                           onchange="document.getElementById('transferee-fields').classList.toggle('hidden', !this.checked)">
-                    <label for="is_transferee" class="text-sm font-medium text-gray-700">Is Transferee?</label>
+                <div class="flex flex-wrap gap-4 mt-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                    <label class="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" id="is_transferee" name="is_transferee" 
+                               onchange="toggleCreditationUI()"
+                               class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer">
+                        <span class="text-sm font-bold text-gray-700 group-hover:text-blue-600 transition-colors">Transferee Student</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" id="is_past_student" name="is_past_student" 
+                               onchange="toggleCreditationUI()"
+                               class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer">
+                        <span class="text-sm font-bold text-gray-700 group-hover:text-blue-600 transition-colors">Past Student (Returnee)</span>
+                    </label>
                 </div>
                 
-                <div id="transferee-fields" class="hidden pl-4 border-l-2 border-blue-200 space-y-3">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Previous School</label>
-                        <input type="text" name="previous_school" class="form-input mt-1 block w-full">
+                <div id="creditation-fields" class="hidden pl-4 border-l-2 border-blue-200 space-y-4 pt-2">
+                    <div id="previous-school-container" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 uppercase tracking-wider">Previous Institution</label>
+                        <input type="text" name="previous_school" placeholder="School Name" class="form-input mt-1 block w-full">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Credited Subjects</label>
-                        <div class="flex gap-2 mt-1">
-                            <select id="new-student-subject" class="form-select text-sm flex-1">
-                                <option value="">Select subject to credit...</option>
-                                ${state.allSubjects.map(s => `<option value="${s.id}" data-code="${s.code}">${s.code} - ${s.title}</option>`).join('')}
-                            </select>
-                            <input type="text" id="new-student-grade" placeholder="Grade" class="form-input text-sm w-20">
-                            <button type="button" onclick="addSubjectToNewStudent()" class="btn btn-secondary btn-sm">Add</button>
+                    
+                    <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                        <label class="block text-xs font-black text-blue-800 uppercase tracking-widest mb-3">Credit Subjects to Student Record</label>
+                        <div class="flex flex-col gap-3">
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-2">
+                                <div class="md:col-span-8">
+                                    <input list="subjects-datalist" id="new-student-subject-search" 
+                                           placeholder="Search by code or title..." 
+                                           class="form-input text-sm w-full"
+                                           onchange="handleSubjectSearchChange(this.value)">
+                                    <datalist id="subjects-datalist">
+                                        ${state.allSubjects.map(s => `<option value="${s.code} - ${s.title}" data-id="${s.id}" data-code="${s.code}"></option>`).join('')}
+                                    </datalist>
+                                    <input type="hidden" id="new-student-subject-id">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <input type="text" id="new-student-grade" placeholder="Grade" class="form-input text-sm w-full">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <button type="button" onclick="addSubjectToNewStudent()" 
+                                            class="btn btn-primary btn-sm w-full h-full flex items-center justify-center gap-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                        Add
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div id="new-student-subjects-list" class="mt-2 space-y-1">
-                            <!-- Selected subjects will appear here -->
+                        <div id="new-student-subjects-list" class="mt-4 space-y-2 border-t border-blue-100 pt-3">
+                            <div class="text-xs text-gray-400 italic text-center py-2">No subjects credited yet</div>
                         </div>
                     </div>
                 </div>
-            </form >
+            </form>
     `,
         actions: [
             { label: 'Cancel', onClick: (m) => m.close() },
@@ -450,8 +486,9 @@ window.openAddStudentModal = () => {
                     const formData = new FormData(form);
                     const data = Object.fromEntries(formData.entries());
                     data.is_transferee = form.querySelector('#is_transferee').checked;
+                    data.is_past_student = form.querySelector('#is_past_student').checked;
 
-                    if (data.is_transferee) {
+                    if (data.is_transferee || data.is_past_student) {
                         data.credited_subjects = state.newStudentCredits || [];
                     }
 
@@ -473,16 +510,43 @@ window.openAddStudentModal = () => {
     modal.show();
 };
 
+window.toggleCreditationUI = function () {
+    const isTransferee = document.getElementById('is_transferee').checked;
+    const isPastStudent = document.getElementById('is_past_student').checked;
+    const container = document.getElementById('creditation-fields');
+    const schoolFields = document.getElementById('previous-school-container');
+
+    if (container) {
+        container.classList.toggle('hidden', !isTransferee && !isPastStudent);
+    }
+    if (schoolFields) {
+        schoolFields.classList.toggle('hidden', !isTransferee);
+    }
+};
+
+window.handleSubjectSearchChange = function (value) {
+    const datalist = document.getElementById('subjects-datalist');
+    const hiddenInput = document.getElementById('new-student-subject-id');
+    const option = Array.from(datalist.options).find(opt => opt.value === value);
+
+    if (option) {
+        hiddenInput.value = option.getAttribute('data-id');
+    } else {
+        hiddenInput.value = '';
+    }
+};
+
 window.addSubjectToNewStudent = function () {
-    const subSelect = document.getElementById('new-student-subject');
+    const subjectIdInput = document.getElementById('new-student-subject-id');
+    const searchInput = document.getElementById('new-student-subject-search');
     const gradeInput = document.getElementById('new-student-grade');
-    const list = document.getElementById('new-student-subjects-list');
 
-    const subjectId = subSelect.value;
-    if (!subjectId) return;
+    const subjectId = subjectIdInput.value;
+    if (!subjectId) return Toast.error('Please select a subject from the list');
 
-    const opt = subSelect.options[subSelect.selectedIndex];
-    const code = opt.getAttribute('data-code');
+    const datalist = document.getElementById('subjects-datalist');
+    const option = Array.from(datalist.options).find(opt => opt.getAttribute('data-id') === subjectId);
+    const code = option.getAttribute('data-code');
     const grade = gradeInput.value;
 
     if (state.newStudentCredits.some(c => c.subject_id === subjectId)) {
@@ -496,7 +560,8 @@ window.addSubjectToNewStudent = function () {
     });
 
     // Reset inputs
-    subSelect.value = '';
+    subjectIdInput.value = '';
+    searchInput.value = '';
     gradeInput.value = '';
 
     // Render list
@@ -508,13 +573,16 @@ window.renderNewStudentCredits = function () {
     if (!list) return;
 
     list.innerHTML = state.newStudentCredits.map((c, index) => `
-    <div class="flex items-center justify-between bg-gray-50 px-2 py-1 rounded text-xs border">
-            <span><span class="font-bold">${c.code}</span> ${c.grade ? `(Grade: ${c.grade})` : ''}</span>
-            <button type="button" onclick="removeSubjectFromNewStudent(${index})" class="text-red-500 hover:text-red-700">
-                &times;
+        <div class="flex items-center justify-between bg-white px-3 py-2 rounded-lg text-sm border border-blue-100 shadow-sm animate-in fade-in slide-in-from-left-2">
+            <div class="flex items-center gap-3">
+                <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-black uppercase tracking-tight">${c.code}</span>
+                <span class="font-bold text-gray-700">${c.grade ? `Grade: ${c.grade}` : 'Credit Only'}</span>
+            </div>
+            <button type="button" onclick="removeSubjectFromNewStudent(${index})" class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
         </div>
-    `).join('');
+    `).join('') || '<div class="text-xs text-gray-400 italic text-center py-2">No subjects credited yet</div>';
 };
 
 window.removeSubjectFromNewStudent = function (index) {
@@ -586,11 +654,17 @@ function renderStudentModal() {
                 </div>
                 ${s.is_transferee ? `
                     <div class="col-span-2">
-                        <p class="text-gray-500">Previous School</p>
+                        <p class="text-gray-500 italic text-xs uppercase tracking-widest font-black text-blue-500 mb-1">Transferee Information</p>
+                        <p class="text-gray-400 text-xs">Previous School</p>
                         <p class="font-bold">${s.previous_school || '-'}</p>
                     </div>
-                ` : ''
-            }
+                ` : ''}
+                ${s.is_past_student ? `
+                    <div class="col-span-2 bg-amber-50 p-2 rounded border border-amber-100">
+                        <p class="text-amber-600 text-[10px] font-black uppercase tracking-widest">Returnee / Past Student</p>
+                        <p class="text-amber-800 text-xs font-medium">This student has previous academic records in this institution.</p>
+                    </div>
+                ` : ''}
             </div>
     `;
     } else if (state.activeModalTab === 'enrollment') {
@@ -652,7 +726,7 @@ function renderStudentModal() {
                 class="${state.activeModalTab === 'history' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                 Academic History (TOR)
             </button>
-            ${s.is_transferee ? `
+            ${s.is_transferee || s.is_past_student ? `
                     <button onclick="switchStudentTab('credits')"
                             class="${state.activeModalTab === 'credits' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                         Credited Subjects

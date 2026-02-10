@@ -1,7 +1,7 @@
 import { api, endpoints } from '../../../api.js';
 import { Toast } from '../../../components/Toast.js';
 import { ErrorHandler } from '../../../utils/errorHandler.js';
-import { Modal, ConfirmModal } from '../../../components/Modal.js';
+import { Modal, ConfirmModal, AlertModal } from '../../../components/Modal.js';
 import { UI } from '../../../components/UI.js';
 import { Validator } from '../../../utils/validation.js';
 import { formatDate } from '../../../utils.js';
@@ -19,6 +19,7 @@ export const SemestersModule = {
         window.openEditSemesterModal = (id) => this.openEditSemesterModal(id);
         window.deleteSemester = (id) => this.deleteSemester(id);
         window.setAsActiveSemester = (id) => this.setAsActiveSemester(id);
+        window.updateAcademicYearDisplay = () => this.updateAcademicYearDisplay();
     },
 
     get state() { return this.ctx.state; },
@@ -109,12 +110,25 @@ export const SemestersModule = {
     },
 
     getSemesterForm(s = null) {
+        const terms = [
+            { value: '1st Semester', label: '1st Semester' },
+            { value: '2nd Semester', label: '2nd Semester' },
+            { value: 'Summer Class', label: 'Summer Class' }
+        ];
+
         return `
             <form id="sem-form" class="space-y-6 p-2">
-                ${UI.field({ label: 'Semester Name', id: 'f-name', value: s?.name || '', placeholder: 'e.g. 1st Semester 2024', required: true })}
-                ${UI.field({ label: 'Academic Year', id: 'f-ay', value: s?.academic_year || '', placeholder: 'e.g. 2023-2024', required: true })}
+                ${UI.field({ label: 'Term/Semester', id: 'f-term', type: 'select', options: terms, value: s?.name || terms[0].value, required: true })}
+                
+                <div class="bg-blue-50/30 border border-blue-100/50 p-4 rounded-xl">
+                    <div class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Auto-Generated Scope</div>
+                    <div id="ay-display" class="text-lg font-black text-blue-600">
+                        ${s?.academic_year || 'Select a start date...'}
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-2 gap-6">
-                    ${UI.field({ label: 'Start Date', id: 'f-start', type: 'date', value: s?.start_date || '', required: true })}
+                    ${UI.field({ label: 'Start Date', id: 'f-start', type: 'date', value: s?.start_date || '', required: true, attrs: 'onchange="updateAcademicYearDisplay()"' })}
                     ${UI.field({ label: 'End Date', id: 'f-end', type: 'date', value: s?.end_date || '', required: true })}
                 </div>
                 <div class="space-y-2">
@@ -135,10 +149,38 @@ export const SemestersModule = {
         `;
     },
 
+    updateAcademicYearDisplay() {
+        const startInput = document.getElementById('f-start');
+        const display = document.getElementById('ay-display');
+        if (!startInput || !display) return;
+
+        const ay = this.calculateAcademicYear(startInput.value);
+        display.innerText = ay || 'Select a start date...';
+    },
+
+    calculateAcademicYear(dateStr) {
+        if (!dateStr) return null;
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return null;
+
+        const month = date.getMonth() + 1; // 1-12
+        const year = date.getFullYear();
+
+        // July-Dec starts current year, Jan-June starts previous year
+        const startYear = month >= 7 ? year : year - 1;
+        return `${startYear}-${startYear + 1}`;
+    },
+
     async handleSubmit(modal, id = null) {
+        const term = document.getElementById('f-term').value;
+        const startDate = document.getElementById('f-start').value;
+        const academicYear = this.calculateAcademicYear(startDate);
+
+        if (!academicYear) return Toast.error('Please select a valid start date');
+
         const data = {
-            name: document.getElementById('f-name').value,
-            academic_year: document.getElementById('f-ay').value,
+            name: term,
+            academic_year: academicYear,
             start_date: document.getElementById('f-start').value,
             end_date: document.getElementById('f-end').value,
             enrollment_start_date: document.getElementById('f-enroll-start').value || null,
@@ -150,17 +192,17 @@ export const SemestersModule = {
             name: [Validator.required],
             academic_year: [Validator.required],
             start_date: [Validator.required],
-            end_date: [Validator.required, (v) => new Date(v) > new Date(data.start_date) || "End date must be after start date"],
+            end_date: [Validator.required, (v) => new Date(v) > new Date(data.start_date) ? null : "End date must be after start date"],
             enrollment_end_date: [
-                (v) => !v || !data.enrollment_start_date || new Date(v) > new Date(data.enrollment_start_date) || "Enrollment end must be after start",
-                (v) => !v || !data.end_date || new Date(v) <= new Date(data.end_date) || "Enrollment must end before or on semester end"
+                (v) => !v || !data.enrollment_start_date || new Date(v) > new Date(data.enrollment_start_date) ? null : "Enrollment end must be after start",
+                (v) => !v || !data.end_date || new Date(v) <= new Date(data.end_date) ? null : "Enrollment must end before or on semester end"
             ],
             enrollment_start_date: [
-                (v) => !v || !data.end_date || new Date(v) < new Date(data.end_date) || "Enrollment start must be before semester end"
+                (v) => !v || !data.end_date || new Date(v) < new Date(data.end_date) ? null : "Enrollment start must be before semester end"
             ]
         });
 
-        if (!isValid) return Toast.error(Object.values(errors)[0]);
+        if (!isValid) return Toast.error(errors[Object.keys(errors)[0]]);
 
         try {
             if (id) await api.patch(`${endpoints.semesters}${id}/`, data);
@@ -174,17 +216,35 @@ export const SemestersModule = {
     },
 
     async setAsActiveSemester(id) {
-        ConfirmModal({
-            title: 'Switch Active Session',
-            message: 'Are you sure you want to make this the active semester? This will update the default term for all users.',
-            onConfirm: async () => {
-                try {
-                    await api.post(endpoints.activateTerm(id));
-                    Toast.success('Now active');
-                    await this.ctx.loadSemesters();
-                    this.render();
-                } catch (e) { ErrorHandler.handle(e); }
-            }
+        const target = this.ctx.state.semesters.find(s => s.id === id);
+        const currentActive = this.ctx.state.semesters.find(s => s.is_current);
+
+        // Strict Policy: Block activation if another semester is ongoing
+        if (currentActive && currentActive.id !== id &&
+            !['GRADING_CLOSED', 'ARCHIVED'].includes(currentActive.status)) {
+
+            await AlertModal(
+                `Cannot activate <b>${target.name}</b> while <b>${currentActive.name}</b> is still ongoing.<br><br>` +
+                `Please close or archive the current semester first before switching sessions.`,
+                'Switch Blocked'
+            );
+            return;
+        }
+
+        const confirmed = await ConfirmModal({
+            title: 'Set Active Semester',
+            message: `Are you sure you want to make ${target.name} ${target.academic_year} the active semester?`,
+            icon: '<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
+            confirmLabel: 'Activate'
         });
+
+        if (confirmed) {
+            try {
+                await api.post(endpoints.activateTerm(id));
+                Toast.success('Now active');
+                await this.ctx.loadSemesters();
+                this.render();
+            } catch (e) { ErrorHandler.handle(e, 'activating semester'); }
+        }
     }
 };

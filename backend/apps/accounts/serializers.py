@@ -66,12 +66,12 @@ class StudentProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'year_level', 'status', 'middle_name', 'suffix',
             'birthdate', 'address', 'contact_number',
-            'is_transferee', 'previous_school', 'previous_course',
+            'is_transferee', 'is_past_student', 'previous_school', 'previous_course',
             'is_irregular', 'overload_approved',
             'program_name', 'program_code', 'curriculum_name', 'curriculum_code',
             'home_section_name'
         ]
-        read_only_fields = ['id', 'status', 'is_transferee']
+        read_only_fields = ['id', 'status', 'is_transferee', 'is_past_student']
 
 
 
@@ -207,7 +207,7 @@ class RegistrarStudentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user_id', 'student_number', 'first_name', 'last_name', 'email',
             'program_code', 'curriculum_code', 'year_level', 'status', 
-            'academic_status', 'home_section_name', 'is_transferee'
+            'academic_status', 'home_section_name', 'is_transferee', 'is_past_student'
         ]
 
 class CreditSubjectSerializer(serializers.Serializer):
@@ -229,7 +229,7 @@ class StudentManualCreateSerializer(serializers.ModelSerializer):
         model = StudentProfile
         fields = [
             'email', 'first_name', 'last_name', 'birthdate', 'address', 'contact_number',
-            'program', 'curriculum', 'year_level', 'is_transferee',
+            'program', 'curriculum', 'year_level', 'status', 'is_transferee', 'is_past_student',
             'previous_school', 'credited_subjects'
         ]
 

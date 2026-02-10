@@ -276,9 +276,16 @@ export const RoomsModule = {
         modal.show();
         try {
             const semId = this.state.activeSemester?.id;
-            const slots = await api.get(`${endpoints.scheduleSlots}?room=${encodeURIComponent(name)}&semester=${semId}`);
-            modal.setContent(`<div class="p-6 bg-gray-50/50 min-h-[500px] overflow-auto">${this.ctx.renderRoomScheduleGrid(slots)}</div>`);
+            let url = `${endpoints.scheduleSlots}?room=${encodeURIComponent(name)}&limit=500`;
+            if (semId) {
+                url += `&semester=${semId}`;
+            }
+            const slots = await api.get(url);
+            // Handle both array and paginated response
+            const scheduleData = Array.isArray(slots) ? slots : (slots.results || []);
+            modal.setContent(this.ctx.renderRoomScheduleGrid(scheduleData));
         } catch (e) {
+            console.error('Room schedule load failed:', e);
             modal.setContent(`<div class="p-20 text-center text-red-500 font-bold">Failed to load schedule.</div>`);
         }
     }

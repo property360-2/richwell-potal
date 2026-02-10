@@ -485,39 +485,6 @@ class SectionViewSet(viewsets.ModelViewSet):
         instance.is_deleted = True
         instance.save()
 
-    @action(detail=False, methods=['post'], url_path='validate-names')
-    def validate_names(self, request):
-        """
-        Validate a list of section names against the database for duplicates.
-        Payload: { "names": ["Name-1", "Name-2"], "semester_id": "uuid" }
-        """
-        names = request.data.get('names', [])
-        semester_id = request.data.get('semester_id')
-        
-        if not names or not semester_id:
-            return Response(
-                {'error': 'Names list and semester_id are required.'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        try:
-            # Check for duplicates in Active sections
-            active_duplicates = list(Section.objects.filter(
-                semester_id=semester_id,
-                name__in=names,
-                is_deleted=False
-            ).values_list('name', flat=True))
-            
-            # Identify available names
-            available = [n for n in names if n not in active_duplicates]
-            
-            return Response({
-                'duplicates': active_duplicates,
-                'available': available
-            })
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
     @extend_schema(
         summary="Bulk Create Sections",
         description="Create multiple sections with automatic subject linking from curriculum",
@@ -532,7 +499,7 @@ class SectionViewSet(viewsets.ModelViewSet):
         
         # Use Service Logic
         from .services import SectionService
-        result = SectionService.bulk_create_sections(data, user=request.user)
+        result = SectionService.bulk_create_sections(serializer.validated_data, user=request.user)
         
         if not result['success']:
             status_code = status.HTTP_400_BAD_REQUEST

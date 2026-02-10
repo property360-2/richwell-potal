@@ -135,7 +135,15 @@ export const api = {
         const data = isJson ? await response.json() : null;
 
         if (!response.ok) {
-            const error = new Error(data?.detail || data?.error || `Server error: ${response.status}`);
+            let message = `Server error: ${response.status}`;
+            if (data) {
+                if (typeof data === 'string') message = data;
+                else if (data.detail && typeof data.detail === 'string') message = data.detail;
+                else if (data.error && typeof data.error === 'string') message = data.error;
+                else if (data.message && typeof data.message === 'string') message = data.message;
+            }
+
+            const error = new Error(message);
             error.status = response.status;
             error.data = data;
             throw error;

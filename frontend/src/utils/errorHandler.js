@@ -135,11 +135,17 @@ export class ErrorHandler {
     }
 
     if (data.message) return data.message;
-    if (data.detail) return data.detail;
+    if (data.detail && typeof data.detail === 'string') return data.detail;
 
-    // Validation errors
-    if (data.errors) {
-      return this.formatValidationErrors(data.errors);
+    // Validation errors (under 'errors', 'error.details', or at root)
+    const validationErrors = data.errors || (data.error && data.error.details) || data;
+
+    if (validationErrors && typeof validationErrors === 'object' && !Array.isArray(validationErrors)) {
+      // Check if it looks like a DRF validation error (object with arrays or strings)
+      const keys = Object.keys(validationErrors);
+      if (keys.length > 0 && keys.every(key => Array.isArray(validationErrors[key]) || typeof validationErrors[key] === 'string')) {
+        return this.formatValidationErrors(validationErrors);
+      }
     }
 
     // Default messages based on status code
@@ -150,12 +156,22 @@ export class ErrorHandler {
    * Extract validation errors from response
    */
   static extractValidationErrors(data) {
+    if (!data || typeof data !== 'object') return null;
+
     if (data.errors && typeof data.errors === 'object') {
       return data.errors;
     }
 
     if (data.error && data.error.details && typeof data.error.details === 'object') {
       return data.error.details;
+    }
+
+    // If it's a flat object with arrays/strings, treat as root-level validation errors
+    const keys = Object.keys(data);
+    if (keys.length > 0 && !data.detail && !data.message && !data.error) {
+      if (keys.every(k => Array.isArray(data[k]) || typeof data[k] === 'string')) {
+        return data;
+      }
     }
 
     return null;

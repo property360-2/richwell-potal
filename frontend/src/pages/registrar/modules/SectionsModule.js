@@ -40,6 +40,7 @@ export const SectionsModule = {
         window.deleteSection = (id) => this.deleteSection(id);
         window.openBulkCreateModal = () => this.openBulkCreateModal();
         window.handleBulkInputs = () => this.handleBulkInputs();
+        window.updateBulkCurriculumOptions = () => this.updateBulkCurriculumOptions();
 
         // Scheduling and Drag-Drop
         window.handleDragStart = (e, id, code, title) => this.handleDragStart(e, id, code, title);
@@ -184,10 +185,10 @@ export const SectionsModule = {
 
         // Default: Schedule
         return `
-            <div class="relative overflow-hidden">
+            <div class="relative">
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 transition-all duration-500 ${this.state.sidebarOpen ? 'lg:mr-[380px]' : ''}">
                     <!-- Masterlist Sidebar -->
-                    <div class="lg:col-span-3 space-y-6">
+                    <div class="lg:col-span-3 space-y-6 sticky top-24 self-start">
                         <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                             <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Unscheduled Subjects</h3>
                             <div class="space-y-3">
@@ -207,7 +208,7 @@ export const SectionsModule = {
                                             <div class="text-[10px] text-gray-400 font-bold mb-3">${subj.units} Units</div>
                                             
                                             <div class="pt-2 border-t border-gray-50">
-                                                <label class="text-[10px] uppercase font-bold text-gray-400 block mb-1">Preferred Professor</label>
+                                                <label class="text-[10px] uppercase font-bold text-gray-400 block mb-1">Assigned Professor on Subject</label>
                                                 <select 
                                                     ${isSlotted ? 'disabled' : ''}
                                                     onclick="event.stopPropagation()" 
@@ -216,10 +217,10 @@ export const SectionsModule = {
                                                     data-subject="${subj.subject_id}"
                                                 >
                                                     <option value="">-- ${isSlotted ? 'Already Scheduled' : 'Drag to Select'} --</option>
-                                                    ${this.state.professors ? this.state.professors.map(p => {
+                                                    ${(subj.qualified_professors || []).map(p => {
                 const isSelected = isSlotted && this.state.sectionSchedule.find(slot => slot.subject_id === subj.subject_id)?.professor === p.id;
-                return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${p.full_name || p.user?.last_name || 'Prof'}</option>`;
-            }).join('') : ''}
+                return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${p.name || p.full_name || p.user?.last_name || 'Prof'}</option>`;
+            }).join('')}
                                                 </select>
                                             </div>
                                         </div>
@@ -230,22 +231,29 @@ export const SectionsModule = {
                     </div>
 
                     <!-- Schedule Grid -->
-                    <div class="lg:col-span-9 bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
-                        <div class="overflow-x-auto">
+                    <div class="lg:col-span-9 bg-white rounded-3xl border border-gray-100 shadow-xl">
+                        <div>
                             <table class="w-full border-collapse table-fixed">
                                 <thead>
                                     <tr class="bg-gray-50/50">
-                                        <th class="w-20 p-4 text-[11px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">Time</th>
-                                        ${DAYS.map(d => `<th class="p-4 text-[11px] font-black text-gray-600 uppercase tracking-widest border-b border-gray-100 border-l border-gray-50">${d.name}</th>`).join('')}
+                                        <th class="w-20 p-4 text-[11px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 sticky top-24 bg-white/95 backdrop-blur-sm z-[30]">Time</th>
+                                        ${DAYS.map(d => `<th class="p-4 text-[11px] font-black text-gray-600 uppercase tracking-widest border-b border-gray-100 border-l border-gray-50 sticky top-24 bg-white/95 backdrop-blur-sm z-[30]">${d.name}</th>`).join('')}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${TIME_SLOTS.map(t => `
-                                        <tr class="h-10 group">
-                                            <td class="p-0 text-[10px] font-black text-gray-400 text-center bg-gray-50/50 border-b border-gray-100 align-top pt-1 leading-none ${t.endsWith(':00') ? 'border-t border-gray-200' : 'text-transparent'}">${t}</td>
+                                    ${TIME_SLOTS.map(t => {
+            const isHour = t.endsWith(':00');
+            const labelColor = isHour ? 'text-gray-400 font-black' : 'text-gray-300 font-bold text-[9px]';
+
+            return `
+                                        <tr class="h-12 group">
+                                            <td class="p-0 ${labelColor} text-center bg-gray-50/50 border-b border-gray-100 align-top pt-1 leading-none ${isHour ? 'border-t border-gray-200' : ''}">
+                                                ${t}
+                                            </td>
                                             ${DAYS.map(d => this.renderScheduleCell(d.code, t)).join('')}
                                         </tr>
-                                    `).join('')}
+                                    `;
+        }).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -366,12 +374,12 @@ export const SectionsModule = {
 
             return `
                 <td rowspan="${rowSpan}" 
-                    class="p-1 relative align-top border-l border-gray-50 z-10" 
-                    style="height: ${rowSpan * 2.5}rem;"
+                    class="p-0 relative align-top border-l border-gray-50 z-10" 
+                    style="height: ${rowSpan * 3}rem;"
                     draggable="true" 
                     onclick="openSlotEditor('${slot.id}')"
                     ondragstart="handleDragStart(event, '${slot.subject_id}', '${slot.subject_code}', '${slot.subject_title || ''}', '${slot.id}')">
-                    <div class="h-full w-full rounded-xl ${slot.color ? slot.color : colorClass.bg + ' ' + colorClass.border} border-l-4 p-2 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between overflow-hidden">
+                    <div class="h-full w-full ${slot.color ? slot.color : colorClass.bg + ' ' + colorClass.border} border-l-4 p-2 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between overflow-hidden">
                         <div>
                             <div class="flex justify-between items-start">
                                 <span class="text-[10px] font-black ${colorClass.text} uppercase tracking-wider">${slot.subject_code}</span>
@@ -404,7 +412,10 @@ export const SectionsModule = {
 
         if (overlapped) return '';
 
-        return `<td class="p-0 border-b border-gray-100 border-l border-gray-50 hover:bg-blue-50/50 transition-colors relative h-10" 
+        const isHour = time.endsWith(':00');
+        const gridClass = isHour ? 'border-t border-t-gray-300' : 'border-t border-t-gray-100 border-dashed';
+
+        return `<td class="p-0 ${gridClass} border-b border-gray-100 border-l border-gray-50 hover:bg-blue-50/50 transition-colors relative h-12" 
                     data-day="${day}" data-time="${time}"
                     ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDropToSchedule(event)">
                 </td>`;
@@ -578,6 +589,9 @@ export const SectionsModule = {
 
                         try {
                             // 1. Create/Get Assignment
+                            let assignmentId = assignment ? (assignment.id || assignment.section_subject_id) : null;
+                            const currentProfId = assignment ? (assignment.professor || assignment.assigned_professors?.[0]?.id || assignment.professors?.[0]?.id) : null;
+
                             if (!assignment) {
                                 console.log('Creating new section subject assignment:', {
                                     section: this.state.selectedSection.id,
@@ -589,16 +603,17 @@ export const SectionsModule = {
                                     subject: subjectId,
                                     professor: profId || null
                                 });
-                            } else if (profId && assignment.professor_id !== profId) {
+                                assignmentId = assignment.id;
+                            } else if (profId && currentProfId !== profId) {
                                 // Update professor if changed
-                                await api.request(`${endpoints.sectionSubjects}${assignment.id}/`, {
+                                await api.request(endpoints.sectionSubject(assignmentId), {
                                     method: 'PATCH',
                                     body: JSON.stringify({ professor: profId })
                                 });
                             }
 
                             const payload = {
-                                section_subject: assignment.id,
+                                section_subject: assignmentId,
                                 day: day,
                                 start_time: sTime,
                                 end_time: eTime,
@@ -611,7 +626,7 @@ export const SectionsModule = {
 
                             if (slotId) {
                                 // Update existing
-                                await api.request(`${endpoints.scheduleSlots}${slotId}/`, {
+                                await api.request(endpoints.scheduleSlot(slotId), {
                                     method: 'PATCH',
                                     body: JSON.stringify(payload)
                                 });
@@ -668,6 +683,29 @@ export const SectionsModule = {
         });
         modal.show();
         setTimeout(() => this.refreshLogisticsStatus('f'), 100);
+    },
+
+    async removeScheduleSlot(id) {
+        const confirmed = await ConfirmModal({
+            title: 'Delete Schedule Slot',
+            message: 'Are you sure you want to remove this schedule slot?',
+            confirmLabel: 'Delete Slot',
+            danger: true
+        });
+
+        if (confirmed) {
+            try {
+                await api.delete(endpoints.scheduleSlot(id));
+                Toast.success('Schedule slot removed');
+                if (this.state.sidebarOpen) {
+                    this.state.sidebarOpen = false;
+                    this.state.activeSlotId = null;
+                }
+                await this.viewSection(this.state.selectedSection.id);
+            } catch (e) {
+                ErrorHandler.handle(e);
+            }
+        }
     },
 
     async viewSection(id) {
@@ -785,7 +823,7 @@ export const SectionsModule = {
                 label: 'Program',
                 id: 'bulk-program',
                 type: 'select',
-                attrs: 'onchange="handleBulkInputs()"',
+                attrs: 'onchange="handleBulkInputs(); updateBulkCurriculumOptions()"',
                 options: this.state.programs.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))
             })}
                         ${UI.field({
@@ -862,8 +900,8 @@ export const SectionsModule = {
         try {
             const res = await api.get(`${endpoints.curricula}?program=${programId}&is_active=true`);
             const select = document.getElementById('bulk-curriculum');
-            if (select && res.results && res.results.length > 0) {
-                select.innerHTML = res.results.map(c => `<option value="${c.id}">${c.name} (${c.code})</option>`).join('');
+            if (select && res && res.length > 0) {
+                select.innerHTML = res.map(c => `<option value="${c.id}">${c.name} (${c.code})</option>`).join('');
             } else if (select) {
                 select.innerHTML = '<option value="">No active curriculum found</option>';
             }
@@ -1166,6 +1204,8 @@ export const SectionsModule = {
         if (!slot) return `<div class="p-8 text-center text-gray-400">Select a slot to edit</div>`;
 
         const prof = this.state.professors?.find(p => p.id === slot.professor);
+        const subjInfo = this.state.detailedSubjects?.find(s => s.subject_id === slot.subject_id);
+        const qualifiedProfs = subjInfo?.qualified_professors || [];
         const colorClass = getSubjectColor(slot.subject_code);
 
         const PRESET_COLORS = [
@@ -1234,11 +1274,11 @@ export const SectionsModule = {
                     </div>
 
                     <div>
-                        <label class="text-xs font-bold text-gray-600 mb-1 block">Professor</label>
+                        <label class="text-xs font-bold text-gray-600 mb-1 block">Assigned Professor on Subject</label>
                         <select id="edit-prof" onchange="refreshLogisticsStatus('edit')" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 outline-none text-sm font-bold">
                             <option value="">No Professor (TBA)</option>
-                            ${this.state.professors?.map(p => {
-            const name = p.full_name || `${p.user?.last_name || p.last_name}, ${p.user?.first_name || p.first_name}`;
+                            ${qualifiedProfs.map(p => {
+            const name = p.name || p.full_name || `${p.user?.last_name || p.last_name}, ${p.user?.first_name || p.first_name}`;
             return `<option value="${p.id}" data-name="${name}" ${slot.professor === p.id ? 'selected' : ''}>${name}</option>`;
         }).join('')}
                         </select>
@@ -1250,11 +1290,16 @@ export const SectionsModule = {
                 </div>
             </div>
 
-            <div class="p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
-                <button onclick="closeSlotEditor()" class="flex-1 py-3 text-sm font-black text-gray-500 hover:text-gray-700 transition-colors uppercase tracking-widest">Discard</button>
-                <button onclick="saveSlotUpdate()" id="btn-save-slot" class="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-sm font-black shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 active:scale-95 transition-all uppercase tracking-widest">
-                    Save Changes
+            <div class="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-3">
+                <button onclick="removeScheduleSlot('${slot.id}')" class="px-4 py-3 bg-red-50 text-red-600 rounded-xl text-sm font-black hover:bg-red-100 transition-all uppercase tracking-widest whitespace-nowrap">
+                    Delete
                 </button>
+                <div class="flex-1 flex gap-3">
+                    <button onclick="closeSlotEditor()" class="flex-1 py-3 text-sm font-black text-gray-500 hover:text-gray-700 transition-colors uppercase tracking-widest">Discard</button>
+                    <button onclick="saveSlotUpdate()" id="btn-save-slot" class="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-sm font-black shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 active:scale-95 transition-all uppercase tracking-widest">
+                        Save Changes
+                    </button>
+                </div>
             </div>
         `;
     },
@@ -1279,7 +1324,7 @@ export const SectionsModule = {
             if (btn) btn.disabled = true;
             if (btn) btn.innerHTML = 'Saving...';
 
-            await api.request(`${endpoints.scheduleSlots}${slotId}/`, {
+            await api.request(endpoints.scheduleSlot(slotId), {
                 method: 'PATCH',
                 body: JSON.stringify(payload)
             });

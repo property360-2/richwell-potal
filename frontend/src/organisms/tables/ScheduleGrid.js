@@ -110,9 +110,9 @@ export function renderScheduleGrid({
   // Render header
   const headerHtml = `
     <tr>
-      <th class="border border-gray-200 bg-gray-100 p-2 text-xs font-bold text-gray-600 w-16 sticky left-0 z-20">Time</th>
+      <th class="border border-gray-200 bg-white p-2 text-xs font-bold text-gray-600 w-16 sticky left-0 top-0 z-30">Time</th>
       ${visibleDays.map(d => `
-        <th class="border border-gray-200 bg-gray-100 p-2 text-xs font-bold text-gray-600">${d.short}</th>
+        <th class="border border-gray-200 bg-white/95 backdrop-blur-sm p-2 text-xs font-bold text-gray-600 sticky top-0 z-20">${d.short}</th>
       `).join('')}
     </tr>
   `;
@@ -153,7 +153,7 @@ export function renderScheduleGrid({
             <td 
               rowspan="${duration}" 
               class="border border-gray-200 p-0 relative ${mode === 'edit' ? 'cursor-pointer' : ''}"
-              style="height: ${duration * 2.5}rem;"
+              style="height: ${duration * 3}rem;"
             >
               <div 
                 class="${color} border-l-4 h-full p-2 text-[10px] ${mode === 'edit' ? 'cursor-pointer hover:opacity-80' : ''}"
@@ -181,12 +181,12 @@ export function renderScheduleGrid({
         : '';
       const hoverClass = mode === 'edit' ? 'hover:bg-blue-50 cursor-pointer' : '';
 
-      return `<td class="border border-gray-100 h-10 ${hoverClass}" ${cellClick}></td>`;
+      return `<td class="border border-gray-100 h-12 ${hoverClass}" ${cellClick}></td>`;
     }).join('');
 
     return `
-      <tr class="group h-10">
-        <td class="border border-gray-200 bg-gray-50 p-1 text-[10px] font-bold text-gray-500 text-center sticky left-0 z-10 ${time.endsWith(':00') ? 'border-t-gray-300' : 'text-transparent'}">
+      <tr class="group h-12">
+        <td class="border border-gray-200 bg-white p-1 text-[10px] font-bold text-center sticky left-0 z-10 ${time.endsWith(':00') ? 'border-t-gray-300 text-gray-500' : 'text-gray-300 font-medium scale-90'}">
           ${formatTime(time)}
         </td>
         ${cellsHtml}
@@ -195,13 +195,11 @@ export function renderScheduleGrid({
   }).join('');
 
   return `
-    <div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden ${className}">
-      <div class="overflow-x-auto">
-        <table class="w-full border-collapse table-fixed min-w-[800px]">
-          <thead>${headerHtml}</thead>
-          <tbody class="divide-y divide-gray-50">${rowsHtml}</tbody>
-        </table>
-      </div>
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-100 ${className}">
+      <table class="w-full border-collapse table-fixed min-w-[800px]">
+        <thead>${headerHtml}</thead>
+        <tbody class="divide-y divide-gray-50">${rowsHtml}</tbody>
+      </table>
     </div>
   `.trim();
 }
