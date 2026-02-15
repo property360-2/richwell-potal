@@ -1,3 +1,39 @@
-here in http://localhost:3000/pages/registrar/registrar-academic.html#sections
-inside Bulk Create Sections modal
-it shows no curriculum found in the curriculum input
+## File Structure Reorganization
+- [x] Phase 1: Create feature subdirectories for Registrar role
+  - [x] Create `registrar/students/`, `registrar/grades/`, `registrar/sections/`, `registrar/curriculum/`, `registrar/enrollment/`
+  - [x] Create `registrar/students/modals/`, `registrar/sections/modals/`, `registrar/curriculum/modals/`
+  - [x] Create `registrar/services/`
+- [x] Phase 2: Move and rename Registrar files
+  - [x] Move student-related files to `registrar/students/`
+  - [x] Move grade-related files to `registrar/grades/`
+  - [x] Move section-related files to `registrar/sections/`
+  - [x] Move curriculum-related files to `registrar/curriculum/`
+  - [x] Move enrollment-related files to `registrar/enrollment/`
+- [x] Phase 3: Rename dashboards to `index.jsx`
+  - [x] Rename all `*Dashboard.jsx` files to `index.jsx` in their respective role folders
+- [x] Phase 4: Remove role prefixes from file names
+  - [x] Remove "Registrar" prefix from all registrar files
+  - [x] Remove "Admin" prefix from admin files
+  - [x] Remove "Student", "Professor", "Head" prefixes where applicable
+- [x] Phase 5: Create modals subdirectories for other roles
+  - [x] Create `admin/modals/`
+  - [x] Move modal files to appropriate subdirectories
+- [x] Phase 6: Create services subdirectories
+  - [x] Create `services/` folder in each role directory
+  - [x] Move service files to `services/` subdirectories
+- [x] Phase 7: Update all import statements
+  - [x] Update imports in all page files
+  - [x] Update imports in all component files
+  - [x] Update route definitions in router/App.jsx
+- [x] Phase 8: Create permission system structure
+  - [x] Create `src/permissions/` directory
+  - [x] Create `permissions/constants.js`
+  - [x] Create `permissions/hooks/` directory
+  - [x] Create `permissions/components/` directory
+- [x] Phase 9: Verify build and routing
+  - [x] Run build to check for errors
+  - [x] Test all routes are accessible
+  - [x] Verify HMR is working
+- [x] Phase 10: Update documentation
+  - [x] Update README with new structure
+  - [x] Document permission system architecture

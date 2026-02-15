@@ -19,7 +19,8 @@ import {
 import { useToast } from '../../context/ToastContext';
 import Button from '../../components/ui/Button';
 import SEO from '../../components/shared/SEO';
-import CashierService from '../cashier/CashierService';
+import CashierService from '../cashier/services/CashierService';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const StudentSOA = () => {
     const { error } = useToast();
@@ -42,7 +43,6 @@ const StudentSOA = () => {
         }
     };
 
-    const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val);
 
     if (loading) return (
         <div className="h-screen flex items-center justify-center">
@@ -124,7 +124,7 @@ const StudentSOA = () => {
                                         <tr><td colSpan="3" className="text-center py-10 opacity-20 text-[10px] font-black uppercase">No payments recorded</td></tr>
                                     ) : recent_transactions.map((t, idx) => (
                                         <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase">{new Date(t.processed_at).toLocaleDateString()}</td>
+                                            <td className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase">{formatDate(t.processed_at)}</td>
                                             <td className="px-8 py-5 text-[10px] font-black text-blue-600 uppercase tracking-widest">{t.receipt_number}</td>
                                             <td className="px-8 py-5 text-right text-xs font-black text-green-600">{formatCurrency(t.amount)}</td>
                                         </tr>

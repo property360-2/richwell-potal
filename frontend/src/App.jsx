@@ -3,52 +3,52 @@ import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
 import Header from './components/layout/Header'
 import ProtectedRoute from './components/auth/ProtectedRoute'
-import LoginPage from './pages/auth/LoginPage'
-import EnrollmentPage from './pages/enrollment/EnrollmentPage'
-import EnrollmentSuccess from './pages/enrollment/EnrollmentSuccess'
-import SubjectEnrollmentPage from './pages/enrollment/SubjectEnrollmentPage'
+import LoginPage from './pages/auth/Login'
+import EnrollmentPage from './pages/enrollment'
+import EnrollmentSuccess from './pages/enrollment/Success'
+import SubjectEnrollmentPage from './pages/enrollment/SubjectEnrollment'
 
 // Registrar
-import RegistrarDashboard from './pages/registrar/RegistrarDashboard'
-import RegistrarStudentMasterlist from './pages/registrar/RegistrarStudentMasterlist'
-import RegistrarStudentDetail from './pages/registrar/RegistrarStudentDetail'
-import RegistrarSubjectMasterlist from './pages/registrar/RegistrarSubjectMasterlist'
-import RegistrarSemesterManagement from './pages/registrar/RegistrarSemesterManagement'
-import RegistrarSectionManager from './pages/registrar/RegistrarSectionManager'
-import RegistrarSectionDetail from './pages/registrar/RegistrarSectionDetail'
-import RegistrarCORManagement from './pages/registrar/RegistrarCORManagement'
-import RegistrarINCManagement from './pages/registrar/RegistrarINCManagement'
-import RegistrarGradeMonitoring from './pages/registrar/RegistrarGradeMonitoring'
-import RegistrarGradeFinalization from './pages/registrar/RegistrarGradeFinalization'
+import RegistrarDashboard from './pages/registrar'
+import RegistrarStudentMasterlist from './pages/registrar/students/Masterlist'
+import RegistrarStudentDetail from './pages/registrar/students/Detail'
+import RegistrarSubjectMasterlist from './pages/registrar/curriculum/SubjectMasterlist'
+import RegistrarSemesterManagement from './pages/registrar/curriculum/SemesterManagement'
+import RegistrarSectionManager from './pages/registrar/sections/Manager'
+import RegistrarSectionDetail from './pages/registrar/sections/Detail'
+import RegistrarCORManagement from './pages/registrar/enrollment/CORManagement'
+import RegistrarINCManagement from './pages/registrar/grades/INCManagement'
+import RegistrarGradeMonitoring from './pages/registrar/grades/Monitoring'
+import RegistrarGradeFinalization from './pages/registrar/grades/Finalization'
 
 // Student
-import StudentDashboard from './pages/student/StudentDashboard'
-import StudentGrades from './pages/student/StudentGrades'
-import StudentSchedule from './pages/student/StudentSchedule'
+import StudentDashboard from './pages/student'
+import StudentGrades from './pages/student/Grades'
+import StudentSchedule from './pages/student/Schedule'
 
 // Professor
-import ProfessorDashboard from './pages/professor/ProfessorDashboard'
-import ProfessorSchedule from './pages/professor/ProfessorSchedule'
-import ProfessorGrades from './pages/professor/ProfessorGrades'
+import ProfessorDashboard from './pages/professor'
+import ProfessorSchedule from './pages/professor/Schedule'
+import ProfessorGrades from './pages/professor/Grades'
 
 // Admission
-import AdmissionDashboard from './pages/admission/AdmissionDashboard'
+import AdmissionDashboard from './pages/admission'
 
 // Head Oversight
-import HeadDashboard from './pages/head/HeadDashboard'
-import HeadReports from './pages/head/HeadReports'
-import HeadResolutions from './pages/head/HeadResolutions'
+import HeadDashboard from './pages/head'
+import HeadReports from './pages/head/Reports'
+import HeadResolutions from './pages/head/Resolutions'
 
 // Cashier
-import CashierDashboard from './pages/cashier/CashierDashboard'
+import CashierDashboard from './pages/cashier'
 
 // Student Finance
 import StudentSOA from './pages/student/StudentSOA'
 
 // Superadmin
-import AdminUserManagement from './pages/admin/AdminUserManagement'
-import AdminSystemConfig from './pages/admin/AdminSystemConfig'
-import AdminAuditLogs from './pages/admin/AdminAuditLogs'
+import AdminUserManagement from './pages/admin/UserManagement'
+import AdminSystemConfig from './pages/admin/SystemConfig'
+import AdminAuditLogs from './pages/admin/AuditLogs'
 
 function App() {
   return (
