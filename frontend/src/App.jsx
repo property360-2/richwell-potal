@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
 import Header from './components/layout/Header'
@@ -50,17 +50,36 @@ import AdminUserManagement from './pages/admin/UserManagement'
 import AdminSystemConfig from './pages/admin/SystemConfig'
 import AdminAuditLogs from './pages/admin/AuditLogs'
 
+// Academics
+import AcademicsPage from './pages/academics/AcademicsPage'
+import ProgramDetailPage from './pages/academics/ProgramDetailPage'
+
+// Layout wrapper component
+function Layout({ children }) {
+  const location = useLocation();
+  const hideHeaderPaths = ['/auth/login', '/auth/register', '/auth/forgot-password'];
+  const shouldShowHeader = !hideHeaderPaths.includes(location.pathname);
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {shouldShowHeader && <Header />}
+      <main className="flex-grow">
+        {children}
+      </main>
+    </div>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <ToastProvider>
         <Router>
-          <div className="min-h-screen bg-gray-50 flex flex-col">
-            <Header />
-            <main className="flex-grow">
-              <Routes>
+          <Layout>
+            <Routes>
                 {/* Public Routes */}
-                <Route path="/" element={<WelcomePage />} />
+                {/* Root Redirect */}
+                <Route path="/" element={<Navigate to="/auth/login" replace />} />
                 <Route path="/auth/login" element={<LoginPage />} />
                 <Route path="/enrollment" element={<EnrollmentPage />} />
                 <Route path="/enrollment/success" element={<EnrollmentSuccess />} />
@@ -218,6 +237,11 @@ function App() {
                 } />
 
                 {/* Superadmin */}
+                <Route path="/admin/dashboard" element={
+                  <ProtectedRoute roles={['ADMIN']}>
+                    <AdminUserManagement />
+                  </ProtectedRoute>
+                } />
                 <Route path="/admin/users" element={
                   <ProtectedRoute roles={['ADMIN']}>
                     <AdminUserManagement />
@@ -234,16 +258,27 @@ function App() {
                   </ProtectedRoute>
                 } />
 
+                {/* Academics (Admin & Head Registrar) */}
+                <Route path="/academics" element={
+                  <ProtectedRoute roles={['ADMIN', 'HEAD_REGISTRAR']}>
+                    <AcademicsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/academics/programs/:id" element={
+                  <ProtectedRoute roles={['ADMIN', 'HEAD_REGISTRAR']}>
+                    <ProgramDetailPage />
+                  </ProtectedRoute>
+                } />
+
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            </main>
-          </div>
-        </Router>
-      </ToastProvider>
-    </AuthProvider>
-  )
-}
+            </Layout>
+          </Router>
+        </ToastProvider>
+      </AuthProvider>
+    )
+  }
 
 
 function WelcomePage() {

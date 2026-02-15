@@ -14,7 +14,8 @@ import {
     FileText,
     Menu,
     X,
-    Bell
+    Bell,
+    GraduationCap
 } from 'lucide-react';
 import NotificationBell from '../shared/NotificationBell';
 import MobileMenu from '../shared/MobileMenu';
@@ -47,6 +48,7 @@ const Header = () => {
         { name: 'Students', href: '/registrar/students', icon: Users, roles: ['REGISTRAR', 'ADMIN', 'CASHIER'] },
         { name: 'Resolutions', href: '/head/resolutions', icon: CheckCircle, roles: ['DEPARTMENT_HEAD', 'ADMIN'] },
         { name: 'Reports', href: '/head/reports', icon: FileText, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
+        { name: 'Academics', href: '/academics', icon: GraduationCap, roles: ['ADMIN', 'HEAD_REGISTRAR'] },
         { name: 'Users', href: '/admin/users', icon: Users, roles: ['ADMIN'] },
         { name: 'System', href: '/admin/config', icon: Settings, roles: ['ADMIN'] },
         { name: 'Audit', href: '/admin/audit-logs', icon: Activity, roles: ['ADMIN'] },
@@ -63,11 +65,6 @@ const Header = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-20">
                     <div className="flex items-center">
-                        <div className="flex-shrink-0 flex items-center pr-8 border-r border-gray-100 mr-8">
-                            <Link to="/" className="text-2xl font-black text-blue-600 tracking-[ -0.05em] italic">
-                                RICHWELL<span className="text-gray-900 not-italic">PORTAL</span>
-                            </Link>
-                        </div>
                         <nav className="hidden lg:flex items-center space-x-1">
                             {filteredNav.map((item) => (
                                 <Link

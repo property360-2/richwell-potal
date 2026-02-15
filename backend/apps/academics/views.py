@@ -130,6 +130,19 @@ class ProgramViewSet(viewsets.ModelViewSet):
         instance.is_deleted = True
         instance.is_active = False
         instance.save()
+
+    @action(detail=False, methods=['get'], url_path='check-duplicate')
+    def check_duplicate(self, request):
+        """Check if a program with the given code already exists (including deleted)."""
+        code = request.query_params.get('code', '').strip().upper()
+        
+        if not code:
+            return Response({'error': 'Code is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Check all_objects because DB unique constraint includes soft-deleted records
+        from .models import Program
+        exists = Program.all_objects.filter(code=code).exists()
+        return Response({'duplicate': exists})
     
     @action(detail=True, methods=['post'], url_path='snapshot')
     @extend_schema(
@@ -222,10 +235,12 @@ class SubjectViewSet(viewsets.ModelViewSet):
         if program_id:
             # Filter by subjects that include this program (multi-program support)
             # OR subjects that are assigned to a curriculum of this program
+            # OR subjects that are marked as global
             queryset = queryset.filter(
                 Q(program_id=program_id) |
                 Q(programs__id=program_id) | 
-                Q(curriculum_assignments__curriculum__program_id=program_id)
+                Q(curriculum_assignments__curriculum__program_id=program_id) |
+                Q(is_global=True)
             ).distinct()
         
         if year_level:
@@ -1483,8 +1498,8 @@ class CurriculumViewSet(viewsets.ModelViewSet):
                     is_deleted=False
                 )
 
-                # Check subject belongs to curriculum's program (multi-program support)
-                if not subject.programs.filter(id=curriculum.program.id).exists():
+                # Check subject belongs to curriculum's program or is global
+                if not subject.is_global and subject.program_id != curriculum.program.id:
                     errors.append({
                         'subject_id': str(assignment['subject_id']),
                         'error': f"Subject {subject.code} does not belong to program {curriculum.program.code}"

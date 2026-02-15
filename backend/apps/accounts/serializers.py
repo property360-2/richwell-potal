@@ -219,7 +219,26 @@ class StudentManualCreateSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(write_only=True)
     first_name = serializers.CharField(write_only=True)
     last_name = serializers.CharField(write_only=True)
-    birthdate = serializers.DateField(write_only=True)
+    password = serializers.CharField(write_only=True, required=False)
+    student_number = serializers.CharField(write_only=True, required=False)
+    birthdate = serializers.DateField(write_only=True, required=False)
+    
+    # Allow sending program code (e.g. 'BSIT') instead of ID
+    from apps.academics.models import Program
+    program = serializers.SlugRelatedField(
+        slug_field='code', 
+        queryset=Program.objects.all()
+    )
+    
+    # Curriculum is auto-assigned by service if not provided
+    from apps.academics.models import Curriculum
+    curriculum = serializers.PrimaryKeyRelatedField(
+        queryset=Curriculum.objects.all(),
+        required=False
+    )
+    
+    year_level = serializers.IntegerField(required=False, default=1)
+    
     address = serializers.CharField(required=False, allow_blank=True)
     contact_number = serializers.CharField(required=False, allow_blank=True)
     
@@ -228,7 +247,8 @@ class StudentManualCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentProfile
         fields = [
-            'email', 'first_name', 'last_name', 'birthdate', 'address', 'contact_number',
+            'email', 'first_name', 'last_name', 'password', 'student_number', 
+            'birthdate', 'address', 'contact_number',
             'program', 'curriculum', 'year_level', 'status', 'is_transferee', 'is_past_student',
             'previous_school', 'credited_subjects'
         ]

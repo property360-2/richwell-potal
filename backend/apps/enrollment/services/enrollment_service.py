@@ -150,8 +150,13 @@ class EnrollmentService:
         """
         semester = self._get_current_semester()
         program = Program.objects.get(id=data['program_id'])
-        student_number = self.generate_student_number()
-        password = self._generate_password()
+        # Use provided student_number or generate new one
+        student_number = data.get('student_number')
+        if not student_number:
+             student_number = self.generate_student_number()
+             
+        # Use provided password or default to student number (common initial password)
+        password = data.get('password') or student_number
         
         # Create User
         user = User.objects.create_user(
@@ -164,25 +169,33 @@ class EnrollmentService:
             username=data['email']
         )
         
-        # Get active curriculum for program (transferees get latest curriculum)
-        active_curriculum = Curriculum.objects.filter(
-            program=program,
-            is_active=True,
-            is_deleted=False
-        ).order_by('-effective_year').first()
+        # EPIC 7: Get active curriculum for program (transferees get latest curriculum)
+        # Use provided curriculum or fetch active one
+        if data.get('curriculum'):
+             active_curriculum = data['curriculum']
+        else:
+             active_curriculum = Curriculum.objects.filter(
+                program=program,
+                is_active=True,
+                is_deleted=False
+            ).order_by('-effective_year').first()
 
         # Create StudentProfile
+        # Default birthdate if missing (required by model usually but creating safe fallback)
+        from datetime import date
+        default_birthdate = date(2000, 1, 1)
+        
         StudentProfile.objects.create(
             user=user,
             program=program,
             curriculum=active_curriculum,
-            year_level=data['year_level'],
+            year_level=data.get('year_level', 1),
             middle_name=data.get('middle_name', ''),
             suffix=data.get('suffix', ''),
-            birthdate=data['birthdate'],
-            address=data['address'],
-            contact_number=data['contact_number'],
-            is_transferee=True,
+            birthdate=data.get('birthdate') or default_birthdate,
+            address=data.get('address', ''),
+            contact_number=data.get('contact_number', ''),
+            is_transferee=data.get('is_transferee', True),
             previous_school=data.get('previous_school', ''),
             previous_course=data.get('previous_course', '')
         )

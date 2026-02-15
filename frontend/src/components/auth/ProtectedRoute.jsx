@@ -20,9 +20,23 @@ const ProtectedRoute = ({ children, roles }) => {
         return <Navigate to="/auth/login" state={{ from: location }} replace />;
     }
 
+    const getDashboardPath = (role) => {
+        const routes = {
+            'STUDENT': '/dashboard',
+            'ADMISSION_STAFF': '/admission/dashboard',
+            'ADMIN': '/admin/dashboard',
+            'REGISTRAR': '/registrar/dashboard',
+            'HEAD_REGISTRAR': '/registrar/dashboard',
+            'DEPARTMENT_HEAD': '/head/dashboard',
+            'CASHIER': '/cashier/dashboard',
+            'PROFESSOR': '/professor/dashboard'
+        };
+        return routes[role] || '/dashboard';
+    };
+
     if (roles && !roles.includes(user.role)) {
-        // Role not authorized
-        return <Navigate to="/dashboard" replace />;
+        // Role not authorized - redirect to THEIR dashboard
+        return <Navigate to={getDashboardPath(user.role)} replace />;
     }
 
     return children;

@@ -6,10 +6,20 @@ export const AdminService = {
         const params = new URLSearchParams();
         if (filters.search) params.append('search', filters.search);
         if (filters.role) params.append('role', filters.role);
+        if (filters.include_students) params.append('include_students', 'true');
 
         const queryString = params.toString();
         const url = queryString ? `${endpoints.users}?${queryString}` : endpoints.users;
         return await api.get(url);
+    },
+
+    createUser: async (userData) => {
+        const url = userData.role === 'STUDENT' ? endpoints.registrarStudents : endpoints.staff;
+        return await api.post(url, userData);
+    },
+
+    generateStudentId: async () => {
+        return await api.get(endpoints.generateStudentId);
     },
 
     getUserPermissions: async (userId) => {

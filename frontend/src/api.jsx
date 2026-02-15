@@ -369,6 +369,8 @@ export const endpoints = {
 
     // Permission Management
     users: '/accounts/users/',
+    staff: '/accounts/staff/',
+    generateStudentId: '/accounts/generate-student-id/',
     userPermissions: (userId) => `/accounts/users/${userId}/permissions/`,
     updateUserPermission: (userId) => `/accounts/users/${userId}/permissions/update/`,
     bulkUpdatePermissions: (userId) => `/accounts/users/${userId}/permissions/bulk/`,

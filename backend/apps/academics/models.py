@@ -147,6 +147,10 @@ class Subject(BaseModelWithActiveManager):
         default='MINOR',
         help_text='Subject classification'
     )
+    is_global = models.BooleanField(
+        default=False,
+        help_text='Whether this subject is visible to all programs (e.g., General Education)'
+    )
     allow_multiple_sections = models.BooleanField(
         default=False,
         help_text='Whether a student can enroll in multiple sections (for irregular students)'

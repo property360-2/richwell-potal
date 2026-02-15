@@ -44,7 +44,10 @@ export const AuthProvider = ({ children }) => {
         } finally {
             TokenManager.clearTokens();
             setUser(null);
-            window.location.href = '/'; // Simple redirect for now
+            // Avoid infinite loop by not redirecting if already on login page
+            if (window.location.pathname !== '/auth/login') {
+                window.location.href = '/auth/login';
+            }
         }
     };
 

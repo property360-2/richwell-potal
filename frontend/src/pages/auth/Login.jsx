@@ -13,6 +13,7 @@ const LoginPage = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
+    const [loginError, setLoginError] = useState(null);
 
     const { login, user } = useAuth();
     const { success, error, warning } = useToast();
@@ -69,158 +70,121 @@ const LoginPage = () => {
             handleRedirect(userData.role);
         } catch (err) {
             console.error('Login error:', err);
-            error(err.message || 'Invalid email or password');
+            
+            let message = 'Invalid email or password';
+            if (err.status === 401 || err.message?.includes('401')) {
+                message = 'Invalid email or password';
+            } else if (err.message) {
+                message = err.message;
+            }
+            
+            setLoginError(message);
+            error(message); // Show toast as well
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-gray-50 py-12 px-4 sm:px-6 lg:px-8">
             <SEO title="Portal Login" description="Access the Richwell Portal to manage your academic and financial records." />
-            {/* Background elements */}
-            {/* Left Side - Branding */}
-            <div className="hidden lg:flex lg:w-1/2 bg-white p-16 flex-col justify-between border-r border-gray-100">
-                <div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                            <span className="text-2xl font-black">R</span>
-                        </div>
-                        <span className="text-2xl font-black text-gray-900 tracking-tighter uppercase">Richwell Colleges</span>
-                    </div>
-                </div>
-                
-                <div className="max-w-md">
-                    <h1 className="text-6xl font-black text-gray-900 leading-none mb-8">
-                        Your pathway to<br />
-                        <span className="text-blue-600">excellence.</span>
-                    </h1>
-                    <p className="text-gray-500 text-xl font-medium leading-relaxed">
-                        Access your secure portal to manage your academic profile, view grades, and stay updated with campus life.
-                    </p>
-                    
-                    <div className="mt-12 space-y-6">
-                        <div className="flex items-center gap-4 text-gray-600 group">
-                            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-                                <ShieldCheck className="w-6 h-6" />
-                            </div>
-                            <span className="font-bold">Secure & Encrypted Portal</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-gray-600 group">
-                            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-                                <Clock className="w-6 h-6" />
-                            </div>
-                            <span className="font-bold">Real-time Academic Updates</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div className="text-gray-400 text-sm font-bold uppercase tracking-widest">
-                    © 2026 Richwell Colleges.
-                </div>
-            </div>
             
-            {/* Right Side - Login Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50/50">
-                <div className="w-full max-w-md">
-                    {/* Mobile Branding */}
-                    <div className="lg:hidden text-center mb-12">
-                         <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-blue-200">
-                            <span className="text-3xl font-black">R</span>
-                        </div>
-                        <h1 className="text-3xl font-black text-gray-900 tracking-tighter uppercase">Richwell Colleges</h1>
+            <div className="w-full max-w-md">
+                {/* Login Form */}
+                <div className="bg-white rounded-3xl p-10 shadow-2xl shadow-blue-100/50 border border-gray-100">
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Welcome Back</h2>
+                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Sign in to your account</p>
                     </div>
                     
-                    <div className="bg-white rounded-3xl p-10 shadow-2xl shadow-blue-100/50 border border-gray-100">
-                        <div className="text-center mb-10">
-                            <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Welcome Back</h2>
-                            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Sign in to your account</p>
-                        </div>
-                        
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Email Address</label>
-                                <div className="relative group">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
-                                    <input 
-                                        type="email" 
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 transition-all" 
-                                        placeholder="you@email.com" 
-                                        required
-                                    />
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        {loginError && (
+                            <div className="p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                                <div className="p-2 bg-red-100 rounded-lg">
+                                    <Info className="w-5 h-5 text-red-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-red-900">Login Failed</p>
+                                    <p className="text-xs text-red-600 font-medium">{loginError}</p>
                                 </div>
                             </div>
-                            
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Password</label>
-                                <div className="relative group">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
-                                    <input 
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full pl-12 pr-14 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 transition-all" 
-                                        placeholder="••••••••" 
-                                        required
-                                    />
-                                    <button 
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                                    >
-                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                    </button>
-                                </div>
+                        )}
+                        <div className="space-y-2">
+                            <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Email Address</label>
+                            <div className="relative group">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                                <input 
+                                    type="email" 
+                                    value={email}
+                                    onChange={(e) => {
+                                        setEmail(e.target.value);
+                                        setLoginError(null);
+                                    }}
+                                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 transition-all" 
+                                    placeholder="you@email.com" 
+                                    required
+                                />
                             </div>
-                            
-                            <div className="flex items-center justify-between px-1">
-                                <label className="flex items-center gap-2 cursor-pointer group">
-                                    <div className="relative flex items-center">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={rememberMe}
-                                            onChange={(e) => setRememberMe(e.target.checked)}
-                                            className="w-5 h-5 rounded-lg border-2 border-gray-200 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer"
-                                        />
-                                    </div>
-                                    <span className="text-sm font-bold text-gray-600 group-hover:text-gray-900 transition-colors">Remember me</span>
-                                </label>
-                                <Link to="/auth/forgot-password" size="sm" className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:underline">
-                                    Forgot password?
-                                </Link>
-                            </div>
-                            
-                            <Button
-                                type="submit"
-                                variant="primary"
-                                className="w-full py-4 text-lg"
-                                loading={isLoading}
-                                icon={ArrowRight}
-                            >
-                                Sign In
-                            </Button>
-                        </form>
-                        
-                        <div className="mt-8 text-center">
-                            <p className="text-gray-500 font-bold text-sm uppercase tracking-tight">
-                                Don't have an account? 
-                                <Link to="/" className="text-blue-600 ml-2 hover:underline">Enroll Now</Link>
-                            </p>
                         </div>
-                    </div>
+                        
+                        <div className="space-y-2">
+                            <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Password</label>
+                            <div className="relative group">
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                                <input 
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={password}
+                                    onChange={(e) => {
+                                        setPassword(e.target.value);
+                                        setLoginError(null);
+                                    }}
+                                    className="w-full pl-12 pr-14 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 transition-all" 
+                                    placeholder="••••••••" 
+                                    required
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                                >
+                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between px-1">
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                                <div className="relative flex items-center">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        className="w-5 h-5 rounded-lg border-2 border-gray-200 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer"
+                                    />
+                                </div>
+                                <span className="text-sm font-bold text-gray-600 group-hover:text-gray-900 transition-colors">Remember me</span>
+                            </label>
+                            <Link to="/auth/forgot-password" className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:underline">
+                                Forgot password?
+                            </Link>
+                        </div>
+                        
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            className="w-full py-4 text-lg"
+                            loading={isLoading}
+                            icon={ArrowRight}
+                        >
+                            Sign In
+                        </Button>
+                    </form>
                     
-                    <div className="mt-8 p-6 bg-white/50 rounded-2xl border border-gray-100 flex items-start gap-4">
-                        <div className="p-3 bg-white rounded-xl shadow-sm text-blue-600">
-                            <Info className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Support</p>
-                            <p className="text-xs font-bold text-gray-500 leading-relaxed">
-                                Contact IT Support if you encountered issues while accessing your account.
-                            </p>
-                        </div>
+                    <div className="mt-8 text-center">
+                        <p className="text-gray-500 font-bold text-sm uppercase tracking-tight">
+                            Don't have an account? 
+                            <Link to="/" className="text-blue-600 ml-2 hover:underline">Enroll Now</Link>
+                        </p>
                     </div>
                 </div>
             </div>

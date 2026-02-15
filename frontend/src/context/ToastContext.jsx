@@ -23,10 +23,10 @@ export const ToastProvider = ({ children }) => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
     }, []);
 
-    const success = (msg, dur) => addToast(msg, 'success', dur);
-    const error = (msg, dur) => addToast(msg, 'error', dur);
-    const warning = (msg, dur) => addToast(msg, 'warning', dur);
-    const info = (msg, dur) => addToast(msg, 'info', dur);
+    const success = useCallback((msg, dur) => addToast(msg, 'success', dur), [addToast]);
+    const error = useCallback((msg, dur) => addToast(msg, 'error', dur), [addToast]);
+    const warning = useCallback((msg, dur) => addToast(msg, 'warning', dur), [addToast]);
+    const info = useCallback((msg, dur) => addToast(msg, 'info', dur), [addToast]);
 
     useEffect(() => {
         setToastEmitter({ success, error, warning, info });

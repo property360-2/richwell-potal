@@ -176,13 +176,12 @@ class ChangePasswordView(APIView):
 
 
 # ============================================================
-# Permission Management Views
+# Role-Based User Management Views
 # ============================================================
 
 class UserListView(APIView):
     """
-    List and search all users for permission management.
-    Admin only.
+    List and search users based on Role access.
     """
     permission_classes = [IsAuthenticated]
 
@@ -193,9 +192,10 @@ class UserListView(APIView):
         responses={200: UserWithPermissionsSerializer(many=True)}
     )
     def get(self, request):
-        # Check permission
-        if not request.user.has_permission('user.view'):
-            return Response({
+        # Role Check: Only Admin and Registrar staff can view user lists
+        allowed_roles = ['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMISSION_STAFF']
+        if not request.user.is_admin and request.user.role not in allowed_roles:
+             return Response({
                 "success": False,
                 "error": "You don't have permission to view users"
             }, status=status.HTTP_403_FORBIDDEN)
@@ -230,263 +230,11 @@ class UserListView(APIView):
         })
 
 
-class UserPermissionsView(APIView):
-    """
-    Get detailed permissions for a specific user.
-    Shows all permission categories with the user's permission status.
-    """
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Get User Permissions",
-        description="Get detailed permission information for a user",
-        tags=["User Management"],
-        responses={200: PermissionCategoryDetailSerializer(many=True)}
-    )
-    def get(self, request, user_id):
-        # Check permission
-        if not request.user.has_permission('user.view'):
-            return Response({
-                "success": False,
-                "error": "You don't have permission to view user permissions"
-            }, status=status.HTTP_403_FORBIDDEN)
-
-        # Get the user
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({
-                "success": False,
-                "error": "User not found"
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        # Get all categories with permissions
-        categories = PermissionCategory.objects.prefetch_related('permissions').all()
-        effective_perms = user.get_effective_permissions()
-        custom_perms = UserPermission.objects.filter(user=user)
-
-        result = []
-        for category in categories:
-            category_data = {
-                'code': category.code,
-                'name': category.name,
-                'icon': category.icon,
-                'permissions': []
-            }
-
-            for perm in category.permissions.all():
-                custom = custom_perms.filter(permission=perm).first()
-
-                # Determine source of permission
-                if custom and custom.granted:
-                    source = 'custom_grant'
-                elif custom and not custom.granted:
-                    source = 'custom_revoke'
-                elif user.role in perm.default_for_roles:
-                    source = 'role_default'
-                else:
-                    source = 'none'
-
-                perm_data = {
-                    'code': perm.code,
-                    'name': perm.name,
-                    'description': perm.description,
-                    'has_permission': perm in effective_perms,
-                    'source': source,
-                    'can_toggle': True  # Admin can always toggle
-                }
-                category_data['permissions'].append(perm_data)
-
-            result.append(category_data)
-
-        return Response({
-            "success": True,
-            "categories": result
-        })
-
-
-class UpdateUserPermissionView(APIView):
-    """
-    Grant or revoke a specific permission for a user.
-    Creates a custom permission override.
-    """
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Update User Permission",
-        description="Grant or revoke a permission for a user",
-        tags=["User Management"]
-    )
-    def post(self, request, user_id):
-        # Check permission
-        if not request.user.has_permission('user.manage_permissions'):
-            return Response({
-                "success": False,
-                "error": "You don't have permission to manage user permissions"
-            }, status=status.HTTP_403_FORBIDDEN)
-
-        # Get the user
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({
-                "success": False,
-                "error": "User not found"
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        # Get request data
-        permission_code = request.data.get('permission_code')
-        granted = request.data.get('granted')
-        reason = request.data.get('reason', '')
-        scope = request.data.get('scope', {})
-
-        if not permission_code or granted is None:
-            return Response({
-                "success": False,
-                "error": "permission_code and granted are required"
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Get the permission
-        try:
-            permission = Permission.objects.get(code=permission_code)
-        except Permission.DoesNotExist:
-            return Response({
-                "success": False,
-                "error": f"Permission {permission_code} not found"
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        # Create or update UserPermission
-        user_perm, created = UserPermission.objects.update_or_create(
-            user=user,
-            permission=permission,
-            defaults={
-                'granted': granted,
-                'granted_by': request.user,
-                'reason': reason,
-                'scope': scope
-            }
-        )
-
-        # Log the action
-        AuditLog.log(
-            user=request.user,
-            action=AuditLog.Action.USER_UPDATED,
-            target_model='UserPermission',
-            target_id=user_perm.id,
-            payload={
-                'user_id': str(user.id),
-                'user_email': user.email,
-                'permission': permission_code,
-                'granted': granted,
-                'reason': reason
-            }
-        )
-
-        return Response({
-            "success": True,
-            "message": f"Permission {'granted' if granted else 'revoked'} successfully"
-        })
-
-
-class BulkUpdateUserPermissionsView(APIView):
-    """
-    Update multiple permissions at once for a user.
-    Useful for batch operations.
-    """
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Bulk Update Permissions",
-        description="Update multiple permissions for a user at once",
-        tags=["User Management"]
-    )
-    def post(self, request, user_id):
-        # Check permission
-        if not request.user.has_permission('user.manage_permissions'):
-            return Response({
-                "success": False,
-                "error": "You don't have permission to manage user permissions"
-            }, status=status.HTTP_403_FORBIDDEN)
-
-        # Get the user
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({
-                "success": False,
-                "error": "User not found"
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        # Get updates list
-        updates = request.data.get('permissions', [])
-        if not isinstance(updates, list):
-            return Response({
-                "success": False,
-                "error": "permissions must be a list"
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Apply updates
-        updated_count = 0
-        for update in updates:
-            permission_code = update.get('code')
-            granted = update.get('granted')
-
-            if not permission_code or granted is None:
-                continue
-
-            try:
-                permission = Permission.objects.get(code=permission_code)
-                UserPermission.objects.update_or_create(
-                    user=user,
-                    permission=permission,
-                    defaults={
-                        'granted': granted,
-                        'granted_by': request.user
-                    }
-                )
-                updated_count += 1
-            except Permission.DoesNotExist:
-                continue
-
-        # Log the bulk action
-        AuditLog.log(
-            user=request.user,
-            action=AuditLog.Action.USER_UPDATED,
-            target_model='User',
-            target_id=user.id,
-            payload={
-                'user_email': user.email,
-                'bulk_permission_update': True,
-                'permissions_updated': updated_count
-            }
-        )
-
-        return Response({
-            "success": True,
-            "message": f"Updated {updated_count} permissions"
-        })
-
-
-class PermissionCategoryListView(APIView):
-    """
-    List all permission categories with their permissions.
-    Useful for admin UI to show available permissions.
-    """
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="List Permission Categories",
-        description="Get all permission categories with their permissions",
-        tags=["User Management"],
-        responses={200: PermissionCategorySerializer(many=True)}
-    )
-    def get(self, request):
-        categories = PermissionCategory.objects.prefetch_related('permissions').all()
-        serializer = PermissionCategorySerializer(categories, many=True)
-        return Response({
-            "success": True,
-            "categories": serializer.data
-        })
+# NOTE: Granular Permission Views are DEPRECATED/REMOVED in favor of simplified Role-Based Access
+# class UserPermissionsView(APIView): ...
+# class UpdateUserPermissionView(APIView): ...
+# class BulkUpdateUserPermissionsView(APIView): ...
+# class PermissionCategoryListView(APIView): ...
 
 
 class StudentViewSet(viewsets.ModelViewSet):
@@ -494,7 +242,8 @@ class StudentViewSet(viewsets.ModelViewSet):
     Registrar Student Management.
     """
     queryset = StudentProfile.objects.all()
-    permission_classes = [IsRegistrarOrAdmin]
+    # Simplified permission: Must be authenticated. specific role checks in methods.
+    permission_classes = [IsAuthenticated] 
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -504,6 +253,11 @@ class StudentViewSet(viewsets.ModelViewSet):
         return RegistrarStudentSerializer
         
     def get_queryset(self):
+        # Role Check
+        allowed_roles = ['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMISSION_STAFF', 'PROFESSOR']
+        if not self.request.user.is_admin and self.request.user.role not in allowed_roles:
+            return StudentProfile.objects.none()
+
         # We need to filter StudentProfile, but ensure we select relations
         qs = StudentProfile.objects.filter(user__is_active=True).select_related(
             'user', 'program', 'curriculum', 'home_section'
@@ -527,6 +281,11 @@ class StudentViewSet(viewsets.ModelViewSet):
         return qs.order_by('user__last_name')
 
     def create(self, request, *args, **kwargs):
+        # Role Check for Creation
+        can_create = ['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMISSION_STAFF']
+        if not request.user.is_admin and request.user.role not in can_create:
+             return Response({'error': 'You do not have permission to create students'}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -542,11 +301,17 @@ class StudentViewSet(viewsets.ModelViewSet):
             )
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['post'], url_path='reset-password')
     def reset_password(self, request, pk=None):
         """
         Reset student password to their student number.
         """
+        # Role Check
+        can_reset = ['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR']
+        if not request.user.is_admin and request.user.role not in can_reset:
+             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
         student = self.get_object()
         user = student.user
         
@@ -572,43 +337,115 @@ class StudentViewSet(viewsets.ModelViewSet):
 class HigherUserViewSet(viewsets.ModelViewSet):
     """
     Admin & Scoped User Management for higher roles.
+    Uses strict Role-Based Access Control logic in code.
     """
     serializer_class = HigherUserSerializer
     permission_classes = [IsAuthenticated]
 
+    # DEFINED RBAC RULES FOR CREATION (Matches Frontend)
+    CREATION_PERMISSIONS = {
+        'ADMIN': ['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMISSION_STAFF', 'CASHIER', 'DEPARTMENT_HEAD', 'PROFESSOR', 'STUDENT'],
+        'REGISTRAR': ['PROFESSOR', 'STUDENT'],
+        'HEAD_REGISTRAR': ['PROFESSOR', 'STUDENT', 'REGISTRAR'],
+        'ADMISSION_STAFF': ['STUDENT'],
+        # Others have no creation rights
+    }
+
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'ADMIN' or user.is_superuser:
-            return User.objects.exclude(role='STUDENT').order_by('-created_at')
         
-        scope = user.get_permission_scope('user.manage')
-        if scope.get('permitted_roles'):
-            return User.objects.filter(role__in=scope['permitted_roles']).exclude(role='ADMIN').order_by('-created_at')
+        # Admin sees all (except Students by default, unless included)
+        if user.is_admin:
+            qs = User.objects.all().order_by('-created_at')
+            if self.request.query_params.get('include_students') != 'true':
+                qs = qs.exclude(role='STUDENT')
+            return qs
+        
+        # Others see only what they can create/manage
+        allowed_roles = self.CREATION_PERMISSIONS.get(user.role, [])
+        if allowed_roles:
+            return User.objects.filter(role__in=allowed_roles).exclude(role='ADMIN').order_by('-created_at')
             
         return User.objects.none()
 
     def perform_create(self, serializer):
-        # Validate that the role being created is within the actor's scope
         role = self.request.data.get('role')
         user = self.request.user
         
-        if not (user.role == 'ADMIN' or user.is_superuser):
-            scope = user.get_permission_scope('user.manage')
-            if role not in scope.get('permitted_roles', []):
-                from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied(f"You do not have permission to create users with the {role} role.")
+        # Superuser bypass
+        if user.is_superuser:
+            serializer.save()
+            return
+
+        # Check RBAC
+        allowed_roles = self.CREATION_PERMISSIONS.get(user.role, [])
+        if role not in allowed_roles:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(f"You do not have permission to create users with the {role} role.")
         
         serializer.save()
 
     def perform_update(self, serializer):
-        # Similar validation for update
         role = self.request.data.get('role')
         user = self.request.user
         
-        if role and not (user.role == 'ADMIN' or user.is_superuser):
-            scope = user.get_permission_scope('user.manage')
-            if role not in scope.get('permitted_roles', []):
-                from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied(f"You do not have permission to change user role to {role}.")
+        # Superuser bypass
+        if user.is_superuser:
+            serializer.save()
+            return
+
+        # Check RBAC
+        allowed_roles = self.CREATION_PERMISSIONS.get(user.role, [])
         
+        # If changing role, check if target role is allowed
+        if role and role not in allowed_roles:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(f"You do not have permission to set user role to {role}.")
+            
         serializer.save()
+
+
+class GenerateStudentIdView(APIView):
+    """
+    Generate the next unique student ID for the current year.
+    Format: YYYY-XXXXX
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Generate Student ID",
+        description="Returns the next available sequential student ID for the current year",
+        tags=["User Management"]
+    )
+    def get(self, request):
+        from datetime import datetime
+        year = datetime.now().year
+        prefix = f"{year}-"
+        
+        # Find the max student number for current year
+        # Order by descending to get the highest one efficiently
+        # We query Users directly to catch deleted/inactive ones if possible (though default manager excludes inactive if overridden)
+        # Using raw SQL or specific filtering is safest if using SoftDelete, but assuming standard deletion for now.
+        
+        last_student = User.objects.filter(student_number__startswith=prefix).order_by('-student_number').first()
+        
+        next_seq = 1
+        if last_student and last_student.student_number:
+            try:
+                # Extract the sequence part
+                # Expected format: 2025-00001
+                parts = last_student.student_number.split('-')
+                if len(parts) == 2 and parts[1].isdigit():
+                    next_seq = int(parts[1]) + 1
+            except (ValueError, IndexError):
+                pass
+        
+        # Format: YYYY-00001
+        new_id = f"{year}-{next_seq:05d}"
+        
+        # Double check existence loop to be absolutely sure (handles race conditions slightly better)
+        while User.objects.filter(student_number=new_id).exists():
+            next_seq += 1
+            new_id = f"{year}-{next_seq:05d}"
+            
+        return Response({'student_id': new_id})

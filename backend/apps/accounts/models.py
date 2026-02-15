@@ -18,6 +18,11 @@ class UserManager(BaseUserManager):
             raise ValueError('The Email field must be set')
         
         email = self.normalize_email(email)
+        
+        # Ensure username is set to email if not provided (fixes UNIQUE constraint error)
+        if 'username' not in extra_fields:
+            extra_fields['username'] = email
+            
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)

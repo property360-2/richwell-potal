@@ -501,6 +501,7 @@ class Command(BaseCommand):
             ('BSIT', 'Bachelor of Science in Information Technology', 4),
             ('BSCS', 'Bachelor of Science in Computer Science', 4),
             ('BSIS', 'Bachelor of Science in Information Systems', 4),
+            ('BSA', 'Bachelor of Science in Accountancy', 4),
         ]
         
         if self.minimal:
@@ -564,6 +565,8 @@ class Command(BaseCommand):
             ('Ana', 'Reyes', 'Web Development', ['WEB101', 'WEB201', 'IT301']),
             ('Jose', 'Bautista', 'Mathematics', ['MATH101', 'MATH102', 'STAT101']),
             ('Carmen', 'Flores', 'General Education', ['ENG101', 'FIL101', 'HUM101']),
+            ('Crispin', 'Reyes', 'Accountancy', ['ACC101', 'ACC102', 'ACC201']),
+            ('Elena', 'Vargas', 'Accountancy', ['TAX101', 'TAX102', 'BL101']),
         ]
         
         if self.minimal:
@@ -664,6 +667,30 @@ class Command(BaseCommand):
             # Year 4 Semester 2
             ('CS401', 'Professional Issues in IT', 3, 4, 2, True, ['OJT101']),
             ('CAP201', 'Capstone Project Defense', 3, 4, 2, True, ['OJT101']),
+
+            # BSA - Year 1
+            ('ACC101', 'Financial Accounting and Reporting 1', 3, 1, 1, True, []),
+            ('ACC102', 'Financial Accounting and Reporting 2', 3, 1, 2, True, ['ACC101']),
+            ('ACC201', 'Conceptual Framework and Accounting Standards', 3, 1, 2, True, ['ACC101']),
+            ('BL101', 'Law on Obligations and Contracts', 3, 1, 2, False, []),
+
+            # BSA - Year 2
+            ('ACC202', 'Intermediate Accounting 1', 3, 2, 1, True, ['ACC201']),
+            ('ACC203', 'Intermediate Accounting 2', 3, 2, 2, True, ['ACC202']),
+            ('ACC301', 'Cost Accounting and Control', 3, 2, 1, True, ['ACC102']),
+            ('ACC302', 'Strategic Cost Management', 3, 2, 2, True, ['ACC301']),
+            ('TAX101', 'Income Taxation', 3, 2, 2, True, ['ACC202']),
+            ('BL102', 'Business Laws and Regulations', 3, 2, 1, True, ['BL101']),
+
+            # BSA - Year 3
+            ('ACC204', 'Intermediate Accounting 3', 3, 3, 1, True, ['ACC203']),
+            ('ACC303', 'Accounting Information Systems', 3, 3, 1, True, ['ACC202']),
+            ('AUD101', 'Auditing and Assurance Concepts and Principles', 3, 3, 1, True, ['ACC203']),
+            ('AUD102', 'Auditing and Assurance: Specialized Industries', 3, 3, 2, True, ['AUD101']),
+            ('TAX102', 'Business Taxation', 3, 3, 1, True, ['TAX101']),
+
+            # BSA - Year 4
+            ('AUD201', 'Auditing and Assurance: Concepts and Applications 1', 3, 4, 1, True, ['AUD102']),
         ]
         
         if self.minimal:
@@ -757,6 +784,7 @@ class Command(BaseCommand):
             'Web Development': ['IT3', 'WEB'],
             'Mathematics': ['MATH', 'STAT'],
             'General Education': ['ENG', 'FIL', 'HUM', 'PE'],
+            'Accountancy': ['ACC', 'TAX', 'AUD', 'BL'],
         }
         
         for prof in self.professors:

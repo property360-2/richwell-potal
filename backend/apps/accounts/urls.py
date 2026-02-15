@@ -23,11 +23,12 @@ urlpatterns = [
     path('password/reset/', password_reset_views.ResetPasswordView.as_view(), name='reset-password'),
 
     # Permission Management
+    path('generate-student-id/', views.GenerateStudentIdView.as_view(), name='generate-student-id'),
     path('users/', views.UserListView.as_view(), name='user-list'),
-    path('users/<uuid:user_id>/permissions/', views.UserPermissionsView.as_view(), name='user-permissions'),
-    path('users/<uuid:user_id>/permissions/update/', views.UpdateUserPermissionView.as_view(), name='update-permission'),
-    path('users/<uuid:user_id>/permissions/bulk/', views.BulkUpdateUserPermissionsView.as_view(), name='bulk-update-permissions'),
-    path('permissions/categories/', views.PermissionCategoryListView.as_view(), name='permission-categories'),
+    # path('users/<uuid:user_id>/permissions/', views.UserPermissionsView.as_view(), name='user-permissions'),
+    # path('users/<uuid:user_id>/permissions/update/', views.UpdateUserPermissionView.as_view(), name='update-permission'),
+    # path('users/<uuid:user_id>/permissions/bulk/', views.BulkUpdateUserPermissionsView.as_view(), name='bulk-update-permissions'),
+    # path('permissions/categories/', views.PermissionCategoryListView.as_view(), name='permission-categories'),
 ]
 
 router = DefaultRouter()

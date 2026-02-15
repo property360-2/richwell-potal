@@ -2,7 +2,9 @@
 Academics serializers.
 """
 
+from django.db.models import Q
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 
 from .models import Room, Program, Subject, Section, SectionSubject, ScheduleSlot, CurriculumVersion, Curriculum, CurriculumSubject
 
@@ -19,7 +21,7 @@ class SubjectMinimalSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Subject
-        fields = ['id', 'code', 'title', 'units']
+        fields = ['id', 'code', 'title', 'units', 'is_global']
 
 
 class SubjectSerializer(serializers.ModelSerializer):
@@ -27,6 +29,7 @@ class SubjectSerializer(serializers.ModelSerializer):
 
     program_code = serializers.CharField(source='program.code', read_only=True)
     program_codes = serializers.SerializerMethodField()
+    program_ids = serializers.SerializerMethodField()
     curriculum_codes = serializers.SerializerMethodField()
     curriculum_list = serializers.SerializerMethodField()
     prerequisites = SubjectMinimalSerializer(many=True, read_only=True)
@@ -37,6 +40,10 @@ class SubjectSerializer(serializers.ModelSerializer):
     def get_program_codes(self, obj):
         """Get all program codes this subject belongs to"""
         return [p.code for p in obj.programs.all()]
+
+    def get_program_ids(self, obj):
+        """Get all program IDs this subject belongs to"""
+        return [str(p.id) for p in obj.programs.all()]
 
     def get_curriculum_codes(self, obj):
         """Get all curriculum codes this subject belongs to"""
@@ -51,8 +58,8 @@ class SubjectSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'code', 'title', 'description', 'units',
             'is_major', 'year_level', 'semester_number', 'classification', 'classification_display',
-            'allow_multiple_sections', 'program_code', 'program_codes',
-            'curriculum_codes', 'curriculum_list', 'prerequisites', 'inc_expiry_months', 'syllabus'
+            'allow_multiple_sections', 'program_code', 'program_codes', 'program_ids',
+            'curriculum_codes', 'curriculum_list', 'prerequisites', 'inc_expiry_months', 'syllabus', 'is_global'
         ]
 
 
@@ -75,7 +82,7 @@ class ProgramSerializer(serializers.ModelSerializer):
 class ProgramWithSubjectsSerializer(serializers.ModelSerializer):
     """Program serializer with full subject list."""
     
-    subjects = SubjectSerializer(many=True, read_only=True)
+    subjects = serializers.SerializerMethodField()
     
     class Meta:
         model = Program
@@ -83,6 +90,15 @@ class ProgramWithSubjectsSerializer(serializers.ModelSerializer):
             'id', 'code', 'name', 'description', 
             'duration_years', 'is_active', 'subjects'
         ]
+
+    def get_subjects(self, obj):
+        """Get all subjects relevant to this program (Primary, Multi-program, or Global)"""
+        subjects = Subject.objects.filter(is_deleted=False).filter(
+            Q(program=obj) |
+            Q(programs=obj) |
+            Q(is_global=True)
+        ).distinct()
+        return SubjectSerializer(subjects, many=True).data
 
 
 class RoomSerializer(serializers.ModelSerializer):
@@ -100,6 +116,15 @@ class RoomSerializer(serializers.ModelSerializer):
 class ProgramCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating programs."""
     
+    code = serializers.CharField(
+        validators=[
+            UniqueValidator(
+                queryset=Program.all_objects.all(),
+                message="A program with this code already exists (even if deleted)."
+            )
+        ]
+    )
+
     class Meta:
         model = Program
         fields = ['code', 'name', 'description', 'duration_years', 'is_active']
@@ -132,7 +157,7 @@ class SubjectCreateSerializer(serializers.ModelSerializer):
             'program', 'code', 'title', 'description', 'units',
             'is_major', 'year_level', 'semester_number', 'classification',
             'allow_multiple_sections', 'prerequisite_ids', 'program_ids',
-            'syllabus'
+            'syllabus', 'is_global'
         ]
 
     def validate_code(self, value):

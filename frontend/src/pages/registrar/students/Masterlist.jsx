@@ -17,6 +17,7 @@ import {
 import { useToast } from '../../../context/ToastContext';
 import Button from '../../../components/ui/Button';
 import SEO from '../../../components/shared/SEO';
+import { api, endpoints } from '../../../api';
 import AddStudentModal from './modals/AddStudentModal';
 
 const RegistrarStudentMasterlist = () => {
@@ -53,11 +54,8 @@ const RegistrarStudentMasterlist = () => {
 
     const fetchInitialData = async () => {
         try {
-            const res = await fetch('/api/v1/academic/programs/');
-            if (res.ok) {
-                const data = await res.json();
-                setPrograms(data.results || data || []);
-            }
+            const data = await api.get(endpoints.managePrograms);
+            setPrograms(data.results || data || []);
         } catch (err) {
             console.error(err);
         }
@@ -72,20 +70,18 @@ const RegistrarStudentMasterlist = () => {
                 program: filters.program
             }).toString();
 
-            const res = await fetch(`/api/v1/registrar/students/?${query}`);
-            if (res.ok) {
-                const data = await res.json();
-                setStudents(data.results || []);
-                setPagination(prev => ({
-                    ...prev,
-                    count: data.count,
-                    next: data.next,
-                    previous: data.previous
-                }));
-            } else {
-                error('Failed to load students');
-            }
+            const data = await api.get(`${endpoints.registrarStudents}?${query}`);
+            
+            // Handle different pagination structures if needed
+            setStudents(data.results || data || []);
+            setPagination(prev => ({
+                ...prev,
+                count: data.count || 0,
+                next: data.next,
+                previous: data.previous
+            }));
         } catch (err) {
+            console.error(err);
             error('Network error while fetching students');
         } finally {
             setLoading(false);
