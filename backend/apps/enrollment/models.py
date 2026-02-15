@@ -424,12 +424,12 @@ class SubjectEnrollment(ArchivableMixin, BaseModel):
     )
     
     # Grade information
-    grade = models.DecimalField(
-        max_digits=3,
-        decimal_places=2,
+    # Grade information
+    grade = models.CharField(
+        max_length=10,
         null=True,
         blank=True,
-        help_text='Numeric grade (1.0 to 5.0)'
+        help_text='Grade (1.00 - 5.00, INC, DROPPED)'
     )
     
     # Flags

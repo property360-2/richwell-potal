@@ -61,7 +61,7 @@ class StudentService:
                      grade=credit.get('grade'),
                      status=SubjectEnrollment.Status.CREDITED,
                      payment_approved=True,
-                     enrollment_type=SubjectEnrollment.EnrollmentType.REGULAR # or whatever default
+                     enrollment_type=SubjectEnrollment.EnrollmentType.HOME
                  )
                  
             # Log credited subjects

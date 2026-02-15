@@ -102,7 +102,7 @@ class EnrollmentService:
             semester=semester,
             status=Enrollment.Status.PENDING,
             created_via=Enrollment.CreatedVia.ONLINE,
-            monthly_commitment=data['monthly_commitment']
+            monthly_commitment=data.get('monthly_commitment', 0.00)
         )
         
         # Generate payment buckets
@@ -183,8 +183,8 @@ class EnrollmentService:
             address=data['address'],
             contact_number=data['contact_number'],
             is_transferee=True,
-            previous_school=data['previous_school'],
-            previous_course=data['previous_course']
+            previous_school=data.get('previous_school', ''),
+            previous_course=data.get('previous_course', '')
         )
         
         # Create Enrollment
@@ -193,7 +193,7 @@ class EnrollmentService:
             semester=semester,
             status=Enrollment.Status.PENDING,
             created_via=Enrollment.CreatedVia.TRANSFEREE,
-            monthly_commitment=data['monthly_commitment']
+            monthly_commitment=data.get('monthly_commitment', 0.00)
         )
         
         # Generate payment buckets

@@ -37,6 +37,18 @@ class SemesterViewSet(ModelViewSet):
             return SemesterCreateSerializer
         return SemesterSerializer
 
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """
+        Get the currently active semester.
+        """
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            return Response({'error': 'No active semester found'}, status=404)
+        
+        from apps.enrollment.serializers import SemesterSerializer
+        return Response(SemesterSerializer(semester).data)
+
     @extend_schema(request=None, responses={200: None})
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
@@ -534,16 +546,32 @@ class TransfereeCreateView(APIView):
 class TransfereeCreditView(APIView):
     """
     View to manage/view credited subjects for a transferee.
+    Supporting lookup by StudentProfile ID (frontend default) or User ID.
     """
     permission_classes = [IsAuthenticated]
     
+    def _get_student_user(self, pk):
+        from apps.accounts.models import User, StudentProfile
+        # Try StudentProfile first (most common from frontend)
+        try:
+            return StudentProfile.objects.get(id=pk).user
+        except StudentProfile.DoesNotExist:
+            # Fallback to User ID
+            try:
+                return User.objects.get(id=pk)
+            except User.DoesNotExist:
+                return None
+
     def get(self, request, pk, *args, **kwargs):
         """List credited subjects for student."""
         from .models import SubjectEnrollment
-        from .serializers import SubjectEnrollmentSerializer
+        
+        user = self._get_student_user(pk)
+        if not user:
+            return Response({'error': 'Student not found'}, status=404)
         
         enrollments = SubjectEnrollment.objects.filter(
-            enrollment__student_id=pk,
+            enrollment__student=user,
             status='CREDITED',
             is_deleted=False
         ).select_related('subject')
@@ -567,12 +595,21 @@ class TransfereeCreditView(APIView):
         subject_id = request.data.get('subject_id')
         grade = request.data.get('grade')
         
+        if grade and isinstance(grade, str):
+            grade = grade.upper().strip()
+        
         if not subject_id:
             return Response({'error': 'Subject ID required'}, status=400)
             
         try:
-            user = User.objects.get(id=pk, role='STUDENT')
+            user = self._get_student_user(pk)
+            if not user:
+                return Response({'error': 'Student not found'}, status=404)
+            
+            # Use active semester for the container enrollment
             active_semester = Semester.objects.filter(is_current=True).first()
+            if not active_semester:
+                 return Response({'error': 'No active semester found to attach credit'}, status=400)
             
             enrollment, _ = Enrollment.objects.get_or_create(
                 student=user,
@@ -580,21 +617,43 @@ class TransfereeCreditView(APIView):
                 defaults={'status': 'ACTIVE', 'payment_approved': True, 'head_approved': True}
             )
             
-            se = SubjectEnrollment.objects.create(
+            se, created = SubjectEnrollment.objects.update_or_create(
                 enrollment=enrollment,
                 subject_id=subject_id,
-                grade=grade,
-                status='CREDITED',
-                enrollment_type='HOME',
-                payment_approved=True,
-                head_approved=True
+                defaults={
+                    'grade': grade,
+                    'status': 'CREDITED',
+                    'enrollment_type': 'HOME',
+                    'payment_approved': True,
+                    'head_approved': True,
+                    'is_deleted': False
+                }
             )
             
             return Response({'success': True, 'id': str(se.id)})
-        except User.DoesNotExist:
-            return Response({'error': 'Student not found'}, status=404)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+    def delete(self, request, pk, *args, **kwargs):
+        """Delete a credited subject."""
+        from .models import SubjectEnrollment
+        
+        user = self._get_student_user(pk)
+        if not user:
+             return Response({'error': 'Student not found'}, status=404)
+        
+        credit_id = request.data.get('credit_id') or request.query_params.get('credit_id')
+        if not credit_id:
+             return Response({'error': 'Credit ID required'}, status=400)
+             
+        try:
+             # Ensure the credit belongs to the student (pk -> user)
+             se = SubjectEnrollment.objects.get(id=credit_id, enrollment__student=user)
+             se.is_deleted = True
+             se.save()
+             return Response({'success': True})
+        except SubjectEnrollment.DoesNotExist:
+             return Response({'error': 'Credit not found'}, status=404)
 
 class NextStudentNumberView(APIView):
     """

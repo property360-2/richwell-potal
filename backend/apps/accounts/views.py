@@ -3,6 +3,7 @@ Accounts views - Authentication and profile endpoints.
 """
 
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -541,11 +542,31 @@ class StudentViewSet(viewsets.ModelViewSet):
             )
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response(
-                {'error': f"An unexpected error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+    @action(detail=True, methods=['post'], url_path='reset-password')
+    def reset_password(self, request, pk=None):
+        """
+        Reset student password to their student number.
+        """
+        student = self.get_object()
+        user = student.user
+        
+        if not user.student_number:
+            return Response({'error': 'Student has no student number defined'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        user.set_password(user.student_number)
+        user.save()
+        
+        # Log the action
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.USER_UPDATED,
+            target_model='User',
+            target_id=user.id,
+            payload={'action': 'password_reset_to_default'},
+            actor=request.user
+        )
+        
+        return Response({'success': True, 'message': f'Password reset to {user.student_number}'})
 
 
 class HigherUserViewSet(viewsets.ModelViewSet):

@@ -170,7 +170,7 @@ class EnrollmentService:
         semester = self._get_current_semester()
         program = Program.objects.get(id=data['program_id'])
         student_number = self.generate_student_number()
-        password = self._generate_password()
+        password = student_number # Default to student number
         
         # Create User
         user = User.objects.create_user(
