@@ -162,9 +162,7 @@ const CurriculumTab = ({ program }) => {
                         </select>
                         <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-hover:text-indigo-500 transition-colors" size={20} />
                     </div>
-                    <Button variant="outline" className="rounded-2xl p-4 aspect-square border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 text-gray-500 hover:text-indigo-600 transition-all">
-                        <Plus size={20} />
-                    </Button>
+
                     <Button 
                         variant="primary" 
                         onClick={() => setIsAddModalOpen(true)}
@@ -178,7 +176,7 @@ const CurriculumTab = ({ program }) => {
 
             {/* Curriculum Summary Card */}
             {activeCurriculum && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                     <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm flex items-center gap-5">
                         <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-sm">
                             <Calendar size={22} />
@@ -209,15 +207,7 @@ const CurriculumTab = ({ program }) => {
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm flex items-center gap-5">
-                        <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shadow-sm">
-                            <AlertCircle size={22} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Requirements</p>
-                            <p className="text-base font-black text-gray-900">Valid Flow</p>
-                        </div>
-                    </div>
+
                 </div>
             )}
 
@@ -251,6 +241,7 @@ const CurriculumTab = ({ program }) => {
                 curriculumId={selectedCurriculumId}
                 curriculumName={activeCurriculum?.name}
                 programId={program.id}
+                programName={program.name}
                 yearLevel={assignTarget.year}
                 semesterNumber={assignTarget.sem}
                 onSuccess={handleAssignSuccess}

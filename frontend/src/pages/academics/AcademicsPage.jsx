@@ -5,15 +5,18 @@ import {
     Users, 
     BookOpen, 
     Layers, 
-    Building2 
+    Building2,
+    Calendar
 } from 'lucide-react';
 import SEO from '../../components/shared/SEO';
 
 // Tabs
 import FacultyTab from './tabs/FacultyTab';
 import ProgramsTab from './tabs/ProgramsTab';
+import SubjectsTab from './tabs/SubjectsTab';
 import SectionsTab from './tabs/SectionsTab';
 import FacilitiesTab from './tabs/FacilitiesTab';
+import SchedulesTab from './tabs/SchedulesTab';
 
 const AcademicsPage = () => {
     const location = useLocation();
@@ -28,8 +31,10 @@ const AcademicsPage = () => {
     const TABS = [
         { id: 'faculty', label: 'Faculty', icon: Users, component: FacultyTab },
         { id: 'programs', label: 'Programs', icon: BookOpen, component: ProgramsTab },
+        { id: 'subjects', label: 'Subjects', icon: BookOpen, component: SubjectsTab },
         { id: 'sections', label: 'Sections', icon: Layers, component: SectionsTab },
         { id: 'facilities', label: 'Facilities', icon: Building2, component: FacilitiesTab },
+        { id: 'schedules', label: 'Schedules', icon: Calendar, component: SchedulesTab },
     ];
 
     const ActiveComponent = TABS.find(t => t.id === activeTab)?.component || FacultyTab;

@@ -32,6 +32,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
         semester_number: 1,
         classification: 'MINOR',
         is_global: false,
+        program_id: programId || '', // Primary program
         program_ids: []
     });
 
@@ -56,6 +57,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
                 semester_number: 1,
                 classification: 'MINOR',
                 is_global: false,
+                program_id: programId || '',
                 program_ids: []
             });
             setSelectedPrereqs([]);
@@ -69,7 +71,12 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
         try {
             const progs = await ProgramService.getPrograms();
             // Filter out the current program from the list of "other" programs
-            setAvailablePrograms(progs.filter(p => p.id !== programId));
+            setAvailablePrograms(programId ? progs.filter(p => p.id !== programId) : progs);
+            
+            // If in master mode and no program selected, auto-select first
+            if (!programId && progs.length > 0) {
+                setFormData(prev => ({ ...prev, program_id: progs[0].id }));
+            }
         } catch (err) {
             console.error('Failed to fetch programs', err);
         }
@@ -82,7 +89,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
             setSearching(true);
             try {
                 const resp = await ProgramService.getSubjects({
-                    program: programId,
+                    program: formData.program_id || programId,
                     search: searchQuery
                 });
                 setAvailableSubjects(resp.results || resp || []);
@@ -95,7 +102,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
 
         const timeout = setTimeout(fetchSubjects, searchQuery ? 300 : 0);
         return () => clearTimeout(timeout);
-    }, [searchQuery, programId, isOpen]);
+    }, [searchQuery, programId, formData.program_id, isOpen]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -103,7 +110,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
         try {
             const dataToSubmit = {
                 ...formData,
-                program: programId,
+                program: formData.program_id || programId,
                 program_ids: selectedPrograms.map(p => p.id),
                 prerequisite_ids: selectedPrereqs.map(p => p.id),
                 code: formData.code.toUpperCase().replace(/\s/g, ''),
@@ -178,7 +185,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
                                                     Create New Academic Subject
                                                 </Dialog.Title>
                                                 <p className="text-sm text-gray-400 font-bold uppercase tracking-widest mt-1">
-                                                    Primary Enrollment: <span className="text-indigo-600">{programName}</span>
+                                                    Mode: <span className="text-indigo-600">{programId ? `Program Catalog (${programName})` : 'Master Catalog'}</span>
                                                 </p>
                                             </div>
                                         </div>
@@ -281,15 +288,32 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
 
                                                 <div className="space-y-3 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
                                                     {/* Context Program (Locked) */}
-                                                    <div className="p-4 bg-white rounded-2xl border-2 border-indigo-100 flex items-center justify-between">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-[10px]">
-                                                                {programName.substring(0,2).toUpperCase()}
+                                                    {programId ? (
+                                                        <div className="p-4 bg-white rounded-2xl border-2 border-indigo-100 flex items-center justify-between">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-[10px]">
+                                                                    {programName?.substring(0,2).toUpperCase()}
+                                                                </div>
+                                                                <span className="text-xs font-bold text-gray-900">{programName}</span>
                                                             </div>
-                                                            <span className="text-xs font-bold text-gray-900">{programName}</span>
+                                                            <CheckCircle2 size={16} className="text-indigo-600" />
                                                         </div>
-                                                        <CheckCircle2 size={16} className="text-indigo-600" />
-                                                    </div>
+                                                    ) : (
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 ml-1">Primary Program</label>
+                                                            <select 
+                                                                required
+                                                                value={formData.program_id}
+                                                                onChange={(e) => setFormData({...formData, program_id: e.target.value})}
+                                                                className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl text-sm font-bold focus:border-indigo-100 transition-all outline-none appearance-none cursor-pointer"
+                                                            >
+                                                                <option value="" disabled>Select Primary Program</option>
+                                                                {availablePrograms.map(p => (
+                                                                    <option key={p.id} value={p.id}>{p.code} - {p.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
 
                                                     {!formData.is_global && (
                                                         <>
@@ -338,7 +362,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
                                         {/* Column 3: Prerequisites */}
                                         <div className="lg:col-span-1 space-y-6">
                                             <div className="h-full bg-gray-50/50 p-6 rounded-[32px] border border-gray-100 flex flex-col">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Prerequisites (From {programName})</h4>
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Prerequisites</h4>
                                                 
                                                 <div className="relative mb-4">
                                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

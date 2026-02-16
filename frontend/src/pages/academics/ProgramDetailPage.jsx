@@ -13,7 +13,9 @@ import {
     Edit,
     Trash2,
     Globe,
-    ShieldAlert
+    ShieldAlert,
+    Link,
+    Search
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { ProgramService } from './services/ProgramService';
@@ -34,6 +36,13 @@ const ProgramDetailPage = () => {
     const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
     const [isEditSubjectOpen, setIsEditSubjectOpen] = useState(false);
     const [selectedSubject, setSelectedSubject] = useState(null);
+    
+    // Filtering State for subjects list
+    const [subjectSearch, setSubjectSearch] = useState('');
+    const [yearFilter, setYearFilter] = useState('');
+    const [semFilter, setSemFilter] = useState('');
+    const [classFilter, setClassFilter] = useState('');
+    const [subjOrdering, setSubjOrdering] = useState('year-sem-code');
 
     useEffect(() => {
         const fetchProgramDetail = async () => {
@@ -113,9 +122,6 @@ const ProgramDetailPage = () => {
                 
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
                     <div className="flex items-center gap-6">
-                        <div className="w-24 h-24 bg-indigo-600 text-white rounded-[32px] flex items-center justify-center shadow-2xl shadow-indigo-200 font-black text-4xl">
-                            {program.code?.[0]}
-                        </div>
                         <div>
                             <div className="flex items-center gap-3 mb-2">
                                 <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
@@ -207,68 +213,176 @@ const ProgramDetailPage = () => {
                                 </Button>
                             </div>
 
+                            {/* Filters Row */}
+                            <div className="bg-gray-50/50 rounded-2xl p-4 mb-6 flex flex-wrap items-center gap-4 border border-gray-100">
+                                <div className="relative flex-grow md:max-w-xs group">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
+                                    <input 
+                                        type="text"
+                                        placeholder="Search subjects..."
+                                        value={subjectSearch}
+                                        onChange={(e) => setSubjectSearch(e.target.value)}
+                                        className="w-full bg-white border border-gray-200 text-[11px] font-bold rounded-xl pl-11 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
+                                    />
+                                </div>
+
+                                <select 
+                                    value={yearFilter}
+                                    onChange={(e) => setYearFilter(e.target.value)}
+                                    className="bg-white border border-gray-100 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                                >
+                                    <option value="">Year Level</option>
+                                    {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year {y}</option>)}
+                                </select>
+
+                                <select 
+                                    value={semFilter}
+                                    onChange={(e) => setSemFilter(e.target.value)}
+                                    className="bg-white border border-gray-100 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                                >
+                                    <option value="">Semester</option>
+                                    <option value="1">1st Semester</option>
+                                    <option value="2">2nd Semester</option>
+                                    <option value="3">Summer</option>
+                                </select>
+
+                                <select 
+                                    value={classFilter}
+                                    onChange={(e) => setClassFilter(e.target.value)}
+                                    className="bg-white border border-gray-100 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                                >
+                                    <option value="">Category</option>
+                                    <option value="major">Major</option>
+                                    <option value="minor">Minor</option>
+                                </select>
+
+                                <div className="h-6 w-px bg-gray-200 mx-1"></div>
+
+                                <select 
+                                    value={subjOrdering}
+                                    onChange={(e) => setSubjOrdering(e.target.value)}
+                                    className="bg-white border border-gray-100 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm ml-auto"
+                                >
+                                    <option value="year-sem-code">Default Order</option>
+                                    <option value="title">Title (A-Z)</option>
+                                    <option value="code">Code (A-Z)</option>
+                                    <option value="units-desc">Units (High-Low)</option>
+                                </select>
+
+                                {(subjectSearch || yearFilter || semFilter || classFilter) && (
+                                    <button 
+                                        onClick={() => {
+                                            setSubjectSearch('');
+                                            setYearFilter('');
+                                            setSemFilter('');
+                                            setClassFilter('');
+                                        }}
+                                        className="text-indigo-600 hover:text-indigo-700 text-[10px] font-black uppercase tracking-widest px-3 py-2 hover:bg-indigo-50 rounded-lg transition-all"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+
                             {program.subjects && program.subjects.length > 0 ? (
                                 <div className="bg-white rounded-[32px] border border-gray-100 overflow-hidden">
                                     <table className="w-full text-left border-collapse">
                                         <thead>
                                             <tr className="bg-gray-50/50">
-                                                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Code/Title</th>
-                                                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Units</th>
-                                                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Classification</th>
-                                                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Scope</th>
+                                                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Subject</th>
+                                                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Prerequisites</th>
+                                                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Curricula & Sharing</th>
+                                                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Details</th>
                                                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
-                                            {program.subjects.map((subject) => (
+                                            {program.subjects
+                                                .filter(s => {
+                                                    const matchesSearch = s.title.toLowerCase().includes(subjectSearch.toLowerCase()) || 
+                                                                        s.code.toLowerCase().includes(subjectSearch.toLowerCase());
+                                                    const matchesYear = !yearFilter || s.year_level === parseInt(yearFilter);
+                                                    const matchesSem = !semFilter || s.semester_number === parseInt(semFilter);
+                                                    const matchesClass = !classFilter || (classFilter === 'major' ? s.is_major : !s.is_major);
+                                                    return matchesSearch && matchesYear && matchesSem && matchesClass;
+                                                })
+                                                .sort((a, b) => {
+                                                    if (subjOrdering === 'title') return a.title.localeCompare(b.title);
+                                                    if (subjOrdering === 'code') return a.code.localeCompare(b.code);
+                                                    if (subjOrdering === 'units-desc') return b.units - a.units;
+                                                    
+                                                    // Default: Year -> Sem -> Code
+                                                    if (a.year_level !== b.year_level) return a.year_level - b.year_level;
+                                                    if (a.semester_number !== b.semester_number) return a.semester_number - b.semester_number;
+                                                    return a.code.localeCompare(b.code);
+                                                })
+                                                .map((subject) => (
                                                 <tr key={subject.id} className="hover:bg-gray-50/50 transition-colors group">
                                                     <td className="px-6 py-5">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black text-[10px]">
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <div className="w-fit px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg font-black text-[11px] border border-indigo-100 shadow-sm">
                                                                 {subject.code}
                                                             </div>
                                                             <div>
-                                                                <p className="text-sm font-bold text-gray-900 leading-none mb-1">{subject.title}</p>
+                                                                <p className="text-sm font-bold text-gray-900 leading-tight mb-0.5">{subject.title}</p>
                                                                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Year {subject.year_level} • Sem {subject.semester_number}</p>
                                                             </div>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-5">
-                                                        <span className="text-xs font-black text-gray-700">{subject.units} Units</span>
-                                                    </td>
-                                                    <td className="px-6 py-5">
-                                                        <div className="flex items-center gap-2">
-                                                            {subject.is_major ? (
-                                                                <span className="flex items-center gap-1.5 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-[9px] font-black uppercase tracking-widest">
-                                                                    <ShieldAlert size={10} /> Major
-                                                                </span>
+                                                        <div className="flex flex-wrap gap-1 max-w-[150px]">
+                                                            {subject.prerequisites && subject.prerequisites.length > 0 ? (
+                                                                subject.prerequisites.map(prereq => (
+                                                                    <span key={prereq.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded text-[8px] font-bold">
+                                                                        <Link size={8} /> {prereq.code}
+                                                                    </span>
+                                                                ))
                                                             ) : (
-                                                                <span className="flex items-center gap-1.5 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-black uppercase tracking-widest">
-                                                                    <BookOpen size={10} /> Minor
-                                                                </span>
+                                                                <span className="text-[9px] text-gray-300 font-medium italic uppercase tracking-tighter">No Prerequisites</span>
                                                             )}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-5">
-                                                        {subject.is_global ? (
-                                                            <span className="flex items-center gap-1.5 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-[9px] font-black uppercase tracking-widest">
-                                                                <Globe size={10} /> Global
-                                                            </span>
-                                                        ) : (
-                                                            <div className="flex flex-wrap gap-1 max-w-[150px]">
-                                                                {subject.program_codes && subject.program_codes.length > 0 ? (
-                                                                    subject.program_codes.map(code => (
-                                                                        <span key={code} className="px-2 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-md text-[8px] font-black uppercase tracking-tighter">
-                                                                        {code}
+                                                        <div className="flex flex-col gap-2">
+                                                            {/* Curricula */}
+                                                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                                                {subject.curriculum_codes && subject.curriculum_codes.length > 0 ? (
+                                                                    subject.curriculum_codes.map(code => (
+                                                                        <span key={code} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded text-[8px] font-black tracking-tighter uppercase">
+                                                                            {code}
                                                                         </span>
                                                                     ))
                                                                 ) : (
-                                                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded-md text-[8px] font-black uppercase tracking-tighter">
-                                                                        {program.code}
+                                                                    <span className="text-[9px] text-gray-300 font-medium italic uppercase tracking-tighter">Not in curriculum</span>
+                                                                )}
+                                                            </div>
+                                                            {/* Sharing */}
+                                                            <div className="flex items-center gap-1.5">
+                                                                {subject.is_global ? (
+                                                                    <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100 text-[8px] font-black uppercase">
+                                                                        <Globe size={8} /> Global
+                                                                    </span>
+                                                                ) : subject.program_codes && subject.program_codes.filter(c => c !== program.code).length > 0 && (
+                                                                    <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter">
+                                                                        Shared With: {subject.program_codes.filter(c => c !== program.code).join(', ')}
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                        )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-right">
+                                                        <div className="flex flex-col items-end gap-1.5">
+                                                            <span className="text-xs font-black text-gray-700">{subject.units} Units</span>
+                                                            {subject.is_major ? (
+                                                                <span className="flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-[8px] font-black uppercase tracking-widest whitespace-nowrap">
+                                                                    <ShieldAlert size={8} /> Major
+                                                                </span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[8px] font-black uppercase tracking-widest whitespace-nowrap">
+                                                                    <BookOpen size={8} /> Minor
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-5 text-right">
                                                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -92,10 +92,11 @@ class ProgramWithSubjectsSerializer(serializers.ModelSerializer):
         ]
 
     def get_subjects(self, obj):
-        """Get all subjects relevant to this program (Primary, Multi-program, or Global)"""
+        """Get all subjects relevant to this program (Primary, Multi-program, Global, or assigned via Curriculum)"""
         subjects = Subject.objects.filter(is_deleted=False).filter(
             Q(program=obj) |
             Q(programs=obj) |
+            Q(curriculum_assignments__curriculum__program=obj, curriculum_assignments__is_deleted=False) |
             Q(is_global=True)
         ).distinct()
         return SubjectSerializer(subjects, many=True).data
@@ -603,9 +604,11 @@ class CurriculumSerializer(serializers.ModelSerializer):
 class CurriculumCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating curricula."""
 
+    copy_from = serializers.UUIDField(required=False, write_only=True, allow_null=True)
+
     class Meta:
         model = Curriculum
-        fields = ['program', 'code', 'name', 'description', 'effective_year', 'is_active']
+        fields = ['program', 'code', 'name', 'description', 'effective_year', 'is_active', 'copy_from']
 
     def validate(self, data):
         # Check for duplicate code within program

@@ -13,8 +13,25 @@ const AddCurriculumModal = ({ isOpen, onClose, programId, programName, onSuccess
         name: '',
         effective_year: new Date().getFullYear(),
         description: '',
-        is_active: true
+        is_active: true,
+        copy_from: ''
     });
+    const [existingCurricula, setExistingCurricula] = useState([]);
+
+    React.useEffect(() => {
+        if (isOpen && programId) {
+            fetchExistingCurricula();
+        }
+    }, [isOpen, programId]);
+
+    const fetchExistingCurricula = async () => {
+        try {
+            const data = await CurriculumService.getCurricula(programId);
+            setExistingCurricula(data);
+        } catch (err) {
+            console.error('Failed to fetch existing curricula', err);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -33,7 +50,8 @@ const AddCurriculumModal = ({ isOpen, onClose, programId, programName, onSuccess
                 name: '',
                 effective_year: new Date().getFullYear(),
                 description: '',
-                is_active: true
+                is_active: true,
+                copy_from: ''
             });
         } catch (err) {
             console.error(err);
@@ -134,12 +152,29 @@ const AddCurriculumModal = ({ isOpen, onClose, programId, programName, onSuccess
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Description</label>
                                             <textarea
-                                                rows={4}
+                                                rows={3}
                                                 placeholder="Summary of changes or implementation notes..."
                                                 value={formData.description}
                                                 onChange={(e) => setFormData({...formData, description: e.target.value})}
                                                 className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-gray-300 resize-none"
                                             />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Copy Subjects From (Optional)</label>
+                                            <select
+                                                value={formData.copy_from}
+                                                onChange={(e) => setFormData({...formData, copy_from: e.target.value})}
+                                                className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 transition-all"
+                                            >
+                                                <option value="">Do not copy (Start empty)</option>
+                                                {existingCurricula.map(c => (
+                                                    <option key={c.id} value={c.id}>
+                                                        {c.code} - {c.name} ({c.effective_year})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <p className="text-[10px] text-gray-400 ml-1 italic">Selecting an existing curriculum will copy all its subject assignments to this new revision.</p>
                                         </div>
 
                                         <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-4">

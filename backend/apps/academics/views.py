@@ -219,6 +219,9 @@ class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.filter(is_deleted=False)
     permission_classes = [IsRegistrarOrAdmin]
     pagination_class = None
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['code', 'title', 'units', 'created_at']
+    ordering = ['code']
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -231,6 +234,9 @@ class SubjectViewSet(viewsets.ModelViewSet):
         search_query = self.request.query_params.get('search')
         year_level = self.request.query_params.get('year_level')
         semester_number = self.request.query_params.get('semester_number')
+        is_global = self.request.query_params.get('is_global')
+        is_major = self.request.query_params.get('is_major')
+        units = self.request.query_params.get('units')
 
         if program_id:
             # Filter by subjects that include this program (multi-program support)
@@ -254,6 +260,15 @@ class SubjectViewSet(viewsets.ModelViewSet):
                 Q(code__icontains=search_query) |
                 Q(title__icontains=search_query)
             )
+
+        if is_global is not None:
+            queryset = queryset.filter(is_global=is_global.lower() == 'true')
+
+        if is_major is not None:
+            queryset = queryset.filter(is_major=is_major.lower() == 'true')
+
+        if units:
+            queryset = queryset.filter(units=units)
 
         return queryset.select_related('program').prefetch_related('programs', 'prerequisites')
     
@@ -345,10 +360,23 @@ class RoomViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Room.objects.all()
+        
+        # Search by name
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+            
+        # Filter by type
+        room_type = self.request.query_params.get('room_type')
+        if room_type:
+            queryset = queryset.filter(room_type=room_type)
+            
+        # Filter by active status
         is_active = self.request.query_params.get('is_active')
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
-        return queryset
+            
+        return queryset.order_by('name')
 
     @action(detail=False, methods=['get'])
     def availability(self, request):
@@ -531,6 +559,51 @@ class SectionViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED
         )
 
+    @action(detail=False, methods=['get'], url_path='detailed-view')
+    @extend_schema(summary="Get All Sections Detailed View", tags=["Section Management"])
+    def list_detailed_view(self, request):
+        """Returns details for all sections including their scheduling progress."""
+        from apps.academics.models import Section
+        sections = self.get_queryset()
+        
+        results = []
+        for section in sections:
+            from apps.academics.models import CurriculumSubject, SectionSubject, Curriculum
+            
+            target_curriculum = section.curriculum or Curriculum.objects.filter(program=section.program, is_active=True).first()
+            if not target_curriculum: continue
+
+            semester_number = 1 if "1st" in section.semester.name.lower() or "first" in section.semester.name.lower() else 2
+            
+            curriculum_subjects = CurriculumSubject.objects.filter(
+                curriculum=target_curriculum,
+                year_level=section.year_level,
+                semester_number=semester_number,
+                is_deleted=False
+            )
+            
+            assigned_subjects = SectionSubject.objects.filter(section=section, is_deleted=False)
+            assigned_map = {ss.subject_id: ss for ss in assigned_subjects}
+            
+            subject_data = []
+            for cs in curriculum_subjects:
+                assigned_ss = assigned_map.get(cs.subject_id)
+                slots_count = assigned_ss.schedule_slots.filter(is_deleted=False).count() if assigned_ss else 0
+                
+                subject_data.append({
+                    'subject_id': str(cs.subject_id),
+                    'schedule_slots': [True] * slots_count if slots_count > 0 else [] 
+                })
+
+            results.append({
+                'id': str(section.id),
+                'name': section.name,
+                'program_code': section.program.code if section.program else 'N/A',
+                'year_level': section.year_level,
+                'subjects': subject_data
+            })
+            
+        return Response(results)
 
     @action(detail=True, methods=['get'], url_path='detailed-view')
     @extend_schema(summary="Get Section Detailed View", tags=["Section Management"])
@@ -549,6 +622,9 @@ class SectionViewSet(viewsets.ModelViewSet):
             ).first()
 
         semester = section.semester
+        if not semester:
+             return Response({"error": "Section has no semester assigned"}, status=400)
+
         semester_name = semester.name.lower()
         semester_number = 1
         if "2nd" in semester_name or "second" in semester_name: 
@@ -602,16 +678,31 @@ class SectionViewSet(viewsets.ModelViewSet):
                         'is_primary': True
                     }]
             
+            # Get schedule slots for this section subject
+            slots_data = []
+            if assigned_ss:
+                from .serializers import ScheduleSlotSerializer
+                # Get slots from the section subject model if it has direct relation
+                slots = assigned_ss.schedule_slots.filter(is_deleted=False).select_related('professor', 'section_subject__section')
+                slots_data = ScheduleSlotSerializer(slots, many=True).data
+
+            # Derive subject type based on title for now (since model lacks field)
+            subject_type = 'LAB' if 'LAB' in subj.title.upper() or 'LABORATORY' in subj.title.upper() else 'LEC'
+
             item = {
                 'subject_id': str(subj.id),
-                'code': subj.code,
-                'title': subj.title,
+                'subject_code': subj.code, # Rename for consistency with frontend expectations
+                'subject_title': subj.title,
                 'units': subj.units,
+                'subject_type': subject_type,
                 'semester_tag': f"{semester_number}{'st' if semester_number==1 else 'nd' if semester_number==2 else 'rd'} Sem",
                 'is_assigned': assigned_ss is not None,
                 'section_subject_id': str(assigned_ss.id) if assigned_ss else None,
                 'assigned_professors': assigned_professors,
-                'qualified_professors': prof_list
+                'qualified_professors': prof_list,
+                'schedule_slots': slots_data,
+                'professor_id': assigned_professors[0]['id'] if assigned_professors else None,
+                'professor_name': assigned_professors[0]['name'] if assigned_professors else 'TBA'
             }
             subject_data.append(item)
             
@@ -619,6 +710,7 @@ class SectionViewSet(viewsets.ModelViewSet):
             'section': SectionSerializer(section).data,
             'subjects': subject_data,
             'semester_info': {
+                'id': str(semester.id),
                 'name': semester.name,
                 'number': semester_number
             }
@@ -1333,7 +1425,34 @@ class CurriculumViewSet(viewsets.ModelViewSet):
         return CurriculumSerializer
 
     def perform_create(self, serializer):
+        copy_from_id = serializer.validated_data.pop('copy_from', None)
         curriculum = serializer.save()
+
+        # Handle cloning subjects if requested
+        if copy_from_id:
+            try:
+                source_curriculum = Curriculum.objects.get(id=copy_from_id, is_deleted=False)
+                source_subjects = CurriculumSubject.objects.filter(
+                    curriculum=source_curriculum,
+                    is_deleted=False
+                )
+                
+                cloned_subjects = [
+                    CurriculumSubject(
+                        curriculum=curriculum,
+                        subject=ss.subject,
+                        year_level=ss.year_level,
+                        semester_number=ss.semester_number,
+                        semester=ss.semester,
+                        is_required=ss.is_required
+                    )
+                    for ss in source_subjects
+                ]
+                
+                if cloned_subjects:
+                    CurriculumSubject.objects.bulk_create(cloned_subjects)
+            except Curriculum.DoesNotExist:
+                pass
 
         # Log audit trail
         AuditLog.log(
@@ -1343,7 +1462,8 @@ class CurriculumViewSet(viewsets.ModelViewSet):
             actor=self.request.user,
             payload={
                 'curriculum_code': curriculum.code,
-                'program': curriculum.program.code
+                'program': curriculum.program.code,
+                'cloned_from': str(copy_from_id) if copy_from_id else None
             }
         )
 

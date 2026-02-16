@@ -30,7 +30,8 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
         year_level: 1,
         semester_number: 1,
         classification: 'MINOR',
-        is_global: false
+        is_global: false,
+        program_id: programId || ''
     });
 
     // UI State
@@ -54,7 +55,8 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
                     year_level: subject.year_level || 1,
                     semester_number: subject.semester_number || 1,
                     classification: subject.classification || 'MINOR',
-                    is_global: subject.is_global || false
+                    is_global: subject.is_global || false,
+                    program_id: subject.program_id || programId || ''
                 });
                 
                 // Set prerequisites
@@ -62,11 +64,14 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
                 
                 // Set additional programs (excluding the context program)
                 const allProgs = await ProgramService.getPrograms();
-                const otherProgs = allProgs.filter(p => p.id !== programId);
+                const currentProgId = subject.program_id || programId;
+                const otherProgs = allProgs.filter(p => p.id !== currentProgId);
                 setAvailablePrograms(otherProgs);
                 
                 if (subject.program_ids) {
-                    const mappedSelected = otherProgs.filter(p => subject.program_ids.includes(p.id));
+                    const mappedSelected = allProgs.filter(p => 
+                        subject.program_ids.includes(p.id) && p.id !== currentProgId
+                    );
                     setSelectedPrograms(mappedSelected);
                 }
             }
@@ -82,7 +87,7 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
             setSearching(true);
             try {
                 const resp = await ProgramService.getSubjects({
-                    program: programId,
+                    program: formData.program_id || programId,
                     search: searchQuery
                 });
                 // Filters out current subject from potential prerequisites
@@ -97,7 +102,7 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
 
         const timeout = setTimeout(fetchSubjects, searchQuery ? 300 : 0);
         return () => clearTimeout(timeout);
-    }, [searchQuery, programId, isOpen, subject?.id]);
+    }, [searchQuery, programId, formData.program_id, isOpen, subject?.id]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -105,6 +110,7 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
         try {
             const dataToSubmit = {
                 ...formData,
+                program: formData.program_id || programId,
                 program_ids: selectedPrograms.map(p => p.id),
                 prerequisite_ids: selectedPrereqs.map(p => p.id),
                 code: formData.code.toUpperCase().replace(/\s/g, ''),
@@ -181,7 +187,7 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
                                                     Edit Subject: {subject.code}
                                                 </Dialog.Title>
                                                 <p className="text-sm text-gray-400 font-bold uppercase tracking-widest mt-1">
-                                                    Managing for: <span className="text-indigo-600">{programName}</span>
+                                                    Managing for: <span className="text-indigo-600">{programId ? programName : 'Master Catalog'}</span>
                                                 </p>
                                             </div>
                                         </div>
@@ -284,15 +290,32 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
 
                                                 <div className="space-y-3 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
                                                     {/* Context Program (Locked) */}
-                                                    <div className="p-4 bg-white rounded-2xl border-2 border-indigo-100 flex items-center justify-between">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-[10px]">
-                                                                {programName.substring(0,2).toUpperCase()}
+                                                    {programId ? (
+                                                        <div className="p-4 bg-white rounded-2xl border-2 border-indigo-100 flex items-center justify-between">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-[10px]">
+                                                                    {programName?.substring(0,2).toUpperCase()}
+                                                                </div>
+                                                                <span className="text-xs font-bold text-gray-900">{programName}</span>
                                                             </div>
-                                                            <span className="text-xs font-bold text-gray-900">{programName}</span>
+                                                            <CheckCircle2 size={16} className="text-indigo-600" />
                                                         </div>
-                                                        <CheckCircle2 size={16} className="text-indigo-600" />
-                                                    </div>
+                                                    ) : (
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 ml-1">Primary Program</label>
+                                                            <select 
+                                                                required
+                                                                value={formData.program_id}
+                                                                onChange={(e) => setFormData({...formData, program_id: e.target.value})}
+                                                                className="w-full px-5 py-4 bg-white border-2 border-transparent rounded-2xl text-sm font-bold focus:border-indigo-100 transition-all outline-none appearance-none cursor-pointer"
+                                                            >
+                                                                <option value="" disabled>Select Primary Program</option>
+                                                                {availablePrograms.concat({ id: subject.program_id, code: subject.program_code, name: subject.program_name }).map(p => (
+                                                                    p && <option key={p.id} value={p.id}>{p.code} - {p.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
 
                                                     {!formData.is_global && (
                                                         <>
@@ -341,7 +364,7 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
                                         {/* Column 3: Prerequisites */}
                                         <div className="lg:col-span-1 space-y-6">
                                             <div className="h-full bg-gray-50/50 p-6 rounded-[32px] border border-gray-100 flex flex-col">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Prerequisites (From {programName})</h4>
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Prerequisites</h4>
                                                 
                                                 <div className="relative mb-4">
                                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

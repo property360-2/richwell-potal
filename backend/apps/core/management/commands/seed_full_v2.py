@@ -379,7 +379,7 @@ class Command(BaseCommand):
                 name=f'CompLab {i}',
                 defaults={
                     'capacity': 35,
-                    'room_type': 'LABORATORY',
+                    'room_type': 'COMPUTER_LAB',
                     'is_active': True
                 }
             )
@@ -697,19 +697,30 @@ class Command(BaseCommand):
             # Only Year 1-2 for minimal
             subjects_data = [s for s in subjects_data if s[3] <= 2]
         
-        program = self.programs.get('BSIT') or list(self.programs.values())[0]
+        bsit_program = self.programs.get('BSIT')
+        bsa_program = self.programs.get('BSA')
         
         for code, title, units, year, sem, is_major, prereqs in subjects_data:
+            # Determine primary program and global status
+            primary_program = bsit_program
+            is_global = False
+            
+            if any(code.startswith(p) for p in ['ACC', 'TAX', 'AUD', 'BL']):
+                primary_program = bsa_program
+            elif any(code.startswith(p) for p in ['MATH', 'ENG', 'FIL', 'PE', 'HUM', 'STAT']):
+                is_global = True
+                
             subject, _ = Subject.objects.get_or_create(
                 code=code,
                 defaults={
-                    'program': program,
+                    'program': primary_program or bsit_program,
                     'title': title,
                     'description': f'{title} - Course description',
                     'units': units,
                     'year_level': year,
                     'semester_number': sem,
                     'is_major': is_major,
+                    'is_global': is_global,
                     'allow_multiple_sections': False
                 }
             )

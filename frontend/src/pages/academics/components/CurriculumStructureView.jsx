@@ -80,9 +80,12 @@ const CurriculumStructureView = ({ structure, program, onAssign, onRemove }) => 
                                                             {subject.units} Units
                                                         </span>
                                                         {subject.prerequisites?.length > 0 && (
-                                                            <div className="flex items-center gap-1 text-[9px] font-bold text-amber-500 uppercase tracking-widest">
-                                                                <AlertCircle size={10} />
-                                                                {subject.prerequisites.length} Prereq
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {subject.prerequisites.map(prereq => (
+                                                                    <div key={prereq.code} className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded text-[8px] font-black uppercase tracking-tighter">
+                                                                        <AlertCircle size={8} /> {prereq.code}
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         )}
                                                     </div>

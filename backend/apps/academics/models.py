@@ -77,9 +77,7 @@ class Room(BaseModel):
         max_length=20,
         choices=[
             ('LECTURE', 'Lecture Room'),
-            ('LABORATORY', 'Laboratory'),
-            ('FUNCTION', 'Function Room'),
-            ('OTHER', 'Other')
+            ('COMPUTER_LAB', 'Computer Lab')
         ],
         default='LECTURE'
     )

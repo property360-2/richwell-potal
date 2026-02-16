@@ -5,6 +5,7 @@ import Button from '../../../components/ui/Button';
 import { CurriculumService } from '../services/CurriculumService';
 import { ProgramService } from '../services/ProgramService';
 import { useToast } from '../../../context/ToastContext';
+import AddSubjectModal from './AddSubjectModal';
 
 const AssignSubjectToCurriculumModal = ({ 
     isOpen, 
@@ -12,6 +13,7 @@ const AssignSubjectToCurriculumModal = ({
     curriculumId, 
     curriculumName, 
     programId,
+    programName,
     yearLevel, 
     semesterNumber,
     onSuccess 
@@ -22,14 +24,18 @@ const AssignSubjectToCurriculumModal = ({
     const [availableSubjects, setAvailableSubjects] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSubjects, setSelectedSubjects] = useState([]);
+    const [showGlobal, setShowGlobal] = useState(false);
+    const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
 
     useEffect(() => {
         const fetchSubjects = async () => {
             if (!isOpen) return;
             try {
                 setSubjectsLoading(true);
-                // Fetch all subjects for this program (or global)
-                const data = await ProgramService.getSubjects({ program: programId });
+                // Fetch subjects. If showGlobal is false, we restrict to program + global. 
+                // If true, we fetch everything (or use include_global)
+                const params = showGlobal ? {} : { program: programId };
+                const data = await ProgramService.getSubjects(params);
                 setAvailableSubjects(data);
             } catch (err) {
                 console.error(err);
@@ -40,7 +46,7 @@ const AssignSubjectToCurriculumModal = ({
         };
 
         fetchSubjects();
-    }, [isOpen, programId, showError]);
+    }, [isOpen, programId, showError, showGlobal]);
 
     const filteredSubjects = availableSubjects.filter(s => 
         (s.code.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -114,33 +120,63 @@ const AssignSubjectToCurriculumModal = ({
                             <Dialog.Panel className="relative transform overflow-hidden rounded-[40px] bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl flex flex-col h-[80vh]">
                                 <form onSubmit={handleSubmit} className="flex flex-col h-full">
                                     {/* Header */}
-                                    <div className="bg-gray-50/50 px-8 py-6 border-b border-gray-100 flex items-center justify-between shrink-0">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100">
-                                                <Plus size={24} />
+                                        <div className="bg-gray-50/50 px-8 py-6 border-b border-gray-100 flex items-center justify-between shrink-0">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100">
+                                                    <Plus size={24} />
+                                                </div>
+                                                <div>
+                                                    <Dialog.Title as="h3" className="text-xl font-black text-gray-900 tracking-tight">
+                                                        Assign Subjects
+                                                    </Dialog.Title>
+                                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                                        Year {yearLevel} • {semesterNumber === 1 ? '1st' : semesterNumber === 2 ? '2nd' : 'Summer'} Sem • {curriculumName}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <Dialog.Title as="h3" className="text-xl font-black text-gray-900 tracking-tight">
-                                                    Assign Subjects
-                                                </Dialog.Title>
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                                    Year {yearLevel} • {semesterNumber === 1 ? '1st' : semesterNumber === 2 ? '2nd' : 'Summer'} Sem • {curriculumName}
-                                                </p>
+                                            <div className="flex items-center gap-4">
+                                                <Button 
+                                                    type="button"
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => setIsAddSubjectOpen(true)}
+                                                    className="rounded-xl flex items-center gap-2 border-dashed"
+                                                    icon={Plus}
+                                                >
+                                                    Add New Subject
+                                                </Button>
+                                                <button
+                                                    type="button"
+                                                    className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
+                                                    onClick={onClose}
+                                                >
+                                                    <X size={20} />
+                                                </button>
                                             </div>
                                         </div>
-                                        <button
-                                            type="button"
-                                            className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
-                                            onClick={onClose}
-                                        >
-                                            <X size={20} />
-                                        </button>
-                                    </div>
 
                                     {/* Content Area */}
                                     <div className="flex-grow overflow-hidden flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
                                         {/* Left: Selection Area */}
                                         <div className="flex-1 overflow-hidden flex flex-col p-8">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-2">
+                                                    <Search className="text-gray-400" size={16} />
+                                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Master List</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowGlobal(!showGlobal)}
+                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${
+                                                        showGlobal
+                                                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                            : 'bg-white border-gray-200 text-gray-400'
+                                                    }`}
+                                                >
+                                                    <Plus size={12} className={showGlobal ? 'rotate-45 transition-transform' : 'transition-transform'} />
+                                                    <span className="text-[8px] font-black uppercase tracking-widest">{showGlobal ? 'Showing All Programs' : 'Program Only'}</span>
+                                                </button>
+                                            </div>
                                             <div className="relative mb-6">
                                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                                                 <input 
@@ -191,6 +227,25 @@ const AssignSubjectToCurriculumModal = ({
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* Nested Add Subject Modal */}
+                                        <AddSubjectModal 
+                                            isOpen={isAddSubjectOpen}
+                                            onClose={() => setIsAddSubjectOpen(false)}
+                                            programId={programId}
+                                            programName={programName}
+                                            onSuccess={() => {
+                                                // Refresh subject list
+                                                const fetchSubjects = async () => {
+                                                    try {
+                                                        const params = showGlobal ? {} : { program: programId };
+                                                        const data = await ProgramService.getSubjects(params);
+                                                        setAvailableSubjects(data);
+                                                    } catch (e) { console.error(e); }
+                                                };
+                                                fetchSubjects();
+                                            }}
+                                        />
 
                                         {/* Right: Selected Area */}
                                         <div className="w-full lg:w-[350px] bg-gray-50/30 flex flex-col p-8">
