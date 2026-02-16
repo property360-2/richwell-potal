@@ -15,6 +15,7 @@ const AddProfessorModal = ({ isOpen, onClose, onSuccess }) => {
         last_name: '',
         email: '',
         program_ids: [],
+        department: '',
         specialization: '',
         max_teaching_hours: 30,
         assigned_subject_ids: []
@@ -42,6 +43,7 @@ const AddProfessorModal = ({ isOpen, onClose, onSuccess }) => {
                 last_name: '',
                 email: '',
                 program_ids: [],
+                department: '',
                 specialization: '',
                 max_teaching_hours: 30,
                 assigned_subject_ids: []
@@ -174,8 +176,9 @@ const AddProfessorModal = ({ isOpen, onClose, onSuccess }) => {
         try {
             await FacultyService.createProfessor({
                 ...formData,
-                professor_profile: {
+                profile: {
                     program_ids: formData.program_ids,
+                    department: formData.department,
                     specialization: formData.specialization,
                     max_teaching_hours: formData.max_teaching_hours,
                     assigned_subject_ids: formData.assigned_subject_ids
@@ -288,7 +291,30 @@ const AddProfessorModal = ({ isOpen, onClose, onSuccess }) => {
                                     </div>
 
                                     {/* Professional Info */}
-                                    <div className="grid grid-cols-1 gap-4">
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Department</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={formData.department}
+                                                    onChange={e => setFormData({...formData, department: e.target.value})}
+                                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl text-sm font-bold text-gray-900 focus:bg-white focus:border-indigo-100 transition-all outline-none"
+                                                    placeholder="e.g. College of Computer Studies"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Specialization / Expertise</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={formData.specialization}
+                                                    onChange={e => setFormData({...formData, specialization: e.target.value})}
+                                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl text-sm font-bold text-gray-900 focus:bg-white focus:border-indigo-100 transition-all outline-none"
+                                                    placeholder="e.g. Data Science, Accounting"
+                                                />
+                                            </div>
+                                        </div>
+
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Program Assignment</label>
                                             <div className="flex flex-wrap gap-2 p-3 bg-gray-50 border-2 border-transparent rounded-xl min-h-[50px]">
@@ -310,16 +336,6 @@ const AddProfessorModal = ({ isOpen, onClose, onSuccess }) => {
                                                 ))}
                                             </div>
                                             <p className="text-[10px] text-gray-400 mt-1 italic italic">Selection determines subject search priority.</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Specialization / Expertise</label>
-                                            <input 
-                                                type="text" 
-                                                value={formData.specialization}
-                                                onChange={e => setFormData({...formData, specialization: e.target.value})}
-                                                className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl text-sm font-bold text-gray-900 focus:bg-white focus:border-indigo-100 transition-all outline-none"
-                                                placeholder="e.g. Data Science, Accounting"
-                                            />
                                         </div>
                                     </div>
 

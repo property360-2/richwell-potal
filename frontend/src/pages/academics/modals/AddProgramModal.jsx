@@ -1,11 +1,11 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { X, AlertCircle, BookOpen, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { X, AlertCircle, BookOpen, CheckCircle2, Loader2, Info, Edit2 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import { ProgramService } from '../services/ProgramService';
 import { useToast } from '../../../context/ToastContext';
 
-const AddProgramModal = ({ isOpen, onClose, onSuccess }) => {
+const AddProgramModal = ({ isOpen, onClose, onSuccess, program = null }) => {
     const { success, error: showError } = useToast();
     const [formData, setFormData] = useState({
         code: '',
@@ -18,22 +18,37 @@ const AddProgramModal = ({ isOpen, onClose, onSuccess }) => {
     const [checkingDuplicate, setCheckingDuplicate] = useState(false);
     const [duplicateError, setDuplicateError] = useState('');
 
-    // Reset form when modal opens
+    // Reset/Populate form when modal opens
     useEffect(() => {
         if (isOpen) {
-            setFormData({
-                code: '',
-                name: '',
-                description: '',
-                duration_years: 4
-            });
+            if (program) {
+                setFormData({
+                    code: program.code,
+                    name: program.name,
+                    description: program.description || '',
+                    duration_years: program.duration_years
+                });
+            } else {
+                setFormData({
+                    code: '',
+                    name: '',
+                    description: '',
+                    duration_years: 4
+                });
+            }
             setDuplicateError('');
         }
-    }, [isOpen]);
+    }, [isOpen, program]);
 
     // real-time duplicate check
     useEffect(() => {
         if (!formData.code || formData.code.length < 2) {
+            setDuplicateError('');
+            return;
+        }
+
+        // If editing and code hasn't changed, skip check
+        if (program && formData.code === program.code) {
             setDuplicateError('');
             return;
         }
@@ -55,7 +70,7 @@ const AddProgramModal = ({ isOpen, onClose, onSuccess }) => {
         }, 500);
 
         return () => clearTimeout(timer);
-    }, [formData.code]);
+    }, [formData.code, program]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -82,15 +97,20 @@ const AddProgramModal = ({ isOpen, onClose, onSuccess }) => {
 
         setLoading(true);
         try {
-            await ProgramService.createProgram(formData);
-            success('Program created successfully!');
+            if (program) {
+                await ProgramService.updateProgram(program.id, formData);
+                success('Program updated successfully!');
+            } else {
+                await ProgramService.createProgram(formData);
+                success('Program created successfully!');
+            }
             onSuccess?.();
             onClose();
         } catch (err) {
             console.error(err);
             const msg = err.response?.data?.error || 
                        (err.response?.data && Object.entries(err.response.data).map(([k,v]) => `${k}: ${v}`).join(', ')) ||
-                       'Failed to create program';
+                       'Failed to save program';
             showError(msg);
         } finally {
             setLoading(false);
@@ -126,14 +146,16 @@ const AddProgramModal = ({ isOpen, onClose, onSuccess }) => {
                             <Dialog.Panel className="w-full max-w-xl transform overflow-hidden rounded-[32px] bg-white p-10 text-left align-middle shadow-xl transition-all border border-gray-100">
                                 <div className="flex justify-between items-start mb-8">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
-                                            <BookOpen size={28} />
+                                        <div className={`w-14 h-14 ${program ? 'bg-purple-100 text-purple-600' : 'bg-indigo-100 text-indigo-600'} rounded-2xl flex items-center justify-center shadow-inner`}>
+                                            {program ? <Edit2 size={28} /> : <BookOpen size={28} />}
                                         </div>
                                         <div>
                                             <Dialog.Title as="h3" className="text-2xl font-black text-gray-900 leading-tight">
-                                                Add New Program
+                                                {program ? 'Edit Program' : 'Add New Program'}
                                             </Dialog.Title>
-                                            <p className="text-sm text-gray-500 font-medium italic">Define a new path for student excellence</p>
+                                            <p className="text-sm text-gray-500 font-medium italic">
+                                                {program ? 'Update program details and curriculum' : 'Define a new path for student excellence'}
+                                            </p>
                                         </div>
                                     </div>
                                     <button onClick={onClose} className="p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
@@ -152,20 +174,29 @@ const AddProgramModal = ({ isOpen, onClose, onSuccess }) => {
                                                 value={formData.code}
                                                 onChange={handleChange}
                                                 placeholder="e.g., BSIT"
+                                                readOnly={!!program} // Lock code in edit mode
                                                 className={`w-full px-5 py-4 bg-gray-50 border-2 rounded-2xl text-sm font-bold transition-all outline-none ${
+                                                    program ? 'cursor-not-allowed opacity-70 border-gray-100' :
                                                     duplicateError 
                                                         ? 'border-red-100 focus:border-red-200 text-red-600' 
                                                         : 'border-transparent focus:bg-white focus:border-indigo-100'
                                                 }`}
-                                                disabled={loading}
+                                                disabled={loading || !!program}
                                             />
-                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                                                {checkingDuplicate && <Loader2 size={18} className="animate-spin text-indigo-500" />}
-                                                {!checkingDuplicate && formData.code.length >= 2 && !duplicateError && (
-                                                    <CheckCircle2 size={18} className="text-green-500 animate-in zoom-in" />
-                                                )}
-                                                {duplicateError && <AlertCircle size={18} className="text-red-500 animate-in shake" />}
-                                            </div>
+                                            {!program && (
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                                    {checkingDuplicate && <Loader2 size={18} className="animate-spin text-indigo-500" />}
+                                                    {!checkingDuplicate && formData.code.length >= 2 && !duplicateError && (
+                                                        <CheckCircle2 size={18} className="text-green-500 animate-in zoom-in" />
+                                                    )}
+                                                    {duplicateError && <AlertCircle size={18} className="text-red-500 animate-in shake" />}
+                                                </div>
+                                            )}
+                                            {program && (
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                    <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-2 py-1 rounded-md">LOCKED</span>
+                                                </div>
+                                            )}
                                         </div>
                                         {duplicateError && (
                                             <p className="text-[10px] font-bold text-red-500 ml-1 flex items-center gap-1 animate-in slide-in-from-top-1">
@@ -173,7 +204,7 @@ const AddProgramModal = ({ isOpen, onClose, onSuccess }) => {
                                                 {duplicateError}
                                             </p>
                                         )}
-                                        {!duplicateError && !formData.code && (
+                                        {!duplicateError && !formData.code && !program && (
                                             <p className="text-[10px] font-medium text-gray-400 ml-1 flex items-center gap-1">
                                                 <Info size={12} />
                                                 Short alphanumeric code (BSIT, AB-COMM, etc.)
@@ -216,7 +247,9 @@ const AddProgramModal = ({ isOpen, onClose, onSuccess }) => {
                                             <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
                                                 <Info size={16} className="text-amber-500 mt-0.5" />
                                                 <p className="text-[10px] text-amber-700 font-bold leading-relaxed">
-                                                    Creating a program will allow you to assign subjects and build curricula later.
+                                                    {program 
+                                                        ? 'Changes here will reflect on all students and faculty enrolled.' 
+                                                        : 'Creating a program will allow you to assign subjects and build curricula later.'}
                                                 </p>
                                             </div>
                                         </div>
@@ -250,16 +283,18 @@ const AddProgramModal = ({ isOpen, onClose, onSuccess }) => {
                                             className={`flex-[2] py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 ${
                                                 !isFormValid 
                                                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' 
-                                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
+                                                    : program 
+                                                        ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-200'
+                                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
                                             }`}
                                         >
                                             {loading ? (
                                                 <Loader2 size={18} className="animate-spin" />
                                             ) : (
-                                                <CheckCircle2 size={18} />
+                                                program ? <Edit2 size={18} /> : <CheckCircle2 size={18} />
                                             )}
                                             <span className="font-black uppercase tracking-widest text-[11px]">
-                                                {loading ? 'Creating Program...' : 'Confirm & Create'}
+                                                {loading ? (program ? 'Updating...' : 'Creating...') : (program ? 'Update Program' : 'Confirm & Create')}
                                             </span>
                                         </Button>
                                     </div>

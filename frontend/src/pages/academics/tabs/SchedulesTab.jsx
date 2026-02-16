@@ -24,6 +24,12 @@ const SchedulesTab = () => {
     const [filter, setFilter] = useState('all'); // all, unscheduled, partial, complete
     const [selectedSection, setSelectedSection] = useState(null);
     const [viewMode, setViewMode] = useState('grid');
+    const [programFilter, setProgramFilter] = useState('all');
+    const [yearLevelFilter, setYearLevelFilter] = useState('all');
+
+    // Extract unique options for filters
+    const uniquePrograms = [...new Set(sections.map(s => s.program_code))].filter(Boolean).sort();
+    const uniqueYearLevels = [...new Set(sections.map(s => s.year_level))].filter(Boolean).sort();
 
     const fetchSections = async () => {
         setLoading(true);
@@ -61,10 +67,12 @@ const SchedulesTab = () => {
         
         const progress = calculateProgress(section);
         const matchesFilter = 
-            filter === 'all' ? true :
+            (filter === 'all' ? true :
             filter === 'unscheduled' ? progress.count === 0 :
             filter === 'partial' ? progress.count > 0 && progress.count < progress.total :
-            filter === 'complete' ? progress.count === progress.total : true;
+            filter === 'complete' ? progress.count === progress.total : true) &&
+            (programFilter === 'all' || section.program_code === programFilter) &&
+            (yearLevelFilter === 'all' || section.year_level?.toString() === yearLevelFilter);
             
         return matchesSearch && matchesFilter;
     });
@@ -129,6 +137,32 @@ const SchedulesTab = () => {
                         {f}
                     </button>
                 ))}
+
+                <div className="h-8 w-px bg-gray-100 mx-2"></div>
+
+                {/* Program Filter */}
+                <select 
+                    value={programFilter}
+                    onChange={(e) => setProgramFilter(e.target.value)}
+                    className="px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-gray-50 text-gray-600 hover:bg-gray-100 border-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer outline-none"
+                >
+                    <option value="all">All Programs</option>
+                    {uniquePrograms.map(prog => (
+                        <option key={prog} value={prog}>{prog}</option>
+                    ))}
+                </select>
+
+                {/* Year Level Filter */}
+                <select 
+                    value={yearLevelFilter}
+                    onChange={(e) => setYearLevelFilter(e.target.value)}
+                    className="px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-gray-50 text-gray-600 hover:bg-gray-100 border-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer outline-none"
+                >
+                    <option value="all">All Year Levels</option>
+                    {uniqueYearLevels.map(year => (
+                        <option key={year} value={year}>Year {year}</option>
+                    ))}
+                </select>
 
                 <div className="ml-auto flex items-center bg-gray-50 p-1.5 rounded-2xl">
                     <button 
@@ -242,7 +276,10 @@ const SchedulesTab = () => {
                         variant="secondary" 
                         onClick={() => {
                             setSearchQuery('');
+                            setSearchQuery('');
                             setFilter('all');
+                            setProgramFilter('all');
+                            setYearLevelFilter('all');
                         }}
                         className="rounded-2xl px-10 border-none bg-white shadow-sm"
                     >

@@ -27,6 +27,8 @@ const AssignSubjectToCurriculumModal = ({
     const [showGlobal, setShowGlobal] = useState(false);
     const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
 
+    const [filterByYearSem, setFilterByYearSem] = useState(true);
+
     useEffect(() => {
         const fetchSubjects = async () => {
             if (!isOpen) return;
@@ -48,11 +50,18 @@ const AssignSubjectToCurriculumModal = ({
         fetchSubjects();
     }, [isOpen, programId, showError, showGlobal]);
 
-    const filteredSubjects = availableSubjects.filter(s => 
-        (s.code.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        s.title.toLowerCase().includes(searchQuery.toLowerCase())) &&
-        !selectedSubjects.some(selected => selected.id === s.id)
-    );
+    const filteredSubjects = availableSubjects.filter(s => {
+        const matchesSearch = s.code.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                              s.title.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSelection = !selectedSubjects.some(selected => selected.id === s.id);
+        
+        let matchesYearSem = true;
+        if (filterByYearSem) {
+            matchesYearSem = s.year_level === yearLevel && s.semester_number === semesterNumber;
+        }
+
+        return matchesSearch && matchesSelection && matchesYearSem;
+    });
 
     const handleAddSubject = (subject) => {
         setSelectedSubjects([...selectedSubjects, subject]);
@@ -93,7 +102,7 @@ const AssignSubjectToCurriculumModal = ({
 
     return (
         <Transition show={isOpen} as={React.Fragment}>
-            <Dialog as="div" className="relative z-[100]" onClose={onClose}>
+            <Dialog as="div" className="relative z-[7000]" onClose={onClose}>
                 <Transition.Child
                     as={React.Fragment}
                     enter="ease-out duration-300"
@@ -103,7 +112,7 @@ const AssignSubjectToCurriculumModal = ({
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" />
+                    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" />
                 </Transition.Child>
 
                 <div className="fixed inset-0 z-10 overflow-y-auto">
@@ -164,18 +173,31 @@ const AssignSubjectToCurriculumModal = ({
                                                     <Search className="text-gray-400" size={16} />
                                                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Master List</span>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowGlobal(!showGlobal)}
-                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${
-                                                        showGlobal
-                                                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                                                            : 'bg-white border-gray-200 text-gray-400'
-                                                    }`}
-                                                >
-                                                    <Plus size={12} className={showGlobal ? 'rotate-45 transition-transform' : 'transition-transform'} />
-                                                    <span className="text-[8px] font-black uppercase tracking-widest">{showGlobal ? 'Showing All Programs' : 'Program Only'}</span>
-                                                </button>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFilterByYearSem(!filterByYearSem)}
+                                                        className={`px-3 py-1.5 rounded-full border transition-all text-[8px] font-black uppercase tracking-widest ${
+                                                            filterByYearSem
+                                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                                                : 'bg-white border-gray-200 text-gray-400'
+                                                        }`}
+                                                    >
+                                                        {filterByYearSem ? `Target: Y${yearLevel} S${semesterNumber}` : 'Showing All'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowGlobal(!showGlobal)}
+                                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${
+                                                            showGlobal
+                                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                                : 'bg-white border-gray-200 text-gray-400'
+                                                        }`}
+                                                    >
+                                                        <Plus size={12} className={showGlobal ? 'rotate-45 transition-transform' : 'transition-transform'} />
+                                                        <span className="text-[8px] font-black uppercase tracking-widest">{showGlobal ? 'All Programs' : 'Program Only'}</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div className="relative mb-6">
                                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />

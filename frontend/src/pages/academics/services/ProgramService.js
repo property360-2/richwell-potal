@@ -33,11 +33,26 @@ export const ProgramService = {
     /**
      * Create a new program
      */
+    /**
+     * Create a new program
+     */
     async createProgram(data) {
         try {
             return await api.post(endpoints.managePrograms, data);
         } catch (e) {
             console.error('Failed to create program', e);
+            throw e;
+        }
+    },
+
+    /**
+     * Update an existing program
+     */
+    async updateProgram(id, data) {
+        try {
+            return await api.patch(`${endpoints.managePrograms}${id}/`, data);
+        } catch (e) {
+            console.error('Failed to update program', e);
             throw e;
         }
     },

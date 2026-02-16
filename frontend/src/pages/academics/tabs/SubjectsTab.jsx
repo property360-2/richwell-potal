@@ -216,7 +216,7 @@ const SubjectsTab = () => {
                                 <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Subject</th>
                                 <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Scope</th>
                                 <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Prerequisites</th>
-                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Curricula & Sharing</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Curricula</th>
                                 <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Details</th>
                                 <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Actions</th>
                             </tr>
@@ -238,14 +238,19 @@ const SubjectsTab = () => {
                                     <td className="px-8 py-5">
                                         {subject.is_global ? (
                                             <span className="flex items-center gap-1.5 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-[9px] font-black uppercase tracking-widest w-fit">
-                                                <Globe size={10} /> Institutional (Global)
+                                                <Globe size={10} /> Global / All Programs
                                             </span>
                                         ) : (
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-8 h-8 bg-gray-100 text-gray-600 rounded flex items-center justify-center font-black text-[10px] border border-gray-200">
-                                                    {subject.program_code?.substring(0,2) || '??'}
-                                                </div>
-                                                <span className="text-xs font-bold text-gray-700">{subject.program_name || subject.program_code}</span>
+                                            <div className="flex flex-wrap gap-1 items-center max-w-[200px]">
+                                                {subject.program_codes && subject.program_codes.length > 0 ? (
+                                                    subject.program_codes.map(code => (
+                                                        <span key={code} className={`px-2 py-1 rounded text-[10px] font-bold border ${code === subject.program_code ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-gray-50 text-gray-600 border-gray-100'}`}>
+                                                            {code}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs font-bold text-gray-700">{subject.program_name || subject.program_code}</span>
+                                                )}
                                             </div>
                                         )}
                                     </td>
@@ -263,29 +268,15 @@ const SubjectsTab = () => {
                                         </div>
                                     </td>
                                     <td className="px-8 py-5">
-                                        <div className="flex flex-col gap-2">
-                                            {/* Curricula */}
-                                            <div className="flex flex-wrap gap-1 max-w-[250px]">
-                                                {subject.curriculum_codes && subject.curriculum_codes.length > 0 ? (
-                                                    subject.curriculum_codes.map(code => (
-                                                        <span key={code} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded text-[9px] font-black tracking-tight">
-                                                            {code}
-                                                        </span>
-                                                    ))
-                                                ) : (
-                                                    <span className="text-[10px] text-gray-300 font-medium italic">Not in any curriculum</span>
-                                                )}
-                                            </div>
-                                            {/* Other Programs */}
-                                            {subject.program_codes && subject.program_codes.filter(c => c !== subject.program_code).length > 0 && (
-                                                <div className="flex flex-wrap gap-1 items-center">
-                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mr-1">Also In:</span>
-                                                    {subject.program_codes.filter(c => c !== subject.program_code).map(code => (
-                                                        <span key={code} className="px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-100 rounded text-[9px] font-bold">
-                                                            {code}
-                                                        </span>
-                                                    ))}
-                                                </div>
+                                        <div className="flex flex-wrap gap-1 max-w-[250px]">
+                                            {subject.curriculum_codes && subject.curriculum_codes.length > 0 ? (
+                                                subject.curriculum_codes.map(code => (
+                                                    <span key={code} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded text-[9px] font-black tracking-tight">
+                                                        {code}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className="text-[10px] text-gray-300 font-medium italic">Not in any curriculum</span>
                                             )}
                                         </div>
                                     </td>

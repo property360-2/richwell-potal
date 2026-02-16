@@ -79,28 +79,6 @@ const CurriculumTab = ({ program }) => {
         );
     }
 
-    if (curricula.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center py-24 bg-gray-50/50 rounded-[40px] border-2 border-dashed border-gray-200">
-                <div className="p-6 bg-indigo-100 text-indigo-600 rounded-3xl mb-6 shadow-xl shadow-indigo-100 scale-110">
-                    <Layers size={48} />
-                </div>
-                <h4 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">No Curricula Defined</h4>
-                <p className="text-gray-500 max-w-md mx-auto leading-relaxed font-medium mb-8">
-                    Start by creating the first curriculum revision for <strong>{program.name}</strong>.
-                </p>
-                <Button 
-                    variant="primary" 
-                    onClick={() => setIsAddModalOpen(true)}
-                    className="rounded-2xl px-8 shadow-indigo-100 shadow-xl flex items-center gap-2"
-                >
-                    <Plus size={20} />
-                    Create First Version
-                </Button>
-            </div>
-        );
-    }
-
     const handleAssignClick = (year, sem) => {
         setAssignTarget({ year, sem });
         setIsAssignModalOpen(true);
@@ -127,6 +105,38 @@ const CurriculumTab = ({ program }) => {
     const handleAssignSuccess = () => {
         fetchStructure(selectedCurriculumId);
     };
+
+    if (curricula.length === 0) {
+        return (
+            <>
+                <div className="flex flex-col items-center justify-center py-24 bg-gray-50/50 rounded-[40px] border-2 border-dashed border-gray-200">
+                    <div className="p-6 bg-indigo-100 text-indigo-600 rounded-3xl mb-6 shadow-xl shadow-indigo-100 scale-110">
+                        <Layers size={48} />
+                    </div>
+                    <h4 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">No Curricula Defined</h4>
+                    <p className="text-gray-500 max-w-md mx-auto leading-relaxed font-medium mb-8">
+                        Start by creating the first curriculum revision for <strong>{program.name}</strong>.
+                    </p>
+                    <Button 
+                        variant="primary" 
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="rounded-2xl px-8 shadow-indigo-100 shadow-xl flex items-center gap-2"
+                    >
+                        <Plus size={20} />
+                        Create First Version
+                    </Button>
+                </div>
+                
+                <AddCurriculumModal 
+                    isOpen={isAddModalOpen}
+                    onClose={() => setIsAddModalOpen(false)}
+                    programId={program.id}
+                    programName={program.name}
+                    onSuccess={handleCurriculumSuccess}
+                />
+            </>
+        );
+    }
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">

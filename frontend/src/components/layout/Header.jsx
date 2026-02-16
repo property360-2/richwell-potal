@@ -49,6 +49,7 @@ const Header = () => {
         { name: 'Resolutions', href: '/head/resolutions', icon: CheckCircle, roles: ['DEPARTMENT_HEAD', 'ADMIN'] },
         { name: 'Reports', href: '/head/reports', icon: FileText, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
         { name: 'Academics', href: '/academics', icon: GraduationCap, roles: ['ADMIN', 'HEAD_REGISTRAR'] },
+        { name: 'Terms', href: '/admin/terms', icon: Calendar, roles: ['ADMIN'] },
         { name: 'Users', href: '/admin/users', icon: Users, roles: ['ADMIN'] },
         { name: 'System', href: '/admin/config', icon: Settings, roles: ['ADMIN'] },
         { name: 'Audit', href: '/admin/audit-logs', icon: Activity, roles: ['ADMIN'] },

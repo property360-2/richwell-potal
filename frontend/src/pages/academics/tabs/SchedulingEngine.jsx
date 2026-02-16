@@ -382,60 +382,18 @@ const SchedulingEngine = ({ section, onBack }) => {
                                 <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-widest rounded-full">
                                     {sectionData.program_code}
                                 </span>
-                                <span className="text-[10px] text-gray-400 font-black uppercase tracking-[0.2em] italic">Weekly Planner</span>
                             </div>
-                            <h2 className="text-4xl font-black text-gray-900 tracking-tighter italic uppercase">{sectionData.name}</h2>
+                            <h2 className="text-4xl font-black text-gray-900 tracking-tighter italic uppercase">Weekly Planner for {sectionData?.name || section?.name}</h2>
                         </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-4">
-                        <div className="flex items-center gap-2 bg-indigo-50 px-5 py-3 rounded-2xl border border-indigo-100/50">
-                            <CheckCircle className="text-indigo-600" size={18} />
-                            <span className="text-[11px] font-black text-indigo-700 uppercase tracking-widest">
-                                {scheduledSlots.length} Slots Plotted
-                            </span>
-                        </div>
-                        <Button 
-                            variant="primary" 
-                            onClick={() => loadData()}
-                            className="rounded-2xl px-6 py-4 h-auto shadow-xl shadow-indigo-100 flex items-center gap-2 group bg-indigo-900 hover:bg-black transition-all border-none"
-                        >
-                            <Calendar size={18} />
-                            <span className="font-black uppercase tracking-widest text-[11px]">Refresh Grid</span>
-                        </Button>
+                        {/* Removed functionality buttons as requested */}
                     </div>
                 </div>
 
                 {/* Dashboard Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                    <div className="bg-indigo-600 rounded-[32px] p-8 text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
-                         <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-700"></div>
-                         <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-100 mb-2">Section Progress</h4>
-                         <div className="flex items-end gap-3">
-                             <span className="text-4xl font-black">{Math.round((scheduledSlots.length / (unscheduledSubjects.length + scheduledSlots.length)) * 100) || 0}%</span>
-                             <span className="text-[11px] font-bold text-indigo-200 mb-1.5 uppercase italic">Scheduled</span>
-                         </div>
-                    </div>
-                    {/* Placeholder for Prof Load / Room utilization stats */}
-                    <div className="bg-white rounded-[32px] border border-gray-100 p-8 flex items-center gap-6 shadow-sm">
-                         <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center">
-                             <Users size={28} />
-                         </div>
-                         <div>
-                             <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Assigned Professors</h4>
-                             <p className="text-xl font-black text-gray-900">Multi-Assign Mode</p>
-                         </div>
-                    </div>
-                    <div className="bg-white rounded-[32px] border border-gray-100 p-8 flex items-center gap-6 shadow-sm text-amber-600">
-                         <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center">
-                             <AlertTriangle size={28} />
-                         </div>
-                         <div>
-                             <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Conflicts Detected</h4>
-                             <p className="text-xl font-black">0 Warnings</p>
-                         </div>
-                    </div>
-                </div>
+                {/* Dashboard Stats Removed */}
 
                 {/* Split Context Area */}
                 <div className="flex flex-col xl:flex-row gap-8">
@@ -484,7 +442,7 @@ const SchedulingEngine = ({ section, onBack }) => {
 
                     {/* Main: Weekly Grid */}
                     <div className="flex-1 overflow-x-auto min-h-[1000px]">
-                        <div className="min-w-[1200px] bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                        <div className="w-full bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
                             {/* Days Header */}
                             <div className="flex border-b-2 border-gray-100 bg-gray-50/50">
                                 <div className="w-24 h-20 flex items-center justify-center border-r border-gray-100 shrink-0">

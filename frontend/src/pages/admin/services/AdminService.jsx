@@ -80,5 +80,26 @@ export const AdminService = {
     // Permission Categories (for discovery)
     getPermissionCategories: async () => {
         return await api.get(endpoints.permissionCategories);
+    },
+
+    // Term Management
+    getSemesters: async () => {
+        return await api.get(endpoints.semesters);
+    },
+
+    createSemester: async (data) => {
+        return await api.post(endpoints.semesters, data);
+    },
+
+    updateSemester: async (id, data) => {
+        return await api.patch(endpoints.semesterDetail(id), data);
+    },
+
+    deleteSemester: async (id) => {
+        return await api.delete(endpoints.semesterDetail(id));
+    },
+
+    activateSemester: async (id) => {
+        return await api.post(endpoints.activateSemester(id));
     }
 };

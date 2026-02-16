@@ -7,9 +7,7 @@ import {
     Trash2, 
     Loader2,
     Filter,
-    Users,
-    Calendar,
-    BookOpen
+    Calendar
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import { SectionService } from '../services/SectionService';
@@ -206,82 +204,75 @@ const SectionsTab = () => {
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Loading sections...</p>
                 </div>
             ) : sections.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {sections.map(section => (
-                        <div key={section.id} className="group bg-white rounded-[32px] border border-gray-100 p-8 hover:border-indigo-200 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 relative overflow-hidden">
-                            {/* Decorative Background Element */}
-                            <div className="absolute -right-4 -top-4 w-24 h-24 bg-indigo-50/50 rounded-full blur-2xl group-hover:bg-indigo-100/50 transition-colors"></div>
-                            
-                            <div className="relative flex flex-col h-full">
-                                <div className="flex items-start justify-between mb-6">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                                            <Layers size={20} />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-black text-gray-900 group-hover:text-indigo-600 transition-colors">{section.name}</h3>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-lg">
-                                                    Year {section.year_level}
-                                                </span>
-                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                                    {section.program_code || (section.program && section.program.code)}
-                                                </span>
+                <div className="bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-gray-100 bg-gray-50/50">
+                                <th className="p-6 text-[11px] font-black text-gray-400 uppercase tracking-widest">Section Name</th>
+                                <th className="p-6 text-[11px] font-black text-gray-400 uppercase tracking-widest">Program & Year</th>
+                                <th className="p-6 text-[11px] font-black text-gray-400 uppercase tracking-widest">Semester</th>
+                                <th className="p-6 text-[11px] font-black text-gray-400 uppercase tracking-widest text-center">Enrollment</th>
+                                <th className="p-6 text-[11px] font-black text-gray-400 uppercase tracking-widest text-center">Subjects</th>
+                                <th className="p-6 text-[11px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sections.map(section => (
+                                <tr key={section.id} className="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors group">
+                                    <td className="p-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                                                <Layers size={20} />
                                             </div>
+                                            <span className="font-black text-gray-900 text-sm">{section.name}</span>
                                         </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button 
-                                            onClick={() => openEditModal(section)}
-                                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                                        >
-                                            <Edit size={16} />
-                                        </button>
-                                        <button 
-                                            onClick={() => handleDelete(section.id)}
-                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4 mt-auto pt-6 border-t border-gray-50">
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex items-center gap-1.5 text-gray-400">
-                                            <Users size={12} />
-                                            <span className="text-[9px] font-black uppercase tracking-widest">Enrollment</span>
+                                    </td>
+                                    <td className="p-6">
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-bold text-gray-900">{section.program_code || (section.program && section.program.code)}</span>
+                                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Year {section.year_level}</span>
                                         </div>
-                                        <p className="text-sm font-black text-gray-700">
-                                            {section.student_count || 0} / <span className="text-gray-400">{section.capacity || 40}</span>
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-col gap-1 text-right">
-                                        <div className="flex items-center gap-1.5 text-gray-400 justify-end">
-                                            <BookOpen size={12} />
-                                            <span className="text-[9px] font-black uppercase tracking-widest">Subjects</span>
+                                    </td>
+                                    <td className="p-6">
+                                        <div className="flex items-center gap-2 text-gray-500">
+                                            <Calendar size={14} />
+                                            <span className="text-xs font-bold">
+                                                {section.semester_name || (section.semester && section.semester.academic_year)}
+                                            </span>
                                         </div>
-                                        <p className="text-sm font-black text-gray-700">
-                                            {section.subject_count || (section.section_subjects ? section.section_subjects.length : 0)} Active
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="mt-6 flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-gray-400">
-                                        <Calendar size={14} />
-                                        <span className="text-[10px] font-bold">
-                                            {section.semester_name || (section.semester && section.semester.academic_year)}
+                                    </td>
+                                    <td className="p-6 text-center">
+                                        <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold">
+                                            {section.student_count || 0} / {section.capacity || 40}
                                         </span>
-                                    </div>
-                                    <button className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">
-                                        View Details
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+                                    </td>
+                                    <td className="p-6 text-center">
+                                        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold">
+                                            {section.subject_count || (section.section_subjects ? section.section_subjects.length : 0)}
+                                        </span>
+                                    </td>
+                                    <td className="p-6 text-right">
+                                        <div className="flex items-center justify-end gap-2 text-gray-300 opacity-60 group-hover:opacity-100 transition-all">
+                                            <button 
+                                                onClick={() => openEditModal(section)}
+                                                className="p-2 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                                title="Edit Section"
+                                            >
+                                                <Edit size={16} />
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDelete(section.id)}
+                                                className="p-2 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                                title="Delete Section"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             ) : (
                 <div className="flex flex-col items-center justify-center py-24 bg-gray-50/50 rounded-[40px] border-2 border-dashed border-gray-200">

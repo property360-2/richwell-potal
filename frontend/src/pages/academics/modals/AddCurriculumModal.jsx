@@ -39,7 +39,8 @@ const AddCurriculumModal = ({ isOpen, onClose, programId, programName, onSuccess
         try {
             await CurriculumService.createCurriculum({
                 ...formData,
-                program: programId
+                program: programId,
+                copy_from: formData.copy_from || null
             });
             showSuccess('Curriculum created successfully');
             onSuccess();
@@ -63,7 +64,7 @@ const AddCurriculumModal = ({ isOpen, onClose, programId, programName, onSuccess
 
     return (
         <Transition show={isOpen} as={React.Fragment}>
-            <Dialog as="div" className="relative z-[100]" onClose={onClose}>
+            <Dialog as="div" className="relative z-[7000]" onClose={onClose}>
                 <Transition.Child
                     as={React.Fragment}
                     enter="ease-out duration-300"
@@ -73,7 +74,7 @@ const AddCurriculumModal = ({ isOpen, onClose, programId, programName, onSuccess
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" />
+                    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" />
                 </Transition.Child>
 
                 <div className="fixed inset-0 z-10 overflow-y-auto">

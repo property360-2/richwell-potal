@@ -7,7 +7,8 @@ import {
     Target,
     BookOpen,
     Loader2,
-    Save
+    Save,
+    Edit
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import { SectionService } from '../services/SectionService';
@@ -79,7 +80,7 @@ const EditSectionModal = ({ isOpen, onClose, onSuccess, section, programs, semes
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-white rounded-[40px] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-8 duration-500">
                 {/* Header */}
                 <div className="bg-amber-500 p-10 relative overflow-hidden">

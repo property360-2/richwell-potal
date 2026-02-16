@@ -29,6 +29,18 @@ export const SectionService = {
     },
 
     /**
+     * Bulk create sections
+     */
+    async bulkCreateSections(data) {
+        try {
+            return await api.post(`${endpoints.sections}bulk-create/`, data);
+        } catch (e) {
+            console.error('Failed to bulk create sections', e);
+            throw e;
+        }
+    },
+
+    /**
      * Update an existing section
      */
     async updateSection(id, data) {

@@ -58,7 +58,7 @@ const ProgramsTab = () => {
                 </div>
                 
                 <Button 
-                    onClick={() => setIsAddModalOpen(true)}
+                    onClick={() => { setSelectedProgram(null); setIsAddModalOpen(true); }}
                     className="w-full md:w-auto px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[20px] shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 group transition-all"
                 >
                     <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
@@ -149,8 +149,9 @@ const ProgramsTab = () => {
 
             <AddProgramModal 
                 isOpen={isAddModalOpen} 
-                onClose={() => setIsAddModalOpen(false)} 
-                onSuccess={loadPrograms}
+                onClose={() => { setIsAddModalOpen(false); setSelectedProgram(null); }} 
+                onSuccess={() => { loadPrograms(); setSelectedProgram(null); }}
+                program={selectedProgram}
             />
         </div>
     );

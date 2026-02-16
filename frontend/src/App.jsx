@@ -49,6 +49,7 @@ import StudentSOA from './pages/student/StudentSOA'
 import AdminUserManagement from './pages/admin/UserManagement'
 import AdminSystemConfig from './pages/admin/SystemConfig'
 import AdminAuditLogs from './pages/admin/AuditLogs'
+import AdminTermManagement from './pages/admin/TermManagement'
 
 // Academics
 import AcademicsPage from './pages/academics/AcademicsPage'
@@ -255,6 +256,11 @@ function App() {
                 <Route path="/admin/audit-logs" element={
                   <ProtectedRoute roles={['ADMIN']}>
                     <AdminAuditLogs />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/terms" element={
+                  <ProtectedRoute roles={['ADMIN']}>
+                    <AdminTermManagement />
                   </ProtectedRoute>
                 } />
 
