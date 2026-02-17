@@ -19,11 +19,13 @@ import SchedulingEngine from './SchedulingEngine';
 const SchedulesTab = () => {
     const { error: showError } = useToast();
     const [sections, setSections] = useState([]);
+    const [semesters, setSemesters] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState('all'); // all, unscheduled, partial, complete
+    const [semesterFilter, setSemesterFilter] = useState('');
     const [selectedSection, setSelectedSection] = useState(null);
-    const [viewMode, setViewMode] = useState('grid');
+    const [viewMode, setViewMode] = useState('list');
     const [programFilter, setProgramFilter] = useState('all');
     const [yearLevelFilter, setYearLevelFilter] = useState('all');
 
@@ -31,12 +33,24 @@ const SchedulesTab = () => {
     const uniquePrograms = [...new Set(sections.map(s => s.program_code))].filter(Boolean).sort();
     const uniqueYearLevels = [...new Set(sections.map(s => s.year_level))].filter(Boolean).sort();
 
+    const fetchInitialData = async () => {
+        try {
+            const semData = await SchedulingService.getSemesters();
+            setSemesters(semData);
+            const activeSem = semData.find(s => s.is_current);
+            if (activeSem) setSemesterFilter(activeSem.id);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     const fetchSections = async () => {
         setLoading(true);
         try {
-            // Fetch all sections to show progress
-            // Note: In a real app we might need to filter by current semester
-            const data = await SchedulingService.getSectionsProgress();
+            const params = {};
+            if (semesterFilter) params.semester = semesterFilter;
+            
+            const data = await SchedulingService.getSectionsProgress(params);
             setSections(data);
         } catch (err) {
             console.error(err);
@@ -47,11 +61,21 @@ const SchedulesTab = () => {
     };
 
     useEffect(() => {
-        fetchSections();
+        fetchInitialData();
     }, []);
 
+    useEffect(() => {
+        if (semesterFilter) {
+            fetchSections();
+        }
+    }, [semesterFilter]);
+
     const calculateProgress = (section) => {
-        if (!section.subjects) return 0;
+        if (!section.subjects || section.subjects.length === 0) return {
+            percentage: 0,
+            count: 0,
+            total: 0
+        };
         const total = section.subjects.length;
         const scheduled = section.subjects.filter(s => s.schedule_slots && s.schedule_slots.length > 0).length;
         return {
@@ -91,27 +115,29 @@ const SchedulesTab = () => {
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+            {/* Header Area */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-10">
                 <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 bg-indigo-500 rounded-[22px] flex items-center justify-center shadow-lg shadow-indigo-100 -rotate-3">
-                        <Calendar className="text-white rotate-3" size={28} />
+                    <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-100">
+                        <Calendar size={28} />
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-gray-900 tracking-tight">Scheduling Dashboard</h2>
-                        <p className="text-[11px] text-gray-400 font-black uppercase tracking-[0.2em] mt-1">Resource Distribution & Planning</p>
+                        <div className="flex items-center gap-3 mb-1">
+                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Scheduling Dashboard</h2>
+                        </div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Institutional Repository of Resource Planning</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="relative group">
+                <div className="flex items-center gap-3 w-full lg:w-auto">
+                    <div className="relative group flex-grow lg:flex-grow-0">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
                         <input 
                             type="text"
                             placeholder="Search section..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="bg-white border-2 border-gray-100 text-gray-700 text-sm font-bold rounded-[20px] pl-12 pr-6 py-3.5 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all w-full md:w-[280px] shadow-sm"
+                            className="bg-white border border-gray-200 text-gray-900 text-sm font-bold rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block w-full lg:w-80 pl-12 pr-6 py-4 shadow-sm transition-all outline-none"
                         />
                     </div>
                 </div>
@@ -139,6 +165,20 @@ const SchedulesTab = () => {
                 ))}
 
                 <div className="h-8 w-px bg-gray-100 mx-2"></div>
+
+                {/* Semester Filter */}
+                <select 
+                    value={semesterFilter}
+                    onChange={(e) => setSemesterFilter(e.target.value)}
+                    className="px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-gray-50 text-gray-600 hover:bg-gray-100 border-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer outline-none min-w-[150px]"
+                >
+                    <option value="">All Semesters</option>
+                    {semesters.map(s => (
+                        <option key={s.id} value={s.id}>
+                            {s.academic_year} - {s.name}
+                        </option>
+                    ))}
+                </select>
 
                 {/* Program Filter */}
                 <select 
@@ -190,80 +230,150 @@ const SchedulesTab = () => {
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-widest mt-4">Analysing section workloads...</p>
                 </div>
             ) : filteredSections.length > 0 ? (
-                <div className={viewMode === 'grid' 
-                    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                    : "flex flex-col gap-4"
-                }>
-                    {filteredSections.map(section => {
-                        const progress = calculateProgress(section);
-                        const isComplete = progress.percentage === 100;
-                        const isNew = progress.count === 0;
+                <div className="bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm">
+                    {viewMode === 'grid' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-8">
+                            {filteredSections.map(section => {
+                                const progress = calculateProgress(section);
+                                const isComplete = progress.percentage === 100;
+                                const isNew = progress.count === 0;
 
-                        return (
-                            <div 
-                                key={section.id} 
-                                onClick={() => setSelectedSection(section)}
-                                className="group bg-white rounded-[32px] border border-gray-100 p-8 hover:border-indigo-200 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 cursor-pointer relative overflow-hidden flex flex-col h-full"
-                            >
-                                {/* Progress Indicator (Background) */}
-                                <div 
-                                    className="absolute bottom-0 left-0 h-1 bg-indigo-500 transition-all duration-1000" 
-                                    style={{ width: `${progress.percentage}%` }}
-                                ></div>
-
-                                <div className="flex items-start justify-between mb-6">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-[0.15em] rounded-full">
-                                                {section.program_code}
-                                            </span>
-                                            <span className="px-3 py-1 bg-gray-50 text-gray-500 text-[9px] font-black uppercase tracking-[0.15em] rounded-full">
-                                                Year {section.year_level}
-                                            </span>
+                                return (
+                                    <div 
+                                        key={section.id} 
+                                        onClick={() => setSelectedSection(section)}
+                                        className="group bg-white rounded-[32px] border border-gray-100 p-8 hover:border-indigo-200 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 cursor-pointer relative overflow-hidden flex flex-col h-full"
+                                    >
+                                        <div className="flex items-start justify-between mb-6">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-[0.15em] rounded-full">
+                                                        {section.program_code}
+                                                    </span>
+                                                    <span className="px-3 py-1 bg-gray-50 text-gray-500 text-[9px] font-black uppercase tracking-[0.15em] rounded-full">
+                                                        Year {section.year_level}
+                                                    </span>
+                                                </div>
+                                                <h3 className="text-2xl font-black text-gray-900 group-hover:text-indigo-600 transition-colors italic tracking-tighter">
+                                                    {section.name}
+                                                </h3>
+                                            </div>
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                                                isComplete ? 'bg-green-50 text-green-600' : 
+                                                isNew ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'
+                                            }`}>
+                                                {isComplete ? <CheckCircle2 size={24} /> : 
+                                                 isNew ? <AlertCircle size={24} /> : <Clock size={24} />}
+                                            </div>
                                         </div>
-                                        <h3 className="text-2xl font-black text-gray-900 group-hover:text-indigo-600 transition-colors italic tracking-tighter">
-                                            {section.name}
-                                        </h3>
-                                    </div>
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                                        isComplete ? 'bg-green-50 text-green-600' : 
-                                        isNew ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'
-                                    }`}>
-                                        {isComplete ? <CheckCircle2 size={24} /> : 
-                                         isNew ? <AlertCircle size={24} /> : <Clock size={24} />}
-                                    </div>
-                                </div>
 
-                                <div className="space-y-4 mb-8">
-                                    <div className="flex justify-between items-end">
-                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Scheduling Progress</span>
-                                        <span className="text-sm font-black text-gray-900">{progress.percentage}%</span>
-                                    </div>
-                                    <div className="h-2 bg-gray-50 rounded-full overflow-hidden flex">
-                                        <div 
-                                            className={`h-full transition-all duration-1000 ${
-                                                isComplete ? 'bg-green-500' : 'bg-indigo-500'
-                                            }`}
-                                            style={{ width: `${progress.percentage}%` }}
-                                        ></div>
-                                    </div>
-                                    <p className="text-[11px] text-gray-500 font-bold italic">
-                                        {progress.count} of {progress.total} subjects plotted
-                                    </p>
-                                </div>
+                                        <div className="space-y-4 mb-8">
+                                            <div className="flex justify-between items-end">
+                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Progress</span>
+                                                <span className="text-sm font-black text-gray-900">{progress.percentage}%</span>
+                                            </div>
+                                            <div className="h-2 bg-gray-50 rounded-full overflow-hidden flex">
+                                                <div 
+                                                    className={`h-full transition-all duration-1000 ${
+                                                        isComplete ? 'bg-green-500' : 'bg-indigo-500'
+                                                    }`}
+                                                    style={{ width: `${progress.percentage}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
 
-                                <div className="mt-auto pt-6 border-t border-gray-50 flex items-center justify-between">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                        {section.subjects?.length || 0} Total Units
-                                    </span>
-                                    <div className="flex items-center gap-2 text-indigo-600 font-black uppercase tracking-widest text-[10px] group-hover:gap-3 transition-all">
-                                        Manage
-                                        <ArrowRight size={14} />
+                                        <div className="mt-auto pt-6 border-t border-gray-50 flex items-center justify-between">
+                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                                {progress.count} of {progress.total} subjects plotted
+                                            </span>
+                                            <div className="flex items-center gap-2 text-indigo-600 font-black uppercase tracking-widest text-[10px] group-hover:gap-3 transition-all">
+                                                Manage
+                                                <ArrowRight size={14} />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-50/50 border-b border-gray-100">
+                                        <th className="px-8 py-6 text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">Section Info</th>
+                                        <th className="px-8 py-6 text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">Year & Program</th>
+                                        <th className="px-8 py-6 text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] w-[300px]">Scheduling Progress</th>
+                                        <th className="px-8 py-6 text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {filteredSections.map(section => {
+                                        const progress = calculateProgress(section);
+                                        const isComplete = progress.percentage === 100;
+                                        const isNew = progress.count === 0;
+
+                                        return (
+                                            <tr 
+                                                key={section.id}
+                                                onClick={() => setSelectedSection(section)}
+                                                className="group hover:bg-gray-50/50 transition-all cursor-pointer"
+                                            >
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+                                                            isComplete ? 'bg-green-50 text-green-600' : 
+                                                            isNew ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'
+                                                        }`}>
+                                                            {isComplete ? <CheckCircle2 size={24} /> : 
+                                                             isNew ? <AlertCircle size={24} /> : <Clock size={24} />}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-lg font-black text-gray-900 group-hover:text-indigo-600 transition-colors italic tracking-tighter">
+                                                                {section.name}
+                                                            </h4>
+                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                                                                {progress.count} of {progress.total} subjects PLOTTED
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-lg">
+                                                            {section.program_code}
+                                                        </span>
+                                                        <span className="px-3 py-1 bg-gray-50 text-gray-500 text-[10px] font-black uppercase tracking-widest rounded-lg">
+                                                            Year {section.year_level}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className="space-y-2.5">
+                                                        <div className="flex justify-between items-end">
+                                                            <span className="text-[10px] font-black text-gray-900 italic">{progress.percentage}%</span>
+                                                        </div>
+                                                        <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden flex">
+                                                            <div 
+                                                                className={`h-full transition-all duration-1000 ${
+                                                                    isComplete ? 'bg-green-500' : 'bg-indigo-500'
+                                                                }`}
+                                                                style={{ width: `${progress.percentage}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6 text-right">
+                                                    <button className="inline-flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-[10px] font-black text-gray-900 uppercase tracking-[0.15em] hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all group-hover:translate-x-[-4px]">
+                                                        Manage <ArrowRight size={14} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div className="flex flex-col items-center justify-center py-24 bg-gray-50/50 rounded-[40px] border-2 border-dashed border-gray-200 text-center">
@@ -276,10 +386,10 @@ const SchedulesTab = () => {
                         variant="secondary" 
                         onClick={() => {
                             setSearchQuery('');
-                            setSearchQuery('');
                             setFilter('all');
                             setProgramFilter('all');
                             setYearLevelFilter('all');
+                            setSemesterFilter('');
                         }}
                         className="rounded-2xl px-10 border-none bg-white shadow-sm"
                     >

@@ -44,7 +44,7 @@ const SectionsTab = () => {
             setSemesters(semData);
             
             // Set active semester as default if available
-            const activeSem = semData.find(s => s.is_active);
+            const activeSem = semData.find(s => s.is_current);
             if (activeSem) setSemesterFilter(activeSem.id);
         } catch (err) {
             console.error(err);
@@ -103,32 +103,34 @@ const SectionsTab = () => {
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-10">
                 <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 bg-indigo-600 rounded-[22px] flex items-center justify-center shadow-lg shadow-indigo-100 rotate-3">
-                        <Layers className="text-white -rotate-3" size={28} />
+                    <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-100">
+                        <Layers size={28} />
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-gray-900 tracking-tight">Section Management</h2>
-                        <p className="text-[11px] text-gray-400 font-black uppercase tracking-[0.2em] mt-1">Academic Administration</p>
+                        <div className="flex items-center gap-3 mb-1">
+                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Section Management</h2>
+                        </div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Institutional Repository of Academic Sections</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="relative group">
+                <div className="flex items-center gap-3 w-full lg:w-auto">
+                    <div className="relative group flex-grow lg:flex-grow-0">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
                         <input 
                             type="text"
                             placeholder="Search section name..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="bg-white border-2 border-gray-100 text-gray-700 text-sm font-bold rounded-[20px] pl-12 pr-6 py-3.5 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all w-full md:w-[320px] shadow-sm"
+                            className="bg-white border border-gray-200 text-gray-900 text-sm font-bold rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block w-full lg:w-80 pl-12 pr-6 py-4 shadow-sm transition-all outline-none"
                         />
                     </div>
                     <Button 
                         variant="primary" 
                         onClick={() => setIsAddModalOpen(true)}
-                        className="rounded-[20px] px-8 py-4 h-auto shadow-xl shadow-indigo-100 flex items-center gap-2 group"
+                        className="rounded-2xl px-8 py-4 h-auto shadow-xl shadow-indigo-100 flex items-center gap-2 shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white transition-all group"
                     >
                         <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
                         <span className="font-black uppercase tracking-widest text-[11px]">New Section</span>
@@ -152,7 +154,7 @@ const SectionsTab = () => {
                     <option value="">All Semesters</option>
                     {semesters.map(s => (
                         <option key={s.id} value={s.id}>
-                            {s.academic_year} - {s.semester === 3 ? 'SUMMER' : `${s.semester}${s.semester === 1 ? 'ST' : 'ND'} SEM`}
+                            {s.academic_year} - {s.name}
                         </option>
                     ))}
                 </select>

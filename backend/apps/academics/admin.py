@@ -36,10 +36,22 @@ class ProgramAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ['code', 'title', 'program', 'units', 'is_major', 'year_level', 'semester_number']
+    list_display = ['code', 'title', 'program', 'units', 'is_major', 'year_level', 'semester_number', 'qualified_count']
     list_filter = ['program', 'is_major', 'year_level', 'semester_number']
     search_fields = ['code', 'title']
     filter_horizontal = ['prerequisites']
+    readonly_fields = ['display_qualified_professors']
+
+    def qualified_count(self, obj):
+        return obj.qualified_professors.count()
+    qualified_count.short_description = 'Qual. Profs'
+
+    def display_qualified_professors(self, obj):
+        profs = obj.qualified_professors.all()
+        if not profs:
+            return "No professors qualified for this subject."
+        return ", ".join([p.user.get_full_name() for p in profs])
+    display_qualified_professors.short_description = 'Professors Qualified to Teach'
 
 
 @admin.register(Section)

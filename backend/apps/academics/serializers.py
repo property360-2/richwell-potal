@@ -428,6 +428,8 @@ class SectionSubjectSerializer(serializers.ModelSerializer):
 
     subject_code = serializers.CharField(source='subject.code', read_only=True)
     subject_title = serializers.CharField(source='subject.title', read_only=True)
+    subject_units = serializers.IntegerField(source='subject.units', read_only=True)
+    subject_type = serializers.CharField(source='subject.subject_type', read_only=True)
     professors = serializers.SerializerMethodField()  # CHANGED: multiple professors
     schedule_slots = ScheduleSlotSerializer(many=True, read_only=True)
 
@@ -435,6 +437,7 @@ class SectionSubjectSerializer(serializers.ModelSerializer):
         model = SectionSubject
         fields = [
             'id', 'section', 'subject', 'subject_code', 'subject_title',
+            'subject_units', 'subject_type',
             'professors', 'is_tba', 'schedule_slots'
         ]
         read_only_fields = ['id']
@@ -474,6 +477,49 @@ class SectionSubjectCreateSerializer(serializers.ModelSerializer):
             })
 
         return attrs
+
+    def update(self, instance, validated_data):
+        """Update section subject, syncing professor assignment."""
+        professor = validated_data.get('professor')
+        
+        # Check if professor is being updated (present in validated_data)
+        if 'professor' in validated_data:
+            # Update standard fields
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            from apps.academics.models import SectionSubjectProfessor
+            
+            if professor:
+                # Update: Ensure this professor is primary
+                # 1. Unset other primaries
+                SectionSubjectProfessor.objects.filter(
+                    section_subject=instance,
+                    is_primary=True
+                ).update(is_primary=False)
+                
+                # 2. Set/Create new primary
+                SectionSubjectProfessor.objects.update_or_create(
+                    section_subject=instance,
+                    professor=professor,
+                    defaults={'is_primary': True, 'is_deleted': False}
+                )
+            else:
+                # Professor removed (set to None)
+                # Option: Clear all assignments or just primary?
+                # Let's clear primary flag for safety, or leave as history?
+                # For now, let's not delete rows, just ensure no one is primary if that's the logic
+                # But UI shows "TBA", so maybe just un-primary everything
+                SectionSubjectProfessor.objects.filter(
+                    section_subject=instance
+                ).update(is_primary=False)
+                
+        else:
+            # Just updating other fields
+            return super().update(instance, validated_data)
+            
+        return instance
 
 
 class SectionSerializer(serializers.ModelSerializer):
@@ -849,12 +895,13 @@ class ProfessorDetailSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     profile = ProfessorProfileSerializer(source='professor_profile', read_only=True)
     teaching_load = serializers.SerializerMethodField()
+    weekly_schedule = serializers.SerializerMethodField()
 
     class Meta:
         from apps.accounts.models import User
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'full_name',
-                  'is_active', 'profile', 'teaching_load']
+                  'is_active', 'profile', 'teaching_load', 'weekly_schedule']
 
     def get_teaching_load(self, obj):
         from apps.academics.services import ProfessorService
@@ -862,6 +909,13 @@ class ProfessorDetailSerializer(serializers.ModelSerializer):
 
         semester = Semester.objects.filter(is_current=True).first()
         return ProfessorService.get_workload(obj, semester) if semester else {}
+
+    def get_weekly_schedule(self, obj):
+        from apps.academics.services import SchedulingService
+        from apps.enrollment.models import Semester
+
+        semester = Semester.objects.filter(is_current=True).first()
+        return SchedulingService.get_professor_schedule(obj, semester) if semester else []
 
 
 class SectionSubjectProfessorSerializer(serializers.ModelSerializer):

@@ -5,7 +5,25 @@ export const SchedulingService = {
      * Get all sections with their scheduling progress for a specific semester.
      */
     getSectionsProgress: async (params = {}) => {
-        const response = await api.get('/academics/sections/detailed-view/', { params });
+        const query = new URLSearchParams(params).toString();
+        const url = query ? `/academics/sections/detailed-view/?${query}` : '/academics/sections/detailed-view/';
+        const response = await api.get(url);
+        return response;
+    },
+
+    /**
+     * Update a section subject (e.g. assign professor).
+     */
+    updateSectionSubject: async (id, data) => {
+        const response = await api.patch(`/academics/section-subjects/${id}/`, data);
+        return response;
+    },
+
+    /**
+     * Create a section subject.
+     */
+    createSectionSubject: async (data) => {
+        const response = await api.post('/academics/section-subjects/', data);
         return response;
     },
 
@@ -41,7 +59,7 @@ export const SchedulingService = {
      * Check for professor conflicts.
      */
     checkProfessorConflict: async (data) => {
-        const response = await api.post('/academics/conflict-check/professor/', data);
+        const response = await api.post('/academics/check-professor-conflict/', data);
         return response;
     },
 
@@ -49,7 +67,7 @@ export const SchedulingService = {
      * Check for room conflicts.
      */
     checkRoomConflict: async (data) => {
-        const response = await api.post('/academics/conflict-check/room/', data);
+        const response = await api.post('/academics/check-room-conflict/', data);
         return response;
     },
 
@@ -57,7 +75,7 @@ export const SchedulingService = {
      * Check for section conflicts.
      */
     checkSectionConflict: async (data) => {
-        const response = await api.post('/academics/conflict-check/section/', data);
+        const response = await api.post('/academics/check-section-conflict/', data);
         return response;
     },
 
@@ -69,5 +87,22 @@ export const SchedulingService = {
             params: { semester_id: semesterId }
         });
         return response;
+    },
+
+    /**
+     * Fetch all semesters.
+     */
+    getSemesters: async () => {
+        const response = await api.get('/academics/semesters/');
+        return response.results || response || [];
+    },
+
+    /**
+     * Get all rooms for autocomplete.
+     */
+    getRooms: async () => {
+        const response = await api.get('/academics/rooms/');
+        // Handle pagination if present, or just return results
+        return response.results || response || [];
     }
 };

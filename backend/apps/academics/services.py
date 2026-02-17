@@ -464,6 +464,36 @@ class SchedulingService:
         ).values('start_time', 'end_time', 'section_subject__section__name', 'section_subject__subject__code')
 
     @staticmethod
+    def get_room_schedule(room_name, semester):
+        """
+        Get the full weekly schedule for a specific room.
+        """
+        from apps.academics.models import ScheduleSlot
+        
+        slots = ScheduleSlot.objects.filter(
+            room=room_name,
+            section_subject__section__semester=semester,
+            is_deleted=False
+        ).select_related(
+            'section_subject__section',
+            'section_subject__subject',
+            'professor'
+        ).order_by('day', 'start_time')
+        
+        schedule = []
+        for slot in slots:
+            schedule.append({
+                'day': slot.day,
+                'start_time': slot.start_time.strftime('%H:%M'),
+                'end_time': slot.end_time.strftime('%H:%M'),
+                'subject_code': slot.section_subject.subject.code,
+                'subject_title': slot.section_subject.subject.title,
+                'section_name': slot.section_subject.section.name,
+                'professor_name': slot.professor.get_full_name() if slot.professor else 'TBA'
+            })
+        return schedule
+
+    @staticmethod
     def get_available_rooms(day, start_time, end_time, semester, all_rooms=None):
         """
         Get list of available rooms for a given time slot.
@@ -741,13 +771,10 @@ class SectionService:
             is_deleted=False
         ).select_related('subject')
         
+        warning = None
         if not curriculum_subjects.exists():
-            return {
-                'success': True, # Not an error, just no subjects to add
-                'data': [], 
-                'warning': f"No subjects found in curriculum for Year {data['year_level']}, Sem {semester_number}"
-            }
-
+            warning = f"Notice: No subjects found in curriculum for Year {data['year_level']}, Sem {semester_number}. Sections created with empty subject list."
+        
         try:
             with transaction.atomic():
                 # Rename any soft-deleted sections that would cause a unique constraint conflict
@@ -801,7 +828,8 @@ class SectionService:
                 
             return {
                 'success': True,
-                'data': new_sections
+                'data': new_sections,
+                'warning': warning
             }
             
         except IntegrityError as e:

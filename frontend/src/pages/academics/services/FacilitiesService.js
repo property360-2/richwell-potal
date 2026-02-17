@@ -63,5 +63,17 @@ export const FacilitiesService = {
             console.error('Failed to toggle room status', e);
             throw e;
         }
+    },
+
+    /**
+     * Get weekly schedule for a specific room
+     */
+    async getRoomSchedule(id) {
+        try {
+            return await api.get(`${endpoints.rooms}${id}/schedule/`);
+        } catch (e) {
+            console.error('Failed to fetch room schedule', e);
+            throw e;
+        }
     }
 };

@@ -1,4 +1,4 @@
-/**
+ /**
  * API Configuration and HTTP Client
  * Handles all API requests to the Django backend
  */
@@ -47,7 +47,14 @@ export const TokenManager = {
  */
 export const api = {
     async request(endpoint, options = {}) {
-        const url = `${API_BASE_URL}${endpoint}`;
+        let url = `${API_BASE_URL}${endpoint}`;
+        
+        // Append query parameters if present
+        if (options.params && Object.keys(options.params).length > 0) {
+            const queryString = new URLSearchParams(options.params).toString();
+            url += (url.includes('?') ? '&' : '?') + queryString;
+        }
+
         const headers = {
             'Content-Type': 'application/json',
             ...options.headers
@@ -59,8 +66,10 @@ export const api = {
         }
 
         try {
+            // Remove params from options before passing to fetch
+            const { params, ...fetchOptions } = options;
             let response = await fetch(url, {
-                ...options,
+                ...fetchOptions,
                 headers
             });
 
@@ -107,9 +116,9 @@ export const api = {
         }
     },
 
-    async get(endpoint) {
+    async get(endpoint, params = {}) {
         try {
-            const response = await this.request(endpoint, { method: 'GET' });
+            const response = await this.request(endpoint, { method: 'GET', params });
             return await this.handleResponse(response);
         } catch (error) {
             return this.handleError(error);

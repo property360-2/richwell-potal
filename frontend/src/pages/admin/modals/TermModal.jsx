@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Calendar, 
-    X, 
-    CheckCircle2, 
     Clock, 
-    AlertCircle,
     CalendarDays,
     GraduationCap,
-    Info
+    Info,
+    AlertCircle,
+    AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import Button from '../../../components/ui/Button';
@@ -15,8 +14,9 @@ import Modal from '../../../components/ui/Modal';
 import { AdminService } from '../services/AdminService';
 
 const TermModal = ({ isOpen, onClose, semester, onSuccess }) => {
-    const { success, error, info } = useToast();
+    const { success, error } = useToast();
     const [submitting, setSubmitting] = useState(false);
+    const [errors, setErrors] = useState({});
 
     const [formData, setFormData] = useState({
         name: '1st Semester',
@@ -60,13 +60,47 @@ const TermModal = ({ isOpen, onClose, semester, onSuccess }) => {
                 status: 'SETUP'
             });
         }
+        setErrors({});
     }, [semester, isOpen]);
+
+    const validate = () => {
+        const newErrors = {};
+        
+        // Academic Year
+        if (!formData.academic_year.match(/^\d{4}-\d{4}$/)) {
+            newErrors.academic_year = 'Use format YYYY-YYYY (e.g., 2025-2026)';
+        }
+
+        // Term Span
+        if (formData.start_date && formData.end_date) {
+            if (new Date(formData.end_date) <= new Date(formData.start_date)) {
+                newErrors.term_span = 'End date must be after start date';
+            }
+        }
+
+        // Enrollment Window
+        if (formData.enrollment_start_date && formData.enrollment_end_date) {
+            if (new Date(formData.enrollment_end_date) <= new Date(formData.enrollment_start_date)) {
+                newErrors.enrollment_window = 'Closing date must be after opening date';
+            }
+        }
+
+        // Grading Window
+        if (formData.grading_start_date && formData.grading_end_date) {
+            if (new Date(formData.grading_end_date) <= new Date(formData.grading_start_date)) {
+                newErrors.grading_window = 'Portal close must be after opening date';
+            }
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (!formData.academic_year.match(/^\d{4}-\d{4}$/)) {
-            error('Invalid Academic Year format (YYYY-YYYY)');
+        if (!validate()) {
+            error('Please correct the validation errors before proceeding.');
             return;
         }
 
@@ -74,210 +108,199 @@ const TermModal = ({ isOpen, onClose, semester, onSuccess }) => {
             setSubmitting(true);
             if (semester) {
                 await AdminService.updateSemester(semester.id, formData);
-                success('Term details updated');
+                success('Term configuration synchronized');
             } else {
                 await AdminService.createSemester(formData);
-                success('New academic term initialized');
+                success('Academic term initialized');
             }
             onSuccess();
             onClose();
         } catch (err) {
-            error(err.response?.data?.detail || 'Failed to save academic term');
+            error(err.response?.data?.detail || 'Institutional error: Failed to save term');
         } finally {
             setSubmitting(false);
         }
     };
 
+    const inputClasses = (hasError) => `
+        w-full px-4 py-3 bg-white border-2 rounded-2xl text-sm font-semibold tracking-tight
+        placeholder:text-gray-300 transition-all duration-200
+        ${hasError 
+            ? 'border-red-100 bg-red-50/10 focus:border-red-500 focus:ring-4 focus:ring-red-500/10' 
+            : 'border-gray-100 hover:border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5'}
+        outline-none
+    `;
+    
+    const labelClasses = "block text-[10px] font-black text-gray-400 uppercase tracking-[0.15em] mb-2 ml-1";
+    const sectionClasses = "p-7 bg-white rounded-3xl border border-gray-100 shadow-sm space-y-7 hover:shadow-md transition-shadow duration-300";
+    const errorClasses = "mt-2 text-[10px] font-bold text-red-500 flex items-center gap-1.5 animate-in slide-in-from-top-1";
+
     return (
         <Modal 
             isOpen={isOpen} 
             onClose={onClose} 
-            title={semester ? 'Override Term Configuration' : 'Initialize New Academic Term'} 
-            maxWidth="max-w-4xl"
+            title={semester ? 'Override Term Configuration' : 'Initialize New Period'} 
+            maxWidth="max-w-2xl"
         >
-            <form onSubmit={handleSubmit} className="p-8 space-y-10">
-                {/* Basic Identity */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <form onSubmit={handleSubmit} className="p-10 space-y-8 max-h-[85vh] overflow-y-auto scrollbar-hide">
+                {/* General Info */}
+                <div className="space-y-6">
+                    <div>
+                        <label className={labelClasses}>Term Classification</label>
+                        <select 
+                            className={inputClasses()}
+                            value={formData.name}
+                            onChange={e => setFormData({...formData, name: e.target.value})}
+                        >
+                            <option value="1st Semester">1st Semester</option>
+                            <option value="2nd Semester">2nd Semester</option>
+                            <option value="Summer Term">Summer Term</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className={labelClasses}>Academic cycle</label>
+                        <input 
+                            required 
+                            placeholder="2025-2026"
+                            className={inputClasses(errors.academic_year)} 
+                            value={formData.academic_year}
+                            onChange={e => {
+                                setFormData({...formData, academic_year: e.target.value});
+                                if (errors.academic_year) validate();
+                            }}
+                        />
+                        {errors.academic_year && (
+                            <p className={errorClasses}><AlertTriangle size={12} /> {errors.academic_year}</p>
+                        )}
+                    </div>
+
+                    <div className="flex items-center justify-between p-5 bg-blue-50/30 rounded-2xl border border-blue-100/50">
+                        <div>
+                            <p className="text-[12px] font-black text-gray-900 uppercase tracking-tight">Set as Primary Active term</p>
+                            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mt-0.5 opacity-70">Global Portal Context Override</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" checked={formData.is_current} onChange={e => setFormData({...formData, is_current: e.target.checked})} />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <div className="h-px bg-gray-100" />
+
+                {/* Date Windows */}
+                <div className="space-y-8">
+                    {/* Academic Schedule */}
                     <div className="space-y-4">
-                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Institutional Identification</label>
-                        <div className="p-6 bg-gray-50/50 rounded-3xl border border-gray-100 space-y-4 shadow-inner">
+                        <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <CalendarDays size={14} /> Academic Schedule
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <p className="text-[10px] font-black text-gray-400 uppercase mb-1.5 ml-1 tracking-widest">Classification</p>
-                                <select 
-                                    className="w-full px-6 py-3.5 bg-white border-2 border-transparent rounded-2xl text-sm font-black focus:outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer shadow-sm"
-                                    value={formData.name}
-                                    onChange={e => setFormData({...formData, name: e.target.value})}
-                                >
-                                    <option value="1st Semester">1st Semester</option>
-                                    <option value="2nd Semester">2nd Semester</option>
-                                    <option value="Summer Term">Summer Term</option>
-                                </select>
+                                <label className={labelClasses}>Start Date</label>
+                                <input 
+                                    type="date" 
+                                    required 
+                                    className={inputClasses(errors.term_span)} 
+                                    value={formData.start_date}
+                                    onChange={e => setFormData({...formData, start_date: e.target.value})}
+                                />
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-gray-400 uppercase mb-1.5 ml-1 tracking-widest">Academic Year</p>
+                                <label className={labelClasses}>End Date</label>
                                 <input 
+                                    type="date" 
                                     required 
-                                    placeholder="2025-2026"
-                                    className="w-full px-6 py-3.5 bg-white border-2 border-transparent rounded-2xl text-sm font-black focus:outline-none focus:border-blue-500 transition-all placeholder:text-gray-300 shadow-sm" 
-                                    value={formData.academic_year}
-                                    onChange={e => setFormData({...formData, academic_year: e.target.value})}
+                                    className={inputClasses(errors.term_span)} 
+                                    value={formData.end_date}
+                                    onChange={e => setFormData({...formData, end_date: e.target.value})}
                                 />
                             </div>
                         </div>
+                        {errors.term_span && (
+                            <p className={errorClasses}><AlertTriangle size={12} /> {errors.term_span}</p>
+                        )}
                     </div>
 
+                    {/* Enrollment Window */}
                     <div className="space-y-4">
-                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Active Status Override</label>
-                        <div className="p-6 bg-gray-50/50 rounded-3xl border border-gray-100 h-[calc(100%-32px)] flex flex-col justify-center gap-6 shadow-inner">
-                            <div className="flex items-center justify-between p-5 bg-white rounded-[24px] border border-gray-50 shadow-lg shadow-gray-200/20">
-                                <div>
-                                    <p className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Set as Primary Active Term</p>
-                                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Global context switch</p>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer scale-110">
-                                    <input type="checkbox" className="sr-only peer" checked={formData.is_current} onChange={e => setFormData({...formData, is_current: e.target.checked})} />
-                                    <div className="w-12 h-6.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5.5 after:w-5.5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
+                        <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <Clock size={14} /> Enrollment Window
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className={labelClasses}>Portal Opens</label>
+                                <input 
+                                    type="date" 
+                                    className={inputClasses(errors.enrollment_window)} 
+                                    value={formData.enrollment_start_date}
+                                    onChange={e => setFormData({...formData, enrollment_start_date: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className={labelClasses}>Portal Closes</label>
+                                <input 
+                                    type="date" 
+                                    className={inputClasses(errors.enrollment_window)} 
+                                    value={formData.enrollment_end_date}
+                                    onChange={e => setFormData({...formData, enrollment_end_date: e.target.value})}
+                                />
                             </div>
                         </div>
+                        {errors.enrollment_window && (
+                            <p className={errorClasses}><AlertTriangle size={12} /> {errors.enrollment_window}</p>
+                        )}
+                    </div>
+
+                    {/* Grading Portal */}
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black text-purple-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <GraduationCap size={14} /> Faculty Final Grading Matrix
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className={labelClasses}>Release Date</label>
+                                <input 
+                                    type="date" 
+                                    className={inputClasses(errors.grading_window)} 
+                                    value={formData.grading_start_date}
+                                    onChange={e => setFormData({...formData, grading_start_date: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className={labelClasses}>Lockdown Date</label>
+                                <input 
+                                    type="date" 
+                                    className={inputClasses(errors.grading_window)} 
+                                    value={formData.grading_end_date}
+                                    onChange={e => setFormData({...formData, grading_end_date: e.target.value})}
+                                />
+                            </div>
+                        </div>
+                        {errors.grading_window && (
+                            <p className={errorClasses}><AlertTriangle size={12} /> {errors.grading_window}</p>
+                        )}
                     </div>
                 </div>
 
-                {/* Timeline Matrices */}
-                <div className="space-y-4">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Institutional Time Windows</label>
-                   
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* Term Schedule */}
-                        <div className="p-6 bg-blue-50/50 rounded-[40px] border border-blue-100 space-y-6 shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                                    <CalendarDays className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Academic Term</p>
-                                    <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mt-0.5">Full Semester</p>
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <p className="text-[9px] font-black text-blue-600/60 uppercase mb-1.5 ml-1">Start Date</p>
-                                    <input 
-                                        type="date" 
-                                        required 
-                                        className="w-full px-4 py-3 bg-white border border-blue-100 rounded-2xl text-xs font-black focus:outline-none focus:border-blue-400 transition-all shadow-sm" 
-                                        value={formData.start_date}
-                                        onChange={e => setFormData({...formData, start_date: e.target.value})}
-                                    />
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-blue-600/60 uppercase mb-1.5 ml-1">End Date</p>
-                                    <input 
-                                        type="date" 
-                                        required 
-                                        className="w-full px-4 py-3 bg-white border border-blue-100 rounded-2xl text-xs font-black focus:outline-none focus:border-blue-400 transition-all shadow-sm" 
-                                        value={formData.end_date}
-                                        onChange={e => setFormData({...formData, end_date: e.target.value})}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Enrollment Window */}
-                        <div className="p-6 bg-emerald-50/50 rounded-[40px] border border-emerald-100 space-y-6 shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
-                                    <Clock className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Enrollment</p>
-                                    <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mt-0.5">Student Clearance</p>
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1.5 ml-1">Opening Date</p>
-                                    <input 
-                                        type="date" 
-                                        className="w-full px-4 py-3 bg-white border border-emerald-100 rounded-2xl text-xs font-black focus:outline-none focus:border-emerald-400 transition-all shadow-sm" 
-                                        value={formData.enrollment_start_date}
-                                        onChange={e => setFormData({...formData, enrollment_start_date: e.target.value})}
-                                    />
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1.5 ml-1">Closing Date</p>
-                                    <input 
-                                        type="date" 
-                                        className="w-full px-4 py-3 bg-white border border-emerald-100 rounded-2xl text-xs font-black focus:outline-none focus:border-emerald-400 transition-all shadow-sm" 
-                                        value={formData.enrollment_end_date}
-                                        onChange={e => setFormData({...formData, enrollment_end_date: e.target.value})}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Grading Window */}
-                        <div className="p-6 bg-purple-50/50 rounded-[40px] border border-purple-100 space-y-6 shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-purple-200">
-                                    <GraduationCap className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Grading Matrix</p>
-                                    <p className="text-[8px] font-black text-purple-400 uppercase tracking-widest mt-0.5">Faculty Submission</p>
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <p className="text-[9px] font-black text-purple-600/60 uppercase mb-1.5 ml-1">Portal Open</p>
-                                    <input 
-                                        type="date" 
-                                        className="w-full px-4 py-3 bg-white border border-purple-100 rounded-2xl text-xs font-black focus:outline-none focus:border-purple-400 transition-all shadow-sm" 
-                                        value={formData.grading_start_date}
-                                        onChange={e => setFormData({...formData, grading_start_date: e.target.value})}
-                                    />
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-purple-600/60 uppercase mb-1.5 ml-1">Portal Closed</p>
-                                    <input 
-                                        type="date" 
-                                        className="w-full px-4 py-3 bg-white border border-purple-100 rounded-2xl text-xs font-black focus:outline-none focus:border-purple-400 transition-all shadow-sm" 
-                                        value={formData.grading_end_date}
-                                        onChange={e => setFormData({...formData, grading_end_date: e.target.value})}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="p-6 bg-gray-900 rounded-[32px] border border-gray-800 flex items-start gap-4 shadow-2xl">
-                    <Info className="w-5 h-5 text-blue-400 mt-1 shrink-0" />
-                    <div>
-                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Administrative Guardrail</p>
-                        <p className="text-[11px] font-medium text-gray-400 leading-relaxed italic">
-                            Phase transitions and institutional visibility are strictly determined by the timestamps configured above. Overriding the "Primary Active Term" will immediately re-sync all dashboards for students and faculty.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="flex gap-4 pt-4">
+                <div className="pt-8 border-t border-gray-100 flex gap-4">
                     <Button 
                         type="button" 
                         variant="blue-ghost" 
                         onClick={onClose} 
-                        className="flex-1 py-5 rounded-2xl text-[10px] font-black tracking-[0.2em]"
+                        className="flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest"
                     >
-                        ABORT CONFIGURATION
+                        Cancel
                     </Button>
                     <Button 
                         type="submit" 
                         variant="primary" 
-                        className="flex-1 py-5 rounded-2xl text-[10px] font-black tracking-[0.2em] shadow-xl shadow-blue-500/20"
+                        className="flex-3 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/10"
                         loading={submitting}
                         disabled={submitting}
                     >
-                        {semester ? 'COMMIT OVERRIDES' : 'INITIALIZE PERIOD'}
+                        {semester ? 'Save Changes' : 'Initialize Term'}
                     </Button>
                 </div>
             </form>

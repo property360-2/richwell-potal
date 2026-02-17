@@ -100,6 +100,6 @@ export const AdminService = {
     },
 
     activateSemester: async (id) => {
-        return await api.post(endpoints.activateSemester(id));
+        return await api.post(endpoints.activateTerm(id));
     }
 };

@@ -17,7 +17,7 @@ import Button from '../../../components/ui/Button';
 import { FacultyService } from '../services/FacultyService';
 
 // Modals
-import AddProfessorModal from '../modals/AddProfessorModal';
+import FacultyFormModal from '../modals/FacultyFormModal';
 import ViewProfessorModal from '../modals/ViewProfessorModal';
 
 const FacultyTab = () => {
@@ -34,7 +34,8 @@ const FacultyTab = () => {
     });
 
     // Modals state
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false);
     const [selectedProfessor, setSelectedProfessor] = useState(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
@@ -82,37 +83,55 @@ const FacultyTab = () => {
     };
 
     const handleEdit = (prof) => {
-         // Reusing View Modal logic for now or placeholder
-         // Ideally open AddModal in edit mode
-         // For now, let's just show View Modal with a note
-         handleView(prof);
+         setSelectedProfessor(prof);
+         setIsEditMode(true);
+         setIsFormModalOpen(true);
+    };
+
+    const handleAdd = () => {
+        setSelectedProfessor(null);
+        setIsEditMode(false);
+        setIsFormModalOpen(true);
     };
 
     return (
         <div className="animate-in fade-in duration-500">
-            {/* Action Bar */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
-                <div className="relative w-full md:w-96 group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
-                    <input 
-                        type="text" 
-                        placeholder="Search professors..." 
-                        value={filters.search}
-                        onChange={handleSearch}
-                        className="w-full pl-12 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-sm font-bold text-gray-900 focus:bg-white focus:border-indigo-100 transition-all outline-none"
-                    />
+            {/* Header */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-10">
+                <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-100">
+                        <Users size={28} />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-3 mb-1">
+                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Faculty & Staff Roster</h2>
+                        </div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Institutional Registry of Academic Personnel</p>
+                    </div>
                 </div>
-                
-                <div className="flex gap-3 w-full md:w-auto">
-                   <Button variant="secondary" icon={Filter}>Filter</Button>
-                   <Button 
-                        variant="primary" 
-                        icon={Plus}
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200"
-                    >
-                        Add Professor
-                    </Button>
+
+                <div className="flex items-center gap-3 w-full lg:w-auto">
+                    <div className="relative group flex-grow lg:flex-grow-0">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                        <input 
+                            type="text" 
+                            placeholder="Search professors..." 
+                            value={filters.search}
+                            onChange={handleSearch}
+                            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-all outline-none"
+                        />
+                    </div>
+                    
+                    <div className="flex gap-3 shrink-0">
+                       <Button 
+                            variant="primary" 
+                            icon={Plus}
+                            onClick={handleAdd}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-100 rounded-2xl px-8 py-4 h-auto transition-all hover:scale-[1.02] active:scale-95"
+                        >
+                            <span className="font-black uppercase tracking-widest text-[11px]">Add Professor</span>
+                        </Button>
+                    </div>
                 </div>
             </div>
 
@@ -215,13 +234,18 @@ const FacultyTab = () => {
             </div>
 
             {/* Modals */}
-            <AddProfessorModal 
-                isOpen={isAddModalOpen} 
-                onClose={() => setIsAddModalOpen(false)} 
+            <FacultyFormModal 
+                isOpen={isFormModalOpen} 
+                onClose={() => {
+                    setIsFormModalOpen(false);
+                    setSelectedProfessor(null);
+                }} 
                 onSuccess={() => {
                     fetchProfessors();
-                    setIsAddModalOpen(false);
+                    setIsFormModalOpen(false);
+                    setSelectedProfessor(null);
                 }}
+                professor={isEditMode ? selectedProfessor : null}
             />
             
             <ViewProfessorModal

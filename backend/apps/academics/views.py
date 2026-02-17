@@ -378,6 +378,23 @@ class RoomViewSet(viewsets.ModelViewSet):
             
         return queryset.order_by('name')
 
+    @action(detail=True, methods=['get'])
+    def schedule(self, request, pk=None):
+        """
+        Returns the weekly schedule for a specific room.
+        """
+        from apps.enrollment.models import Semester
+        from .services import SchedulingService
+        
+        room = self.get_object()
+        semester = Semester.objects.filter(is_current=True).first()
+        
+        if not semester:
+            return Response([])
+            
+        schedule = SchedulingService.get_room_schedule(room.name, semester)
+        return Response(schedule)
+
     @action(detail=False, methods=['get'])
     def availability(self, request):
         """
@@ -651,11 +668,22 @@ class SectionViewSet(viewsets.ModelViewSet):
             subj = cs.subject
             assigned_ss = assigned_map.get(str(subj.id))
             
+            # Auto-ensure SectionSubject exists so it can be scheduled
+            # This fixes the "SecSubID: null" issue causing 400 Errors on frontend
+            if not assigned_ss:
+                assigned_ss = SectionSubject.objects.create(section=section, subject=subj)
+                # assigned_map[str(subj.id)] = assigned_ss # Optional update if loop continued, but we use assigned_ss directly below
+
             # Get qualified professors for this subject
             qualified_professors = subj.qualified_professors.filter(
                 is_active=True,
                 user__is_active=True
             ).select_related('user')
+
+            # DEBUGGING: Print qualified professors found
+            print(f"DEBUG: Subject {subj.code} ({subj.id}) has {qualified_professors.count()} qualified professors.")
+            for p in qualified_professors:
+                print(f" - {p.user.get_full_name()} ({p.user.id})")
             
             prof_list = [{
                 'id': str(p.user.id),
@@ -690,6 +718,7 @@ class SectionViewSet(viewsets.ModelViewSet):
             subject_type = 'LAB' if 'LAB' in subj.title.upper() or 'LABORATORY' in subj.title.upper() else 'LEC'
 
             item = {
+                'id': str(assigned_ss.id) if assigned_ss else None, # Frontend requires 'id' (mapped from sec_sub_id)
                 'subject_id': str(subj.id),
                 'subject_code': subj.code, # Rename for consistency with frontend expectations
                 'subject_title': subj.title,

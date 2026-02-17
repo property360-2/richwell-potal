@@ -143,21 +143,17 @@ const EditSectionModal = ({ isOpen, onClose, onSuccess, section, programs, semes
                             </div>
                         </div>
 
-                        {/* Semester Selection */}
+                        {/* Semester Selection (Read-only) */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Semester/Year</label>
                             <div className="relative group">
-                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-amber-600 transition-colors pointer-events-none" size={18} />
-                                <select 
-                                    value={formData.semester}
-                                    onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                                    className={`w-full bg-gray-50 border-2 ${errors.semester ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-amber-500 ring-amber-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold appearance-none focus:ring-4 transition-all outline-none`}
-                                >
-                                    <option value="">Select Semester</option>
-                                    {semesters.map(s => (
-                                        <option key={s.id} value={s.id}>{s.academic_year} {s.semester === 3 ? '(SUMMER)' : `- Sem ${s.semester}`}</option>
-                                    ))}
-                                </select>
+                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-600 transition-colors pointer-events-none" size={18} />
+                                <div className="w-full bg-amber-50/50 border-2 border-amber-100/50 rounded-[20px] pl-12 pr-6 py-4 text-sm font-black text-amber-700">
+                                    {(() => {
+                                        const s = semesters.find(item => item.id === formData.semester);
+                                        return s ? `${s.academic_year} - ${s.name}` : 'Unknown Term';
+                                    })()}
+                                </div>
                             </div>
                         </div>
 

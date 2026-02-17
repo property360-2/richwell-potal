@@ -306,16 +306,16 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
                                                                     <p className="text-sm font-bold text-gray-900">{programName}</p>
                                                                 ) : (
                                                                      <select 
-                                                                        required
-                                                                        value={formData.program_id}
-                                                                        onChange={(e) => setFormData({...formData, program_id: e.target.value})}
-                                                                        className="bg-transparent text-sm font-bold text-gray-900 outline-none cursor-pointer border-b border-gray-300 pb-1 pr-2"
-                                                                    >
-                                                                        <option value="" disabled>Select Primary Program</option>
-                                                                        {availablePrograms.map(p => (
-                                                                            <option key={p.id} value={p.id}>{p.code} - {p.name}</option>
-                                                                        ))}
-                                                                    </select>
+                                                                         required
+                                                                         value={formData.program_id}
+                                                                         onChange={(e) => setFormData({...formData, program_id: e.target.value})}
+                                                                         className="bg-transparent text-sm font-bold text-gray-900 outline-none cursor-pointer border-b border-gray-300 pb-1 pr-2"
+                                                                     >
+                                                                         <option value="" disabled>Select Primary Program</option>
+                                                                         {availablePrograms.map(p => (
+                                                                             <option key={p.id} value={p.id}>{p.code} - {p.name}</option>
+                                                                         ))}
+                                                                     </select>
                                                                 )}
                                                             </div>
                                                         </div>

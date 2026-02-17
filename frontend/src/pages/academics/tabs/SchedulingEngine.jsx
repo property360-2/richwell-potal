@@ -13,25 +13,16 @@ import {
     CheckCircle2,
     Clock,
     X,
-    GripVertical,
-    AlertTriangle,
-    CheckCircle,
-    Calendar
+    Calendar,
+    UserPlus,
+    MousePointerClick
 } from 'lucide-react';
-import { 
-    DndContext, 
-    DragOverlay, 
-    useDraggable, 
-    useDroppable,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    defaultDropAnimationSideEffects
-} from '@dnd-kit/core';
 import { useToast } from '../../../context/ToastContext';
 import { SchedulingService } from '../services/SchedulingService';
 import Button from '../../../components/ui/Button';
 import EditScheduleSlotModal from '../modals/EditScheduleSlotModal';
+import AssignProfessorModal from '../modals/AssignProfessorModal';
+import SubjectPickerModal from '../modals/SubjectPickerModal';
 
 // --- Constants & Helpers ---
 
@@ -53,102 +44,117 @@ const TIME_SLOTS = Array.from({ length: (END_HOUR - START_HOUR) * 2 }, (_, i) =>
     return { timeStr, label: hour > 12 ? `${hour - 12}:${minute === 0 ? '00' : '30'} PM` : `${hour}:${minute === 0 ? '00' : '30'} AM` };
 });
 
+const calculateEndTime = (startTime, units = 3) => {
+    // Simple heuristic: 3 units often = 1.5 hours per session (2 sessions) or 3 hours (1 session)
+    // Default to 1.5 hours for convenience
+    const [h, m] = startTime.split(':').map(Number);
+    const date = new Date();
+    date.setHours(h, m);
+    
+    // Add 1.5 hours (90 mins)
+    date.setMinutes(date.getMinutes() + 90);
+    
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+};
+
 // --- Components ---
 
-const DraggableSubject = ({ subject }) => {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-        id: `subject-${subject.id}`,
-        data: { type: 'SUB_BUCKET', subject }
-    });
-
-    const style = transform ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    } : undefined;
-
+const UnscheduledSubjectCard = ({ subject, onAssign, onScheduleClick, isSelected }) => {
     return (
-        <div 
-            ref={setNodeRef} 
-            style={style}
-            {...listeners} 
-            {...attributes}
-            className={`
-                bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-grab active:cursor-grabbing group
-                ${isDragging ? 'opacity-50 grayscale scale-95' : ''}
-            `}
-        >
+        <div className={`
+            p-5 rounded-2xl border transition-all group relative overflow-hidden
+            ${isSelected 
+                ? 'bg-indigo-50/50 border-indigo-200 shadow-md ring-1 ring-indigo-200' 
+                : 'bg-white border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100'
+            }
+        `}>
+            {isSelected && (
+                <div className="absolute top-0 right-0 p-2">
+                    <div className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-sm animate-in zoom-in-50">
+                        <CheckCircle2 size={12} />
+                    </div>
+                </div>
+            )}
+            
             <div className="flex items-start justify-between mb-3">
-                <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                    isSelected ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-50 text-indigo-600'
+                }`}>
                     {subject.subject_type === 'LAB' ? <Monitor size={16} /> : <BookOpen size={16} />}
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{subject.units} Units</span>
-                    <GripVertical size={14} className="text-gray-300" />
                 </div>
             </div>
-            <h5 className="text-sm font-black text-gray-900 leading-tight mb-1 group-hover:text-indigo-600 transition-colors uppercase italic tracking-tight">
+            <h5 className={`text-sm font-black leading-tight mb-1 transition-colors uppercase italic tracking-tight ${
+                isSelected ? 'text-indigo-900' : 'text-gray-900 group-hover:text-indigo-600'
+            }`}>
                 {subject.subject_code}
             </h5>
             <p className="text-[10px] text-gray-500 font-bold leading-relaxed line-clamp-2">
                 {subject.subject_title}
             </p>
             
-            <div className="mt-4 pt-4 border-t border-gray-50 flex flex-col gap-2">
+            <div className={`mt-4 pt-4 border-t flex items-center justify-between ${
+                isSelected ? 'border-indigo-100' : 'border-gray-50'
+            }`}>
                 <div className="flex items-center gap-2 text-gray-400">
                     <Users size={12} />
-                    <span className="text-[9px] font-black uppercase tracking-widest truncate">
-                        {subject.professor_name || 'TBA Professor'}
+                    <span className={`text-[9px] font-black uppercase tracking-widest truncate ${!subject.professor_name ? 'text-orange-500' : ''}`}>
+                        {subject.professor_name || 'TBA'}
                     </span>
                 </div>
+                <button 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onAssign && onAssign(subject);
+                    }}
+                    className="p-1.5 rounded-lg bg-gray-50 text-indigo-600 hover:bg-indigo-100 transition-all opacity-0 group-hover:opacity-100"
+                    title="Assign Professor"
+                >
+                    <UserPlus size={14} />
+                </button>
             </div>
         </div>
     );
 };
 
-const DroppableCell = ({ day, time, isProfBusy, children }) => {
-    const { setNodeRef, isOver } = useDroppable({
-        id: `cell-${day}-${time}`,
-        data: { day, time }
-    });
-
+const ScheduleCell = ({ day, time, children, onClick, onMouseEnter, isHovered }) => {
     return (
         <div 
-            ref={setNodeRef}
+            onClick={() => onClick(day, time)}
+            onMouseEnter={() => onMouseEnter(day, time)}
             className={`
-                relative h-20 border-b border-r border-gray-50 transition-colors
-                ${isOver ? 'bg-indigo-50/50' : ''}
-                ${isProfBusy ? 'bg-orange-50/40 cursor-not-allowed' : 'hover:bg-gray-50/30'}
-                ${isOver && isProfBusy ? 'bg-red-50/60' : ''}
+                relative h-20 border-b border-r border-gray-50 transition-all cursor-pointer group
+                ${isHovered ? 'bg-indigo-50/30' : 'hover:bg-gray-50/50'}
             `}
         >
-            {isProfBusy && !children && (
-                <div className="absolute inset-x-2 top-2 bottom-2 rounded-lg border border-dashed border-orange-200 bg-orange-100/10 flex items-center justify-center opacity-40">
-                    <Users size={12} className="text-orange-400" />
-                </div>
-            )}
-            {children}
+            {/* Hover Indicator */}
+            <div className="absolute inset-x-0 bottom-0 top-0 hidden group-hover:flex items-center justify-center pointer-events-none z-0">
+                <Plus className="text-indigo-200 opacity-0 group-hover:opacity-100 transition-opacity" size={24} />
+            </div>
+            
+            {/* Scheduled Content */}
+            <div className="relative z-10 w-full h-full"> 
+                {children}
+            </div>
         </div>
     );
 };
 
-const ScheduledSlotCard = ({ slot, onClick, onRemove }) => {
+const ScheduledSlotCard = ({ slot, onClick }) => {
     return (
         <div 
             onClick={(e) => {
                 e.stopPropagation();
                 onClick(slot);
             }}
-            className="absolute inset-x-1 top-1 bottom-1 bg-white rounded-xl border-l-4 border-l-indigo-500 border border-gray-100 shadow-md p-3 group animate-in zoom-in duration-300 z-10 cursor-alias hover:border-indigo-300 transition-all"
+            className="absolute inset-x-1 top-1 bottom-1 bg-white rounded-xl border-l-4 border-l-indigo-500 border border-gray-100 shadow-md p-3 group animate-in zoom-in duration-300 z-10 cursor-pointer hover:border-indigo-300 hover:shadow-lg transition-all"
         >
             <div className="flex justify-between items-start mb-1 leading-none">
                 <span className="text-[10px] font-black text-indigo-600 uppercase tracking-tighter italic">
                     {slot.subject_code}
                 </span>
-                <button 
-                    onClick={() => onRemove(slot.id)}
-                    className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                >
-                    <X size={10} />
-                </button>
             </div>
             <h6 className="text-[9px] font-bold text-gray-900 truncate mb-2 leading-tight uppercase">
                 {slot.subject_title}
@@ -180,21 +186,49 @@ const SchedulingEngine = ({ section, onBack }) => {
     const [sectionData, setSectionData] = useState(null);
     const [unscheduledSubjects, setUnscheduledSubjects] = useState([]);
     const [scheduledSlots, setScheduledSlots] = useState([]);
-    const [activeDragId, setActiveDragId] = useState(null);
-    const [dragData, setDragData] = useState(null);
-    const [professorSchedule, setProfessorSchedule] = useState([]);
+    // View State
+    const [viewMode, setViewMode] = useState('unscheduled'); // 'unscheduled' | 'scheduled'
     
-    // Modal states
+    // Interaction State
+    const [isPickerModalOpen, setIsPickerModalOpen] = useState(false);
+    const [pickerTarget, setPickerTarget] = useState(null); // { day, time }
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingSlot, setEditingSlot] = useState(null);
+    const [assignModalData, setAssignModalData] = useState(null);
+    const [hoveredCell, setHoveredCell] = useState(null);
+    const [selectedSubject, setSelectedSubject] = useState(null); // NEW: Click-to-Select
 
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8,
-            },
-        })
-    );
+    // Derived State
+    const pendingSubjects = useMemo(() => {
+        return unscheduledSubjects.filter(s => !s.schedule_slots || s.schedule_slots.length === 0);
+    }, [unscheduledSubjects]);
+
+    const displayedSubjects = useMemo(() => {
+        if (viewMode === 'unscheduled') {
+            // Filter out subjects that have schedule slots
+            // This turns the "Unscheduled" sidebar into a "Pending" checklist
+            return pendingSubjects;
+        } else {
+            // Group scheduled slots by subject to show unique subjects
+            const unique = new Map();
+            scheduledSlots.forEach(slot => {
+                if (!unique.has(slot.subject_code)) {
+                    unique.set(slot.subject_code, {
+                        ...slot,
+                        id: slot.section_subject, // Use section_subject ID for consistency
+                        // Aggregate slot info if needed, but for the card we just need basic info
+                        units: slot.subject_units || '?', // We might need to map this from sectionData.subjects if missing
+                        professor_name: slot.professor_name // Might vary per slot, but take one for now
+                    });
+                }
+            });
+            // enhancing with full subject details from sectionData if possible
+            return Array.from(unique.values()).map(s => {
+                const fullSub = sectionData?.subjects?.find(sub => sub.subject_code === s.subject_code);
+                return fullSub ? { ...s, units: fullSub.subject_units, subject_type: fullSub.subject_type } : s;
+            });
+        }
+    }, [viewMode, pendingSubjects, scheduledSlots, sectionData]);
 
     const loadData = async () => {
         setLoading(true);
@@ -207,31 +241,48 @@ const SchedulingEngine = ({ section, onBack }) => {
             const bucket = [];
 
             subjects.forEach(sub => {
+                // Map backend fields
+                sub.units = sub.subject_units;
+                
+                // Handle professors (Backend uses assigned_professors)
+                if (sub.assigned_professors && sub.assigned_professors.length > 0) {
+                    const primary = sub.assigned_professors.find(p => p.is_primary) || sub.assigned_professors[0];
+                    sub.professor_id = primary.id;
+                    sub.professor_name = primary.name;
+                }
+                
+                // Ensure qualified_professors is preserved (Backend already provides it)
+                sub.qualified_professors = sub.qualified_professors || [];
+
                 if (sub.schedule_slots && sub.schedule_slots.length > 0) {
                     sub.schedule_slots.forEach(slot => {
                         slots.push({
                             ...slot,
+                            section_subject: sub.section_subject_id || sub.id, // Ensure consistent ID linkage
                             subject_id: sub.subject_id,
                             subject_code: sub.subject_code,
                             subject_title: sub.subject_title,
-                            professor_name: sub.professor_name,
-                            professor_id: sub.professor_id
+                            professor_name: slot.professor_name || sub.professor_name,
+                            professor_id: slot.professor || sub.professor_id,
+                            qualified_professors: sub.qualified_professors
                         });
                     });
                 }
                 
-                // Always keep in bucket if not all hours scheduled (simplified: if no slots at all)
-                if (!sub.schedule_slots || sub.schedule_slots.length === 0) {
-                    bucket.push({
-                        ...sub,
-                        id: sub.section_subject_id
-                    });
-                }
+                // Bucket Logic: Show if not fully scheduled (simplified: always show in list for reference)
+                // Filter: Only add to bucket if we want them to show in the "Subject List"
+                bucket.push({
+                    ...sub,
+                    id: sub.section_subject_id || sub.id, // Keep this for List Key
+                    section_subject_id: sub.section_subject_id, // Explicit ID (nullable)
+                    subject_id: sub.subject_id || sub.id // Explicit Subject ID
+                });
             });
 
             setUnscheduledSubjects(bucket);
             setScheduledSlots(slots);
         } catch (err) {
+            console.error(err);
             showError('Failed to load scheduling data.');
         } finally {
             setLoading(false);
@@ -242,320 +293,308 @@ const SchedulingEngine = ({ section, onBack }) => {
         loadData();
     }, [section.id]);
 
-    const handleDragStart = async (event) => {
-        const data = event.active.data.current;
-        setActiveDragId(event.active.id);
-        setDragData(data);
+    // --- Handlers ---
 
-        // If subject has a professor, fetch their schedule to show availability
-        if (data.subject?.professor_id) {
-            try {
-                const schedule = await SchedulingService.getProfessorSchedule(
-                    data.subject.professor_id, 
-                    sectionData.semester_info.id
-                );
-                setProfessorSchedule(schedule);
-            } catch (err) {
-                console.error('Failed to fetch professor schedule', err);
-            }
+    const handleCellClick = (day, time) => {
+        // If a subject is selected in "click-to-select" mode, use it immediately
+        if (selectedSubject) {
+             // Prepare data for the Create Modal directly
+             const newSlot = {
+                id: null, // Indicates CREATE mode
+                section_subject: selectedSubject.section_subject_id,
+                subject_id: selectedSubject.subject_id,
+                section_id: section.id,
+                subject_code: selectedSubject.subject_code,
+                subject_title: selectedSubject.subject_title,
+                professor: selectedSubject.professor_id,
+                day: day,
+                start_time: time,
+                end_time: calculateEndTime(time, selectedSubject.units),
+                room: '',
+                qualified_professors: selectedSubject.qualified_professors || []
+            };
+    
+            setEditingSlot(newSlot);
+            setIsEditModalOpen(true);
+            return;
         }
+
+        // Standard flow: Open picker
+        setPickerTarget({ day, time });
+        setIsPickerModalOpen(true);
     };
 
-    const handleDragEnd = async (event) => {
-        const { active, over } = event;
-        setActiveDragId(null);
-        setDragData(null);
-        setProfessorSchedule([]); // Clear schedule overlay
-
-        if (!over) return;
-
-        const cellData = over.data.current;
-        const subData = active.data.current.subject;
-
-        if (subData) {
-            try {
-                // 1. Conflict Check (Optimistic but verified)
-                const startTimeStr = cellData.time;
-                const [h, m] = startTimeStr.split(':').map(Number);
-                const endDate = new Date();
-                endDate.setHours(h + 1, m); // Default 1 hour
-                const endTimeStr = `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
-
-                // Check Section Conflict
-                const sectionConflict = await SchedulingService.checkSectionConflict({
-                    section_id: section.id,
-                    day: cellData.day,
-                    start_time: startTimeStr,
-                    end_time: endTimeStr
-                });
-
-                if (sectionConflict.has_conflict) {
-                    showError(`Section Conflict: Overlaps with ${sectionConflict.conflict}`);
-                    return;
-                }
-
-                // Check Professor Conflict (Warning)
-                if (subData.professor_id) {
-                    const profConflict = await SchedulingService.checkProfessorConflict({
-                        professor_id: subData.professor_id,
-                        semester_id: sectionData.semester_info.id,
-                        day: cellData.day,
-                        start_time: startTimeStr,
-                        end_time: endTimeStr
-                    });
-
-                    if (profConflict.has_conflict) {
-                        const confirm = window.confirm(`Professor Conflict: ${subData.professor_name} is already busy with ${profConflict.conflict}. Proceed anyway?`);
-                        if (!confirm) return;
-                    }
-                }
-
-                const newSlot = {
-                    section_subject: subData.id,
-                    day: cellData.day,
-                    start_time: startTimeStr,
-                    end_time: endTimeStr,
-                    professor: subData.professor_id,
-                    room: ''
-                };
-
-                const saved = await SchedulingService.saveSlot(newSlot);
-                showSuccess(`Scheduled ${subData.subject_code}`);
-                loadData(); // Refresh all data to sync state
-
-            } catch (err) {
-                console.error(err);
-                showError('Failed to save schedule slot.');
-            }
-        }
-    };
-
-    const handleRemoveSlot = async (slotId) => {
-        if (!window.confirm('Remove this schedule slot?')) return;
+    const handleSubjectSelect = (subject) => {
+        setIsPickerModalOpen(false);
         
-        try {
-            await SchedulingService.deleteSlot(slotId);
-            showSuccess('Schedule slot removed');
-            loadData();
-        } catch (err) {
-            showError('Failed to remove slot');
+        // Prepare data for the Create Modal
+        const newSlot = {
+            id: null, // Indicates CREATE mode
+            section_subject: subject.section_subject_id, // Might be null!
+            subject_id: subject.subject_id, // Needed to create SectionSubject if missing
+            section_id: section.id, // Needed to create SectionSubject
+            subject_code: subject.subject_code,
+            subject_title: subject.subject_title,
+            professor: subject.professor_id,
+            day: pickerTarget.day,
+            start_time: pickerTarget.time,
+            end_time: calculateEndTime(pickerTarget.time, subject.units),
+            room: '',
+            qualified_professors: subject.qualified_professors || []
+        };
+
+        setEditingSlot(newSlot);
+        setIsEditModalOpen(true);
+    };
+
+    const handleSubjectToggle = (subject) => {
+        if (selectedSubject && selectedSubject.subject_code === subject.subject_code) {
+            setSelectedSubject(null); // Deselect
+        } else {
+            setSelectedSubject(subject); // Select
         }
     };
 
     const handleEditSlot = (slot) => {
-        // Find the full subject data from sectionData to get qualified professors
-        const subject = sectionData.subjects.find(s => s.section_subject_id === slot.section_subject);
+        // Find subject metadata to ensure qualified professors are passed
+        const subject = sectionData.subjects.find(s => 
+            (s.section_subject_id === slot.section_subject) || (s.id === slot.section_subject)
+        );
+        
         setEditingSlot({
             ...slot,
-            qualified_professors: subject?.qualified_professors || []
+            qualified_professors: subject?.professors || slot.qualified_professors || []
         });
         setIsEditModalOpen(true);
+    };
+
+    const handleSlotUpdate = () => {
+        loadData(); // Refresh grid
+    };
+    
+    const handleSlotDelete = async (slotId) => {
+         if (!window.confirm('Remove this schedule slot?')) return;
+        try {
+            await SchedulingService.deleteSlot(slotId);
+            showSuccess('Schedule slot removed');
+            setIsEditModalOpen(false);
+            loadData();
+        } catch (err) {
+            showError('Failed to delete slot');
+        }
+    };
+
+    const handleAssignProfessor = async (professorId) => {
+        try {
+            await SchedulingService.updateSectionSubject(assignModalData.subject.id, {
+                professor: professorId 
+            });
+            showSuccess('Professor assigned successfully');
+            loadData(); // Reload to update both lists
+            setAssignModalData(null);
+        } catch (err) {
+            showError('Failed to assign professor');
+        }
     };
 
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[32px] text-center">
                 <Loader2 className="text-indigo-600 animate-spin mb-4" size={48} />
-                <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Initialising Schedule View...</p>
+                <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Initialising Planner...</p>
             </div>
         );
     }
 
     return (
-        <DndContext 
-            sensors={sensors}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-        >
-            <div className="animate-in fade-in slide-in-from-right-8 duration-700">
-                {/* Toolbar */}
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10 pb-10 border-b border-gray-100">
-                    <div className="flex items-center gap-6">
-                        <button 
-                            onClick={onBack}
-                            className="p-3 bg-gray-100 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all shadow-sm"
-                        >
-                            <ArrowLeft size={20} />
-                        </button>
-                        <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-widest rounded-full">
-                                    {sectionData.program_code}
+        <div className="animate-in fade-in slide-in-from-right-8 duration-700">
+            {/* Header */}
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10 pb-10 border-b border-gray-100">
+                <div className="flex items-center gap-6">
+                    <button 
+                        onClick={onBack}
+                        className="p-3 bg-gray-100 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all shadow-sm"
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-widest rounded-full">
+                                {sectionData.program_code}
+                            </span>
+                        </div>
+                        <h2 className="text-4xl font-black text-gray-900 tracking-tighter italic uppercase">
+                            Weekly Planner for {sectionData?.name || section?.name}
+                        </h2>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-col xl:flex-row gap-8">
+                {/* Sidebar: Subjects List */}
+                <div className="w-full xl:w-80 shrink-0">
+                    <div className="bg-white rounded-[40px] p-6 border border-gray-100 shadow-xl z-20 sticky top-8 flex flex-col h-[calc(100vh-140px)]">
+                         <div className="border-b border-gray-100 pb-4 mb-4">
+                            <div className="flex items-center justify-between mb-4 bg-gray-100 p-1 rounded-xl">
+                                <button 
+                                    onClick={() => setViewMode('unscheduled')}
+                                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        viewMode === 'unscheduled' 
+                                        ? 'bg-white text-indigo-600 shadow-sm' 
+                                        : 'text-gray-400 hover:text-gray-600'
+                                    }`}
+                                >
+                                    Pending
+                                </button>
+                                <button 
+                                    onClick={() => setViewMode('scheduled')}
+                                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        viewMode === 'scheduled' 
+                                        ? 'bg-white text-emerald-600 shadow-sm' 
+                                        : 'text-gray-400 hover:text-gray-600'
+                                    }`}
+                                >
+                                    Scheduled
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                                    {viewMode === 'unscheduled' ? 'Subject List' : 'Scheduled Subjects'}
+                                </h3>
+                                <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                                    {displayedSubjects.length}
                                 </span>
                             </div>
-                            <h2 className="text-4xl font-black text-gray-900 tracking-tighter italic uppercase">Weekly Planner for {sectionData?.name || section?.name}</h2>
                         </div>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-4">
-                        {/* Removed functionality buttons as requested */}
+                        <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+                            {displayedSubjects.length > 0 ? (
+                                displayedSubjects.map((subject, idx) => (
+                                    <div 
+                                        key={subject.id || idx}
+                                        onClick={() => viewMode === 'unscheduled' && handleSubjectToggle(subject)}
+                                        className={`transition-all duration-200 ${
+                                            viewMode === 'unscheduled' ? 'cursor-pointer' : ''
+                                        } ${
+                                            selectedSubject && selectedSubject.subject_code === subject.subject_code
+                                            ? 'ring-2 ring-indigo-500 ring-offset-2 rounded-2xl'
+                                            : ''
+                                        }`}
+                                    >
+                                        <UnscheduledSubjectCard 
+                                            subject={subject} 
+                                            onAssign={viewMode === 'unscheduled' ? (s) => setAssignModalData({ subject: s, currentProfessorId: s.professor_id }) : undefined}
+                                            isSelected={selectedSubject && selectedSubject.subject_code === subject.subject_code}
+                                        />
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-12">
+                                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-300">
+                                        <CheckCircle2 size={24} />
+                                    </div>
+                                    <p className="text-sm font-bold text-gray-400">
+                                        {viewMode === 'unscheduled' ? 'All subjects scheduled!' : 'No subjects scheduled yet.'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Dashboard Stats */}
-                {/* Dashboard Stats Removed */}
-
-                {/* Split Context Area */}
-                <div className="flex flex-col xl:flex-row gap-8">
-                    {/* Sidebar: Subject Bucket */}
-                    <div className="w-full xl:w-96 shrink-0">
-                        <div className="bg-gray-50 rounded-[40px] p-8 border border-gray-100/50 sticky top-8">
-                            <div className="flex items-center justify-between mb-8 px-2">
-                                <h4 className="text-[12px] font-black text-gray-900 uppercase tracking-[0.15em] flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-indigo-600 text-white rounded-xl flex items-center justify-center">
-                                        <Layout size={16} />
-                                    </div>
-                                    Section Subjects
-                                </h4>
-                                <span className="px-4 py-1.5 bg-white text-indigo-600 text-[11px] font-black rounded-full shadow-sm border border-indigo-50">
-                                    {unscheduledSubjects.length}
-                                </span>
+                {/* Main: Weekly Grid */}
+                <div className="flex-1 overflow-x-auto">
+                    <div className="min-w-[800px] bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                        {/* Days Header */}
+                        <div className="flex border-b-2 border-gray-100 bg-gray-50/50">
+                            <div className="w-24 h-20 flex items-center justify-center border-r border-gray-100 shrink-0">
+                                <Clock size={20} className="text-gray-300" />
                             </div>
-
-                            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                {unscheduledSubjects.length > 0 ? (
-                                    unscheduledSubjects.map(subject => (
-                                        <DraggableSubject key={subject.id} subject={subject} />
-                                    ))
-                                ) : (
-                                    <div className="py-20 flex flex-col items-center text-center bg-white rounded-[32px] border border-dashed border-gray-200">
-                                        <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-4">
-                                            <CheckCircle2 size={32} />
-                                        </div>
-                                        <h5 className="text-sm font-black text-gray-900 uppercase mb-1">Fully Plotted!</h5>
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">All subjects have schedule slots</p>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            <div className="mt-8 p-6 bg-indigo-900 rounded-[28px] text-white">
-                                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-3">Quick Help</p>
-                                <div className="flex items-start gap-3">
-                                    <Info size={16} className="text-indigo-400 shrink-0 mt-0.5" />
-                                    <p className="text-[11px] font-bold leading-relaxed text-indigo-100 italic">
-                                        Drag a subject card to any time slot in the grid. Double-click a card in the grid to assign a room.
-                                    </p>
+                            {DAYS.map(day => (
+                                <div key={day.id} className="flex-1 h-20 flex flex-col items-center justify-center border-r border-gray-100">
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{day.label}</span>
+                                    <span className="text-lg font-black text-gray-900 tracking-tighter italic">{day.id}</span>
                                 </div>
-                            </div>
+                            ))}
                         </div>
-                    </div>
 
-                    {/* Main: Weekly Grid */}
-                    <div className="flex-1 overflow-x-auto min-h-[1000px]">
-                        <div className="w-full bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                            {/* Days Header */}
-                            <div className="flex border-b-2 border-gray-100 bg-gray-50/50">
-                                <div className="w-24 h-20 flex items-center justify-center border-r border-gray-100 shrink-0">
-                                    <Clock size={20} className="text-gray-300" />
-                                </div>
-                                {DAYS.map(day => (
-                                    <div key={day.id} className="flex-1 h-20 flex flex-col items-center justify-center border-r border-gray-100">
-                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{day.label}</span>
-                                        <span className="text-lg font-black text-gray-900 tracking-tighter italic">{day.id}</span>
+                        {/* Grid Body */}
+                        <div className="flex relative">
+                            {/* Time Column */}
+                            <div className="w-24 shrink-0 bg-gray-50/30">
+                                {TIME_SLOTS.map((slot) => (
+                                    <div 
+                                        key={slot.timeStr} 
+                                        className="h-20 flex flex-col items-center justify-center border-b border-r border-gray-100 border-dashed"
+                                    >
+                                        <span className="text-[10px] font-black text-gray-900 tracking-tighter">
+                                            {slot.label.split(' ')[0]}
+                                        </span>
+                                        <span className="text-[8px] font-black text-gray-400 uppercase">
+                                            {slot.label.split(' ')[1]}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
 
-                            {/* Grid Body */}
-                            <div className="flex relative">
-                                {/* Time Column */}
-                                <div className="w-24 shrink-0 bg-gray-50/30">
-                                    {TIME_SLOTS.map((slot, idx) => (
-                                        <div 
-                                            key={slot.timeStr} 
-                                            className="h-20 flex flex-col items-center justify-center border-b border-r border-gray-100 border-dashed"
-                                        >
-                                            <span className="text-[10px] font-black text-gray-900 tracking-tighter">
-                                                {slot.label.split(' ')[0]}
-                                            </span>
-                                            <span className="text-[8px] font-black text-gray-400 uppercase">
-                                                {slot.label.split(' ')[1]}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Content Grid */}
-                                <div className="flex-1 grid grid-cols-6 h-full relative">
-                                    {DAYS.map(day => (
-                                        <div key={day.id} className="flex flex-col">
-                                            {TIME_SLOTS.map(slot => {
-                                                const isProfBusy = professorSchedule.some(s => 
-                                                    s.day === day.id && 
-                                                    s.start_time.startsWith(slot.timeStr.substring(0, 5))
-                                                );
-
-                                                return (
-                                                    <DroppableCell 
-                                                        key={`${day.id}-${slot.timeStr}`} 
-                                                        day={day.id} 
-                                                        time={slot.timeStr}
-                                                        isProfBusy={isProfBusy}
-                                                    >
-                                                        {scheduledSlots
-                                                            .filter(s => s.day === day.id && s.start_time.startsWith(slot.timeStr.substring(0, 5)))
-                                                            .map(s => (
-                                                                <ScheduledSlotCard 
-                                                                    key={s.id} 
-                                                                    slot={s} 
-                                                                    onRemove={handleRemoveSlot} 
-                                                                />
-                                                            ))
-                                                        }
-                                                    </DroppableCell>
-                                                );
-                                            })}
-                                        </div>
-                                    ))}
-                                    
-                                    {/* Grid Overlay for Visual Alignment */}
-                                    <div className="absolute inset-0 pointer-events-none grid grid-rows-[repeat(auto-fill,5rem)]">
-                                        {TIME_SLOTS.map((_, i) => (
-                                            <div key={i} className="border-b border-gray-100 border-dashed w-full h-20"></div>
+                            {/* Content Grid */}
+                            <div className="flex-1 grid grid-cols-6 h-full">
+                                {DAYS.map(day => (
+                                    <div key={day.id} className="flex flex-col">
+                                        {TIME_SLOTS.map(slot => (
+                                            <ScheduleCell 
+                                                key={`${day.id}-${slot.timeStr}`}
+                                                day={day.id} 
+                                                time={slot.timeStr}
+                                                onClick={handleCellClick}
+                                                onMouseEnter={(d, t) => setHoveredCell({ d, t })}
+                                                isHovered={hoveredCell?.d === day.id && hoveredCell?.t === slot.timeStr}
+                                            >
+                                                {scheduledSlots
+                                                    .filter(s => s.day === day.id && s.start_time.startsWith(slot.timeStr))
+                                                    .map(s => (
+                                                        <ScheduledSlotCard 
+                                                            key={s.id} 
+                                                            slot={s} 
+                                                            onClick={handleEditSlot}
+                                                        />
+                                                    ))
+                                                }
+                                            </ScheduleCell>
                                         ))}
                                     </div>
-                                </div>
+                                ))}
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <DragOverlay dropAnimation={{
-                    sideEffects: defaultDropAnimationSideEffects({
-                        styles: {
-                            active: {
-                                opacity: '0.5',
-                            },
-                        },
-                    }),
-                }}>
-                    {activeDragId ? (
-                        <div className="bg-white p-6 rounded-3xl border-2 border-indigo-500 shadow-2xl scale-105 opacity-90 cursor-grabbing w-72">
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center">
-                                    <Layout size={20} />
-                                </div>
-                                <h5 className="text-sm font-black text-gray-900 uppercase italic">
-                                    {dragData.subject.subject_code}
-                                </h5>
-                            </div>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-relaxed">
-                                {dragData.subject.subject_title}
-                            </p>
-                        </div>
-                    ) : null}
-                </DragOverlay>
-
-                {/* Modals */}
-                <EditScheduleSlotModal 
-                    isOpen={isEditModalOpen}
-                    onClose={() => setIsEditModalOpen(false)}
-                    slot={editingSlot}
-                    onUpdate={loadData}
-                    onDelete={handleRemoveSlot}
-                />
             </div>
-        </DndContext>
+
+            {/* Modals */}
+            <SubjectPickerModal 
+                isOpen={isPickerModalOpen}
+                onClose={() => setIsPickerModalOpen(false)}
+                onSelect={handleSubjectSelect}
+                subjects={pendingSubjects}
+                timeRange={pickerTarget ? { day: DAYS.find(d => d.id === pickerTarget.day)?.label, startTime: pickerTarget.time, endTime: '...' } : null}
+            />
+
+            <EditScheduleSlotModal 
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                slot={editingSlot}
+                onUpdate={handleSlotUpdate}
+                onDelete={handleSlotDelete}
+            />
+
+            <AssignProfessorModal 
+                isOpen={!!assignModalData}
+                onClose={() => setAssignModalData(null)}
+                currentProfessorId={assignModalData?.currentProfessorId}
+                onAssign={handleAssignProfessor}
+            />
+        </div>
     );
 };
 

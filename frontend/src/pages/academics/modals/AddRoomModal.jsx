@@ -57,9 +57,9 @@ const AddRoomModal = ({ isOpen, onClose, onSuccess }) => {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-white rounded-[40px] w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-8 duration-500">
                 {/* Header */}
-                <div className="bg-orange-600 p-10 relative overflow-hidden">
+                <div className="bg-indigo-600 p-10 relative overflow-hidden">
                     <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-                    <div className="absolute left-0 bottom-0 w-32 h-32 bg-orange-500/20 rounded-full -ml-10 -mb-10 blur-2xl"></div>
+                    <div className="absolute left-0 bottom-0 w-32 h-32 bg-indigo-500/20 rounded-full -ml-10 -mb-10 blur-2xl"></div>
                     
                     <div className="relative flex justify-between items-start">
                         <div className="flex items-center gap-4">
@@ -68,7 +68,7 @@ const AddRoomModal = ({ isOpen, onClose, onSuccess }) => {
                             </div>
                             <div>
                                 <h2 className="text-2xl font-black text-white tracking-tight">Register Room</h2>
-                                <p className="text-orange-100 text-[11px] font-black uppercase tracking-[0.2em] mt-0.5">Campus Infrastructure</p>
+                                <p className="text-indigo-100 text-[11px] font-black uppercase tracking-[0.2em] mt-0.5">Campus Infrastructure</p>
                             </div>
                         </div>
                         <button 
@@ -87,13 +87,13 @@ const AddRoomModal = ({ isOpen, onClose, onSuccess }) => {
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Room Name / Number</label>
                             <div className="relative group">
-                                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-orange-600 transition-colors" size={18} />
+                                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
                                 <input 
                                     type="text"
                                     placeholder="e.g. Room 301 or Lab A"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value.toUpperCase() })}
-                                    className={`w-full bg-gray-50 border-2 ${errors.name ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-orange-500 ring-orange-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold focus:ring-4 transition-all outline-none`}
+                                    className={`w-full bg-gray-50 border-2 ${errors.name ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-indigo-500 ring-indigo-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold focus:ring-4 transition-all outline-none`}
                                 />
                                 {errors.name && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{errors.name}</p>}
                             </div>
@@ -103,14 +103,14 @@ const AddRoomModal = ({ isOpen, onClose, onSuccess }) => {
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Student Capacity</label>
                             <div className="relative group">
-                                <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-orange-600 transition-colors pointer-events-none" size={18} />
+                                <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none" size={18} />
                                 <input 
                                     type="number"
                                     min="1"
                                     max="500"
                                     value={formData.capacity}
                                     onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
-                                    className={`w-full bg-gray-50 border-2 ${errors.capacity ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-orange-500 ring-orange-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold focus:ring-4 transition-all outline-none`}
+                                    className={`w-full bg-gray-50 border-2 ${errors.capacity ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-indigo-500 ring-indigo-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold focus:ring-4 transition-all outline-none`}
                                 />
                                 {errors.capacity && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{errors.capacity}</p>}
                             </div>
@@ -127,15 +127,15 @@ const AddRoomModal = ({ isOpen, onClose, onSuccess }) => {
                                         onClick={() => setFormData({ ...formData, room_type: type.id })}
                                         className={`flex flex-col items-start p-4 rounded-[24px] border-2 transition-all ${
                                             formData.room_type === type.id 
-                                            ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-100' 
-                                            : 'bg-white border-gray-100 text-gray-600 hover:border-orange-200'
+                                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                                            : 'bg-white border-gray-100 text-gray-600 hover:border-indigo-200'
                                         }`}
                                     >
                                         <div className="flex items-center gap-2 mb-1">
-                                            <Layers size={14} className={formData.room_type === type.id ? 'text-orange-200' : 'text-orange-500'} />
+                                            <Layers size={14} className={formData.room_type === type.id ? 'text-indigo-200' : 'text-indigo-500'} />
                                             <span className="text-[11px] font-black uppercase tracking-tight">{type.title}</span>
                                         </div>
-                                        <p className={`text-[9px] font-medium leading-tight text-left ${formData.room_type === type.id ? 'text-orange-100' : 'text-gray-400'}`}>
+                                        <p className={`text-[9px] font-medium leading-tight text-left ${formData.room_type === type.id ? 'text-indigo-100' : 'text-gray-400'}`}>
                                             {type.desc}
                                         </p>
                                     </button>
@@ -164,7 +164,7 @@ const AddRoomModal = ({ isOpen, onClose, onSuccess }) => {
                             variant="primary" 
                             type="submit"
                             disabled={isSubmitting}
-                            className="flex-[2] rounded-[22px] py-4 h-auto shadow-xl shadow-orange-100 flex items-center justify-center gap-3 group bg-orange-600 hover:bg-orange-700 active:bg-orange-800"
+                            className="flex-[2] rounded-[22px] py-4 h-auto shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 group bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800"
                         >
                             {isSubmitting ? (
                                 <Loader2 className="animate-spin" size={20} />

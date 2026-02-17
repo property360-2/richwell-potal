@@ -17,7 +17,6 @@ const AddSectionModal = ({ isOpen, onClose, onSuccess, programs, semesters }) =>
     const [isBulkMode, setIsBulkMode] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
-        name_prefix: '', // e.g. "BSIS"
         section_count: 1, // Number of sections to generate
         program: '',
         semester: '',
@@ -35,7 +34,7 @@ const AddSectionModal = ({ isOpen, onClose, onSuccess, programs, semesters }) =>
     // Default to active semester
     useEffect(() => {
         if (semesters && semesters.length > 0) {
-            const activeSem = semesters.find(s => s.is_active);
+            const activeSem = semesters.find(s => s.is_current); // Use is_current instead of is_active
             if (activeSem) {
                 setFormData(prev => ({ ...prev, semester: activeSem.id }));
             }
@@ -83,16 +82,54 @@ const AddSectionModal = ({ isOpen, onClose, onSuccess, programs, semesters }) =>
         }
     };
 
+    // Helper to extract program code for prefix
+    const getProgramCode = () => {
+        if (!formData.program || !programs) return '';
+        const program = programs.find(p => p.id === formData.program);
+        return program ? program.code.toUpperCase() : '';
+    };
+
+    // Helper to find the next available sequence index
+    const getStartingIndex = () => {
+        const prefix = getProgramCode();
+        if (!prefix || !formData.year_level) return 1;
+
+        const pattern = new RegExp(`^${prefix}${formData.year_level}-([0-9]+)$`);
+        let maxIndex = 0;
+
+        existingSections.forEach(section => {
+            const match = section.name.toUpperCase().match(pattern);
+            if (match) {
+                const index = parseInt(match[1]);
+                if (index > maxIndex) maxIndex = index;
+            }
+        });
+
+        return maxIndex + 1;
+    };
+
     // Helper to generate section names
     const getGeneratedNames = () => {
-        if (!isBulkMode || !formData.name_prefix || !formData.year_level || formData.section_count < 1) return [];
+        const prefix = getProgramCode();
+        if (!prefix || !formData.year_level || formData.section_count < 1) return [];
         
+        const startingIndex = getStartingIndex();
         const names = [];
-        for (let i = 1; i <= formData.section_count; i++) {
-            names.push(`${formData.name_prefix.trim().toUpperCase()} ${formData.year_level}-${i}`);
+        for (let i = 0; i < formData.section_count; i++) {
+            names.push(`${prefix}${formData.year_level}-${startingIndex + i}`);
         }
         return names;
     };
+
+    // Auto-update single name based on auto-sequence
+    useEffect(() => {
+        if (!isBulkMode && formData.program && formData.year_level) {
+            const names = getGeneratedNames();
+            if (names.length > 0) {
+                setFormData(prev => ({ ...prev, name: names[0] }));
+            }
+        }
+    }, [formData.program, formData.year_level, existingSections, isBulkMode]);
 
     const validate = () => {
         const newErrors = {};
@@ -106,9 +143,6 @@ const AddSectionModal = ({ isOpen, onClose, onSuccess, programs, semesters }) =>
                 newErrors.name = 'Section name already exists in this program/semester';
             }
         } else {
-            if (!formData.name_prefix) {
-                newErrors.name_prefix = 'Prefix is required';
-            }
             if (formData.section_count < 1) {
                 newErrors.section_count = 'Count must be at least 1';
             }
@@ -132,7 +166,7 @@ const AddSectionModal = ({ isOpen, onClose, onSuccess, programs, semesters }) =>
 
     // Auto-update validation errors on field changes
     useEffect(() => {
-        if (formData.program || formData.name || formData.name_prefix || formData.year_level) {
+        if (formData.program || formData.name || formData.year_level) {
             validate();
         }
     }, [formData, isBulkMode, existingSections]);
@@ -217,53 +251,34 @@ const AddSectionModal = ({ isOpen, onClose, onSuccess, programs, semesters }) =>
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-8 overflow-y-auto custom-scrollbar">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Bulk Logic: Prefix & Count */}
-                        {isBulkMode ? (
-                            <>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Name Prefix</label>
-                                    <div className="relative group">
-                                        <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                                        <input 
-                                            type="text"
-                                            placeholder="e.g. BSIS"
-                                            value={formData.name_prefix}
-                                            onChange={(e) => setFormData({ ...formData, name_prefix: e.target.value.toUpperCase() })}
-                                            className={`w-full bg-gray-50 border-2 ${errors.name_prefix ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-indigo-500 ring-indigo-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold focus:ring-4 transition-all outline-none`}
-                                        />
-                                        {errors.name_prefix && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{errors.name_prefix}</p>}
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Number of Sections</label>
-                                    <div className="relative group">
-                                        <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                                        <input 
-                                            type="number"
-                                            min="1"
-                                            max="10"
-                                            value={formData.section_count}
-                                            onChange={(e) => setFormData({ ...formData, section_count: parseInt(e.target.value) || 0 })}
-                                            className={`w-full bg-gray-50 border-2 ${errors.section_count ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-indigo-500 ring-indigo-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold focus:ring-4 transition-all outline-none`}
-                                        />
-                                        {errors.section_count && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{errors.section_count}</p>}
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            /* Single Section Name */
+                        {/* Program Suggestion Info */}
+                        <div className="md:col-span-2 bg-indigo-50/50 border border-indigo-100/50 p-4 rounded-2xl flex items-start gap-4 mb-2">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-indigo-50">
+                                <Layers className="text-indigo-600" size={20} />
+                            </div>
+                            <div>
+                                <h4 className="text-[11px] font-black text-indigo-900 uppercase tracking-wider">Automated Section Identity</h4>
+                                <p className="text-[10px] font-bold text-indigo-600/70 mt-0.5 leading-relaxed">
+                                    Names are generated based on Course Prefix + Year Level + Sequence.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Bulk Logic: Count for Bulk Mode */}
+                        {isBulkMode && (
                             <div className="md:col-span-2 space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Section Name</label>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Number of Sections to Generate</label>
                                 <div className="relative group">
-                                    <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                                    <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
                                     <input 
-                                        type="text"
-                                        placeholder="e.g. BSIS 4-1"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value.toUpperCase() })}
-                                        className={`w-full bg-gray-50 border-2 ${errors.name ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-indigo-500 ring-indigo-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold focus:ring-4 transition-all outline-none`}
+                                        type="number"
+                                        min="1"
+                                        max="20"
+                                        value={formData.section_count}
+                                        onChange={(e) => setFormData({ ...formData, section_count: Math.min(20, Math.max(1, parseInt(e.target.value) || 0)) })}
+                                        className={`w-full bg-gray-50 border-2 ${errors.section_count ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-indigo-500 ring-indigo-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold focus:ring-4 transition-all outline-none`}
                                     />
-                                    {errors.name && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{errors.name}</p>}
+                                    {errors.section_count && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{errors.section_count}</p>}
                                 </div>
                             </div>
                         )}
@@ -287,22 +302,17 @@ const AddSectionModal = ({ isOpen, onClose, onSuccess, programs, semesters }) =>
                             </div>
                         </div>
 
-                        {/* Semester Selection */}
+                        {/* Semester Indicator (Read-only) */}
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Semester/Year</label>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Current Active Term</label>
                             <div className="relative group">
-                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none" size={18} />
-                                <select 
-                                    value={formData.semester}
-                                    onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                                    className={`w-full bg-gray-50 border-2 ${errors.semester ? 'border-red-200 focus:border-red-500 ring-red-500/10' : 'border-gray-50 focus:border-indigo-500 ring-indigo-500/10'} rounded-[20px] pl-12 pr-6 py-4 text-sm font-bold appearance-none focus:ring-4 transition-all outline-none`}
-                                >
-                                    <option value="">Select Semester</option>
-                                    {semesters.map(s => (
-                                        <option key={s.id} value={s.id}>{s.academic_year} {s.semester === 3 ? '(SUMMER)' : `- Sem ${s.semester}`}</option>
-                                    ))}
-                                </select>
-                                {errors.semester && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{errors.semester}</p>}
+                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-600 transition-colors pointer-events-none" size={18} />
+                                <div className="w-full bg-indigo-50/50 border-2 border-indigo-100/50 rounded-[20px] pl-12 pr-6 py-4 text-sm font-black text-indigo-700">
+                                    {(() => {
+                                        const s = semesters.find(item => item.id === formData.semester);
+                                        return s ? `${s.academic_year} - ${s.name}` : 'No Active Term Found';
+                                    })()}
+                                </div>
                             </div>
                         </div>
 
@@ -348,37 +358,24 @@ const AddSectionModal = ({ isOpen, onClose, onSuccess, programs, semesters }) =>
                             {errors.year_level && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{errors.year_level}</p>}
                         </div>
 
-                        {/* Section Preview (Bulk Mode) */}
-                        {isBulkMode && generatedNames.length > 0 && (
+                        {/* Section Preview (Always show if prefix/year level set) */}
+                        {getProgramCode() && formData.year_level && (
                             <div className="md:col-span-2 space-y-3">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Section Preview</label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {generatedNames.map((name, idx) => {
-                                        const exists = existingSections.some(s => s.name.toUpperCase() === name);
-                                        return (
-                                            <div 
-                                                key={idx}
-                                                className={`px-4 py-3 rounded-[18px] text-[11px] font-black flex items-center justify-between border-2 transition-all ${
-                                                    exists 
-                                                    ? 'bg-red-50 border-red-100 text-red-600' 
-                                                    : 'bg-indigo-50/30 border-indigo-100/50 text-indigo-600'
-                                                }`}
-                                            >
-                                                <span>{name}</span>
-                                                {exists ? (
-                                                    <X size={14} className="text-red-400" />
-                                                ) : (
-                                                    <CheckCircle2 size={14} className="text-indigo-400" />
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                                <div className="flex items-center justify-between ml-1">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Section Identity Preview</label>
+                                    <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">Auto-sequenced</span>
                                 </div>
-                                {errors.bulk_dupes && (
-                                    <p className="text-[10px] text-red-500 font-bold bg-red-50/50 p-3 rounded-xl border border-red-100/50">
-                                        {errors.bulk_dupes}
-                                    </p>
-                                )}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {generatedNames.map((name, idx) => (
+                                        <div 
+                                            key={idx}
+                                            className="px-4 py-3 rounded-[18px] text-[11px] font-black flex items-center justify-between border-2 bg-indigo-50/30 border-indigo-100/50 text-indigo-600 transition-all animate-in zoom-in-95"
+                                        >
+                                            <span>{name}</span>
+                                            <CheckCircle2 size={14} className="text-indigo-400" />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
 

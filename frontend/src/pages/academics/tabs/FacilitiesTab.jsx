@@ -20,7 +20,7 @@ import { FacilitiesService } from '../services/FacilitiesService';
 import { useToast } from '../../../context/ToastContext';
 import AddRoomModal from '../modals/AddRoomModal';
 import EditRoomModal from '../modals/EditRoomModal';
-import WorkInProgressModal from '../modals/WorkInProgressModal';
+import ViewRoomModal from '../modals/ViewRoomModal';
 
 const FacilitiesTab = () => {
     const { success: showSuccess, error: showError } = useToast();
@@ -121,42 +121,44 @@ const FacilitiesTab = () => {
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-10">
                 <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 bg-orange-500 rounded-[22px] flex items-center justify-center shadow-lg shadow-orange-100 -rotate-3">
-                        <Building2 className="text-white rotate-3" size={28} />
+                    <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-100">
+                        <Building2 size={28} />
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-gray-900 tracking-tight">Facilities Management</h2>
-                        <p className="text-[11px] text-gray-400 font-black uppercase tracking-[0.2em] mt-1">Campus Infrastructure</p>
+                        <div className="flex items-center gap-3 mb-1">
+                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Facilities Management</h2>
+                        </div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Institutional Repository of Campus Infrastructure</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="relative group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-orange-500 transition-colors" size={18} />
+                <div className="flex items-center gap-3 w-full lg:w-auto">
+                    <div className="relative group flex-grow lg:flex-grow-0">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
                         <input 
                             type="text"
                             placeholder="Search room name..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="bg-white border-2 border-gray-100 text-gray-700 text-sm font-bold rounded-[20px] pl-12 pr-6 py-3.5 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all w-full md:w-[320px] shadow-sm"
+                            className="bg-white border border-gray-200 text-gray-900 text-sm font-bold rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block w-full lg:w-80 pl-12 pr-6 py-4 shadow-sm transition-all outline-none"
                         />
                     </div>
                     <Button 
                         variant="primary" 
                         onClick={() => setIsAddModalOpen(true)}
-                        className="rounded-[20px] px-8 py-4 h-auto shadow-xl shadow-orange-100 flex items-center gap-2 group bg-orange-600 hover:bg-orange-700 active:bg-orange-800 border-none"
+                        className="rounded-2xl px-8 py-4 h-auto shadow-xl shadow-indigo-100 flex items-center gap-2 shrink-0 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 border-none group transition-all"
                     >
                         <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                        <span className="font-black uppercase tracking-widest text-[11px]">New Room</span>
+                        <span className="font-black uppercase tracking-widest text-[11px]">Register New Room</span>
                     </Button>
                 </div>
             </div>
 
             {/* Filters Row */}
             <div className="bg-white rounded-[28px] border border-gray-100 p-5 mb-8 flex flex-wrap items-center gap-4 shadow-sm">
-                <div className="flex items-center gap-2.5 px-4 py-2.5 text-orange-600 bg-orange-50 rounded-2xl mr-2">
+                <div className="flex items-center gap-2.5 px-4 py-2.5 text-indigo-600 bg-indigo-50 rounded-2xl mr-2">
                     <Filter size={18} />
                     <span className="text-[11px] font-black uppercase tracking-widest leading-none">Filters</span>
                 </div>
@@ -165,7 +167,7 @@ const FacilitiesTab = () => {
                 <select 
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
-                    className="bg-gray-50 border-none text-gray-700 text-[11px] font-black uppercase tracking-widest rounded-2xl px-5 py-3 focus:ring-2 focus:ring-orange-500 cursor-pointer min-w-[180px]"
+                    className="bg-gray-50 border-none text-gray-700 text-[11px] font-black uppercase tracking-widest rounded-2xl px-5 py-3 focus:ring-2 focus:ring-indigo-500 cursor-pointer min-w-[180px]"
                 >
                     <option value="">All Room Types</option>
                     <option value="LECTURE">Lecture Rooms</option>
@@ -176,7 +178,7 @@ const FacilitiesTab = () => {
                 <select 
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="bg-gray-50 border-none text-gray-700 text-[11px] font-black uppercase tracking-widest rounded-2xl px-5 py-3 focus:ring-2 focus:ring-orange-500 cursor-pointer min-w-[140px]"
+                    className="bg-gray-50 border-none text-gray-700 text-[11px] font-black uppercase tracking-widest rounded-2xl px-5 py-3 focus:ring-2 focus:ring-indigo-500 cursor-pointer min-w-[140px]"
                 >
                     <option value="all">Any Status</option>
                     <option value="active">Active Only</option>
@@ -191,7 +193,7 @@ const FacilitiesTab = () => {
                             setTypeFilter('');
                             setStatusFilter('all');
                         }}
-                        className="ml-auto text-orange-600 hover:text-orange-700 text-[10px] font-black uppercase tracking-widest px-5 py-3 hover:bg-orange-50 rounded-2xl transition-all"
+                        className="ml-auto text-indigo-600 hover:text-indigo-700 text-[10px] font-black uppercase tracking-widest px-5 py-3 hover:bg-indigo-50 rounded-2xl transition-all"
                     >
                         Reset All
                     </button>
@@ -201,24 +203,24 @@ const FacilitiesTab = () => {
             {/* Content Area */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[32px] border border-gray-100 shadow-sm">
-                    <Loader2 className="text-orange-600 animate-spin mb-4" size={48} />
+                    <Loader2 className="text-indigo-600 animate-spin mb-4" size={48} />
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Loading campus rooms...</p>
                 </div>
             ) : rooms.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {rooms.map(room => (
-                        <div key={room.id} className={`group bg-white rounded-[32px] border ${room.is_active ? 'border-gray-100' : 'border-red-100 bg-red-50/10'} p-8 hover:border-orange-200 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-500 relative overflow-hidden`}>
+                        <div key={room.id} className={`group bg-white rounded-[32px] border ${room.is_active ? 'border-gray-100' : 'border-red-100 bg-red-50/10'} p-8 hover:border-indigo-200 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 relative overflow-hidden`}>
                             {/* Decorative Background Element */}
-                            <div className={`absolute -right-4 -top-4 w-24 h-24 ${room.is_active ? 'bg-orange-50/50' : 'bg-red-50/50'} rounded-full blur-2xl group-hover:scale-110 transition-transform duration-700`}></div>
+                            <div className={`absolute -right-4 -top-4 w-24 h-24 ${room.is_active ? 'bg-indigo-50/50' : 'bg-red-50/50'} rounded-full blur-2xl group-hover:scale-110 transition-transform duration-700`}></div>
                             
                             <div className="relative flex flex-col h-full">
                                 <div className="flex items-start justify-between mb-6">
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 ${room.is_active ? 'bg-orange-50 text-orange-600' : 'bg-red-50 text-red-600'} rounded-xl flex items-center justify-center`}>
+                                        <div className={`w-10 h-10 ${room.is_active ? 'bg-indigo-50 text-indigo-600' : 'bg-red-50 text-red-600'} rounded-xl flex items-center justify-center`}>
                                             {getRoomIcon(room.room_type)}
                                         </div>
                                         <div>
-                                            <h3 className="text-xl font-black text-gray-900 group-hover:text-orange-600 transition-colors uppercase italic tracking-tighter">{room.name}</h3>
+                                            <h3 className="text-xl font-black text-gray-900 group-hover:text-indigo-600 transition-colors uppercase italic tracking-tighter">{room.name}</h3>
                                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5 block">
                                                 {getRoomTypeLabel(room.room_type)}
                                             </span>
@@ -235,7 +237,7 @@ const FacilitiesTab = () => {
                                         </button>
                                         <button 
                                             onClick={() => openEditModal(room)}
-                                            className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
+                                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                                         >
                                             <Edit size={16} />
                                         </button>
@@ -263,7 +265,7 @@ const FacilitiesTab = () => {
                                         <Button 
                                             variant="secondary"
                                             onClick={() => openViewModal(room)}
-                                            className="w-full py-2 bg-gray-50 hover:bg-orange-50 hover:text-orange-600 border-none rounded-xl text-[10px] h-auto font-black uppercase tracking-widest group/btn"
+                                            className="w-full py-2 bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 border-none rounded-xl text-[10px] h-auto font-black uppercase tracking-widest group/btn"
                                         >
                                             View Room
                                         </Button>
@@ -283,7 +285,7 @@ const FacilitiesTab = () => {
                     <Button 
                         variant="primary" 
                         onClick={() => setIsAddModalOpen(true)}
-                        className="rounded-2xl px-10 shadow-lg shadow-orange-100 bg-orange-600 border-none"
+                        className="rounded-2xl px-10 shadow-lg shadow-indigo-100 bg-indigo-600 border-none"
                     >
                         Register New Room
                     </Button>
@@ -317,10 +319,10 @@ const FacilitiesTab = () => {
             )}
 
             {isWIPModalOpen && selectedRoom && (
-                <WorkInProgressModal 
+                <ViewRoomModal 
                     isOpen={isWIPModalOpen}
                     onClose={() => setIsWIPModalOpen(false)}
-                    title={`View ${selectedRoom.name}`}
+                    room={selectedRoom}
                 />
             )}
         </div>
