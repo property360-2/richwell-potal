@@ -94,6 +94,18 @@ const FacultyTab = () => {
         setIsFormModalOpen(true);
     };
 
+    const handleDelete = async (prof) => {
+        if (!window.confirm(`Are you sure you want to remove ${prof.first_name} ${prof.last_name}?`)) return;
+        
+        try {
+            await FacultyService.deleteProfessor(prof.id);
+            success('Professor removed from roster');
+            fetchProfessors();
+        } catch (err) {
+            error(err.message || 'Failed to remove professor');
+        }
+    };
+
     return (
         <div className="animate-in fade-in duration-500">
             {/* Header */}
@@ -194,11 +206,17 @@ const FacultyTab = () => {
                                                 >
                                                     <Eye size={18} />
                                                 </button>
-                                                <button 
+                                                 <button 
                                                     onClick={() => handleEdit(prof)}
                                                     className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
                                                 >
                                                     <Edit size={18} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDelete(prof)}
+                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                >
+                                                    <Trash2 size={18} />
                                                 </button>
                                             </div>
                                         </td>

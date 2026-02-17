@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { X, Search, Plus, Trash2, AlertCircle, CheckCircle, User, Briefcase, GraduationCap } from 'lucide-react';
+import { X, Search, Plus, Trash2, AlertCircle, CheckCircle, User, Briefcase, GraduationCap, Edit, Loader2 } from 'lucide-react';
 import { FacultyService } from '../services/FacultyService';
 import Button from '../../../components/ui/Button';
 import { useToast } from '../../../context/ToastContext';

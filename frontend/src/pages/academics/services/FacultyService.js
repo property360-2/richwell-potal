@@ -56,6 +56,18 @@ export const FacultyService = {
     },
 
     /**
+     * Delete a professor
+     */
+    async deleteProfessor(id) {
+        try {
+            return await api.delete(endpoints.professorDetail(id));
+        } catch (error) {
+            console.error('Failed to delete professor:', error);
+            throw error;
+        }
+    },
+
+    /**
      * Search subjects for assignment
      */
     async searchSubjects(query, programIds = []) {
