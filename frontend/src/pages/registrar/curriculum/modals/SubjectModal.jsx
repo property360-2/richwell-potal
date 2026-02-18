@@ -78,7 +78,7 @@ const SubjectModal = ({ isOpen, onClose, subject, programs, onSuccess }) => {
 
     const searchSubjects = async (q) => {
         try {
-            const res = await fetch(`/api/v1/academic/subjects/?search=${q}`);
+            const res = await fetch(`/api/v1/academics/subjects/?search=${q}`);
             if (res.ok) {
                 const data = await res.json();
                 // Filter out current subject and already selected prereqs
@@ -142,8 +142,8 @@ const SubjectModal = ({ isOpen, onClose, subject, programs, onSuccess }) => {
             }
 
             const url = subject 
-                ? `/api/v1/academic/subjects/${subject.id}/` 
-                : '/api/v1/academic/subjects/';
+                ? `/api/v1/academics/subjects/${subject.id}/` 
+                : '/api/v1/academics/subjects/';
             
             const method = subject ? 'PATCH' : 'POST';
 

@@ -47,9 +47,9 @@ const RegistrarSectionDetail = () => {
         try {
             setLoading(true);
             const [secRes, subRes, stuRes] = await Promise.all([
-                fetch(`/api/v1/academic/sections/${id}/`),
-                fetch(`/api/v1/academic/sections/${id}/subjects/`),
-                fetch(`/api/v1/academic/sections/${id}/students/`)
+                fetch(`/api/v1/academics/sections/${id}/`),
+                fetch(`/api/v1/academics/sections/${id}/subjects/`),
+                fetch(`/api/v1/academics/sections/${id}/students/`)
             ]);
 
             if (secRes.ok) setSection(await secRes.json());
@@ -169,7 +169,7 @@ const RegistrarSectionDetail = () => {
                                     }}
                                     onRemove={async (ssId) => {
                                         if (window.confirm('Remove this subject from the section load?')) {
-                                            const res = await fetch(`/api/v1/academic/sections/${id}/subjects/${ssId}/`, { method: 'DELETE' });
+                                            const res = await fetch(`/api/v1/academics/sections/${id}/subjects/${ssId}/`, { method: 'DELETE' });
                                             if (res.ok) { success('Subject removed'); fetchSectionData(); }
                                         }
                                     }}

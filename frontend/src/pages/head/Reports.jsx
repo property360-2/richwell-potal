@@ -44,8 +44,8 @@ const HeadReports = () => {
     const fetchReferenceData = async () => {
         try {
             const [semRes, progRes] = await Promise.all([
-                fetch('/api/v1/academic/semesters/'),
-                fetch('/api/v1/academic/programs/')
+                fetch('/api/v1/academics/semesters/'),
+                fetch('/api/v1/academics/programs/')
             ]);
             
             const semData = await semRes.json();

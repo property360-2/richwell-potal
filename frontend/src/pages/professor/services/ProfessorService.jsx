@@ -17,7 +17,7 @@ const ProfessorService = {
     },
 
     getDashboardData: async (professorId, semesterId) => {
-        const res = await fetch(`/api/v1/academic/professor/${professorId}/schedule/${semesterId}/`);
+        const res = await fetch(`/api/v1/academics/professor/${professorId}/schedule/${semesterId}/`);
         return res.ok ? res.json() : null;
     },
 

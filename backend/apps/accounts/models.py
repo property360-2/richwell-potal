@@ -311,9 +311,9 @@ class StudentProfile(BaseModel):
         blank=True,
         help_text='e.g., Jr., Sr., III'
     )
-    birthdate = models.DateField()
-    address = models.TextField()
-    contact_number = models.CharField(max_length=20)
+    birthdate = models.DateField(null=True, blank=True)
+    address = models.TextField(blank=True)
+    contact_number = models.CharField(max_length=20, blank=True)
     
     # Transferee information
     is_transferee = models.BooleanField(

@@ -489,6 +489,8 @@ class TransfereeCreateView(APIView):
                 email = data.pop('email')
                 first_name = data.pop('first_name')
                 last_name = data.pop('last_name')
+                password = data.pop('password', None)
+                req_student_number = data.pop('student_number', None)
                 credited_subjects = data.pop('credited_subjects', [])
                 
                 # 3. Create User
@@ -499,8 +501,8 @@ class TransfereeCreateView(APIView):
                     first_name=first_name,
                     last_name=last_name,
                     role='STUDENT',
-                    student_number=student_number,
-                    password=email # Temporary password is email
+                    student_number=req_student_number or student_number,
+                    password=password or email # Temporary password is password or email
                 )
                 
                 # 4. Create Profile (StudentManualCreateSerializer handles some, but let's be explicit if needed)
@@ -520,7 +522,11 @@ class TransfereeCreateView(APIView):
                     enrollment, _ = Enrollment.objects.get_or_create(
                         student=user,
                         semester=active_semester,
-                        defaults={'status': 'ACTIVE', 'payment_approved': True, 'head_approved': True}
+                        defaults={
+                            'status': 'ACTIVE',
+                            'monthly_commitment': 5000,
+                            'created_via': 'TRANSFEREE'
+                        }
                     )
                     
                     for item in credited_subjects:

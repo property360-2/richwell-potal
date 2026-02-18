@@ -19,6 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import Button from '../../components/ui/Button';
 import SEO from '../../components/shared/SEO';
+import { api, endpoints } from '../../api';
 
 const RegistrarDashboard = () => {
     const { user } = useAuth();
@@ -40,32 +41,26 @@ const RegistrarDashboard = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const [studentsRes, incRes] = await Promise.all([
-                fetch('/api/v1/cashier/student-search/'),
-                fetch('/api/v1/registrar/inc-report/')
+            const [students, incData] = await Promise.all([
+                api.get(endpoints.registrarStudentSearch),
+                api.get(endpoints.incReport)
             ]);
 
-            if (studentsRes.ok) {
-                const students = await studentsRes.json();
-                const list = students.results || students || [];
-                setStats(prev => ({ 
-                    ...prev, 
-                    totalStudents: list.length,
-                    pendingCOR: list.length // Based on legacy logic
-                }));
-                setRecentStudents(list.slice(0, 5).map(s => ({
-                    id: s.id || s.enrollment_id,
-                    student_number: s.student_number || 'N/A',
-                    name: s.student_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown',
-                    program: s.program_code || s.program?.code || 'N/A',
-                    year_level: s.year_level || 1
-                })));
-            }
+            const list = students.results || students || [];
+            setStats(prev => ({ 
+                ...prev, 
+                totalStudents: list.length,
+                pendingCOR: list.length // Based on legacy logic
+            }));
+            setRecentStudents(list.slice(0, 5).map(s => ({
+                id: s.id || s.enrollment_id,
+                student_number: s.student_number || 'N/A',
+                name: s.student_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown',
+                program: s.program_code || s.program?.code || 'N/A',
+                year_level: s.year_level || 1
+            })));
 
-            if (incRes.ok) {
-                const incData = await incRes.json();
-                setStats(prev => ({ ...prev, expiringINC: incData.expiring_soon_count || 0 }));
-            }
+            setStats(prev => ({ ...prev, expiringINC: incData.expiring_soon_count || 0 }));
         } catch (err) {
             console.error(err);
             error('Failed to load dashboard data');

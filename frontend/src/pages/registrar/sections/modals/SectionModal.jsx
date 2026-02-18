@@ -50,7 +50,7 @@ const SectionModal = ({ isOpen, onClose, section, semester, onSuccess }) => {
 
     const fetchPrograms = async () => {
         try {
-            const res = await fetch('/api/v1/academic/programs/');
+            const res = await fetch('/api/v1/academics/programs/');
             if (res.ok) {
                 const data = await res.json();
                 setPrograms(data.results || data || []);
@@ -70,8 +70,8 @@ const SectionModal = ({ isOpen, onClose, section, semester, onSuccess }) => {
         try {
             setSubmitting(true);
             const url = section 
-                ? `/api/v1/academic/sections/${section.id}/` 
-                : '/api/v1/academic/sections/';
+                ? `/api/v1/academics/sections/${section.id}/` 
+                : '/api/v1/academics/sections/';
             
             const method = section ? 'PATCH' : 'POST';
 

@@ -31,7 +31,7 @@ const SectionSubjectModal = ({ isOpen, onClose, sectionId, programId, currentSub
         try {
             setLoading(true);
             // Fetch subjects for this program that aren't already assigned to this section
-            const res = await fetch(`/api/v1/academic/subjects/?program=${programId}`);
+            const res = await fetch(`/api/v1/academics/subjects/?program=${programId}`);
             if (res.ok) {
                 const data = await res.json();
                 const all = data.results || data || [];
@@ -59,7 +59,7 @@ const SectionSubjectModal = ({ isOpen, onClose, sectionId, programId, currentSub
 
         try {
             setSubmitting(true);
-            const res = await fetch(`/api/v1/academic/sections/${sectionId}/assign-subjects/`, {
+            const res = await fetch(`/api/v1/academics/sections/${sectionId}/assign-subjects/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ subject_ids: selectedIds })

@@ -32,7 +32,7 @@ const SectionStudentModal = ({ isOpen, onClose, sectionId, programCode, yearLeve
         try {
             setLoading(true);
             // Fetch students from the same program/year who don't have a section yet
-            const res = await fetch(`/api/v1/academic/sections/${sectionId}/recommend-students/`);
+            const res = await fetch(`/api/v1/academics/sections/${sectionId}/recommend-students/`);
             if (res.ok) {
                 const data = await res.json();
                 setAvailableStudents(data || []);
@@ -58,7 +58,7 @@ const SectionStudentModal = ({ isOpen, onClose, sectionId, programCode, yearLeve
 
         try {
             setSubmitting(true);
-            const res = await fetch(`/api/v1/academic/sections/${sectionId}/assign-students/`, {
+            const res = await fetch(`/api/v1/academics/sections/${sectionId}/assign-students/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ student_ids: selectedIds })

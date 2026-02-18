@@ -31,12 +31,10 @@ const RegistrarCORManagement = () => {
     const fetchStudents = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/v1/cashier/student-search/');
-            if (res.ok) {
-                const data = await res.json();
-                setStudents(data.results || data || []);
-            }
+            const data = await api.get(endpoints.registrarStudentSearch);
+            setStudents(data.results || data || []);
         } catch (err) {
+            console.error('Failed to sync student registry', err);
             error('Failed to sync student registry');
         } finally {
             setLoading(false);
@@ -46,8 +44,14 @@ const RegistrarCORManagement = () => {
     const handleGenerateCOR = async (student) => {
         try {
             setIsGenerating(true);
-            // Simulate/Trigger PDF generation
-            const res = await fetch(`/api/v1/registrar/enrollments/${student.id || student.enrollment_id}/generate-cor/`);
+            const enrollmentId = student.id || student.enrollment_id;
+            
+            // Use the standard endpoint
+            const res = await fetch(`/api/v1${endpoints.generateCor(enrollmentId)}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
             
             if (res.ok) {
                 const blob = await res.blob();
@@ -64,6 +68,7 @@ const RegistrarCORManagement = () => {
                 info('Opening manual review for COR production');
             }
         } catch (err) {
+            console.error('Production server unreachable', err);
             error('Production server unreachable');
         } finally {
             setIsGenerating(false);

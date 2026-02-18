@@ -31,7 +31,7 @@ const RegistrarGradeFinalization = () => {
     const fetchSections = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/v1/academic/sections-finalization/');
+            const res = await fetch('/api/v1/academics/sections-finalization/');
             if (res.ok) {
                 const data = await res.json();
                 setSections(data.sections || data || []);
@@ -48,7 +48,7 @@ const RegistrarGradeFinalization = () => {
 
         try {
             setProcessingId(section.section_id);
-            const res = await fetch(`/api/v1/academic/sections/${section.section_id}/finalize-grades/`, {
+            const res = await fetch(`/api/v1/academics/sections/${section.section_id}/finalize-grades/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ subject_id: section.subject_id })

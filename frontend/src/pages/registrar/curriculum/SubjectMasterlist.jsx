@@ -42,7 +42,7 @@ const RegistrarSubjectMasterlist = () => {
         try {
             setLoading(true);
             const [progRes, subRes] = await Promise.all([
-                fetch('/api/v1/academic/programs/'),
+                fetch('/api/v1/academics/programs/'),
                 fetchSubjects()
             ]);
 
@@ -58,7 +58,7 @@ const RegistrarSubjectMasterlist = () => {
     };
 
     const fetchSubjects = async () => {
-        let url = '/api/v1/academic/subjects/';
+        let url = '/api/v1/academics/subjects/';
         const params = new URLSearchParams();
         if (selectedProgram) params.append('program', selectedProgram);
         if (searchTerm) params.append('search', searchTerm);
@@ -84,7 +84,7 @@ const RegistrarSubjectMasterlist = () => {
         if (!window.confirm('Are you sure you want to delete this subject? This might affect existing curricula.')) return;
         
         try {
-            const res = await fetch(`/api/v1/academic/subjects/${id}/`, { method: 'DELETE' });
+            const res = await fetch(`/api/v1/academics/subjects/${id}/`, { method: 'DELETE' });
             if (res.ok) {
                 success('Subject removed from repository');
                 fetchSubjects();

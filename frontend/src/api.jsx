@@ -348,8 +348,12 @@ export const endpoints = {
     registrarStudentDetail: (id) => `/accounts/students/${id}/`,
 
     // Missing endpoints added for Registrar
+    transfereeCreate: '/admissions/transferee/',
     transfereeCredits: (id) => `/admissions/transferee/${id}/credits/`,
     subjectEnrollments: '/admissions/enrollment/',
+    incReport: '/admissions/grades/inc-report/',
+    processExpiredIncs: '/admissions/grades/process-expired-incs/',
+    generateCor: (id) => `/admissions/enrollment/${id}/cor/`,
 
     // Head/Department Head endpoints
     headPendingEnrollments: '/admissions/head/pending-enrollments/',

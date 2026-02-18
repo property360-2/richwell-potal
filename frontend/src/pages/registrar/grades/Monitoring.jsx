@@ -47,9 +47,9 @@ const RegistrarGradeMonitoring = () => {
             let endpoint = '';
             
             if (view === 'programs') {
-                endpoint = '/api/v1/academic/programs/';
+                endpoint = '/api/v1/academics/programs/';
             } else if (view === 'sections') {
-                endpoint = `/api/v1/academic/sections/?program=${selection.program.id}`;
+                endpoint = `/api/v1/academics/sections/?program=${selection.program.id}`;
             } else if (view === 'subjects') {
                 endpoint = `/api/v1/enrollment/registrar/sections/${selection.section.id}/subjects/`;
             } else if (view === 'student_grades') {

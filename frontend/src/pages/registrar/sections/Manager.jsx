@@ -50,7 +50,7 @@ const RegistrarSectionManager = () => {
     const fetchInitialData = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/v1/academic/semesters/');
+            const res = await fetch('/api/v1/academics/semesters/');
             if (res.ok) {
                 const data = await res.json();
                 const list = data.semesters || data || [];
@@ -71,7 +71,7 @@ const RegistrarSectionManager = () => {
     const fetchSections = async () => {
         if (!activeSemester) return;
         try {
-            let url = `/api/v1/academic/sections/?semester=${activeSemester.id}`;
+            let url = `/api/v1/academics/sections/?semester=${activeSemester.id}`;
             if (searchTerm) url += `&search=${searchTerm}`;
             
             const res = await fetch(url);

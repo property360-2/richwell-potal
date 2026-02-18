@@ -60,7 +60,7 @@ const ScheduleSlotModal = ({ isOpen, onClose, sectionSubject, onSuccess }) => {
 
     const fetchProfessors = async () => {
         try {
-            const res = await fetch('/api/v1/academic/professors/');
+            const res = await fetch('/api/v1/academics/professors/');
             if (res.ok) {
                 const data = await res.json();
                 setProfessors(data.results || data || []);
@@ -75,7 +75,7 @@ const ScheduleSlotModal = ({ isOpen, onClose, sectionSubject, onSuccess }) => {
         
         try {
             setSubmitting(true);
-            const res = await fetch(`/api/v1/academic/sections/subjects/${sectionSubject.id}/add-slot/`, {
+            const res = await fetch(`/api/v1/academics/sections/subjects/${sectionSubject.id}/add-slot/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)

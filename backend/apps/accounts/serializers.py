@@ -212,7 +212,7 @@ class RegistrarStudentSerializer(serializers.ModelSerializer):
 
 class CreditSubjectSerializer(serializers.Serializer):
     subject_id = serializers.UUIDField()
-    grade = serializers.DecimalField(max_digits=3, decimal_places=2, required=False)
+    grade = serializers.CharField(max_length=10, required=False)
 
 class StudentManualCreateSerializer(serializers.ModelSerializer):
     """Serializer for Manual Student Creation."""
@@ -225,8 +225,7 @@ class StudentManualCreateSerializer(serializers.ModelSerializer):
     
     # Allow sending program code (e.g. 'BSIT') instead of ID
     from apps.academics.models import Program
-    program = serializers.SlugRelatedField(
-        slug_field='code', 
+    program = serializers.PrimaryKeyRelatedField(
         queryset=Program.objects.all()
     )
     

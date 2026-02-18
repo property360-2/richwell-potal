@@ -46,7 +46,7 @@ const ProfessorGrades = () => {
 
     const fetchInitialData = async () => {
         try {
-            const res = await fetch('/api/v1/academic/semesters/');
+            const res = await fetch('/api/v1/academics/semesters/');
             if (res.ok) {
                 const data = await res.json();
                 const semList = data.results || data || [];

@@ -47,11 +47,8 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
     const [allSubjects, setAllSubjects] = useState([]);
     const [curricula, setCurricula] = useState([]);
 
-    useEffect(() => {
-        if (isOpen) {
-            fetchAllSubjects();
-        }
-    }, [isOpen]);
+    // Curriculum subjects state
+    const [fetchingSubjects, setFetchingSubjects] = useState(false);
 
     useEffect(() => {
         if (formData.program) {
@@ -59,31 +56,49 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
         }
     }, [formData.program]);
 
-    const fetchAllSubjects = async () => {
+    useEffect(() => {
+        if (formData.curriculum) {
+            fetchCurriculumSubjects(formData.curriculum);
+        } else {
+            setAllSubjects([]);
+        }
+    }, [formData.curriculum]);
+
+    const fetchCurriculumSubjects = async (curriculumId) => {
         try {
-            const res = await fetch('/api/v1/academic/subjects/');
-            if (res.ok) {
-                const data = await res.json();
-                setAllSubjects(data.results || data || []);
-            }
+            setFetchingSubjects(true);
+            const data = await api.get(endpoints.curriculumStructure(curriculumId));
+            
+            // Flatten subjects from the structure object
+            const structure = data.structure || {};
+            const subjectsList = [];
+            
+            Object.values(structure).forEach(year => {
+                Object.values(year).forEach(sem => {
+                    if (Array.isArray(sem)) {
+                        subjectsList.push(...sem);
+                    }
+                });
+            });
+            
+            setAllSubjects(subjectsList);
         } catch (err) {
-            console.error('Failed to fetch subjects');
+            console.error('Failed to fetch subjects for curriculum', err);
+            error('Failed to load subjects for the selected curriculum');
+        } finally {
+            setFetchingSubjects(false);
         }
     };
 
     const fetchCurricula = async (programId) => {
         try {
-            const res = await fetch(`/api/v1/academic/curricula/?program=${programId}`);
-            if (res.ok) {
-                const data = await res.json();
-                const list = data.results || data || [];
-                setCurricula(list);
-                if (list.length > 0) {
-                    setFormData(prev => ({ ...prev, curriculum: list[0].id }));
-                }
+            const list = await api.get(endpoints.curricula, { program: programId });
+            setCurricula(list);
+            if (list.length > 0) {
+                setFormData(prev => ({ ...prev, curriculum: list[0].id }));
             }
         } catch (err) {
-            console.error('Failed to fetch curricula');
+            console.error('Failed to fetch curricula', err);
         }
     };
 
@@ -102,8 +117,9 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
             return;
         }
         const matches = allSubjects.filter(s => 
-            s.code.toLowerCase().includes(term.toLowerCase()) || 
-            s.title.toLowerCase().includes(term.toLowerCase())
+            (s.code.toLowerCase().includes(term.toLowerCase()) || 
+            s.title.toLowerCase().includes(term.toLowerCase())) &&
+            !creditedSubjects.some(cs => cs.subject_id === s.id)
         ).slice(0, 5);
         setSearchResults(matches);
     };
@@ -141,35 +157,29 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault();
         setSubmitting(true);
         try {
             const payload = {
                 ...formData,
+                year_level: parseInt(formData.year_level, 10),
+                birthdate: formData.birthdate || null,
+                monthly_commitment: 5000, // Default for manual registration
                 credited_subjects: creditedSubjects.map(s => ({
                     subject_id: s.subject_id,
                     grade: s.grade === 'CREDITED' ? null : s.grade
                 }))
             };
 
-            const res = await fetch('/api/v1/registrar/students/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            const data = await api.post(endpoints.transfereeCreate, payload);
 
-            if (res.ok) {
-                const data = await res.json();
-                success(`Student registered: ${data.student_number}`);
-                onSuccess();
-                onClose();
-                resetForm();
-            } else {
-                const errData = await res.json();
-                error(errData.detail || 'Registration failed');
-            }
+            success(`Student registered: ${data.student_number || 'Record created'}`);
+            onSuccess();
+            onClose();
+            resetForm();
         } catch (err) {
-            error('An error occurred during registration');
+            console.error('Registration error:', err);
+            error(err.message || 'An error occurred during registration');
         } finally {
             setSubmitting(false);
         }
@@ -322,9 +332,15 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
                                     type="text" 
                                     value={subjectSearch}
                                     onChange={(e) => handleSubjectSearch(e.target.value)}
-                                    placeholder="Search subject code or name..."
-                                    className="w-full px-6 py-3 bg-white border border-gray-200 rounded-2xl text-xs font-bold focus:border-blue-300 outline-none transition-all"
+                                    placeholder={!formData.curriculum ? "Select curriculum first..." : "Search subject code or name..."}
+                                    disabled={!formData.curriculum || fetchingSubjects}
+                                    className="w-full px-6 py-3 bg-white border border-gray-200 rounded-2xl text-xs font-bold focus:border-blue-300 outline-none transition-all disabled:opacity-50 disabled:bg-gray-100"
                                 />
+                                {fetchingSubjects && (
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                        <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                                    </div>
+                                )}
                                 {searchResults.length > 0 && (
                                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 shadow-2xl rounded-2xl mt-1 z-50 overflow-hidden">
                                         {searchResults.map(s => (

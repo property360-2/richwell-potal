@@ -536,3 +536,185 @@
 - Number of registrar overrides (quality control metric).
 
 ---
+
+## 19) Backend Codebase Functions
+
+### 19.1) Accounts App (`apps.accounts`)
+
+**Purpose**: Manages user authentication, profiles, role-based access control (RBAC), and student/professor distinct profiles.
+
+**Models (`models.py`)**
+
+*   **`User(AbstractUser)`**: Custom user model using email as the unique identifier.
+    *   `Role` (Enum): STUDENT, PROFESSOR, CASHIER, REGISTRAR, HEAD_REGISTRAR, ADMISSION_STAFF, DEPARTMENT_HEAD, ADMIN.
+    *   `has_permission(permission_code)`: Check if user has a specific permission (checks custom grants first, then role defaults).
+    *   `get_permission_scope(permission_code)`: Get fine-grained scope for a permission.
+    *   `get_effective_permissions()`: Return all permissions (default + custom).
+*   **`StudentProfile`**: Extended profile for students.
+    *   `Status` (Enum): ACTIVE, LOA, WITHDRAWN, GRADUATED, INACTIVE.
+    *   `AcademicStatus` (Enum): REGULAR, PROBATION, DISMISSED.
+    *   Fields: `program`, `curriculum`, `home_section`, `year_level`, `is_irregular`, `is_transferee`, `is_past_student`.
+*   **`ProfessorProfile`**: Extended profile for professors.
+    *   Fields: `department`, `specialization`, `assigned_subjects`, `max_teaching_hours`.
+*   **`Permission`**, **`PermissionCategory`**, **`UserPermission`**: RBAC implementation.
+*   **`PasswordResetToken`**: Manages tokens for password reset.
+
+**Views (`views.py`)**
+
+*   **`LoginView`** (`POST /api/accounts/login/`): Authenticates user, returns JWT tokens with custom claims (role, full_name).
+*   **`LogoutView`** (`POST /api/accounts/logout/`): Blacklists the refresh token.
+*   **`ProfileView`** (`GET/PATCH /api/accounts/profile/`): Retrieve or update current user's profile.
+*   **`ChangePasswordView`** (`POST /api/accounts/change-password/`): Change current user's password with validation.
+*   **`UserListView`** (`GET /api/accounts/users/`): List users with search/filter. Restricted to Admin/Registrar.
+*   **`StudentViewSet`** (`/api/accounts/students/`): CRUD for Student Profiles.
+    *   `create()`: Uses `StudentService.create_student` for complex creation (transferee support).
+    *   `reset_password()`: Resets student password to student number.
+*   **`HigherUserViewSet`** (`/api/accounts/higher-users/`): Manage admin/staff users. Enforces hierarchical creation permissions.
+*   **`GenerateStudentIdView`** (`GET /api/accounts/generate-student-id/`): Returns next available student ID (YYYY-XXXXX).
+
+**Services (`services.py`)**
+
+*   **`StudentService.create_student(data, registrar)`**:
+    *   Transactional.
+    *   Delegates payload to `EnrollmentService.create_transferee_enrollment`.
+    *   Handles creation of credited subjects (`SubjectEnrollment` with `CREDITED` status).
+    *   Logs action to `AuditLog`.
+
+**Serializers (`serializers.py`)**
+
+*   `LoginSerializer`: Adds user details to token response.
+*   `StudentProfileSerializer`: Read/Write for student profile.
+*   `UserProfileSerializer`: Nested serialization of user + student/professor profile + permissions.
+*   `RegistrarStudentSerializer`: Flattened view for tables.
+*   `StudentManualCreateSerializer`: Handles complex input including credited subjects for transfers.
+
+### 19.2) Academics App (`apps.academics`)
+
+**Purpose**: Core academic structure including programs, subjects, sections, scheduling, and curriculum management.
+
+**Models (`models.py`)**
+
+*   **`Program`**: Academic programs (BSIT, etc.) with duration and active status.
+    *   `total_units`, `total_subjects`: Aggregated properties.
+*   **`Subject`**: Course definitions.
+    *   `prerequisites`: Recursive M2M to self.
+    *   `validate_prerequisites_for_programs()`: Ensures prereqs belong to valid programs.
+    *   `get_inc_expiry_months()`: 6 months (Major), 12 months (Minor).
+*   **`Curriculum`** & **`CurriculumSubject`**: Defines which subjects are taken in which year/semester.
+    *   Supports multiple active curricula versions.
+*   **`CurriculumVersion`**: Snapshots of curriculum for audit/rollback.
+*   **`Section`**: Student blocks (e.g., BSIT-1A).
+    *   `enrolled_count`, `available_slots`: Real-time capacity tracking.
+*   **`SectionSubject`**: A subject offered to a specific section.
+    *   `professor`: Assigned instructor.
+    *   `schedule_slots`: Linked schedule entries.
+*   **`ScheduleSlot`**: Time/Day/Room allocation.
+    *   Constraint: No overlaps for Professor, Room, or Student.
+*   **`Room`**: Physical space management.
+
+**Views (`views.py`)**
+
+*   **`ProgramViewSet`**: CRUD for programs.
+    *   `snapshot()`: Create curriculum version snapshot.
+*   **`SubjectViewSet`**: CRUD for subjects.
+    *   `prerequisite_tree()`: Visual dependency graph.
+    *   `add_prerequisite()`: Adds dependency with circular check.
+*   **`SectionViewSet`**: CRUD for sections.
+    *   `bulk_create()`: Batch creation of sections with auto-subject population from curriculum.
+    *   `detailed_view()`: Returns section with all subjects and assigned professors.
+    *   `validate_names()`: Checks for naming conflicts.
+*   **`RoomViewSet`**: Manage rooms and check availability.
+    *   `availability()`: Returns rooms free at specific day/time.
+
+**Services (`services.py` & `services_sectioning.py`)**
+
+*   **`CurriculumService`**:
+    *   `add_prerequisite()`: Enforces no circular dependencies and program matching.
+    *   `validate_curriculum_completeness()`: Checks if all prereqs are schedulable before dependents.
+    *   `get_prerequisite_tree()`: DFS traversal for graph viz.
+*   **`SchedulingService`**:
+    *   `check_professor_conflict()`: Overlap detection for instructors.
+    *   `check_room_conflict()`: Overlap detection for rooms.
+    *   `check_student_conflict()`: Overlap detection for students.
+    *   `get_room_schedule()`: Weekly grid generation.
+*   **`SectioningEngine` (`services_sectioning.py`)**:
+    *   `process_freshman_queue()`: FIFO assignment for new students.
+    *   `run_ml_resectioning()`: Placeholder for ML-based grouping.
+    *   `rebalance_sections()`: Merges underfilled sections associated with the same program/year.
+*   **`ProfessorService`**:
+    *   `get_workload()`: Calculates total teaching hours and overload status.
+
+### 19.3) Enrollment App (`apps.enrollment`)
+
+**Purpose**: Manages student enrollment cycles, grading, payments (basic buckets), and semesters.
+
+**Models (`models.py`)**
+
+*   **`Semester`**: Academic term with `status` (SETUP, ENROLLMENT_OPEN, GRADING_OPEN, CLOSED, ARCHIVED).
+    *   `is_enrollment_open`: Checks status + date range.
+    *   `activate()`: Atomic switch of `is_current` flag.
+*   **`Enrollment`**: Student's registration for a semester.
+    *   `status`: PENDING, ACTIVE, ADMITTED (paid but no subjects), REJECTED.
+    *   `payment_buckets`: 6 monthly buckets generated upon creation.
+*   **`SubjectEnrollment`**: Linking Student → Subject (via Enrollment).
+    *   `status`: ENROLLED, PASSED, FAILED, INC, DROPPED, CREDITED.
+    *   `grade`: Numeric grade (1.00-5.00) or status code.
+    *   `is_fully_enrolled`: Requires Payment Approved + Head Approved.
+*   **`MonthlyPaymentBucket`**: Tracks required vs paid amount per month (1-6).
+*   **`GradeHistory`**: Audit trail for every grade change/submission.
+*   **`OverloadRequest`**: Student request to exceed max unit cap.
+
+**Views (`views.py` & `views_grading.py`)**
+
+*   **`OnlineEnrollmentView`**: Creates User, Profile, Enrollment, and buckets.
+*   **`TransfereeCreateView`**: Registrar creates account + initial CREDITED subjects.
+*   **`SemesterViewSet`**: Manage terms. `activate()` ensures single active term.
+*   **`HeadReportView`**: Enrollment lists and grade summaries.
+*   **`ProfessorGradeableStudentsView`**: Lists students a professor can grade.
+*   **`ProfessorSubmitGradeView`**: Handles grade submission with validation.
+
+**Services (`services.py`)**
+
+*   **`EnrollmentService`**:
+    *   `create_online_enrollment()`: Orchestrates user creation and bucket generation.
+    *   `create_transferee_enrollment()`: Handles credited subjects logic.
+    *   `generate_student_number()`: Format `YYYY-XXXXX`.
+*   **`SubjectEnrollmentService`**:
+    *   `get_allowed_subjects_by_curriculum()`: Filters available subjects based on curriculum.
+    *   `check_prerequisites()`: Verifies passed subjects.
+    *   `check_inc_prerequisites()`: Blocks enrollment if prereq has unresolved INC.
+
+### 19.4) Core App (`apps.core`)
+
+**Purpose**: Base models, permissions, and system-wide utilities.
+
+**Models (`models.py`)**
+
+*   **`BaseModel`**: Abstract base with UUID, `created_at`, `updated_at`, and `is_deleted` (soft delete).
+*   **`ActiveManager`**: Default manager filtering out `is_deleted=True`.
+*   **`SystemConfig`**: Key-value store for runtime settings (e.g., `ENROLLMENT_ENABLED`).
+*   **`Notification`**: User alerts for payments, grades, etc.
+
+**Permissions (`permissions.py`)**
+
+*   **`IsStudent`, `IsProfessor`, `IsRegistrar`, `IsAdmin`**: Role-based checks.
+*   **`CanViewAuditLogs`**: Special permission for accessing the audit trail.
+
+**Utilities (`utils.py`)**
+
+*   **`api_response()`**: Standardized JSON response wrapper `{ success, data, error, meta }`.
+*   **`generate_signed_token()`**: For secure document downloads.
+
+### 19.5) Audit App (`apps.audit`)
+
+**Purpose**: Immutable logging of critical system actions.
+
+**Models (`models.py`)**
+
+*   **`AuditLog`**:
+    *   `Action`: E.g., `ENROLLMENT_CREATED`, `GRADE_SUBMITTED`, `CURRICULUM_CHANGED`.
+    *   `target_model`, `target_id`: Links to affected entity.
+    *   `payload`: JSON dump of change details (snapshot).
+    *   `actor`: User who performed user action (IP/User Agent tracked).
+    *   **Immutable**: Overrides `save()` and `delete()` to prevent modification.
+

@@ -34,7 +34,7 @@ const RegistrarSemesterManagement = () => {
     const fetchSemesters = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/v1/academic/semesters/');
+            const res = await fetch('/api/v1/academics/semesters/');
             if (res.ok) {
                 const data = await res.json();
                 setSemesters(data.semesters || data || []);
@@ -48,7 +48,7 @@ const RegistrarSemesterManagement = () => {
 
     const handleSetCurrent = async (id) => {
         try {
-            const res = await fetch(`/api/v1/academic/semesters/${id}/set-current/`, { method: 'POST' });
+            const res = await fetch(`/api/v1/academics/semesters/${id}/set-current/`, { method: 'POST' });
             if (res.ok) {
                 success('Academic term activated');
                 fetchSemesters();
@@ -60,7 +60,7 @@ const RegistrarSemesterManagement = () => {
 
     const handleStatusUpdate = async (id, status) => {
         try {
-            const res = await fetch(`/api/v1/academic/semesters/${id}/`, {
+            const res = await fetch(`/api/v1/academics/semesters/${id}/`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status })
@@ -77,7 +77,7 @@ const RegistrarSemesterManagement = () => {
     const deleteSemester = async (id) => {
         if (!window.confirm('Delete this semester? This will affect historical enrollment data.')) return;
         try {
-            const res = await fetch(`/api/v1/academic/semesters/${id}/`, { method: 'DELETE' });
+            const res = await fetch(`/api/v1/academics/semesters/${id}/`, { method: 'DELETE' });
             if (res.ok) {
                 success('Semester deleted');
                 fetchSemesters();

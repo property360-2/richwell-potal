@@ -66,8 +66,8 @@ const SemesterModal = ({ isOpen, onClose, semester, onSuccess }) => {
         try {
             setSubmitting(true);
             const url = semester 
-                ? `/api/v1/academic/semesters/${semester.id}/` 
-                : '/api/v1/academic/semesters/';
+                ? `/api/v1/academics/semesters/${semester.id}/` 
+                : '/api/v1/academics/semesters/';
             
             const method = semester ? 'PATCH' : 'POST';
 

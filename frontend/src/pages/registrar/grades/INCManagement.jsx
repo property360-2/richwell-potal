@@ -42,17 +42,15 @@ const RegistrarINCManagement = () => {
             const params = new URLSearchParams();
             if (showExpiredOnly) params.append('include_expired', 'true');
             
-            const res = await fetch(`/api/v1/registrar/inc-report/?${params.toString()}`);
-            if (res.ok) {
-                const data = await res.json();
-                setIncRecords(data.inc_records || []);
-                setSummary({
-                    total_count: data.total_count || 0,
-                    expired_count: data.expired_count || 0,
-                    expiring_soon_count: data.expiring_soon_count || 0
-                });
-            }
+            const data = await api.get(`${endpoints.incReport}?${params.toString()}`);
+            setIncRecords(data.inc_records || []);
+            setSummary({
+                total_count: data.total_count || 0,
+                expired_count: data.expired_count || 0,
+                expiring_soon_count: data.expiring_soon_count || 0
+            });
         } catch (err) {
+            console.error('Failed to sync grading records', err);
             error('Failed to sync grading records');
         } finally {
             setLoading(false);
@@ -64,21 +62,12 @@ const RegistrarINCManagement = () => {
 
         try {
             setProcessing(true);
-            const res = await fetch('/api/v1/registrar/process-expired-incs/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ dry_run: false })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                success(`Successfully processed ${data.processed_count} records`);
-                fetchINCData();
-            } else {
-                error('Processing operation failed');
-            }
+            const data = await api.post(endpoints.processExpiredIncs, { dry_run: false });
+            success(`Successfully processed ${data.processed_count} records`);
+            fetchINCData();
         } catch (err) {
-            error('Network failure during batch process');
+            console.error('Batch process failed', err);
+            error('Processing operation failed');
         } finally {
             setProcessing(false);
         }

@@ -14,12 +14,15 @@ import {
     AlertCircle,
     Loader2,
     ShieldCheck,
-    Edit2
+    Edit2,
+    GraduationCap,
+    Clock
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import Button from '../../../components/ui/Button';
 import SEO from '../../../components/shared/SEO';
 import Badge from '../../../components/ui/Badge';
+import { api, endpoints } from '../../../api';
 
 const RegistrarStudentDetail = () => {
     const { id } = useParams();
@@ -37,16 +40,12 @@ const RegistrarStudentDetail = () => {
     const fetchStudentDetails = async () => {
         try {
             setLoading(true);
-            const res = await fetch(`/api/v1/registrar/students/${id}/`);
-            if (res.ok) {
-                const data = await res.json();
-                setStudent(data);
-            } else {
-                error('Failed to load student details');
-                navigate('/registrar/students');
-            }
+            const data = await api.get(endpoints.registrarStudentDetail(id));
+            setStudent(data);
         } catch (err) {
-            error('Network error');
+            console.error('Failed to load student details', err);
+            error('Failed to load student details');
+            navigate('/registrar/students');
         } finally {
             setLoading(false);
         }
@@ -54,19 +53,12 @@ const RegistrarStudentDetail = () => {
 
     const handleStatusUpdate = async (newStatus) => {
         try {
-            const res = await fetch(`/api/v1/registrar/students/${id}/`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus })
-            });
-            if (res.ok) {
-                success('Status updated successfully');
-                fetchStudentDetails();
-            } else {
-                error('Failed to update status');
-            }
+            await api.patch(endpoints.registrarStudentDetail(id), { status: newStatus });
+            success('Status updated successfully');
+            fetchStudentDetails();
         } catch (err) {
-            error('Error updating status');
+            console.error('Error updating status', err);
+            error('Failed to update status');
         }
     };
 
