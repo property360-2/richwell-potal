@@ -17,12 +17,12 @@ The enrollment process transforms an applicant into an officially enrolled stude
 2.  **Assessment**:
     *   Applicant receives temporary credentials (`PENDING-XXXX`).
     *   System calculates `monthly_commitment` and initial required fees.
-3.  **Payment & Activation**:
-    *   Student pays the initial fee (Month 1).
-    *   **Cashier Action**: Records `PaymentTransaction`.
-    *   **System Action**: Updates `Enrollment.first_month_paid = True`.
-    *   **Registrar Action**: Approves the enrollment (assigns permanent Student Number).
-    *   **Transition**: Enrollment Status `PENDING` → `ACTIVE`.
+3.  **Admission Approval & ID Assignment**:
+    *   **Trigger**: Once the student pays the initial fee (Month 1), the **Cashier** records the `PaymentTransaction`.
+    *   **Admission Staff/Registrar Action**: Reviews the applicant's requirements and payment.
+    *   **ID Assignment (ID Giving)**: The Registrar assigns a permanent **Student Number** (e.g., `2025-00123`).
+    *   **System Action**: Updates `User.student_number`, sets `Enrollment.first_month_paid = True`.
+    *   **Transition**: Enrollment Status `PENDING` → `ACTIVE` (Officially Admitted).
 
 ### 1.2 Transferee Admission
 1.  **Registrar Entry**:
@@ -112,6 +112,9 @@ For a subject to be officially enrolled, it must pass two gates:
         *   Room (Double booking)
         *   Professor (Double teaching)
         *   Student (Double enrollment - checked during enrollment)
+*   **Section Rebalancing**:
+    *   **Logic**: `SectioningEngine.rebalance_sections()`.
+    *   **Action**: Merges sections for the same program/year that fall below a minimum student threshold to optimize faculty resources.
 
 ---
 
@@ -145,6 +148,177 @@ The **Registrar** module handles the issuance of official academic documents.
 5.  **Archived**: `Semester.status = ARCHIVED`.
     *   **Hard Switch**: Activating a new semester (`Semester.activate()`) strictly requires the previous valid semester to be Closed/Archived.
 
-### 6.2 Audit Trail
+### 6.2 Utility Management (System Config)
+*   **Dynamic Settings**: `SystemConfig` model allows Admins to toggle features at runtime.
+*   **Keys**:
+    *   `ENROLLMENT_ENABLED`: Global switch for the public online form.
+    *   `GRADING_PERIOD_OPEN`: Controls professor access to grading views.
+    *   `MAINTENANCE_MODE`: Restricts access during updates.
+
+### 6.3 Audit Trail
 *   **Immutable Logs**: `AuditLog` records every critical action (Enrollment, Grade Change, Document Release).
 *   **Security**: `AuditLog` overrides `save()` and `delete()` to prevent tampering.
+
+---
+
+## 7. Payment & Cashier Flow
+
+The **Cashier** module handles all financial transactions related to student enrollment.
+
+### 7.1 Payment Recording
+1.  **Student Search**: Cashier searches by Student Number or Name (`CashierStudentSearchView`).
+2.  **SOA Review**: System displays the student's 6-month payment buckets (`MonthlyPaymentBucket`).
+3.  **Payment Entry**: Cashier records the payment (`PaymentRecordView`).
+    *   **Receipt**: Auto-generates a unique receipt number (`RCV-YYYYMMDD-XXXXX`).
+    *   **Allocation**: Payment is distributed across unpaid months in order (Month 1 → 6).
+    *   **Modes**: Cash, Online Banking, GCash, Maya, Check.
+4.  **Audit**: `PaymentTransaction` record is created, linked to the `Enrollment`.
+
+### 7.2 Payment Adjustments
+*   **Scenario**: Overpayment, underpayment correction, or refund.
+*   **Flow**: Cashier creates an adjustment via `PaymentAdjustmentView`.
+    *   Requires a `reason` and links to the `original_transaction`.
+
+### 7.3 Cashier Dashboard
+*   `CashierTodayTransactionsView`: Summary of all payments processed today.
+*   `CashierPendingPaymentsView`: Students with overdue or unpaid buckets.
+
+### 7.4 Student Self-Service
+*   `MyPaymentsView`: Student can view their own Statement of Account (SOA) and payment history.
+
+---
+
+## 8. Exam Permit System
+
+Exam permits are the **gate** between payment and exam eligibility.
+
+### 8.1 Configuration
+*   **Admin/Registrar** sets `ExamMonthMapping` per semester:
+    *   PRELIM → Month 1 paid
+    *   MIDTERM → Month 2 paid
+    *   PREFINAL → Month 3 paid
+    *   FINAL → Month 4 paid
+
+### 8.2 Auto-Generation
+1.  **Trigger**: When a `MonthlyPaymentBucket` for the required month reaches `is_fully_paid = True`.
+2.  **System Action**: `GenerateExamPermitView` creates an `ExamPermit` with unique code (`EXP-YYYYMMDD-XXXXX`).
+3.  **Student View**: `MyExamPermitsView` shows available permits.
+
+### 8.3 Printing & Tracking
+*   **Registrar/Admin**: `PrintExamPermitView` marks `is_printed = True` with timestamp and user.
+*   **Validity Check**: `ExamPermit.is_valid` re-checks that the payment month is still paid (guards against reversed payments).
+
+---
+
+## 9. Grading Lifecycle
+
+### 9.1 Professor Grade Submission
+1.  **View Assigned Sections**: `ProfessorAssignedSectionsView` lists sections/subjects the professor teaches.
+2.  **View Students**: `ProfessorGradeableStudentsView` lists enrolled students for a specific section/subject.
+3.  **Submit Grades**:
+    *   **Single**: `ProfessorSubmitGradeView` — submits one grade at a time.
+    *   **Bulk**: `BulkGradeSubmissionView` — submits multiple grades in one request.
+4.  **Validation**: System checks grading period is open (unless `GradeResolution` or Registrar override).
+5.  **Audit**: Every grade change is logged in `GradeHistory`.
+
+### 9.2 Grade Finalization (Registrar)
+1.  **Review**: `SectionFinalizationListView` shows sections ready for grade locking.
+2.  **Finalize**: `FinalizeSectionGradesView` locks all grades in a section (prevents further edits).
+3.  **Override**: `OverrideGradeView` allows Registrar to change grades post-finalization (logged in `AuditLog`).
+
+### 9.3 INC (Incomplete) Management
+*   **Report**: `INCReportView` lists all students with unresolved INC grades.
+*   **Auto-Expiry**: `ProcessExpiredINCsView` converts expired INCs to `5.00` (Failed).
+    *   Major subjects: 6-month expiry.
+    *   Minor subjects: 12-month expiry.
+
+### 9.4 Student Grade Views
+*   `MyGradesView`: Student views grades for the current semester.
+*   `MyTranscriptView`: Full academic transcript across all semesters.
+
+### 9.5 Academic Standing
+*   `UpdateAcademicStandingView`: Registrar updates a student's academic standing (Regular, Probation, Dismissed).
+
+---
+
+## 10. COR (Certificate of Registration)
+
+*   **Trigger**: `GenerateCORView` generates a printable Certificate of Registration for an enrollment.
+*   **Contents**: Student info, enrolled subjects, schedule, total units, and payment summary.
+*   **Prerequisite**: Student must have `ACTIVE` enrollment with at least one enrolled subject.
+
+---
+
+## 11. Data Export System
+
+The system supports exporting data to **Excel** and **PDF** formats for reporting.
+
+| Export Endpoint | Data | Filters | Access |
+|---|---|---|---|
+| `ExportStudentsView` | Student list (ID, name, program, year, status) | — | Registrar, Admin |
+| `ExportEnrollmentsView` | Enrollment records per semester | `semester_id` | Registrar, Admin |
+| `ExportPaymentsView` | Payment transactions | `start_date`, `end_date` | Cashier, Registrar, Admin |
+
+*   **Engine**: `ExportService` in `apps.core.services` handles Excel (openpyxl) and PDF generation.
+
+---
+
+## 12. Notification System
+
+Real-time user notifications for system events.
+
+### 12.1 Notification Types
+| Type | Example Trigger |
+|---|---|
+| `PAYMENT` | Payment recorded, bucket fully paid |
+| `ENROLLMENT` | Enrollment approved/rejected |
+| `DOCUMENT` | Document released, revoked |
+| `GRADE` | Grade submitted, finalized |
+| `ANNOUNCEMENT` | System-wide announcements |
+| `SYSTEM` | Maintenance mode, semester change |
+
+### 12.2 API
+*   `list_notifications`: Paginated list (20/page) with `unread_only` filter.
+*   `get_unread_count`: Badge count for the UI bell icon.
+*   `mark_notification_read` / `mark_all_read`: Read state management.
+*   `delete_notification`: Remove individual notifications.
+
+---
+
+## 13. Authentication & Security
+
+### 13.1 Login & Session
+1.  **Login**: `LoginView` issues JWT access + refresh tokens.
+2.  **Token Refresh**: `TokenRefreshView` extends session without re-login (1-hour access, 1-day refresh).
+3.  **Logout**: `LogoutView` invalidates the session.
+
+### 13.2 Password Reset Flow
+1.  **Request**: `RequestPasswordResetView` — user submits email.
+    *   System generates a `PasswordResetToken` (1-hour expiry).
+    *   Email is sent with a reset link (does **not** reveal if email exists for security).
+2.  **Validate**: `ValidateResetTokenView` — frontend checks if token is valid before showing the form.
+3.  **Reset**: `ResetPasswordView` — user sets new password (min 8 chars). Token is marked as used.
+
+### 13.3 Document Verification
+*   `DocumentVerifyView`: Admission staff verifies uploaded enrollment documents (ID, TOR, etc.).
+
+---
+
+## 14. Archives Module
+
+The Archives module provides a read-only view of soft-deleted records.
+
+### 14.1 Browsable Types
+| Type | Source | "Deleted" Definition |
+|---|---|---|
+| Programs | `Program.is_deleted = True` | Soft-deleted |
+| Subjects | `Subject.is_deleted = True` | Soft-deleted |
+| Sections | `Section.is_deleted = True` | Soft-deleted |
+| Curricula | `Curriculum.is_deleted = True` | Soft-deleted |
+| Professors | `User.is_active = False` | Deactivated account |
+
+### 14.2 Features
+*   **Search**: Filter by name/code within each type.
+*   **Metadata**: Shows deletion date, description, and type-specific info.
+*   **Access**: Registrar and Admin only (`IsRegistrarOrAdmin`).
+
