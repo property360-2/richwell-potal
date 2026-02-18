@@ -44,6 +44,15 @@ const CashierService = {
             return data.data || data;
         }
         return null;
+    },
+
+    adjustPayment: async (payload) => {
+        try {
+            return await api.post(endpoints.cashierPaymentAdjust, payload);
+        } catch (err) {
+            console.error('Adjustment failed:', err);
+            throw err;
+        }
     }
 };
 

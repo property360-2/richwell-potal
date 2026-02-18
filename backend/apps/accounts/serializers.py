@@ -261,12 +261,20 @@ class StudentDetailSerializer(RegistrarStudentSerializer):
     
     academic_history = serializers.SerializerMethodField()
     current_enrollment = serializers.SerializerMethodField()
+    current_enrollment_id = serializers.SerializerMethodField()
     
     class Meta(RegistrarStudentSerializer.Meta):
         fields = RegistrarStudentSerializer.Meta.fields + [
             'birthdate', 'address', 'contact_number', 'previous_school',
-            'academic_history', 'current_enrollment'
+            'academic_history', 'current_enrollment', 'current_enrollment_id'
         ]
+
+    def get_current_enrollment_id(self, obj):
+        from apps.enrollment.models import Enrollment, Semester
+        current_sem = Semester.objects.filter(is_current=True).first()
+        if not current_sem: return None
+        enrollment = Enrollment.objects.filter(student=obj.user, semester=current_sem).first()
+        return enrollment.id if enrollment else None
         
     def get_academic_history(self, obj):
         from apps.enrollment.models import SubjectEnrollment

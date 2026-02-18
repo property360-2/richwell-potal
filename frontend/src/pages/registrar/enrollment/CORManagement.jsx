@@ -15,6 +15,7 @@ import { useToast } from '../../../context/ToastContext';
 import Button from '../../../components/ui/Button';
 import SEO from '../../../components/shared/SEO';
 import { api, endpoints } from '../../../api';
+import ExportButton from '../../../components/ui/ExportButton';
 
 const RegistrarCORManagement = () => {
     const { success, error, info } = useToast();
@@ -91,6 +92,11 @@ const RegistrarCORManagement = () => {
                     <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-xs">Enrollment Verification & Compliance</p>
                 </div>
                 <div className="flex gap-4">
+                    <ExportButton 
+                        endpoint={endpoints.exportEnrollments} 
+                        filename="enrollments" 
+                        label="Export Enrollments" 
+                    />
                     <Button variant="secondary" icon={RefreshCw} onClick={fetchStudents} loading={loading}>
                         REFRESH REGISTRY
                     </Button>

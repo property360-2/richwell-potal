@@ -21,6 +21,9 @@ import Button from '../../components/ui/Button';
 import SEO from '../../components/shared/SEO';
 import { api, endpoints } from '../../api';
 
+import DashboardAlerts from '../../components/ui/DashboardAlerts';
+import DashboardSkeleton from '../../components/skeletons/DashboardSkeleton';
+
 const RegistrarDashboard = () => {
     const { user } = useAuth();
     const { error } = useToast();
@@ -70,16 +73,13 @@ const RegistrarDashboard = () => {
     };
 
     if (loading) {
-        return (
-            <div className="min-h-[calc(100vh-64px)] flex items-center justify-center">
-                <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-            </div>
-        );
+        return <DashboardSkeleton />;
     }
 
     return (
         <div className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in duration-700">
             <SEO title="Registrar Dashboard" description="Administrative control center for student management and academic catalog." />
+            <DashboardAlerts />
             {/* Welcome Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div>
@@ -210,6 +210,13 @@ const RegistrarDashboard = () => {
                         icon={Lock}
                         color="indigo"
                         link="/registrar/grade-finalization"
+                    />
+                    <ActionCard 
+                        title="Document Release" 
+                        desc="Issue TORs, certificates, and official records"
+                        icon={FileText}
+                        color="blue"
+                        link="/registrar/documents"
                     />
                 </div>
             </div>

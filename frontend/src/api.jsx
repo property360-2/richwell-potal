@@ -241,15 +241,19 @@ export const api = {
 // API Endpoints
 export const endpoints = {
     // Authentication & Accounts
-    accounts: {
-        login: '/accounts/login/',
-        logout: '/accounts/logout/',
-        profile: '/accounts/me/',
-        changePassword: '/accounts/change-password/',
-        requestPasswordReset: '/accounts/password/request-reset/',
-        validateResetToken: '/accounts/password/validate-token/',
-        resetPassword: '/accounts/password/reset/',
-    },
+    // Auth & Profile
+    login: '/accounts/login/',
+    logout: '/accounts/logout/',
+    refreshToken: '/accounts/token/refresh/',
+    profile: '/accounts/me/',
+    changePassword: '/accounts/change-password/',
+    passwordRequestReset: '/accounts/password/request-reset/',
+    passwordValidateToken: '/accounts/password/validate-token/',
+    passwordReset: '/accounts/password/reset/',
+    // The following were originally nested under 'accounts' and are now moved to top-level
+    requestPasswordReset: '/accounts/password/request-reset/',
+    validateResetToken: '/accounts/password/validate-token/',
+    resetPassword: '/accounts/password/reset/',
     tokenRefresh: '/accounts/token/refresh/', // Kept at top level as per instruction's implied scope
 
     // Epic 1: Admissions
@@ -336,6 +340,8 @@ export const endpoints = {
     cashierPendingPayments: '/admissions/cashier/students/pending-payments/',
     cashierTodayTransactions: '/admissions/cashier/today-transactions/',
     cashierRecordPayment: '/admissions/payments/record/',
+    cashierPaymentAdjust: '/admissions/payments/adjust/',
+    paymentTransactions: '/admissions/payments/transactions/',
     cashierStudentPayments: (enrollmentId) => `/admissions/payments/student/${enrollmentId}/`,
 
     // Registrar endpoints
@@ -346,13 +352,12 @@ export const endpoints = {
     // Registrar Student Management (EPIC 7)
     registrarStudents: '/accounts/students/',
     registrarStudentDetail: (id) => `/accounts/students/${id}/`,
+    updateStudentStanding: (id) => `/admissions/students/${id}/standing/`,
 
-    // Missing endpoints added for Registrar
+    // Registrar Transferee & COR
     transfereeCreate: '/admissions/transferee/',
     transfereeCredits: (id) => `/admissions/transferee/${id}/credits/`,
     subjectEnrollments: '/admissions/enrollment/',
-    incReport: '/admissions/grades/inc-report/',
-    processExpiredIncs: '/admissions/grades/process-expired-incs/',
     generateCor: (id) => `/admissions/enrollment/${id}/cor/`,
 
     // Head/Department Head endpoints
@@ -361,19 +366,23 @@ export const endpoints = {
     headReject: (id) => `/admissions/head/reject/${id}/`,
     headBulkApprove: '/admissions/head/bulk-approve/',
 
-    // COR Generation
-    generateCOR: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/cor/`,
 
-    // Document Release
+
+    // Document Release (EPIC 6)
     createDocumentRelease: '/admissions/documents/release/',
     myReleases: '/admissions/documents/my-releases/',
     allReleases: '/admissions/documents/all/',
+    documentStats: '/admissions/documents/stats/',
+    studentDocuments: (studentId) => `/admissions/documents/student/${studentId}/`,
+    documentDetail: (code) => `/admissions/documents/${code}/`,
+    revokeDocument: (code) => `/admissions/documents/${code}/revoke/`,
+    reissueDocument: (code) => `/admissions/documents/${code}/reissue/`,
     studentEnrollmentStatus: (studentId) => `/admissions/students/${studentId}/enrollment-status/`,
 
     // Curriculum Management (EPIC 7)
     curricula: '/academics/curricula/',
     curriculum: (id) => `/academics/curricula/${id}/`,
-    curriculumDetail: (id) => `/academics/curricula/${id}/`,
+
     curriculumSubjects: '/academics/curriculum-subjects/',
     curriculumStructure: (id) => `/academics/curricula/${id}/structure/`,
     curriculumAssignSubjects: (id) => `/academics/curricula/${id}/assign_subjects/`,
@@ -384,10 +393,11 @@ export const endpoints = {
     users: '/accounts/users/',
     staff: '/accounts/staff/',
     generateStudentId: '/accounts/generate-student-id/',
-    userPermissions: (userId) => `/accounts/users/${userId}/permissions/`,
-    updateUserPermission: (userId) => `/accounts/users/${userId}/permissions/update/`,
-    bulkUpdatePermissions: (userId) => `/accounts/users/${userId}/permissions/bulk/`,
-    permissionCategories: '/accounts/permissions/categories/',
+    // userPermissions: (userId) => `/accounts/users/${userId}/permissions/`,
+    // updateUserPermission: (userId) => `/accounts/users/${userId}/permissions/update/`,
+    // bulkUpdatePermissions: (userId) => `/accounts/users/${userId}/permissions/bulk/`,
+    permissionCategories: '/accounts/permissions/',
+    permissionToggle: (id) => `/accounts/permissions/${id}/toggle/`,
 
     // Audit Logs
     auditLogs: '/audit/logs/',
@@ -398,8 +408,13 @@ export const endpoints = {
     systemConfig: '/core/config/',
     systemConfigDetail: (key) => `/core/config/${key}/`,
 
-    // Reports
-    reports: '/admissions/reports/',
+    // Exam Permits
+    myExamPermits: '/admissions/my-exam-permits/',
+    generateExamPermit: '/admissions/generate-exam-permit/',
+    printExamPermit: (id) => `/admissions/print-exam-permit/${id}/`,
+    examMappings: '/admissions/exam-mappings/',
+    examMappingDetail: (id) => `/admissions/exam-mappings/${id}/`,
+    examPermitList: '/admissions/exam-permits/',
 
     // Notifications
     notifications: {
@@ -430,7 +445,45 @@ export const endpoints = {
     sectionsForFinalization: '/admissions/grades/sections/',
     finalizeSection: (id) => `/admissions/grades/section/${id}/finalize/`,
 
+    // Data Exports (binary file downloads)
+    exportStudents: '/admissions/export/students/',
+    exportEnrollments: '/admissions/export/enrollments/',
+    exportPayments: '/admissions/export/payments/',
+
     // Legacy endpoints (for backwards compatibility)
     me: '/accounts/me/',
 };
 
+/**
+ * Binary file download helper for export endpoints.
+ * Handles JWT auth, blob response, and triggers browser download.
+ * Usage: await downloadFile(endpoints.exportStudents, { format: 'excel' });
+ */
+export const downloadFile = async (endpointUrl, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const fullUrl = `${API_BASE_URL}${endpointUrl}${query ? '?' + query : ''}`;
+
+    const token = TokenManager.getAccessToken();
+    const res = await fetch(fullUrl, {
+        headers: { 'Authorization': `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+        const errorText = await res.text().catch(() => 'Download failed');
+        throw new Error(errorText || `Export failed (${res.status})`);
+    }
+
+    // Extract filename from Content-Disposition header
+    const disposition = res.headers.get('Content-Disposition');
+    const filename = disposition?.match(/filename="(.+)"/)?.[1] || 'export.xlsx';
+
+    // Trigger browser download via temporary anchor
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+};

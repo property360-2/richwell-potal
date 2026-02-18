@@ -101,5 +101,20 @@ export const AdminService = {
 
     activateSemester: async (id) => {
         return await api.post(endpoints.activateTerm(id));
+    },
+
+    // Payment Transaction Log
+    getTransactions: async (filters = {}, page = 1) => {
+        const params = new URLSearchParams();
+        if (filters.search) params.append('search', filters.search);
+        if (filters.payment_mode) params.append('payment_mode', filters.payment_mode);
+        if (filters.type) params.append('type', filters.type);
+        if (filters.date_from) params.append('date_from', filters.date_from);
+        if (filters.date_to) params.append('date_to', filters.date_to);
+        if (page > 1) params.append('page', page);
+
+        const queryString = params.toString();
+        const url = queryString ? `${endpoints.paymentTransactions}?${queryString}` : endpoints.paymentTransactions;
+        return await api.get(url);
     }
 };

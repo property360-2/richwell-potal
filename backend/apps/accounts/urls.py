@@ -25,10 +25,10 @@ urlpatterns = [
     # Permission Management
     path('generate-student-id/', views.GenerateStudentIdView.as_view(), name='generate-student-id'),
     path('users/', views.UserListView.as_view(), name='user-list'),
-    # path('users/<uuid:user_id>/permissions/', views.UserPermissionsView.as_view(), name='user-permissions'),
-    # path('users/<uuid:user_id>/permissions/update/', views.UpdateUserPermissionView.as_view(), name='update-permission'),
-    # path('users/<uuid:user_id>/permissions/bulk/', views.BulkUpdateUserPermissionsView.as_view(), name='bulk-update-permissions'),
-    # path('permissions/categories/', views.PermissionCategoryListView.as_view(), name='permission-categories'),
+    
+    # Permission Management
+    path('permissions/', views.PermissionCategoryViewSet.as_view({'get': 'list'}), name='permission-list'),
+    path('permissions/<uuid:pk>/toggle/', views.PermissionToggleView.as_view(), name='permission-toggle'),
 ]
 
 router = DefaultRouter()

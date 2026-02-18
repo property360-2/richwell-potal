@@ -23,6 +23,8 @@ import { Button, Badge, StatCard, Input, Select, Textarea, Card, FormField } fro
 import SEO from '../../components/shared/SEO';
 import CashierService from './services/CashierService';
 import { formatCurrency } from '../../utils/formatters';
+import ExportButton from '../../components/ui/ExportButton';
+import { endpoints } from '../../api';
 
 const CashierDashboard = () => {
     const { success, error, info, warning } = useToast();
@@ -38,6 +40,7 @@ const CashierDashboard = () => {
     // UI State
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
     
     // Form State
@@ -45,6 +48,11 @@ const CashierDashboard = () => {
         amount: '',
         receipt: '',
         month: 1
+    });
+    const [adjustData, setAdjustData] = useState({
+        amount: '',
+        reason: '',
+        paymentMode: 'CASH'
     });
 
     useEffect(() => {
@@ -110,6 +118,32 @@ const CashierDashboard = () => {
         }
     };
 
+    const handleAdjustPayment = async () => {
+        if (!adjustData.amount || !adjustData.reason) return warning('Amount and reason are required');
+        if (adjustData.reason.trim().length < 5) return warning('Reason must be at least 5 characters');
+
+        try {
+            setProcessing(true);
+            const payload = {
+                enrollment_id: selectedStudent.enrollment_id || selectedStudent.enrollment?.id,
+                amount: parseFloat(adjustData.amount),
+                adjustment_reason: adjustData.reason,
+                payment_mode: adjustData.paymentMode
+            };
+
+            const res = await CashierService.adjustPayment(payload);
+            if (res) {
+                success('Adjustment recorded successfully');
+                setIsAdjustModalOpen(false);
+                setAdjustData({ amount: '', reason: '', paymentMode: 'CASH' });
+                fetchDashboardData();
+            }
+        } catch (err) {
+            error('Adjustment failed — check details and try again');
+        } finally {
+            setProcessing(false);
+        }
+    };
 
     if (loading) return (
         <div className="h-screen flex items-center justify-center">
@@ -133,7 +167,12 @@ const CashierDashboard = () => {
                         Payment Processing & Revenue Tracking
                     </p>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex gap-4 items-center">
+                    <ExportButton 
+                        endpoint={endpoints.exportPayments} 
+                        filename="payments" 
+                        label="Export Payments" 
+                    />
                     <div className="bg-white border border-gray-100 rounded-[28px] px-8 py-3 shadow-xl shadow-green-500/5 flex items-center gap-4">
                         <div className="text-right">
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Today's Collection</p>
@@ -284,22 +323,32 @@ const CashierDashboard = () => {
                                 </div>
                             </div>
 
-                            <Button 
-                                variant="primary" 
-                                className="w-full py-5" 
-                                icon={Banknote}
-                                onClick={() => {
-                                    const next = selectedStudent.payment_buckets?.find(b => b.paid < b.required);
-                                    setPaymentData({ 
-                                        amount: next ? (next.required - next.paid).toString() : '', 
-                                        receipt: '', 
-                                        month: next ? next.month : 1 
-                                    });
-                                    setIsPaymentModalOpen(true);
-                                }}
-                            >
-                                START TRANSACTION
-                            </Button>
+                            <div className="flex gap-3">
+                                <Button 
+                                    variant="primary" 
+                                    className="flex-1 py-5" 
+                                    icon={Banknote}
+                                    onClick={() => {
+                                        const next = selectedStudent.payment_buckets?.find(b => b.paid < b.required);
+                                        setPaymentData({ 
+                                            amount: next ? (next.required - next.paid).toString() : '', 
+                                            receipt: '', 
+                                            month: next ? next.month : 1 
+                                        });
+                                        setIsPaymentModalOpen(true);
+                                    }}
+                                >
+                                    COLLECT
+                                </Button>
+                                <Button 
+                                    variant="secondary" 
+                                    className="py-5" 
+                                    icon={ArrowRightLeft}
+                                    onClick={() => setIsAdjustModalOpen(true)}
+                                >
+                                    ADJUST
+                                </Button>
+                            </div>
                         </div>
                     )}
 
@@ -391,6 +440,79 @@ const CashierDashboard = () => {
                                     {processing ? 'POSTING...' : 'FINALIZE'}
                                 </Button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Adjustment Modal */}
+            {isAdjustModalOpen && selectedStudent && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl">
+                        <div className="flex justify-between items-center mb-8">
+                            <div>
+                                <h3 className="text-xl font-black text-gray-900 tracking-tight">Payment Adjustment</h3>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
+                                    {selectedStudent.student_name || `${selectedStudent.first_name} ${selectedStudent.last_name}`}
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
+                                <ArrowRightLeft className="w-5 h-5" />
+                            </div>
+                        </div>
+
+                        <div className="space-y-5">
+                            <div>
+                                <FormField label="Adjustment Amount (₱)">
+                                    <Input 
+                                        type="number" 
+                                        value={adjustData.amount} 
+                                        onChange={(e) => setAdjustData(d => ({ ...d, amount: e.target.value }))} 
+                                        placeholder="Enter amount"
+                                        className="text-lg font-black"
+                                    />
+                                </FormField>
+                                <p className="text-[9px] font-bold text-gray-400 mt-1 ml-1">Use positive value for credit, negative for debit</p>
+                            </div>
+
+                            <FormField label="Reason for Adjustment">
+                                <textarea
+                                    value={adjustData.reason}
+                                    onChange={(e) => setAdjustData(d => ({ ...d, reason: e.target.value }))}
+                                    placeholder="Describe why this adjustment is being made (min 5 characters)"
+                                    rows={3}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-2xl text-sm font-bold text-gray-900 placeholder-gray-300 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all resize-none"
+                                />
+                            </FormField>
+
+                            <FormField label="Payment Mode">
+                                <Select 
+                                    value={adjustData.paymentMode}
+                                    onChange={(e) => setAdjustData(d => ({ ...d, paymentMode: e.target.value }))}
+                                    options={[
+                                        { value: 'CASH', label: 'Cash' },
+                                        { value: 'ONLINE', label: 'Online Banking' },
+                                        { value: 'GCASH', label: 'GCash' },
+                                        { value: 'MAYA', label: 'Maya' },
+                                        { value: 'CHECK', label: 'Check' },
+                                        { value: 'OTHER', label: 'Other' }
+                                    ]}
+                                    className="text-xs uppercase tracking-widest"
+                                />
+                            </FormField>
+                        </div>
+
+                        <div className="flex gap-4 mt-8">
+                            <Button variant="secondary" className="flex-1" onClick={() => { setIsAdjustModalOpen(false); setAdjustData({ amount: '', reason: '', paymentMode: 'CASH' }); }}>CANCEL</Button>
+                            <Button 
+                                variant="primary" 
+                                className="flex-1" 
+                                icon={CheckCircle2} 
+                                onClick={handleAdjustPayment}
+                                disabled={processing}
+                            >
+                                {processing ? 'PROCESSING...' : 'CONFIRM ADJUSTMENT'}
+                            </Button>
                         </div>
                     </div>
                 </div>

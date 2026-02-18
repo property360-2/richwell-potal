@@ -18,55 +18,37 @@ import {
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import { useEnrollmentData, useEnrollSubjects } from '../../hooks/useEnrollment';
 
 const SubjectEnrollmentPage = () => {
     const { user } = useAuth();
     const { success, error, warning } = useToast();
     const navigate = useNavigate();
 
-    const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
-    const [data, setData] = useState({
+
+
+    const [cart, setCart] = useState([]);
+    const [filters, setFilters] = useState({ yearLevel: '', semester: '' });
+    const [isCartOpen, setIsCartOpen] = useState(false);
+
+    const { data: enrollmentData, isLoading: loading, error: queryError } = useEnrollmentData();
+    const { mutate: enroll, isPending: submitting } = useEnrollSubjects();
+
+    const data = enrollmentData || {
         recommendedSubjects: [],
         availableSubjects: [],
         enrolledSubjects: [],
         maxUnits: 24,
         enrollmentStatus: null,
         activeSemester: null
-    });
-
-    const [cart, setCart] = useState([]);
-    const [filters, setFilters] = useState({ yearLevel: '', semester: '' });
-    const [isCartOpen, setIsCartOpen] = useState(false);
+    };
 
     useEffect(() => {
-        fetchEnrollmentData();
-    }, []);
-
-    const fetchEnrollmentData = async () => {
-        try {
-            setLoading(true);
-            const response = await fetch('/api/v1/admissions/enrollment/data/');
-            if (response.ok) {
-                const json = await response.json();
-                setData({
-                    recommendedSubjects: (json.recommendedSubjects || []).map(mapSubject),
-                    availableSubjects: (json.availableSubjects || []).map(mapSubject),
-                    enrolledSubjects: json.enrolledSubjects || [],
-                    maxUnits: json.maxUnits || 24,
-                    enrollmentStatus: json.enrollmentStatus?.status,
-                    activeSemester: json.active_semester
-                });
-            } else {
-                error('Failed to load enrollment data');
-            }
-        } catch (err) {
-            console.error(err);
-            error('An error occurred');
-        } finally {
-            setLoading(false);
+        if (queryError) {
+            error('Failed to load enrollment data');
+            console.error(queryError);
         }
-    };
+    }, [queryError]);
 
     const mapSubject = (s) => ({
         ...s,
@@ -113,35 +95,24 @@ const SubjectEnrollmentPage = () => {
         setCart(prev => prev.filter(item => item.subject.id !== subjectId));
     };
 
-    const finalizeEnrollment = async () => {
-        setSubmitting(true);
-        try {
-            const payload = {
-                enrollments: cart.map(item => ({
-                    subject: item.subject.id,
-                    section: item.section.id
-                }))
-            };
-            const response = await fetch('/api/v1/admissions/enrollment/enroll/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (response.ok) {
+    const finalizeEnrollment = () => {
+        const payload = {
+            enrollments: cart.map(item => ({
+                subject: item.subject.id,
+                section: item.section.id
+            }))
+        };
+        
+        enroll(payload, {
+            onSuccess: () => {
                 success('Enrollment submitted successfully!');
                 setCart([]);
                 setIsCartOpen(false);
-                await fetchEnrollmentData();
-            } else {
-                const err = await response.json();
-                error(err.detail || 'Submission failed');
+            },
+            onError: (err) => {
+                error(err.message || 'Submission failed');
             }
-        } catch (err) {
-            error('Network error');
-        } finally {
-            setSubmitting(false);
-        }
+        });
     };
 
     if (loading) {

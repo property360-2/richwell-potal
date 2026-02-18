@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import Button from '../../components/ui/Button';
+import { useSchedule } from '../../hooks/useSchedule';
 
 const DAYS = [
     { code: 'MON', name: 'Monday', short: 'Mon' },
@@ -44,43 +45,15 @@ const StudentSchedule = () => {
     const { user } = useAuth();
     const { error } = useToast();
 
-    const [loading, setLoading] = useState(true);
-    const [schedule, setSchedule] = useState([]);
-    const [viewMode, setViewMode] = useState('grid');
-    const [semesterInfo, setSemesterInfo] = useState('');
+    const { data: scheduleData, isLoading: loading, error: queryError } = useSchedule();
+    const schedule = scheduleData?.schedule || [];
+    const semesterInfo = scheduleData?.semester || '';
 
     useEffect(() => {
-        fetchSchedule();
-    }, []);
-
-    const fetchSchedule = async () => {
-        try {
-            setLoading(true);
-            const res = await fetch('/api/v1/students/my-schedule/');
-            if (res.ok) {
-                const data = await res.json();
-                if (data.data) {
-                    const flatSchedule = [];
-                    data.data.schedule.forEach(dayData => {
-                        dayData.slots.forEach(slot => {
-                            flatSchedule.push({
-                                ...slot,
-                                day: dayData.day
-                            });
-                        });
-                    });
-                    setSchedule(flatSchedule);
-                    setSemesterInfo(data.data.semester);
-                }
-            } else {
-                error('Failed to load schedule');
-            }
-        } catch (err) {
-            error('Network error');
-        } finally {
-            setLoading(false);
+        if (queryError) {
+            error('Failed to load schedule');
         }
-    };
+    }, [queryError]);
 
     const getSubjectColor = (code) => {
         const uniqueCodes = [...new Set(schedule.map(s => s.subject_code))];

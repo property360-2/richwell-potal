@@ -1602,8 +1602,177 @@ EditSubjectEnrollmentView = SimplePOSTView
 RegistrarOverrideEnrollmentView = SimplePOSTView
 
 PaymentRecordView = SimplePOSTView
-PaymentAdjustmentView = SimplePOSTView
-PaymentTransactionListView = SimpleGETView
+class PaymentAdjustmentView(APIView):
+    """
+    Create a payment adjustment transaction.
+    Used by cashiers to correct errors, apply refunds, or make manual adjustments.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        from apps.enrollment.models import Enrollment, PaymentTransaction
+        from decimal import Decimal, InvalidOperation
+        from datetime import datetime
+        import uuid
+
+        user = request.user
+        # Permission check: Cashier, Registrar, or Admin
+        if user.role not in ['CASHIER', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
+            return Response({"error": "Permission denied"}, status=403)
+
+        enrollment_id = request.data.get('enrollment_id')
+        amount = request.data.get('amount')
+        adjustment_reason = request.data.get('adjustment_reason', '')
+        original_transaction_id = request.data.get('original_transaction_id')
+        payment_mode = request.data.get('payment_mode', 'CASH')
+
+        # Validation
+        if not enrollment_id:
+            return Response({"error": "Enrollment ID is required"}, status=400)
+        if not amount:
+            return Response({"error": "Adjustment amount is required"}, status=400)
+        if not adjustment_reason or len(adjustment_reason.strip()) < 5:
+            return Response({"error": "Adjustment reason is required (min 5 characters)"}, status=400)
+
+        try:
+            amount = Decimal(str(amount))
+        except (InvalidOperation, ValueError):
+            return Response({"error": "Invalid amount format"}, status=400)
+
+        if amount == 0:
+            return Response({"error": "Adjustment amount cannot be zero"}, status=400)
+
+        # Get enrollment
+        try:
+            enrollment = Enrollment.objects.get(id=enrollment_id)
+        except Enrollment.DoesNotExist:
+            return Response({"error": "Enrollment not found"}, status=404)
+
+        # Get original transaction if provided
+        original_txn = None
+        if original_transaction_id:
+            try:
+                original_txn = PaymentTransaction.objects.get(id=original_transaction_id)
+            except PaymentTransaction.DoesNotExist:
+                return Response({"error": "Original transaction not found"}, status=404)
+
+        # Generate adjustment receipt number
+        now = datetime.now()
+        random_suffix = str(uuid.uuid4())[:5].upper()
+        receipt_number = f"ADJ-{now.strftime('%Y%m%d')}-{random_suffix}"
+
+        # Ensure unique receipt
+        while PaymentTransaction.objects.filter(receipt_number=receipt_number).exists():
+            random_suffix = str(uuid.uuid4())[:5].upper()
+            receipt_number = f"ADJ-{now.strftime('%Y%m%d')}-{random_suffix}"
+
+        # Create adjustment transaction
+        transaction = PaymentTransaction.objects.create(
+            enrollment=enrollment,
+            amount=abs(amount),
+            payment_mode=payment_mode,
+            receipt_number=receipt_number,
+            is_adjustment=True,
+            adjustment_reason=adjustment_reason.strip(),
+            original_transaction=original_txn,
+            processed_by=user,
+            notes=f"Adjustment: {adjustment_reason.strip()}"
+        )
+
+        return Response({
+            "success": True,
+            "data": {
+                "id": str(transaction.id),
+                "receipt_number": transaction.receipt_number,
+                "amount": str(transaction.amount),
+                "adjustment_reason": transaction.adjustment_reason,
+                "payment_mode": transaction.payment_mode,
+                "processed_by": user.get_full_name(),
+                "processed_at": transaction.processed_at.isoformat() if transaction.processed_at else None,
+                "original_receipt": original_txn.receipt_number if original_txn else None,
+            }
+        }, status=201)
+class PaymentTransactionListView(APIView):
+    """
+    List all payment transactions with filtering and pagination.
+    For admin/registrar oversight of all financial transactions.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.enrollment.models import PaymentTransaction
+        from django.db.models import Q
+
+        user = request.user
+        if user.role not in ['ADMIN', 'CASHIER', 'REGISTRAR', 'HEAD_REGISTRAR']:
+            return Response({"error": "Permission denied"}, status=403)
+
+        qs = PaymentTransaction.objects.select_related(
+            'enrollment', 'enrollment__student', 'processed_by'
+        ).order_by('-processed_at')
+
+        # Search filter
+        search = request.query_params.get('search', '')
+        if search:
+            qs = qs.filter(
+                Q(receipt_number__icontains=search) |
+                Q(enrollment__student__first_name__icontains=search) |
+                Q(enrollment__student__last_name__icontains=search) |
+                Q(enrollment__student__student_number__icontains=search)
+            )
+
+        # Date range filter
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        if date_from:
+            qs = qs.filter(processed_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(processed_at__date__lte=date_to)
+
+        # Payment mode filter
+        mode = request.query_params.get('payment_mode')
+        if mode:
+            qs = qs.filter(payment_mode=mode)
+
+        # Type filter (regular vs adjustment)
+        txn_type = request.query_params.get('type')
+        if txn_type == 'adjustment':
+            qs = qs.filter(is_adjustment=True)
+        elif txn_type == 'regular':
+            qs = qs.filter(is_adjustment=False)
+
+        # Pagination
+        page = int(request.query_params.get('page', 1))
+        per_page = 25
+        total = qs.count()
+        start = (page - 1) * per_page
+        end = start + per_page
+        transactions = qs[start:end]
+
+        results = []
+        for txn in transactions:
+            student = txn.enrollment.student if txn.enrollment else None
+            results.append({
+                'id': str(txn.id),
+                'receipt_number': txn.receipt_number,
+                'amount': str(txn.amount),
+                'payment_mode': txn.payment_mode,
+                'is_adjustment': txn.is_adjustment,
+                'adjustment_reason': txn.adjustment_reason or '',
+                'student_name': student.get_full_name() if student else 'Unknown',
+                'student_number': student.student_number if student else 'N/A',
+                'processed_by': txn.processed_by.get_full_name() if txn.processed_by else 'System',
+                'processed_at': txn.processed_at.isoformat() if txn.processed_at else None,
+                'notes': txn.notes or '',
+                'original_receipt': txn.original_transaction.receipt_number if txn.original_transaction else None,
+            })
+
+        return Response({
+            'results': results,
+            'count': total,
+            'next': page * per_page < total,
+            'previous': page > 1,
+        })
 StudentPaymentHistoryView = SimpleGETView
 class CashierStudentSearchView(APIView):
     """
@@ -1762,7 +1931,39 @@ from .views_student_grades import (
     INCReportView,
     ProcessExpiredINCsView
 )
-UpdateAcademicStandingView = SimplePOSTView
+class UpdateAcademicStandingView(APIView):
+    """
+    Update a student's academic standing.
+    POST: Set the academic standing (e.g., Good Standing, Dean's List, Probation).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, student_id, *args, **kwargs):
+        from apps.accounts.models import StudentProfile
+
+        user = request.user
+        if user.role not in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
+            return Response({"error": "Permission denied"}, status=403)
+
+        try:
+            profile = StudentProfile.objects.select_related('user').get(user__id=student_id)
+        except StudentProfile.DoesNotExist:
+            return Response({"error": "Student not found"}, status=404)
+
+        standing = request.data.get('academic_standing', '').strip()
+        if not standing:
+            return Response({"error": "academic_standing is required"}, status=400)
+        if len(standing) > 100:
+            return Response({"error": "academic_standing must be 100 characters or less"}, status=400)
+
+        profile.academic_standing = standing
+        profile.save(update_fields=['academic_standing'])
+
+        return Response({
+            "message": "Academic standing updated successfully",
+            "academic_standing": profile.academic_standing,
+            "student_name": profile.user.get_full_name()
+        })
 
 # Import document release views
 from .views_documents import (

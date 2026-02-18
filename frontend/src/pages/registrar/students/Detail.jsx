@@ -16,13 +16,27 @@ import {
     ShieldCheck,
     Edit2,
     GraduationCap,
-    Clock
+    Clock,
+    Save,
+    Award
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import Button from '../../../components/ui/Button';
 import SEO from '../../../components/shared/SEO';
 import Badge from '../../../components/ui/Badge';
 import { api, endpoints } from '../../../api';
+import OverrideEnrollModal from './modals/OverrideEnrollModal';
+
+const STANDING_OPTIONS = [
+    'Good Standing',
+    "Dean's List",
+    "President's List",
+    'Probation',
+    'Academic Warning',
+    'Dismissed',
+    'Graduating',
+    'Irregular'
+];
 
 const RegistrarStudentDetail = () => {
     const { id } = useParams();
@@ -32,6 +46,7 @@ const RegistrarStudentDetail = () => {
     const [loading, setLoading] = useState(true);
     const [student, setStudent] = useState(null);
     const [activeTab, setActiveTab] = useState('profile');
+    const [showOverrideModal, setShowOverrideModal] = useState(false);
 
     useEffect(() => {
         fetchStudentDetails();
@@ -161,10 +176,27 @@ const RegistrarStudentDetail = () => {
             {/* Tab Panels */}
             <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 p-8 md:p-12 overflow-hidden">
                 {activeTab === 'profile' && <ProfilePanel student={student} />}
-                {activeTab === 'academic' && <AcademicPanel student={student} />}
-                {activeTab === 'enrollment' && <EnrollmentPanel student={student} />}
+                {activeTab === 'academic' && <AcademicPanel student={student} onRefresh={fetchStudentDetails} />}
+                {activeTab === 'enrollment' && (
+                    <EnrollmentPanel 
+                        student={student} 
+                        onOverride={() => setShowOverrideModal(true)} 
+                    />
+                )}
                 {activeTab === 'credits' && <CreditsPanel student={student} />}
             </div>
+
+            {/* Modal */}
+            {showOverrideModal && student.current_enrollment_id && (
+                <OverrideEnrollModal 
+                    enrollmentId={student.current_enrollment_id}
+                    onClose={() => setShowOverrideModal(false)}
+                    onSuccess={() => {
+                        success('Subject added successfully via override');
+                        fetchStudentDetails();
+                    }}
+                />
+            )}
         </div>
     );
 };
@@ -187,29 +219,134 @@ const ProfilePanel = ({ student }) => (
     </div>
 );
 
-const AcademicPanel = ({ student }) => (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
-        <div className="bg-blue-50 rounded-3xl p-8 border border-blue-100 flex items-center justify-between">
-            <div>
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Current Academic Status</p>
-                <h3 className="text-2xl font-black text-blue-900 uppercase tracking-tighter">
-                    {student.academic_status || 'PROVISIONAL'}
-                </h3>
-            </div>
-            <div className="p-4 bg-white rounded-2xl text-blue-600 shadow-lg shadow-blue-100">
-                <ShieldCheck className="w-8 h-8" />
-            </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatsBox label="Units Completed" value={student.units_completed || 0} color="blue" />
-            <StatsBox label="General GPA" value={student.gpa || '0.00'} color="green" />
-            <StatsBox label="Outstanding INC" value={student.inc_count || 0} color="amber" />
-        </div>
-    </div>
-);
+const AcademicPanel = ({ student, onRefresh }) => {
+    const { success, error } = useToast();
+    const [editing, setEditing] = useState(false);
+    const [standing, setStanding] = useState(student.academic_standing || '');
+    const [saving, setSaving] = useState(false);
 
-const EnrollmentPanel = ({ student }) => (
+    const getStandingColor = (val) => {
+        const v = (val || '').toLowerCase();
+        if (v.includes('dean') || v.includes('president')) return 'bg-emerald-50 border-emerald-100 text-emerald-700';
+        if (v.includes('probation') || v.includes('warning')) return 'bg-red-50 border-red-100 text-red-700';
+        if (v.includes('dismissed')) return 'bg-red-100 border-red-200 text-red-800';
+        return 'bg-indigo-50 border-indigo-100 text-indigo-700';
+    };
+
+    const handleSave = async () => {
+        if (!standing.trim()) {
+            error('Please select a standing');
+            return;
+        }
+        try {
+            setSaving(true);
+            await api.post(endpoints.updateStudentStanding(student.id), { academic_standing: standing });
+            success('Academic standing updated');
+            setEditing(false);
+            if (onRefresh) onRefresh();
+        } catch (err) {
+            console.error('Failed to update standing', err);
+            error('Failed to update standing');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+            {/* Academic Status Banner */}
+            <div className="bg-blue-50 rounded-3xl p-8 border border-blue-100 flex items-center justify-between">
+                <div>
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Current Academic Status</p>
+                    <h3 className="text-2xl font-black text-blue-900 uppercase tracking-tighter">
+                        {student.academic_status || 'PROVISIONAL'}
+                    </h3>
+                </div>
+                <div className="p-4 bg-white rounded-2xl text-blue-600 shadow-lg shadow-blue-100">
+                    <ShieldCheck className="w-8 h-8" />
+                </div>
+            </div>
+
+            {/* Academic Standing Card */}
+            <div className={`rounded-3xl p-8 border flex flex-col md:flex-row items-start md:items-center justify-between gap-6 ${getStandingColor(student.academic_standing || standing)}`}>
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white/60 rounded-2xl">
+                        <Award className="w-7 h-7" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-60">Academic Standing</p>
+                        {!editing ? (
+                            <h3 className="text-xl font-black uppercase tracking-tighter">
+                                {student.academic_standing || 'Not Set'}
+                            </h3>
+                        ) : (
+                            <select
+                                value={standing}
+                                onChange={(e) => setStanding(e.target.value)}
+                                className="px-4 py-2.5 bg-white border-2 border-transparent rounded-xl focus:border-blue-500 outline-none font-bold text-sm cursor-pointer min-w-[220px]"
+                            >
+                                <option value="">Select Standing...</option>
+                                {STANDING_OPTIONS.map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    {!editing ? (
+                        <button
+                            onClick={() => setEditing(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-white/80 hover:bg-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm"
+                        >
+                            <Edit2 className="w-3.5 h-3.5" /> EDIT
+                        </button>
+                    ) : (
+                        <>
+                            <button
+                                onClick={() => { setEditing(false); setStanding(student.academic_standing || ''); }}
+                                className="px-5 py-2.5 bg-white/80 hover:bg-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm"
+                            >
+                                CANCEL
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
+                            >
+                                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                SAVE
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <StatsBox label="Units Completed" value={student.units_completed || 0} color="blue" />
+                <StatsBox label="General GPA" value={student.gpa || '0.00'} color="green" />
+                <StatsBox label="Outstanding INC" value={student.inc_count || 0} color="amber" />
+            </div>
+        </div>
+    );
+};
+
+const EnrollmentPanel = ({ student, onOverride }) => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+        <div className="flex justify-between items-center">
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">History</h3>
+            {student.current_enrollment_id && (
+                <Button 
+                    variant="secondary" 
+                    icon={ShieldCheck} 
+                    className="text-xs py-2 px-4"
+                    onClick={onOverride}
+                >
+                    OVERRIDE ENROLL
+                </Button>
+            )}
+        </div>
         {student.enrollment_history?.length > 0 ? (
             <div className="divide-y divide-gray-50">
                 {student.enrollment_history.map((e, i) => (

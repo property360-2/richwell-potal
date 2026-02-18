@@ -21,6 +21,7 @@ import Badge from '../../components/ui/Badge';
 import StatCard from '../../components/ui/StatCard';
 import SEO from '../../components/shared/SEO';
 import { formatCurrency } from '../../utils/formatters';
+import DashboardSkeleton from '../../components/skeletons/DashboardSkeleton';
 
 const StudentDashboard = () => {
     const { user } = useAuth();
@@ -82,11 +83,7 @@ const StudentDashboard = () => {
     };
 
     if (loading) {
-        return (
-            <div className="min-h-[calc(100vh-64px)] flex items-center justify-center">
-                <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-            </div>
-        );
+        return <DashboardSkeleton />;
     }
 
     const { enrollmentStatus, enrolledUnits, paymentBuckets, gpa } = dashboardData;
@@ -108,6 +105,13 @@ const StudentDashboard = () => {
                     <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-xs">Student Portal • {user?.student_number || 'REGISTRATION PENDING'}</p>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
+                    <Button 
+                        variant="white"
+                        className="text-blue-600 bg-white shadow-sm border border-gray-200"
+                        onClick={() => navigate('/student/exam-permits')}
+                    >
+                        MY PERMITS
+                    </Button>
                     <Button 
                         variant="secondary" 
                         icon={Calendar} 

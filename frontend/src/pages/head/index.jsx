@@ -21,6 +21,8 @@ import Button from '../../components/ui/Button';
 import SEO from '../../components/shared/SEO';
 import HeadService from './services/HeadService';
 
+import DashboardAlerts from '../../components/ui/DashboardAlerts';
+
 const HeadDashboard = () => {
     const { user } = useAuth();
     const { success, error, info, warning } = useToast();

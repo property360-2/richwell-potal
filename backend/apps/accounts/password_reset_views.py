@@ -50,7 +50,7 @@ class RequestPasswordResetView(APIView):
         
         # Build reset URL
         frontend_url = settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') else 'http://localhost:3000'
-        reset_url = f"{frontend_url}/reset-password.html?token={token}"
+        reset_url = f"{frontend_url}/auth/reset-password?token={token}"
         
         # Send email
         subject = 'Richwell Colleges - Password Reset Request'

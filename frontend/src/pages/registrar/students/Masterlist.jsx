@@ -19,6 +19,7 @@ import Button from '../../../components/ui/Button';
 import SEO from '../../../components/shared/SEO';
 import { api, endpoints } from '../../../api';
 import AddStudentModal from './modals/AddStudentModal';
+import ExportButton from '../../../components/ui/ExportButton';
 
 const RegistrarStudentMasterlist = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -128,13 +129,20 @@ const RegistrarStudentMasterlist = () => {
                     </div>
                     <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] ml-1">Archive & Masterlist</p>
                 </div>
-                <Button 
-                    variant="primary" 
-                    icon={Plus} 
-                    onClick={() => setIsAddModalOpen(true)}
-                >
-                    ADD STUDENT
-                </Button>
+                <div className="flex gap-4">
+                    <ExportButton 
+                        endpoint={endpoints.exportStudents} 
+                        filename="students" 
+                        label="Export Students" 
+                    />
+                    <Button 
+                        variant="primary" 
+                        icon={Plus} 
+                        onClick={() => setIsAddModalOpen(true)}
+                    >
+                        ADD STUDENT
+                    </Button>
+                </div>
             </div>
 
             {/* Filters Bar */}

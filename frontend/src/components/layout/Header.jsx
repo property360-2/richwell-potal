@@ -15,7 +15,8 @@ import {
     Menu,
     X,
     Bell,
-    GraduationCap
+    GraduationCap,
+    Shield
 } from 'lucide-react';
 import NotificationBell from '../shared/NotificationBell';
 import MobileMenu from '../shared/MobileMenu';
@@ -48,9 +49,12 @@ const Header = () => {
         { name: 'Students', href: '/registrar/students', icon: Users, roles: ['REGISTRAR', 'ADMIN', 'CASHIER'] },
         { name: 'Resolutions', href: '/head/resolutions', icon: CheckCircle, roles: ['DEPARTMENT_HEAD', 'ADMIN'] },
         { name: 'Reports', href: '/head/reports', icon: FileText, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
+        { name: 'Permits', href: '/registrar/exam-permits', icon: FileText, roles: ['REGISTRAR', 'ADMIN'] },
+        { name: 'Config', href: '/registrar/exam-mappings', icon: Settings, roles: ['REGISTRAR', 'ADMIN'] },
         { name: 'Academics', href: '/academics', icon: GraduationCap, roles: ['ADMIN', 'HEAD_REGISTRAR'] },
         { name: 'Terms', href: '/admin/terms', icon: Calendar, roles: ['ADMIN'] },
         { name: 'Users', href: '/admin/users', icon: Users, roles: ['ADMIN'] },
+        { name: 'Permissions', href: '/admin/permissions', icon: Shield, roles: ['ADMIN'] },
         { name: 'System', href: '/admin/config', icon: Settings, roles: ['ADMIN'] },
         { name: 'Audit', href: '/admin/audit-logs', icon: Activity, roles: ['ADMIN'] },
     ];
