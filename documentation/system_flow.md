@@ -194,11 +194,12 @@ Exam permits are the **gate** between payment and exam eligibility.
 
 ### 8.1 Configuration
 *   **Admin/Registrar** sets `ExamMonthMapping` per semester:
-    *   PRELIM → Month 1 paid
-    *   MIDTERM → Month 2 paid
-    *   PREFINAL → Month 3 paid
-    *   FINAL → Month 4 paid
-
+    *   **Month 1**: Subject Enrollment
+    *   **Month 2**: Chapter Test
+    *   **Month 3**: PRELIM
+    *   **Month 4**: MIDTERM
+    *   **Month 5**: PREFINAL
+    *   **Month 6**: FINAL
 ### 8.2 Auto-Generation
 1.  **Trigger**: When a `MonthlyPaymentBucket` for the required month reaches `is_fully_paid = True`.
 2.  **System Action**: `GenerateExamPermitView` creates an `ExamPermit` with unique code (`EXP-YYYYMMDD-XXXXX`).
