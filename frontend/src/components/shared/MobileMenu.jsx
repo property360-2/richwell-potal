@@ -30,6 +30,7 @@ const MobileMenu = ({ isOpen, onClose, user, navigation, onLogout }) => {
                         <button 
                             onClick={onClose}
                             className="p-2 bg-white/10 hover:bg-white/20 rounded-2xl transition-all"
+                            aria-label="Close menu"
                         >
                             <X size={24} />
                         </button>
@@ -71,6 +72,7 @@ const MobileMenu = ({ isOpen, onClose, user, navigation, onLogout }) => {
                     <button
                         onClick={() => { onLogout(); onClose(); }}
                         className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-white text-rose-600 border border-rose-100 rounded-[20px] font-black text-sm uppercase tracking-widest shadow-sm hover:bg-rose-50 transition-all"
+                        aria-label="Logout"
                     >
                         <LogOut size={20} />
                         LOGOUT SYSTEM

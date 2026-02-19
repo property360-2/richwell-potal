@@ -10,13 +10,14 @@ import {
     Calendar
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
+import ConfirmModal from '../../../components/shared/ConfirmModal';
 import { SectionService } from '../services/SectionService';
 import { ProgramService } from '../services/ProgramService';
 import { useToast } from '../../../context/ToastContext';
 import AddSectionModal from '../modals/AddSectionModal';
 import EditSectionModal from '../modals/EditSectionModal';
 
-const SectionsTab = () => {
+const SectionsTab = ({ programId, onUpdate }) => {
     const { success: showSuccess, error: showError } = useToast();
     const [sections, setSections] = useState([]);
     const [programs, setPrograms] = useState([]);
@@ -83,16 +84,32 @@ const SectionsTab = () => {
         return () => clearTimeout(timeout);
     }, [searchQuery, programFilter, semesterFilter, yearLevelFilter]);
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this section?')) return;
-        
-        try {
-            await SectionService.deleteSection(id);
-            showSuccess('Section deleted successfully');
-            fetchSections();
-        } catch (err) {
-            showError('Failed to delete section');
-        }
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        isDestructive: false
+    });
+
+    const handleDelete = (id) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Delete Section?',
+            message: 'Are you sure you want to delete this section? This might affect enrolled students.',
+            isDestructive: true,
+            onConfirm: async () => {
+                try {
+                    await SectionService.deleteSection(id); // Changed from ProgramService.deleteSection
+                    showSuccess('Section deleted successfully'); // Changed from success
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    fetchSections(); // Changed from if (onUpdate) onUpdate();
+                } catch (err) {
+                    console.error(err);
+                    showError('Failed to delete section'); // Changed from error
+                }
+            }
+        });
     };
 
     const openEditModal = (section) => {
@@ -294,6 +311,16 @@ const SectionsTab = () => {
             )}
 
             {/* Modals */}
+
+            <ConfirmModal 
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                isDestructive={confirmModal.isDestructive}
+                confirmText="Delete Section"
+            />
             {isAddModalOpen && (
                 <AddSectionModal 
                     isOpen={isAddModalOpen}
@@ -307,6 +334,9 @@ const SectionsTab = () => {
                     semesters={semesters}
                 />
             )}
+            
+            {/* Edit Section Modal logic was fine outside the deleted block */}
+
 
             {isEditModalOpen && selectedSection && (
                 <EditSectionModal 

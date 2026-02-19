@@ -16,7 +16,7 @@ const Select = ({
         error: 'bg-red-50 border-red-200 focus:bg-white focus:border-red-400'
     };
 
-    const baseClasses = 'w-full px-5 py-4 pr-12 border rounded-2xl text-sm font-black text-gray-900 outline-none transition-all appearance-none disabled:opacity-50 disabled:cursor-not-allowed';
+    const baseClasses = 'w-full px-5 py-4 pr-12 border rounded-2xl text-sm font-black text-gray-900 outline-none transition-all appearance-none disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500';
     
     const variantClasses = variants[variant] || variants.default;
 

@@ -14,14 +14,36 @@ import {
     Layers
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
+import FormField from '../../../components/ui/FormField';
 import { ProgramService } from '../services/ProgramService';
 import { useToast } from '../../../context/ToastContext';
+import useForm from '../../../hooks/useForm';
 
 const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess }) => {
     const { success: showSuccess, error: showError } = useToast();
     
-    // Form State
-    const [formData, setFormData] = useState({
+    // Validation Logic
+    const validate = (values) => {
+        const errors = {};
+        if (!values.code) errors.code = 'Subject code is required';
+        if (!values.title) errors.title = 'Descriptive title is required';
+        if (values.units < 1 || values.units > 6) errors.units = 'Units must be between 1 and 6';
+        if (!values.program_id) errors.program_id = 'Primary program is required';
+        return errors;
+    };
+
+    // Use Custom Hook
+    const {
+        values: formData,
+        errors,
+        touched,
+        handleChange,
+        handleBlur,
+        handleSubmit,
+        setFieldValue,
+        resetForm,
+        setValues: setFormData
+    } = useForm({
         code: '',
         title: '',
         description: '',
@@ -30,12 +52,11 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
         semester_number: 1,
         classification: 'MINOR',
         is_global: false,
-        program_id: programId || '', // Primary program
+        program_id: programId || '',
         program_ids: []
-    });
+    }, validate);
 
     // UI State
-    const [loading, setLoading] = useState(false);
     const [searching, setSearching] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [availablePrograms, setAvailablePrograms] = useState([]);
@@ -43,26 +64,18 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
     const [selectedPrereqs, setSelectedPrereqs] = useState([]);
     const [selectedPrograms, setSelectedPrograms] = useState([]);
     
-    // New UI State for "Share with other programs" toggle
     const [shareWithOthers, setShareWithOthers] = useState(false);
 
     // Reset form on open
+    // Reset form on open
     useEffect(() => {
         if (isOpen) {
-            setFormData({
-                code: '',
-                title: '',
-                description: '',
-                units: 3,
-                year_level: 1,
-                semester_number: 1,
-                classification: 'MINOR',
-                is_global: false,
-                program_id: programId || '',
-                program_ids: []
-            });
+            resetForm();
+            if (programId) {
+                setFieldValue('program_id', programId);
+            }
             setSelectedPrereqs([]);
-            setSelectedPrograms([]); // Program IDs besides the current one
+            setSelectedPrograms([]);
             setSearchQuery('');
             setShareWithOthers(false);
             fetchInitialData();
@@ -77,7 +90,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
             
             // If in master mode and no program selected, auto-select first
             if (!programId && progs.length > 0) {
-                setFormData(prev => ({ ...prev, program_id: progs[0].id }));
+                setFieldValue('program_id', progs[0].id);
             }
         } catch (err) {
             console.error('Failed to fetch programs', err);
@@ -106,17 +119,16 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
         return () => clearTimeout(timeout);
     }, [searchQuery, programId, formData.program_id, isOpen]);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const onSubmit = async (values) => { // This is the actual submission logic
         setLoading(true);
         try {
             const dataToSubmit = {
-                ...formData,
-                program: formData.program_id || programId,
-                program_ids: shareWithOthers && !formData.is_global ? selectedPrograms.map(p => p.id) : [],
+                ...values,
+                program: values.program_id || programId,
+                program_ids: shareWithOthers && !values.is_global ? selectedPrograms.map(p => p.id) : [],
                 prerequisite_ids: selectedPrereqs.map(p => p.id),
-                code: formData.code.toUpperCase().replace(/\s/g, ''),
-                is_major: formData.classification === 'MAJOR'
+                code: values.code.toUpperCase().replace(/\s/g, ''),
+                is_major: values.classification === 'MAJOR'
             };
             
             await ProgramService.createSubject(dataToSubmit);

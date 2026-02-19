@@ -20,6 +20,8 @@ import SEO from '../../../components/shared/SEO';
 import { api, endpoints } from '../../../api';
 import AddStudentModal from './modals/AddStudentModal';
 import ExportButton from '../../../components/ui/ExportButton';
+import { useDebounce } from '../../../hooks/useDebounce';
+import PageHeader from '../../../components/shared/PageHeader';
 
 const RegistrarStudentMasterlist = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -44,6 +46,17 @@ const RegistrarStudentMasterlist = () => {
 
     // Modals
     const [isAddModalOpen, setIsAddModalOpen] = useState(searchParams.get('action') === 'add');
+
+    // Debounce
+    const [searchTerm, setSearchTerm] = useState(filters.search);
+    const debouncedSearch = useDebounce(searchTerm, 500);
+
+    // Update filters when debounced search changes
+    useEffect(() => {
+        if (debouncedSearch !== filters.search) {
+            handleFilterChange('search', debouncedSearch);
+        }
+    }, [debouncedSearch]);
 
     useEffect(() => {
         fetchInitialData();
@@ -119,31 +132,27 @@ const RegistrarStudentMasterlist = () => {
         <div className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in duration-700">
             <SEO title="Student Masterlist" description="Comprehensive archive of institutional student records and profiles." />
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
-                <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
-                            <Users className="w-5 h-5" />
-                        </div>
-                        <h1 className="text-3xl font-black text-gray-900 tracking-tighter">Student Management</h1>
-                    </div>
-                    <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] ml-1">Archive & Masterlist</p>
-                </div>
-                <div className="flex gap-4">
-                    <ExportButton 
-                        endpoint={endpoints.exportStudents} 
-                        filename="students" 
-                        label="Export Students" 
-                    />
-                    <Button 
-                        variant="primary" 
-                        icon={Plus} 
-                        onClick={() => setIsAddModalOpen(true)}
-                    >
-                        ADD STUDENT
-                    </Button>
-                </div>
-            </div>
+            <PageHeader 
+                title="Student Management" 
+                subtitle="Archive & Masterlist"
+                icon={Users}
+                actions={
+                    <>
+                        <ExportButton 
+                            endpoint={endpoints.exportStudents} 
+                            filename="students" 
+                            label="Export Students" 
+                        />
+                        <Button 
+                            variant="primary" 
+                            icon={Plus} 
+                            onClick={() => setIsAddModalOpen(true)}
+                        >
+                            ADD STUDENT
+                        </Button>
+                    </>
+                }
+            />
 
             {/* Filters Bar */}
             <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-2xl shadow-blue-500/5 mb-8 flex flex-col md:flex-row gap-6 items-end">
@@ -155,8 +164,8 @@ const RegistrarStudentMasterlist = () => {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                         <input 
                             type="text" 
-                            value={filters.search}
-                            onChange={(e) => handleFilterChange('search', e.target.value)}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Name or Student Number..."
                             className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-sm font-black text-gray-900 focus:bg-white focus:border-blue-100 transition-all"
                         />

@@ -18,7 +18,7 @@ const Input = ({
         success: 'bg-green-50 border-green-200 focus:bg-white focus:border-green-400'
     };
 
-    const baseClasses = 'w-full px-5 py-4 border rounded-2xl text-sm font-black text-gray-900 outline-none transition-all placeholder:text-gray-300 placeholder:font-bold disabled:opacity-50 disabled:cursor-not-allowed';
+    const baseClasses = 'w-full px-5 py-4 border rounded-2xl text-sm font-black text-gray-900 outline-none transition-all placeholder:text-gray-300 placeholder:font-bold disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500';
     
     const variantClasses = variants[variant] || variants.default;
 

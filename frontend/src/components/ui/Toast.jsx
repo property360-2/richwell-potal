@@ -17,10 +17,10 @@ export const setToastEmitter = (emitter) => {
  * Usage: Toast.success('Saved!');
  */
 export const Toast = {
-    success: (message, duration) => toastEmitter?.success(message, duration),
-    error: (message, duration) => toastEmitter?.error(message, duration),
-    warning: (message, duration) => toastEmitter?.warning(message, duration),
-    info: (message, duration) => toastEmitter?.info(message, duration)
+    success: (message, action) => toastEmitter?.success(message, action),
+    error: (message, action) => toastEmitter?.error(message, action),
+    warning: (message, action) => toastEmitter?.warning(message, action),
+    info: (message, action) => toastEmitter?.info(message, action)
 };
 
 export default Toast;

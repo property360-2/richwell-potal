@@ -8,25 +8,24 @@ const ToastContext = createContext(null);
 export const ToastProvider = ({ children }) => {
     const [toasts, setToasts] = useState([]);
 
-    const addToast = useCallback((message, type = 'info', duration = 5000) => {
+    const showToast = useCallback((message, type = 'info', action = null) => {
         const id = Math.random().toString(36).substr(2, 9);
-        setToasts((prev) => [...prev, { id, message, type, duration }]);
+        setToasts((prevToasts) => [...prevToasts, { id, message, type, action }]);
 
-        if (duration > 0) {
-            setTimeout(() => {
-                removeToast(id);
-            }, duration);
-        }
+        // Auto remove after 5 seconds (standardized)
+        setTimeout(() => {
+            setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
+        }, 5000);
     }, []);
 
     const removeToast = useCallback((id) => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
     }, []);
 
-    const success = useCallback((msg, dur) => addToast(msg, 'success', dur), [addToast]);
-    const error = useCallback((msg, dur) => addToast(msg, 'error', dur), [addToast]);
-    const warning = useCallback((msg, dur) => addToast(msg, 'warning', dur), [addToast]);
-    const info = useCallback((msg, dur) => addToast(msg, 'info', dur), [addToast]);
+    const success = useCallback((message, action = null) => showToast(message, 'success', action), [showToast]);
+    const error = useCallback((message, action = null) => showToast(message, 'error', action), [showToast]);
+    const warning = useCallback((message, action = null) => showToast(message, 'warning', action), [showToast]);
+    const info = useCallback((message, action = null) => showToast(message, 'info', action), [showToast]);
 
     useEffect(() => {
         setToastEmitter({ success, error, warning, info });
@@ -64,10 +63,12 @@ const ToastItem = ({ toast, onRemove }) => {
 
     return (
         <motion.div
+            layout
             initial={{ opacity: 0, x: 50, scale: 0.9 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 50, scale: 0.9 }}
             className={`pointer-events-auto flex items-start gap-3 p-4 rounded-xl shadow-lg border-2 backdrop-blur-sm ${bgColors[toast.type]}`}
+            role="alert"
         >
             <div className="flex-shrink-0 mt-0.5">
                 {icons[toast.type]}

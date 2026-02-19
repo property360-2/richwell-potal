@@ -67,6 +67,12 @@ const Header = () => {
 
     return (
         <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-[5000] shadow-sm shadow-gray-200/20">
+            <a 
+                href="#main-content" 
+                className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white p-4 z-[9999] rounded-xl font-bold uppercase tracking-widest shadow-xl ring-4 ring-white"
+            >
+                Skip to main content
+            </a>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-20">
                     <div className="flex items-center">
@@ -101,6 +107,7 @@ const Header = () => {
                                         onClick={logout}
                                         className="p-3 bg-gray-50 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all shadow-inner"
                                         title="Logout"
+                                        aria-label="Logout"
                                     >
                                         <LogOut size={20} />
                                     </button>
@@ -118,6 +125,7 @@ const Header = () => {
                         <button
                             onClick={() => setIsMenuOpen(true)}
                             className="p-3 rounded-2xl text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-inner"
+                            aria-label="Open menu"
                         >
                             <Menu size={24} />
                         </button>

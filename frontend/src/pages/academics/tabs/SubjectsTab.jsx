@@ -16,10 +16,10 @@ import { ProgramService } from '../services/ProgramService';
 import { useToast } from '../../../context/ToastContext';
 import AddSubjectModal from '../modals/AddSubjectModal';
 import EditSubjectModal from '../modals/EditSubjectModal';
+import ConfirmModal from '../../../components/shared/ConfirmModal';
 
-const SubjectsTab = () => {
+const SubjectsTab = ({ subjects, programId, onUpdate }) => {
     const { success: showSuccess, error: showError } = useToast();
-    const [subjects, setSubjects] = useState([]);
     const [programs, setPrograms] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -74,15 +74,32 @@ const SubjectsTab = () => {
         return () => clearTimeout(timeout);
     }, [searchQuery, programFilter, scopeFilter, classificationFilter, ordering]);
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this subject?')) return;
-        try {
-            await ProgramService.deleteSubject(id);
-            showSuccess('Subject deleted successfully');
-            fetchSubjects();
-        } catch (err) {
-            showError('Failed to delete subject');
-        }
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        isDestructive: false
+    });
+
+    const handleDelete = (id) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Delete Subject?',
+            message: 'Are you sure you want to delete this subject? This action cannot be undone.',
+            isDestructive: true,
+            onConfirm: async () => {
+                try {
+                    await ProgramService.deleteSubject(id);
+                    showSuccess('Subject deleted successfully');
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    fetchSubjects(); // Call fetchSubjects to refresh the list
+                } catch (err) {
+                    console.error(err);
+                    showError('Failed to delete subject');
+                }
+            }
+        });
     };
 
     return (
@@ -347,6 +364,16 @@ const SubjectsTab = () => {
                 programId={null} // Master catalog doesn't have a fixed program
                 programName="Master List"
                 onSuccess={fetchSubjects}
+            />
+
+            <ConfirmModal 
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                isDestructive={confirmModal.isDestructive}
+                confirmText="Delete Subject"
             />
 
             {selectedSubject && (

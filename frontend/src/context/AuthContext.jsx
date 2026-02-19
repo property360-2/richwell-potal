@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = async (credentials) => {
-        const response = await api.post(endpoints.accounts.login, credentials);
+        const response = await api.post(endpoints.login, credentials);
         const { access, refresh, user: userData } = response;
         TokenManager.setTokens(access, refresh);
         TokenManager.setUser(userData);
@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            await api.post(endpoints.accounts.logout);
+            await api.post(endpoints.logout);
         } catch (error) {
             console.error('Logout API error:', error);
         } finally {

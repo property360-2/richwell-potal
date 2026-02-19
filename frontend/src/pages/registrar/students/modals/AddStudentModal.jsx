@@ -26,7 +26,9 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
     // Form State
     const [formData, setFormData] = useState({
         first_name: '',
+        middle_name: '',
         last_name: '',
+        suffix: '',
         email: '',
         birthdate: '',
         contact_number: '',
@@ -36,7 +38,8 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
         year_level: '1',
         status: 'ACTIVE',
         is_transferee: false,
-        previous_school: ''
+        previous_school: '',
+        previous_course: ''
     });
 
     const [creditedSubjects, setCreditedSubjects] = useState([]);
@@ -188,7 +191,9 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
     const resetForm = () => {
         setFormData({
             first_name: '',
+            middle_name: '',
             last_name: '',
+            suffix: '',
             email: '',
             birthdate: '',
             contact_number: '',
@@ -198,7 +203,8 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
             year_level: '1',
             status: 'ACTIVE',
             is_transferee: false,
-            previous_school: ''
+            previous_school: '',
+            previous_course: ''
         });
         setCreditedSubjects([]);
     };
@@ -220,13 +226,32 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
                     <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                         <User className="w-3 h-3" /> Basic Information
                     </h4>
-                    <div className="grid grid-cols-2 gap-4">
-                        <FormField label="First Name" required>
-                            <Input name="first_name" value={formData.first_name} onChange={handleInputChange} />
-                        </FormField>
-                        <FormField label="Last Name" required>
-                            <Input name="last_name" value={formData.last_name} onChange={handleInputChange} />
-                        </FormField>
+                    <div className="grid grid-cols-4 gap-4">
+                        <div className="col-span-2">
+                             <FormField label="First Name" required>
+                                <Input name="first_name" value={formData.first_name} onChange={handleInputChange} />
+                            </FormField>
+                        </div>
+                        <div className="col-span-1">
+                             <FormField label="Middle Name">
+                                <Input name="middle_name" value={formData.middle_name} onChange={handleInputChange} />
+                            </FormField>
+                        </div>
+                         <div className="col-span-1">
+                             <FormField label="Last Name" required>
+                                <Input name="last_name" value={formData.last_name} onChange={handleInputChange} />
+                            </FormField>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4">
+                        <div className="col-span-1">
+                             <FormField label="Suffix">
+                                <Input name="suffix" value={formData.suffix} onChange={handleInputChange} placeholder="e.g. Jr." />
+                            </FormField>
+                        </div>
+                         <div className="col-span-3">
+                             {/* Spacer or extend previous row */}
+                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <FormField label="Email Address" required>
@@ -321,6 +346,14 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
                                     placeholder="Name of previous college/university" 
                                 />
                             </FormField>
+                            <FormField label="Previous Course" className="mt-4">
+                                <Input 
+                                    name="previous_course" 
+                                    value={formData.previous_course} 
+                                    onChange={handleInputChange} 
+                                    placeholder="Course taken previously" 
+                                />
+                            </FormField>
                         </div>
                     )}
 
@@ -328,19 +361,20 @@ const AddStudentModal = ({ isOpen, onClose, programs, onSuccess }) => {
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Add Credited Subjects</p>
                         <div className="grid grid-cols-12 gap-3">
                             <div className="col-span-8 relative">
-                                <input 
-                                    type="text" 
-                                    value={subjectSearch}
-                                    onChange={(e) => handleSubjectSearch(e.target.value)}
-                                    placeholder={!formData.curriculum ? "Select curriculum first..." : "Search subject code or name..."}
-                                    disabled={!formData.curriculum || fetchingSubjects}
-                                    className="w-full px-6 py-3 bg-white border border-gray-200 rounded-2xl text-xs font-bold focus:border-blue-300 outline-none transition-all disabled:opacity-50 disabled:bg-gray-100"
-                                />
-                                {fetchingSubjects && (
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                        <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                                    </div>
-                                )}
+                                <div className="relative">
+                                    <Input 
+                                        value={subjectSearch}
+                                        onChange={(e) => handleSubjectSearch(e.target.value)}
+                                        placeholder={!formData.curriculum ? "Select curriculum first..." : "Search subject code or name..."}
+                                        disabled={!formData.curriculum || fetchingSubjects}
+                                        className="pr-10"
+                                    />
+                                    {fetchingSubjects && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                                        </div>
+                                    )}
+                                </div>
                                 {searchResults.length > 0 && (
                                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 shadow-2xl rounded-2xl mt-1 z-50 overflow-hidden">
                                         {searchResults.map(s => (

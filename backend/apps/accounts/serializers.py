@@ -223,6 +223,10 @@ class StudentManualCreateSerializer(serializers.ModelSerializer):
     student_number = serializers.CharField(write_only=True, required=False)
     birthdate = serializers.DateField(write_only=True, required=False)
     
+    middle_name = serializers.CharField(required=False, allow_blank=True)
+    suffix = serializers.CharField(required=False, allow_blank=True)
+    previous_course = serializers.CharField(required=False, allow_blank=True)
+    
     # Allow sending program code (e.g. 'BSIT') instead of ID
     from apps.academics.models import Program
     program = serializers.PrimaryKeyRelatedField(
@@ -246,10 +250,10 @@ class StudentManualCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentProfile
         fields = [
-            'email', 'first_name', 'last_name', 'password', 'student_number', 
+            'email', 'first_name', 'last_name', 'middle_name', 'suffix', 'password', 'student_number', 
             'birthdate', 'address', 'contact_number',
             'program', 'curriculum', 'year_level', 'status', 'is_transferee', 'is_past_student',
-            'previous_school', 'credited_subjects'
+            'previous_school', 'previous_course', 'credited_subjects'
         ]
 
 class StudentDetailSerializer(RegistrarStudentSerializer):

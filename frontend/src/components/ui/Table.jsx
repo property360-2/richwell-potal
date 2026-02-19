@@ -66,9 +66,40 @@ const Table = ({
     }
 
     return (
-        <div className={`bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden ${className}`}>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
+        <div className="w-full bg-white rounded-[24px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+            {/* Scrollable Container with Indicators */}
+            <div className="relative flex-1 group">
+                {/* Left Fade */}
+                <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent opacity-0 transition-opacity pointer-events-none z-10 sm:hidden" data-scroll-left></div>
+                
+                {/* Right Fade */}
+                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent opacity-0 transition-opacity pointer-events-none z-10 sm:hidden" data-scroll-right></div>
+
+                <div 
+                    className="overflow-x-auto w-full scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-200/50 hover:scrollbar-thumb-gray-300 transition-colors"
+                    onScroll={(e) => {
+                        const target = e.target;
+                        const left = target.parentElement.querySelector('[data-scroll-left]');
+                        const right = target.parentElement.querySelector('[data-scroll-right]');
+                        
+                        if (left && right) {
+                            left.style.opacity = target.scrollLeft > 10 ? '1' : '0';
+                            right.style.opacity = (target.scrollWidth - target.clientWidth - target.scrollLeft) > 10 ? '1' : '0';
+                        }
+                    }}
+                    ref={(el) => {
+                        if (el) {
+                            // Initial check
+                            setTimeout(() => {
+                                const right = el.parentElement?.querySelector('[data-scroll-right]');
+                                if (right) {
+                                  right.style.opacity = (el.scrollWidth > el.clientWidth) ? '1' : '0';
+                                }
+                            }, 100);
+                        }
+                    }}
+                >
+                    <table className="w-full text-left border-collapse">
                     <thead className="bg-gray-50/50">
                         <tr>
                             {columns.map((column, index) => (
@@ -76,6 +107,7 @@ const Table = ({
                                     key={index}
                                     className={`px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest ${column.sortable !== false && sortable ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
                                     onClick={() => column.sortable !== false && handleSort(column.key)}
+                                    aria-label={column.sortable !== false && sortable ? `Sort by ${column.label}` : undefined}
                                 >
                                     <div className="flex items-center gap-2">
                                         {column.label}
@@ -117,6 +149,7 @@ const Table = ({
                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                             disabled={currentPage === 1}
                             className="p-2 rounded-xl bg-gray-50 text-gray-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            aria-label="Previous page"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>
@@ -124,12 +157,14 @@ const Table = ({
                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                             disabled={currentPage === totalPages}
                             className="p-2 rounded-xl bg-gray-50 text-gray-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            aria-label="Next page"
                         >
                             <ChevronRight className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
             )}
+            </div>{/* Close relative wrapper */}
         </div>
     );
 };

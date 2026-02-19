@@ -15,14 +15,36 @@ import {
     Plus
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
+import FormField from '../../../components/ui/FormField';
 import { ProgramService } from '../services/ProgramService';
 import { useToast } from '../../../context/ToastContext';
+import useForm from '../../../hooks/useForm';
 
 const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, onSuccess }) => {
     const { success: showSuccess, error: showError } = useToast();
     
-    // Form State
-    const [formData, setFormData] = useState({
+    // Validation Logic
+    const validate = (values) => {
+        const errors = {};
+        if (!values.code) errors.code = 'Subject code is required';
+        if (!values.title) errors.title = 'Descriptive title is required';
+        if (values.units < 1 || values.units > 6) errors.units = 'Units must be between 1 and 6';
+        if (!values.program_id) errors.program_id = 'Primary program is required';
+        return errors;
+    };
+
+    // Use Custom Hook
+    const {
+        values: formData,
+        errors,
+        touched,
+        handleChange,
+        handleBlur,
+        handleSubmit,
+        setFieldValue,
+        resetForm,
+        setValues: setFormData
+    } = useForm({
         code: '',
         title: '',
         description: '',
@@ -32,7 +54,7 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
         classification: 'MINOR',
         is_global: false,
         program_id: programId || ''
-    });
+    }, validate);
 
     // UI State
     const [loading, setLoading] = useState(false);
@@ -80,6 +102,8 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
                     setSelectedPrograms(mappedSelected);
                     setShareWithOthers(mappedSelected.length > 0);
                 }
+            } else if (isOpen && !subject) {
+                 resetForm();
             }
         };
         
@@ -110,17 +134,16 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
         return () => clearTimeout(timeout);
     }, [searchQuery, programId, formData.program_id, isOpen, subject?.id]);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const onSubmit = async (values) => {
         setLoading(true);
         try {
             const dataToSubmit = {
-                ...formData,
-                program: formData.program_id || programId,
-                program_ids: shareWithOthers && !formData.is_global ? selectedPrograms.map(p => p.id) : [],
+                ...values,
+                program: values.program_id || programId,
+                program_ids: shareWithOthers && !values.is_global ? selectedPrograms.map(p => p.id) : [],
                 prerequisite_ids: selectedPrereqs.map(p => p.id),
-                code: formData.code.toUpperCase().replace(/\s/g, ''),
-                is_major: formData.classification === 'MAJOR'
+                code: values.code.toUpperCase().replace(/\s/g, ''),
+                is_major: values.classification === 'MAJOR'
             };
             
             await ProgramService.updateSubject(subject.id, dataToSubmit);
@@ -181,7 +204,7 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
                             leaveTo="opacity-0 scale-95"
                         >
                             <Dialog.Panel className="w-full max-w-5xl transform overflow-hidden rounded-[32px] bg-white text-left align-middle shadow-2xl transition-all border border-gray-100">
-                                <form onSubmit={handleSubmit} className="flex flex-col h-full">
+                                <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
                                     {/* Header */}
                                     <div className="px-10 py-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                                         <div className="flex items-center gap-4">
@@ -213,61 +236,68 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
                                                 </h4>
                                                 
                                                 <div className="grid grid-cols-12 gap-4">
-                                                    <div className="col-span-4 space-y-1">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Subject Code</label>
-                                                        <input 
-                                                            required 
-                                                            placeholder="MATH 101" 
-                                                            value={formData.code} 
-                                                            onChange={(e) => setFormData({...formData, code: e.target.value.toUpperCase()})} 
-                                                            className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl text-sm font-bold focus:bg-white focus:border-indigo-100 transition-all outline-none" 
-                                                        />
+                                                    <div className="col-span-4">
+                                                        <FormField label="Subject Code" required error={touched.code && errors.code}>
+                                                            <input 
+                                                                name="code"
+                                                                placeholder="MATH 101" 
+                                                                value={formData.code} 
+                                                                onChange={handleChange}
+                                                                onBlur={handleBlur}
+                                                                className={`w-full px-4 py-3 bg-gray-50 border-2 rounded-xl text-sm font-bold focus:bg-white transition-all outline-none ${touched.code && errors.code ? 'border-red-200 focus:border-red-500' : 'border-transparent focus:border-indigo-100'}`}
+                                                            />
+                                                        </FormField>
                                                     </div>
-                                                    <div className="col-span-8 space-y-1">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Descriptive Title</label>
-                                                        <input 
-                                                            required 
-                                                            placeholder="Differential Calculus" 
-                                                            value={formData.title} 
-                                                            onChange={(e) => setFormData({...formData, title: e.target.value})} 
-                                                            className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl text-sm font-bold focus:bg-white focus:border-indigo-100 transition-all outline-none" 
-                                                        />
+                                                    <div className="col-span-8">
+                                                        <FormField label="Descriptive Title" required error={touched.title && errors.title}>
+                                                            <input 
+                                                                name="title"
+                                                                placeholder="Differential Calculus" 
+                                                                value={formData.title} 
+                                                                onChange={handleChange}
+                                                                onBlur={handleBlur}
+                                                                className={`w-full px-4 py-3 bg-gray-50 border-2 rounded-xl text-sm font-bold focus:bg-white transition-all outline-none ${touched.title && errors.title ? 'border-red-200 focus:border-red-500' : 'border-transparent focus:border-indigo-100'}`}
+                                                            />
+                                                        </FormField>
                                                     </div>
                                                 </div>
 
                                                 <div className="grid grid-cols-3 gap-4">
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Units</label>
+                                                    <FormField label="Units" error={touched.units && errors.units}>
                                                         <input 
                                                             type="number" 
+                                                            name="units"
                                                             min="1" max="6" 
                                                             value={formData.units} 
-                                                            onChange={(e) => setFormData({...formData, units: parseInt(e.target.value)})} 
+                                                            onChange={handleChange}
+                                                            onBlur={handleBlur} 
                                                             className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl text-sm font-bold focus:bg-white focus:border-indigo-100 transition-all outline-none" 
                                                         />
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Year Level</label>
+                                                    </FormField>
+                                                    <FormField label="Year Level">
                                                         <input 
                                                             type="number" 
+                                                            name="year_level"
                                                             min="1" max="5" 
                                                             value={formData.year_level} 
-                                                            onChange={(e) => setFormData({...formData, year_level: parseInt(e.target.value)})} 
+                                                            onChange={handleChange}
+                                                            onBlur={handleBlur} 
                                                             className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl text-sm font-bold focus:bg-white focus:border-indigo-100 transition-all outline-none" 
                                                         />
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Semester</label>
+                                                    </FormField>
+                                                    <FormField label="Semester">
                                                         <select 
+                                                            name="semester_number"
                                                             value={formData.semester_number} 
-                                                            onChange={(e) => setFormData({...formData, semester_number: parseInt(e.target.value)})} 
+                                                            onChange={handleChange}
+                                                            onBlur={handleBlur} 
                                                             className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl text-sm font-bold focus:bg-white focus:border-indigo-100 transition-all outline-none appearance-none cursor-pointer"
                                                         >
                                                             <option value={1}>1st Sem</option>
                                                             <option value={2}>2nd Sem</option>
                                                             <option value={3}>Summer</option>
                                                         </select>
-                                                    </div>
+                                                    </FormField>
                                                 </div>
 
                                                 <div className="pt-2">
@@ -275,14 +305,14 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
                                                     <div className="flex p-1 bg-gray-50 rounded-xl border border-gray-100">
                                                         <button 
                                                             type="button" 
-                                                            onClick={() => setFormData({...formData, classification: 'MINOR'})}
+                                                            onClick={() => setFieldValue('classification', 'MINOR')}
                                                             className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${formData.classification === 'MINOR' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                                                         >
                                                             Minor 
                                                         </button>
                                                         <button 
                                                             type="button" 
-                                                            onClick={() => setFormData({...formData, classification: 'MAJOR'})}
+                                                            onClick={() => setFieldValue('classification', 'MAJOR')}
                                                             className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${formData.classification === 'MAJOR' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                                                         >
                                                             Major Subject
@@ -329,7 +359,7 @@ const EditSubjectModal = ({ isOpen, onClose, subject, programId, programName, on
                                                             <button 
                                                                 type="button" 
                                                                 onClick={() => {
-                                                                    setFormData(prev => ({ ...prev, is_global: !prev.is_global }));
+                                                                    setFieldValue('is_global', !formData.is_global);
                                                                     if (!formData.is_global) setShareWithOthers(false);
                                                                 }}
                                                                 className={`w-12 h-6 rounded-full transition-colors relative ${formData.is_global ? 'bg-blue-600' : 'bg-gray-200'}`}

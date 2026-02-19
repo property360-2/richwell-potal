@@ -24,6 +24,9 @@ import SEO from '../../components/shared/SEO';
 import AddSubjectModal from './modals/AddSubjectModal';
 import EditSubjectModal from './modals/EditSubjectModal';
 import CurriculumTab from './tabs/CurriculumTab';
+import Breadcrumbs from '../../components/shared/Breadcrumbs';
+
+import ConfirmModal from '../../components/shared/ConfirmModal';
 
 const ProgramDetailPage = () => {
     const { id } = useParams();
@@ -77,17 +80,32 @@ const ProgramDetailPage = () => {
         fetchProgramDetail();
     };
 
-    const handleDeleteSubject = async (subjectId) => {
-        if (!window.confirm('Are you sure you want to delete this subject? This action cannot be undone.')) return;
-        
-        try {
-            await ProgramService.deleteSubject(subjectId);
-            showSuccess('Subject deleted successfully');
-            handleSubjectSuccess();
-        } catch (err) {
-            console.error(err);
-            showError('Failed to delete subject');
-        }
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        isDestructive: false
+    });
+
+    const handleDeleteSubject = (subjectId) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Delete Subject?',
+            message: 'This action cannot be undone. The subject will be permanently removed from this program.',
+            isDestructive: true,
+            onConfirm: async () => {
+                try {
+                    await ProgramService.deleteSubject(subjectId);
+                    showSuccess('Subject deleted successfully');
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    handleSubjectSuccess();
+                } catch (err) {
+                    console.error(err);
+                    showError('Failed to delete subject');
+                }
+            }
+        });
     };
 
     if (loading) {
@@ -103,18 +121,25 @@ const ProgramDetailPage = () => {
 
     return (
         <div className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in duration-500">
+            <ConfirmModal 
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                isDestructive={confirmModal.isDestructive}
+                confirmText="Delete Subject"
+            />
             <SEO title={`${program.code} - Program Detail`} />
 
-            {/* Breadcrumbs / Back button */}
-            <div className="mb-8">
-                <button 
-                    onClick={() => navigate('/academics', { state: { activeTab: 'programs' } })}
-                    className="flex items-center gap-2 text-gray-500 hover:text-indigo-600 transition-colors font-black uppercase tracking-widest text-[10px]"
-                >
-                    <ArrowLeft size={16} />
-                    Back to Programs
-                </button>
-            </div>
+            {/* Breadcrumbs */}
+            <Breadcrumbs 
+                items={[
+                    { label: 'Academics', path: '/academics' },
+                    { label: 'Programs', path: '/academics' },
+                    { label: program.code, path: null }
+                ]} 
+            />
 
             {/* Hero Header */}
             <div className="bg-white rounded-[40px] border border-gray-100 shadow-xl shadow-indigo-500/5 p-10 mb-8 relative overflow-hidden">

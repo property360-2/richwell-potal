@@ -1,19 +1,25 @@
+# 🧪 Test Accounts
 
-        self.stdout.write('\n' + '-'*60)
-        self.stdout.write('  Test Credentials:')
-        self.stdout.write('-'*60)
-        self.stdout.write('   Admin:     admin@richwell.edu / password123')
-        self.stdout.write('   Registrar: registrar@richwell.edu / password123')
-        self.stdout.write('   Head:      head@richwell.edu / password123')
-        self.stdout.write('   Cashier:   cashier@richwell.edu / password123')
-        self.stdout.write('   Professor: juan.dela.cruz@richwell.edu / password123')
-        self.stdout.write('   Professor: junjun@richwell.edu / password123')
-        self.stdout.write('   Student:   student.regular1@richwell.edu / password123')
-        self.stdout.write('   Student (2024 Curr): student.curr2024@richwell.edu / password123')
-        self.stdout.write('   Student (2025 Curr): student.curr2025@richwell.edu / password123')
-        self.stdout.write('   Student (INC P-Head): student.junjun.T3.1.1@richwell.edu / password123')
-        self.stdout.write('   Student (INC P-Reg):  student.junjun.T3.1.2@richwell.edu / password123')
-        self.stdout.write('   Student (INC P-Head): student.junjun.T3.1.3@richwell.edu / password123')
-        self.stdout.write('   Student (INC None):   student.junjun.T3.1.4@richwell.edu / password123')
-        self.stdout.write('='*60)
+Use these credentials to log in to the application.
+**Default Password:** `password123`
 
+| Role | Email | Password | Notes |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@richwell.edu` | `password123` | Full access |
+| **Registrar** | `registrar@richwell.edu` | `password123` | Enrollment & Records |
+| **Head** | `head@richwell.edu` | `password123` | Department Head |
+| **Cashier** | `cashier@richwell.edu` | `password123` | Payments |
+| **Professor** | `juan.dela.cruz@richwell.edu` | `password123` | Faculty |
+| **Professor** | `junjun@richwell.edu` | `password123` | Faculty |
+| **Student** | `student.regular1@richwell.edu` | `password123` | Regular Student |
+| **Student** | `student.curr2024@richwell.edu` | `password123` | 2024 Curriculum |
+| **Student** | `student.curr2025@richwell.edu` | `password123` | 2025 Curriculum |
+
+## ⚠️ Special Cases (INC/Grades)
+
+| Email | Password | Scenario |
+| :--- | :--- | :--- |
+| `student.junjun.T3.1.1@richwell.edu` | `password123` | INC (Pending Head) |
+| `student.junjun.T3.1.2@richwell.edu` | `password123` | INC (Pending Registrar) |
+| `student.junjun.T3.1.3@richwell.edu` | `password123` | INC (Pending Head) |
+| `student.junjun.T3.1.4@richwell.edu` | `password123` | INC (None) |
