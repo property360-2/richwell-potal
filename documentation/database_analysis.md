@@ -22,6 +22,7 @@ This document provides an analysis of the Richwell Portal database schema, forma
 
 | Field/Table | Issue / Observation | Recommendation | Reason |
 |---|---|---|---|
+| **INC Expiry** | Expiry date is calculated on-the-fly (`marked_at + 1 year`). Requires complex query to find expired items. | **Add `inc_expiry_date` (Date) field.** Populate this when grade is set to INC. | allows simple query (`expiry_date <= today`) for cleanup. Decouples policy (1yr/6mos) from the cleanup worker. |
 | **Numeric Grade** | `grade` is `CharField` (e.g., "1.00", "INC"). Hard to average. | Add `numeric_grade` (Decimal, nullable) column. Store `1.0` for valid grades, `null` for INC/DRP. | Simplifies GPA calculation to a simple SQL `AVG()` instead of complex code logic. |
 | **Payment Ledger** | `MonthlyPaymentBucket` only tracks running totals (`paid_amount`). | Consider adding a `PaymentTransaction` table (Date, Amount, Ref#). | Provides a full history of *partial payments* and audit trail for finance. |
 | **Audit Log** | `AuditLog` table grows rapidly with `JSONField` payload. | Ensure indexing on `target_id`, `target_model`, `timestamp`. | Essential for maintaining performance as history grows. |
@@ -29,4 +30,4 @@ This document provides an analysis of the Richwell Portal database schema, forma
 
 ## **4. Conclusion**
 
-The schema is **solid and production-ready**. The recommended improvements focusing on **Numeric Grades** and **Cached Counts** will significantly improve developer experience and frontend performance.
+The schema is **solid and production-ready**. The recommended improvements focusing on **INC Expiry Date**, **Numeric Grades**, and **Cached Counts** will significantly improve developer experience and frontend performance.
