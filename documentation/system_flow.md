@@ -46,14 +46,14 @@ The "Advising" system ensures students only enroll in valid subjects based on th
         *   System checks `Subject.prerequisites` (recursive).
         *   **Hard Block**: If a prerequisite has an unresolved **INC** grade (`check_inc_prerequisites`), enrollment is blocked.
         *   **Pass Check**: Prerequisite must be in `PASSED` or `CREDITED` status.
-    3.  **Unit Load**: Total units must not exceed `max_units` (default 30, or `StudentProfile.max_units_override`).
+    3.  **Unit Load**: Total units must not exceed `max_units` (default 30).
 
 ### 2.2 Sectioning (Enrollment in Subjects)
 1.  **Selection**: Student selects a subject and an available `Section`.
 2.  **Conflict Detection**: `SchedulingService` checks for overlaps in `ScheduleSlot` (Time/Day).
 3.  **Seat Reservation**:
     *   System checks `Section.enrolled_count < Section.capacity`.
-    *   **Queueing**: If full, student cannot proceed (unless overridden by Admin).
+    *   **Queueing**: If full, student cannot proceed.
 4.  **Creation**: `SubjectEnrollment` created with status `ENROLLED` but requires **Dual Approval**.
 
 ---
@@ -219,7 +219,7 @@ Exam permits are the **gate** between payment and exam eligibility.
 3.  **Submit Grades**:
     *   **Single**: `ProfessorSubmitGradeView` — submits one grade at a time.
     *   **Bulk**: `BulkGradeSubmissionView` — submits multiple grades in one request.
-4.  **Validation**: System checks grading period is open (unless `GradeResolution` or Registrar override).
+4.  **Validation**: System checks grading period is open.
 5.  **Audit**: Every grade change is logged in `GradeHistory`.
 
 ### 9.2 Grade Finalization (Registrar)
