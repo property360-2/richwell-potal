@@ -187,26 +187,6 @@ class HeadReportView(APIView):
         })
 
 
-    # ------------------------------------------------------------------
-    # Minimal stub views for endpoints referenced in urls.py
-    # These are placeholders to satisfy imports during tests. Real
-    # implementations live elsewhere or will be implemented in later tasks.
-    # ------------------------------------------------------------------
-
-class SimpleGETView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        return Response({"success": True, "data": []})
-
-
-class SimplePOSTView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        return Response({"success": True, "data": {}}, status=201)
-
-
 # Public views that don't require authentication
 class PublicProgramListView(APIView):
     """Public endpoint to list available programs for enrollment."""
