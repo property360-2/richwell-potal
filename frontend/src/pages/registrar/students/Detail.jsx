@@ -190,6 +190,9 @@ const RegistrarStudentDetail = () => {
             {showOverrideModal && student.current_enrollment_id && (
                 <OverrideEnrollModal 
                     enrollmentId={student.current_enrollment_id}
+                    studentId={student.user_id}
+                    programId={student.program_id}
+                    semesterId={student.current_enrollment_semester_id}
                     onClose={() => setShowOverrideModal(false)}
                     onSuccess={() => {
                         success('Subject added successfully via override');

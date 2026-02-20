@@ -1029,6 +1029,23 @@ class SectionSubjectViewSet(viewsets.ModelViewSet):
         if section_id:
             queryset = queryset.filter(section_id=section_id)
         
+        # New filters for override enrollment search
+        program_id = self.request.query_params.get('program')
+        if program_id:
+            queryset = queryset.filter(section__program_id=program_id)
+            
+        semester_id = self.request.query_params.get('semester')
+        if semester_id:
+            queryset = queryset.filter(section__semester_id=semester_id)
+            
+        search_query = self.request.query_params.get('search')
+        if search_query:
+            queryset = queryset.filter(
+                Q(subject__code__icontains=search_query) |
+                Q(subject__title__icontains=search_query) |
+                Q(section__name__icontains=search_query)
+            )
+        
         return queryset.select_related('section', 'subject', 'professor').prefetch_related('schedule_slots')
     
     def perform_destroy(self, instance):

@@ -17,7 +17,8 @@ from apps.enrollment.models import (
 from apps.enrollment.services import SubjectEnrollmentService
 from apps.core.exceptions import (
     PrerequisiteNotSatisfiedError, UnitCapExceededError,
-    PaymentRequiredError, ScheduleConflictError, ConflictError
+    PaymentRequiredError, ScheduleConflictError, ConflictError,
+    ValidationError
 )
 
 User = get_user_model()
@@ -136,6 +137,7 @@ class SubjectEnrollmentServiceTestCase(TestCase):
             user=self.student,
             program=self.program,
             year_level=1,
+            home_section=self.section,  # Assign home section
             birthdate=date(2000, 1, 1),
             address='123 Test St',
             contact_number='09123456789'
@@ -293,7 +295,8 @@ class EnrollSubjectIntegrationTests(SubjectEnrollmentServiceTestCase):
         )
         
         self.assertIsNotNone(subject_enrollment)
-        self.assertEqual(subject_enrollment.status, SubjectEnrollment.Status.ENROLLED)
+        # Standard enrollment now starts as PENDING_HEAD
+        self.assertEqual(subject_enrollment.status, SubjectEnrollment.Status.PENDING_HEAD)
         self.assertEqual(subject_enrollment.subject, self.subject1)
     
     def test_enrollment_blocked_by_prerequisites(self):
@@ -306,21 +309,24 @@ class EnrollSubjectIntegrationTests(SubjectEnrollmentServiceTestCase):
                 section=self.section
             )
     
-    def test_enrollment_blocked_by_payment(self):
-        """Test enrollment blocked when Month 1 not paid."""
+    def test_enrollment_allowed_without_payment(self):
+        """Test enrollment is allowed even if Month 1 not paid (new flow)."""
         # Unpay Month 1
         month1 = self.enrollment.payment_buckets.get(month_number=1)
         month1.paid_amount = Decimal('0.00')
         month1.is_fully_paid = False
         month1.save()
         
-        with self.assertRaises(PaymentRequiredError):
-            self.service.enroll_in_subject(
-                student=self.student,
-                enrollment=self.enrollment,
-                subject=self.subject1,
-                section=self.section
-            )
+        # Should NOT raise PaymentRequiredError anymore
+        se = self.service.enroll_in_subject(
+            student=self.student,
+            enrollment=self.enrollment,
+            subject=self.subject1,
+            section=self.section
+        )
+        
+        self.assertEqual(se.status, SubjectEnrollment.Status.PENDING_HEAD)
+        self.assertFalse(se.payment_approved)
     
     def test_duplicate_enrollment_blocked(self):
         """Test duplicate enrollment is blocked."""
@@ -375,31 +381,174 @@ class RegistrarOverrideTests(SubjectEnrollmentServiceTestCase):
         super().tearDown()
         self.registrar.delete()
     
-    def test_registrar_override_bypasses_payment(self):
-        """Registrar override should bypass payment validation."""
-        # Month 1 is NOT paid
+    def test_registrar_override_populates_new_fields(self):
+        """Verify that override tracking fields are correctly populated."""
+        reason = 'Special academic exemption'
         subject_enrollment = self.service.registrar_override_enroll(
             registrar=self.registrar,
             student=self.student,
             enrollment=self.enrollment,
-            subject=self.subject1,
+            subject=self.subject3,
             section=self.section,
-            override_reason='Student has special circumstances'
+            override_reason=reason
         )
         
-        self.assertIsNotNone(subject_enrollment)
-        self.assertEqual(subject_enrollment.status, SubjectEnrollment.Status.ENROLLED)
-    
-    def test_registrar_override_bypasses_prerequisites(self):
-        """Registrar override should bypass prerequisite validation."""
-        subject_enrollment = self.service.registrar_override_enroll(
-            registrar=self.registrar,
+        self.assertTrue(subject_enrollment.is_overridden)
+        self.assertEqual(subject_enrollment.override_reason, reason)
+        self.assertEqual(subject_enrollment.overridden_by, self.registrar)
+        self.assertTrue(subject_enrollment.head_approved)
+        self.assertTrue(subject_enrollment.payment_approved)
+
+    def test_enroll_in_subject_with_override_integration(self):
+        """Test the unified enroll_in_subject method with override flag."""
+        reason = 'Dean Approved'
+        subject_enrollment = self.service.enroll_in_subject(
             student=self.student,
             enrollment=self.enrollment,
-            subject=self.subject3,  # Has unmet prerequisite
+            subject=self.subject3, # Fails prereqs normally
             section=self.section,
-            override_reason='Student has equivalent background'
+            override=True,
+            override_reason=reason,
+            actor=self.registrar
         )
         
         self.assertIsNotNone(subject_enrollment)
-        self.assertEqual(subject_enrollment.status, SubjectEnrollment.Status.ENROLLED)
+        self.assertTrue(subject_enrollment.is_overridden)
+        self.assertEqual(subject_enrollment.override_reason, reason)
+
+    def test_enroll_in_subject_with_override_unauthorized(self):
+        """Test that students cannot bypass validation even if they send override=True."""
+        from django.core.exceptions import PermissionDenied
+        
+        with self.assertRaises(PermissionDenied):
+            self.service.enroll_in_subject(
+                student=self.student,
+                enrollment=self.enrollment,
+                subject=self.subject3,
+                section=self.section,
+                override=True,
+                override_reason='I want to bypass',
+                actor=self.student # Unauthorized actor
+            )
+
+from rest_framework.test import APITestCase
+from django.urls import reverse
+
+class RegistrarOverrideAPITests(APITestCase):
+    """Test suite for the Registrar Override API endpoint."""
+
+    def setUp(self):
+        from apps.accounts.models import User, StudentProfile
+        from apps.enrollment.models import Enrollment, Semester, SubjectEnrollment
+        from apps.academics.models import Subject, Section, Program, Curriculum, SectionSubject
+        from datetime import date
+
+        # 1. Setup Actor (Registrar)
+        self.registrar = User.objects.create_user(
+            username='registrar', email='registrar@test.com', password='password123',
+            role='REGISTRAR', first_name='Reg', last_name='Istrar'
+        )
+
+        # 2. Setup Student
+        self.student_user = User.objects.create_user(
+            username='student', email='student@test.com', password='password123',
+            role='STUDENT', first_name='John', last_name='Doe'
+        )
+        
+        self.program = Program.objects.create(name='BSCS', code='BSCS')
+        self.curr = Curriculum.objects.create(
+            name='V1', 
+            code='V1', 
+            program=self.program,
+            effective_year=2024
+        )
+        
+        # 3. Setup Enrollment & Semester
+        self.semester = Semester.objects.create(
+            name='1st Semester 2024-25',
+            academic_year='2024-2025',
+            is_current=True,
+            status=Semester.TermStatus.ENROLLMENT_OPEN,
+            start_date=date(2024, 8, 1),
+            end_date=date(2024, 12, 31)
+        )
+
+        self.section = Section.objects.create(
+            name='CS1A', 
+            year_level=1,
+            program=self.program,
+            semester=self.semester
+        )
+        
+        self.profile = StudentProfile.objects.create(
+            user=self.student_user,
+            program=self.program,
+            curriculum=self.curr,
+            year_level=1,
+            home_section=self.section,
+            birthdate=date(2000, 1, 1),
+            address='Test Addr',
+            contact_number='123'
+        )
+
+        self.enrollment = Enrollment.objects.create(
+            student=self.student_user,
+            semester=self.semester,
+            status=Enrollment.Status.ACTIVE,
+            monthly_commitment=Decimal('0.00')
+        )
+
+        # 4. Setup Subject
+        self.subject = Subject.objects.create(
+            code='MATH101', 
+            title='Math', 
+            units=3,
+            year_level=1,
+            semester_number=1,
+            program=self.program
+        )
+        self.section_subject = SectionSubject.objects.create(
+            section=self.section,
+            subject=self.subject,
+            capacity=40
+        )
+
+    def test_registrar_override_success(self):
+        """Test that a registrar can successfully override enrollment via API."""
+        self.client.force_authenticate(user=self.registrar)
+        
+        url = reverse('enrollment:override-enroll', kwargs={'enrollment_id': self.enrollment.id})
+        data = {
+            'student_id': str(self.student_user.id),
+            'subject_id': str(self.subject.id),
+            'section_id': str(self.section.id),
+            'override_reason': 'Force enrolling for testing'
+        }
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        self.assertTrue(response.data['data']['is_overridden'])
+        
+        # Verify DB
+        from apps.enrollment.models import SubjectEnrollment
+        se = SubjectEnrollment.objects.get(id=response.data['data']['id'])
+        self.assertTrue(se.is_overridden)
+        self.assertEqual(se.override_reason, 'Force enrolling for testing')
+        self.assertEqual(se.overridden_by, self.registrar)
+
+    def test_student_cannot_override(self):
+        """Test that a student is blocked from the override endpoint."""
+        self.client.force_authenticate(user=self.student_user)
+        
+        url = reverse('enrollment:override-enroll', kwargs={'enrollment_id': self.enrollment.id})
+        data = {
+            'student_id': str(self.student_user.id),
+            'subject_id': str(self.subject.id),
+            'section_id': str(self.section.id),
+            'override_reason': 'I want to override myself'
+        }
+        
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, 403)

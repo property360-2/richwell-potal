@@ -430,13 +430,17 @@ class SectionSubjectSerializer(serializers.ModelSerializer):
     subject_title = serializers.CharField(source='subject.title', read_only=True)
     subject_units = serializers.IntegerField(source='subject.units', read_only=True)
     subject_type = serializers.CharField(source='subject.subject_type', read_only=True)
+    section_name = serializers.CharField(source='section.name', read_only=True)
+    enrolled_count = serializers.IntegerField(source='section.enrolled_count', read_only=True)
+    capacity = serializers.IntegerField(source='section.capacity', read_only=True)
     professors = serializers.SerializerMethodField()  # CHANGED: multiple professors
     schedule_slots = ScheduleSlotSerializer(many=True, read_only=True)
 
     class Meta:
         model = SectionSubject
         fields = [
-            'id', 'section', 'subject', 'subject_code', 'subject_title',
+            'id', 'section', 'section_name', 'enrolled_count', 'capacity',
+            'subject', 'subject_code', 'subject_title',
             'subject_units', 'subject_type',
             'professors', 'is_tba', 'schedule_slots'
         ]

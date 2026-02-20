@@ -860,27 +860,14 @@ class SubjectEnrollmentService:
 
     
     @transaction.atomic
-    def enroll_in_subject(self, student, enrollment, subject, section) -> 'SubjectEnrollment':
+    def enroll_in_subject(
+        self, student, enrollment, subject, section, 
+        override=False, override_reason=None, actor=None
+    ) -> 'SubjectEnrollment':
         """
         Enroll a student in a subject with full validation.
 
-        Students can now enroll without payment. If Month 1 is not paid,
-        the subject enrollment will have status=PENDING_PAYMENT.
-
-        Args:
-            student: User object
-            enrollment: Enrollment object for current semester
-            subject: Subject object
-            section: Section object
-
-        Returns:
-            SubjectEnrollment: The created enrollment record
-
-        Raises:
-            PrerequisiteNotSatisfiedError: If prerequisites not met
-            UnitCapExceededError: If would exceed unit cap
-            ScheduleConflictError: If schedule conflict detected
-            ConflictError: If already enrolled in this subject
+        If override=True, bypasses validations if actor has sufficient permissions.
         """
         from .models import SubjectEnrollment
         from apps.core.exceptions import (
@@ -888,6 +875,26 @@ class SubjectEnrollmentService:
             PaymentRequiredError, ScheduleConflictError, ConflictError,
             ValidationError
         )
+        from django.core.exceptions import PermissionDenied
+
+        # Handle Override Request
+        if override:
+            if not actor:
+                 raise ValidationError("Actor is required for overrides")
+            
+            # Check permission (Registrar, Dept Head, Admin)
+            authorized_roles = ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN', 'DEPARTMENT_HEAD']
+            if actor.role not in authorized_roles:
+                raise PermissionDenied(f"Role {actor.role} is not authorized to perform overrides")
+            
+            if not override_reason:
+                raise ValidationError("Override reason is mandatory")
+
+            return self.registrar_override_enroll(
+                actor, student, enrollment, subject, section, override_reason
+            )
+        
+        # Standard flow without override below...
         
         # Check if already enrolled
         existing = SubjectEnrollment.objects.filter(
@@ -1255,13 +1262,18 @@ class SubjectEnrollmentService:
             self._get_semester_number(enrollment.semester) != subject.semester_number
         )
         
-        # Create without validation
+        # Create without validation, marking as overridden
         subject_enrollment = SubjectEnrollment.objects.create(
             enrollment=enrollment,
             subject=subject,
             section=section,
             status=SubjectEnrollment.Status.ENROLLED,
-            is_irregular=is_irregular
+            is_irregular=is_irregular,
+            is_overridden=True,
+            override_reason=override_reason,
+            overridden_by=registrar,
+            head_approved=True, # Auto-approve for Registrar
+            payment_approved=True # Auto-approve for Registrar
         )
         
         # Audit log with override details

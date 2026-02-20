@@ -459,6 +459,25 @@ class SubjectEnrollment(ArchivableMixin, BaseModel):
         default=False,
         help_text='Whether grade has been finalized by registrar'
     )
+    
+    # Override Tracking (Proposed Policy)
+    is_overridden = models.BooleanField(
+        default=False,
+        help_text='Whether this enrollment bypassed standard checks'
+    )
+    override_reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Justification for the override'
+    )
+    overridden_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='subject_overrides',
+        help_text='Who performed the override'
+    )
     finalized_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -562,6 +581,18 @@ class SubjectEnrollment(ArchivableMixin, BaseModel):
     @property
     def is_passed(self):
         return self.status in [self.Status.PASSED, self.Status.CREDITED]
+
+    @property
+    def section_subject(self):
+        """Get the SectionSubject junction for this enrollment."""
+        if not self.section or not self.subject:
+            return None
+        from apps.academics.models import SectionSubject
+        return SectionSubject.objects.filter(
+            section=self.section,
+            subject=self.subject,
+            is_deleted=False
+        ).first()
 
     @property
     def is_fully_enrolled(self):

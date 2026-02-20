@@ -1383,16 +1383,21 @@ MyScheduleView = SimpleGETView
 class EnrollSubjectView(APIView):
     """
     Enroll a student in a specific subject section.
-    Enforces rules for Regular, Irregular, and Overloaded students.
+    Delegates validation and fulfillment to SubjectEnrollmentService.
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        from apps.enrollment.models import Enrollment, SubjectEnrollment, Semester
-        from apps.academics.models import Subject, Section, SectionSubject
+        from apps.enrollment.models import Enrollment, Semester
+        from apps.academics.models import Subject, Section
         from apps.enrollment.serializers import EnrollSubjectRequestSerializer
+        from apps.enrollment.services import SubjectEnrollmentService
+        from apps.core.exceptions import (
+            PrerequisiteNotSatisfiedError, UnitCapExceededError,
+            PaymentRequiredError, ScheduleConflictError, ConflictError,
+            ValidationError
+        )
         from django.db import transaction
-        from django.db.models import Sum
 
         user = request.user
         
@@ -1409,7 +1414,6 @@ class EnrollSubjectView(APIView):
                 # 2. Get Student Profile & Status
                 if not hasattr(user, 'student_profile'):
                     return Response({"error": "Student profile not found"}, status=400)
-                profile = user.student_profile
                 
                 # 3. Get Active Semester
                 semester = Semester.objects.filter(is_current=True).first()
@@ -1420,176 +1424,127 @@ class EnrollSubjectView(APIView):
                     return Response({"error": "Enrollment is currently closed"}, status=400)
 
                 # 4. Get/Create Enrollment Header
-                enrollment, created = Enrollment.objects.get_or_create(
+                enrollment, _ = Enrollment.objects.get_or_create(
                     student=user,
                     semester=semester,
                     defaults={
-                        'status': 'PENDING',
-                        'monthly_commitment': 0 # Should be set elsewhere or default
+                        'status': Enrollment.Status.PENDING,
+                        'monthly_commitment': 0
                     }
                 )
                 
-                # 5. Check if already enrolled in this subject
-                if SubjectEnrollment.objects.filter(
-                    enrollment=enrollment, 
-                    subject_id=subject_id,
-                    status__in=['ENROLLED', 'PENDING', 'COMPLETED', 'PASSED']
-                ).exists():
-                     return Response({"error": "Already enrolled in this subject"}, status=400)
-
-                # 6. Fetch Subject & Section
+                # 5. Fetch Subject & Section
                 try:
-                    section_subject = SectionSubject.objects.get(
-                        subject_id=subject_id,
-                        section_id=section_id,
-                        section__semester=semester
-                    )
-                except SectionSubject.DoesNotExist:
-                     return Response({"error": "Subject not offered in this section for this semester"}, status=400)
-                
-                subject = section_subject.subject
-                section = section_subject.section
+                    subject = Subject.objects.get(id=subject_id, is_deleted=False)
+                    section = Section.objects.get(id=section_id, is_deleted=False)
+                except (Subject.DoesNotExist, Section.DoesNotExist):
+                     return Response({"error": "Subject or Section not found"}, status=404)
 
-                # 6.5 Validate Curriculum
-                # Ensure the subject is part of the student's assigned curriculum
-                if profile.curriculum:
-                    from apps.academics.models import CurriculumSubject
-                    if not CurriculumSubject.objects.filter(
-                        curriculum=profile.curriculum, 
-                        subject=subject,
-                        is_deleted=False
-                    ).exists():
-                         return Response({"error": f"Subject {subject.code} is not in your assigned curriculum ({profile.curriculum.name})"}, status=400)
-
-                # 7. ENFORCE RULES (Year 1 Sem 1 vs Current/Year 1 Sem 2)
-                home_section = profile.home_section
-                is_irregular = profile.is_irregular
-                is_overloaded = profile.overload_approved
-                
-                # Determine Student Type
-                is_freshman_first_sem = (profile.year_level == 1) and "1st" in semester.name 
-                # Note: Relying on semester name "1st" is fragile but common. Better: semester.semester_number == 1 if available in model?
-                # Let's check if Semester has semester_number or similar. It doesn't in models.py shown earlier.
-                # Alternative: Check if student has ANY passed subjects? Freshman usually has 0 passed.
-                # However, user specified "1st year and 2nd semester" can choose.
-                # So we must detect semester. 
-                # Semester model has `name` like "1st Semester". Let's use that for now.
-                
-                if "1st" in semester.name or "First" in semester.name:
-                    is_freshman_first_sem = (profile.year_level == 1)
-                else:
-                     # 2nd Semester or Summer -> Year 1 students are considered "Current" flow-wise
-                    is_freshman_first_sem = False
-
-                allowed = False
-                
-                # Check for Retake Status
-                last_enrollment = SubjectEnrollment.objects.filter(
-                    enrollment__student=user,
-                    subject=subject,
-                    status__in=['FAILED', 'DROPPED', 'RETAKE', 'INC']
-                ).order_by('-created_at').first()
-                
-                is_retake = last_enrollment is not None
-                
-                if is_retake and not last_enrollment.is_retake_eligible:
-                     date_str = last_enrollment.retake_eligibility_date.strftime('%b %d, %Y') if last_enrollment.retake_eligibility_date else 'Unknown'
-                     return Response({"error": f"You cannot retake this subject until {date_str}"}, status=403)
-
-                # =========================================================
-                # RULE IMPLEMENTATION
-                # =========================================================
-                
-                # 1. Overloaded Students -> Always Allowed (Override)
-                if is_overloaded:
-                    allowed = True
-                    
-                # 2. Year 1 Sem 1 (Freshman) -> Restricted to Home Section
-                elif is_freshman_first_sem:
-                    if is_irregular:
-                         # Irregular Freshman? (Possible if late enrollee/transferee)
-                         # Home Section OR Retake
-                        if section == home_section:
-                            allowed = True
-                        elif is_retake: 
-                            allowed = True
-                        else:
-                             return Response({"error": "Freshmen (Irregular) can only take new subjects from their assigned Home Section"}, status=403)
-                    else:
-                        # Regular Freshman -> STRICTLY Home Section
-                        if not home_section:
-                            return Response({"error": "You do not have an assigned Home Section. Please contact the Registrar."}, status=400)
-                        
-                        if section == home_section:
-                            allowed = True
-                        else:
-                            return Response({"error": "Freshmen are restricted to their assigned Block Section (Queue System)."}, status=403)
-
-                # 3. Current Students (Year > 1 OR Year 1 Sem 2) -> Open Choice ("At Will")
-                else:
-                    # Can choose ANY section provided it's not full (checked later)
-                    allowed = True
-                
-                if not allowed:
-                     return Response({"error": "Enrollment not allowed due to section restrictions"}, status=403)
-
-                # 8. Check Prerequisites (Double protect)
-                # ... (Available via RecommendedSubjectsView, but good to check)
-                # For brevity, implementing basic check:
-                if subject.prerequisites.exists():
-                    passed_ids = SubjectEnrollment.objects.filter(
-                        enrollment__student=user,
-                        status__in=['PASSED', 'CREDITED', 'COMPLETED']
-                    ).values_list('subject_id', flat=True)
-                    
-                    for prereq in subject.prerequisites.all():
-                        if prereq.id not in passed_ids:
-                             return Response({"error": f"Missing prerequisite: {prereq.code}"}, status=400)
-
-                # 9. Check Max Units
-                current_units = SubjectEnrollment.objects.filter(
-                    enrollment=enrollment,
-                    status__in=['ENROLLED', 'PENDING']
-                ).aggregate(total=Sum('subject__units'))['total'] or 0
-                
-                max_units = 30 # Default cap (overload approved students might have higher, logic to be refined)
-                # If overloaded, maybe ignore? Or use profile.max_units_override
-                if profile.max_units_override:
-                    max_units = profile.max_units_override
-                elif is_overloaded:
-                    max_units = 33 # Example boost
-                
-                if (current_units + subject.units) > max_units:
-                     return Response({"error": f"Maximum unit limit ({max_units}) exceeded"}, status=400)
-
-                # 10. Check Section Capacity
-                if section_subject.remaining_slots <= 0:
-                     return Response({"error": "Section is full"}, status=400)
-                
-                # 11. Create Subject Enrollment
-                enrollment_type = 'HOME'
-                if is_overloaded and (current_units + subject.units) > 24: # Assuming 24 is normal
-                    enrollment_type = 'OVERLOAD'
-                elif is_retake:
-                    enrollment_type = 'RETAKE'
-                
-                SubjectEnrollment.objects.create(
+                # 6. Call Service for Core Logic
+                service = SubjectEnrollmentService()
+                subject_enrollment = service.enroll_in_subject(
+                    student=user,
                     enrollment=enrollment,
                     subject=subject,
-                    section=section,
-                    status='ENROLLED', # Immediately enrolled? Or Pending? "Prevent invalid... at backend"
-                    enrollment_type=enrollment_type,
-                    is_retake=is_retake,
-                    # We link the originally failed enrollment if found?
-                    # original_enrollment=... (Optional refinement)
+                    section=section
                 )
 
                 return Response({
                     "success": True, 
                     "message": "Enrolled successfully",
                     "data": {
+                        "id": str(subject_enrollment.id),
                         "subject": subject.code,
-                        "section": section.name
+                        "section": section.name,
+                        "status": subject_enrollment.status
+                    }
+                })
+
+        except (PrerequisiteNotSatisfiedError, UnitCapExceededError, 
+                ScheduleConflictError, ConflictError, ValidationError) as e:
+            return Response({"error": str(e)}, status=400)
+        except PaymentRequiredError as e:
+            return Response({"error": str(e)}, status=402) # Payment Required
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"error": "An internal error occurred"}, status=500)
+DropSubjectView = SimplePOSTView
+EditSubjectEnrollmentView = SimplePOSTView
+class RegistrarOverrideEnrollmentView(APIView):
+    """
+    Registrar-initiated subject override.
+    Bypasses all standard enrollment validation rules.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, enrollment_id, *args, **kwargs):
+        from apps.enrollment.models import Enrollment, Semester
+        from apps.academics.models import Subject, Section
+        from apps.accounts.models import User
+        from apps.enrollment.serializers import RegistrarOverrideSerializer
+        from apps.enrollment.services import SubjectEnrollmentService
+        from django.db import transaction
+
+        user = request.user
+        
+        # 1. Role Check
+        if user.role not in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN', 'DEPARTMENT_HEAD']:
+            return Response({"error": "Only registrars and administrators can perform overrides"}, status=403)
+
+        # 2. Validate Input
+        serializer = RegistrarOverrideSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({"error": serializer.errors}, status=400)
+            
+        student_id = serializer.validated_data['student_id']
+        subject_id = serializer.validated_data['subject_id']
+        section_id = serializer.validated_data['section_id']
+        override_reason = serializer.validated_data['override_reason']
+
+        try:
+            with transaction.atomic():
+                # 3. Get Student Profile
+                try:
+                    student = User.objects.get(id=student_id, role='STUDENT')
+                except User.DoesNotExist:
+                    return Response({"error": "Student not found"}, status=404)
+
+                # 4. Get Target Enrollment
+                try:
+                    enrollment = Enrollment.objects.get(id=enrollment_id, student=student)
+                except Enrollment.DoesNotExist:
+                     return Response({"error": "Enrollment header not found for this student"}, status=404)
+                
+                # 5. Fetch Subject & Section
+                try:
+                    subject = Subject.objects.get(id=subject_id, is_deleted=False)
+                    section = Section.objects.get(id=section_id, is_deleted=False)
+                except (Subject.DoesNotExist, Section.DoesNotExist):
+                     return Response({"error": "Subject or Section not found"}, status=404)
+
+                # 6. Call Service for Override
+                service = SubjectEnrollmentService()
+                subject_enrollment = service.enroll_in_subject(
+                    student=student,
+                    enrollment=enrollment,
+                    subject=subject,
+                    section=section,
+                    override=True,
+                    override_reason=override_reason,
+                    actor=user
+                )
+
+                return Response({
+                    "success": True, 
+                    "message": "Override enrollment completed successfully",
+                    "data": {
+                        "id": str(subject_enrollment.id),
+                        "student": student.get_full_name(),
+                        "subject": subject.code,
+                        "section": section.name,
+                        "status": subject_enrollment.status,
+                        "is_overridden": True
                     }
                 })
 
@@ -1597,9 +1552,6 @@ class EnrollSubjectView(APIView):
             import traceback
             traceback.print_exc()
             return Response({"error": str(e)}, status=500)
-DropSubjectView = SimplePOSTView
-EditSubjectEnrollmentView = SimplePOSTView
-RegistrarOverrideEnrollmentView = SimplePOSTView
 
 PaymentRecordView = SimplePOSTView
 class PaymentAdjustmentView(APIView):

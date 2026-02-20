@@ -3,31 +3,36 @@ import { X, Search, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { api, endpoints } from '../../../../api';
 import Button from '../../../../components/ui/Button';
 
-const OverrideEnrollModal = ({ enrollmentId, onClose, onSuccess }) => {
+const OverrideEnrollModal = ({ enrollmentId, studentId, programId, semesterId, onClose, onSuccess }) => {
     const [step, setStep] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sections, setSections] = useState([]);
+    const [sectionSubjects, setSectionSubjects] = useState([]);
     const [loadingSections, setLoadingSections] = useState(false);
     
-    const [selectedSection, setSelectedSection] = useState(null);
+    const [selectedAssignment, setSelectedAssignment] = useState(null);
     const [reason, setReason] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         if (searchTerm.length > 2) {
-            const delay = setTimeout(fetchSections, 500);
+            const delay = setTimeout(fetchSectionSubjects, 500);
             return () => clearTimeout(delay);
         }
     }, [searchTerm]);
 
-    const fetchSections = async () => {
+    const fetchSectionSubjects = async () => {
         try {
             setLoadingSections(true);
-            const res = await api.get(endpoints.sections, { 
-                params: { search: searchTerm, page_size: 10 } 
+            const res = await api.get(endpoints.sectionSubjects, { 
+                params: { 
+                    search: searchTerm, 
+                    program: programId,
+                    semester: semesterId,
+                    page_size: 10 
+                } 
             });
-            setSections(res.results || res || []);
+            setSectionSubjects(res.results || res || []);
         } catch (err) {
             console.error(err);
         } finally {
@@ -45,14 +50,12 @@ const OverrideEnrollModal = ({ enrollmentId, onClose, onSuccess }) => {
             setSubmitting(true);
             setError(null);
             
-            // Construct the URL manually since endpoints might not have this specific dynamic one
-            // endpoints.overrideEnroll might not exist yet in proper api.jsx map if I didn't add it or checks failed
-            // Actually, I did NOT add it to api.jsx in Phase C planning (I checked backend contract but didn't list api.jsx update in task C2 plan explicitly, but usually required).
-            // Let's assume I need to use the path directly or add it.
-            // Path: /admissions/enrollment/<id>/override-enroll/
-            
-            await api.post(`/admissions/enrollment/${enrollmentId}/override-enroll/`, {
-                section_id: selectedSection.id,
+            // Phase 3 contract: POST /admissions/enrollment/<id>/override-enroll/
+            // Payload: { student_id, subject_id, section_id, override_reason }
+            await api.post(endpoints.overrideEnroll(enrollmentId), {
+                student_id: studentId,
+                subject_id: selectedAssignment.subject,
+                section_id: selectedAssignment.section,
                 override_reason: reason
             });
 
@@ -60,7 +63,7 @@ const OverrideEnrollModal = ({ enrollmentId, onClose, onSuccess }) => {
             onClose();
         } catch (err) {
             console.error(err);
-            setError(err.response?.data?.error || 'Override failed. Check capacity or conflicts.');
+            setError(err.message || 'Override failed. Check capacity or conflicts.');
         } finally {
             setSubmitting(false);
         }
@@ -98,25 +101,25 @@ const OverrideEnrollModal = ({ enrollmentId, onClose, onSuccess }) => {
                             <div className="max-h-[300px] overflow-y-auto space-y-2">
                                 {loadingSections ? (
                                     <div className="py-8 text-center"><Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto" /></div>
-                                ) : sections.length > 0 ? (
-                                    sections.map(section => (
+                                ) : sectionSubjects.length > 0 ? (
+                                    sectionSubjects.map(assignment => (
                                         <button
-                                            key={section.id}
-                                            onClick={() => { setSelectedSection(section); setStep(2); }}
+                                            key={assignment.id}
+                                            onClick={() => { setSelectedAssignment(assignment); setStep(2); }}
                                             className="w-full text-left p-4 rounded-xl hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all group"
                                         >
                                             <div className="flex justify-between items-center">
                                                 <div>
-                                                    <p className="font-black text-gray-900 text-sm group-hover:text-blue-700">{section.subject_code} - {section.name}</p>
-                                                    <p className="text-xs text-gray-500 mt-1">{section.schedule_summary || 'No Schedule'}</p>
+                                                    <p className="font-black text-gray-900 text-sm group-hover:text-blue-700">{assignment.subject_code} - {assignment.section_name}</p>
+                                                    <p className="text-xs text-gray-500 mt-1">{assignment.subject_title}</p>
                                                 </div>
                                                 <div className="text-right">
                                                     <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${
-                                                        section.enrolled_count >= section.capacity 
+                                                        assignment.enrolled_count >= assignment.capacity 
                                                             ? 'bg-red-100 text-red-600' 
                                                             : 'bg-green-100 text-green-600'
                                                     }`}>
-                                                        {section.enrolled_count}/{section.capacity}
+                                                        {assignment.enrolled_count}/{assignment.capacity}
                                                     </span>
                                                 </div>
                                             </div>
@@ -124,7 +127,7 @@ const OverrideEnrollModal = ({ enrollmentId, onClose, onSuccess }) => {
                                     ))
                                 ) : (
                                     <p className="text-center text-gray-400 text-xs py-4 font-bold uppercase tracking-widest">
-                                        {searchTerm.length > 2 ? 'No sections found' : 'Type to search...'}
+                                        {searchTerm.length > 2 ? 'No matching subjects found' : 'Type code or title to search...'}
                                     </p>
                                 )}
                             </div>
@@ -133,12 +136,12 @@ const OverrideEnrollModal = ({ enrollmentId, onClose, onSuccess }) => {
                         <div className="space-y-6">
                             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                 <div className="flex justify-between items-start mb-2">
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Selected Section</p>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Selected Subject & Section</p>
                                     <button onClick={() => setStep(1)} className="text-[10px] font-bold text-blue-600 hover:underline">CHANGE</button>
                                 </div>
-                                <p className="font-black text-lg text-gray-900">{selectedSection.subject_code}</p>
-                                <p className="text-sm text-gray-600 font-medium">{selectedSection.name}</p>
-                                {selectedSection.enrolled_count >= selectedSection.capacity && (
+                                <p className="font-black text-lg text-gray-900">{selectedAssignment.subject_code}</p>
+                                <p className="text-sm text-gray-600 font-medium">{selectedAssignment.subject_title} — {selectedAssignment.section_name}</p>
+                                {selectedAssignment.enrolled_count >= selectedAssignment.capacity && (
                                     <div className="mt-3 flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-lg text-xs font-bold">
                                         <AlertTriangle className="w-4 h-4" />
                                         <span>Capacity Full - Override Required</span>

@@ -291,6 +291,9 @@ class SubjectEnrollmentSerializer(serializers.ModelSerializer):
     schedule = serializers.SerializerMethodField()
     professor_name = serializers.SerializerMethodField()
 
+    # Override info
+    overridden_by_name = serializers.SerializerMethodField()
+
     class Meta:
         from apps.enrollment.models import SubjectEnrollment
         model = SubjectEnrollment
@@ -300,6 +303,7 @@ class SubjectEnrollmentSerializer(serializers.ModelSerializer):
             'section_name', 'status', 'status_display',
             'grade', 'is_irregular', 'count_in_gpa',
             'payment_approved', 'head_approved', 'approval_status_display', 'is_fully_enrolled',
+            'is_overridden', 'override_reason', 'overridden_by_name',
             'schedule', 'professor_name', 'created_at'
         ]
     
@@ -343,6 +347,12 @@ class SubjectEnrollmentSerializer(serializers.ModelSerializer):
         if section_subject and section_subject.professor:
             return section_subject.professor.get_full_name()
         return 'TBA'
+
+    def get_overridden_by_name(self, obj):
+        """Get the full name of the user who performed the override."""
+        if obj.overridden_by:
+            return obj.overridden_by.get_full_name()
+        return None
 
 
 class RecommendedSubjectSerializer(serializers.Serializer):

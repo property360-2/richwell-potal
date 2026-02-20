@@ -80,13 +80,19 @@ For a subject to be officially enrolled, it must pass two gates:
     3.  **Approval**: Department Head or Registrar approves.
     4.  **Effect**: `StudentProfile.max_units_override` is temporarily increased for the semester.
 
-### 3.3 Grade Resolution (Changing Finalized Grades)
-*   **Scenario**: Professor needs to change a grade after the grading period is closed or finalized.
-*   **Flow**:
-    1.  **Professor**: Submits `GradeResolution` request with "Reason" and "Proposed Grade".
-    2.  **Registrar**: Reviews the request (Status: `PENDING_REGISTRAR` → `PENDING_HEAD`).
-    3.  **Department Head**: Final Approval (Status: `APPROVED`).
-    4.  **System**: Updates `SubjectEnrollment.grade` and logs change in `GradeHistory`.
+### 3.4 Comprehensive Approval Workflows
+The system implements several approval chains for critical academic and administrative actions.
+
+| Workflow | Trigger | Approver 1 | Approver 2 | Effect |
+| :--- | :--- | :--- | :--- | :--- |
+| **Online Enrollment** | Student Form | System (Internal Check) | — | Creates pending student account. |
+| **Subject Enrollment** | Student Selection | Cashier (Payment) | Dept Head (Academic) | Enrolls subject; sets `payment_approved` & `head_approved`. |
+| **Overload Request** | Student Request | Registrar | Dept Head | Increases unit limit (`max_units_override`). |
+| **Grade Finalization** | End of Term | Registrar | — | Locks grades for a section (`is_finalized = True`). |
+| **INC Resolution** | Prof Request | Registrar (Validates Eligibility) | Dept Head (Academic Merit) | Updates grade from `INC` to final grade. |
+| **Grade Override** | Registrar Action | *Self-Logged* | — | Compulsory grade change (even if finalized). Logs to `GradeHistory` as `OVERRIDE`. |
+| **Transferee Credit** | Registrar Entry | *Auto-Approved* | — | Credits subjects from previous school. |
+| **Admitted Status** | Payment w/o Subjects| Admin/Staff | — | Sets status to `ADMITTED` (Paid but no load). |
 
 ---
 
@@ -227,8 +233,14 @@ Exam permits are the **gate** between payment and exam eligibility.
 2.  **Finalize**: `FinalizeSectionGradesView` locks all grades in a section (prevents further edits).
 3.  **Override**: `OverrideGradeView` allows Registrar to change grades post-finalization (logged in `AuditLog`).
 
-### 9.3 INC (Incomplete) Management
-*   **Report**: `INCReportView` lists all students with unresolved INC grades.
+### 9.3 INC (Incomplete) Management & Resolution
+*   **Definition**: A temporary grade given when a student fails to complete requirements.
+*   **Resolution Process**:
+    1.  **Trigger**: Student submits missing requirements.
+    2.  **Request**: Professor creates a `GradeResolution` request with `proposed_grade`.
+    3.  **Validation (Registrar)**: Checks if within completion period (1 year max).
+    4.  **Approval (Head)**: Reviews academic merit.
+    5.  **Effect**: On approval, `SubjectEnrollment.grade` is updated.
 *   **Auto-Expiry**: `ProcessExpiredINCsView` converts expired INCs to `5.00` (Failed).
     *   Major subjects: 6-month expiry.
     *   Minor subjects: 12-month expiry.
