@@ -18,8 +18,9 @@ import AddSubjectModal from '../modals/AddSubjectModal';
 import EditSubjectModal from '../modals/EditSubjectModal';
 import ConfirmModal from '../../../components/shared/ConfirmModal';
 
-const SubjectsTab = ({ subjects, programId, onUpdate }) => {
+const SubjectsTab = ({ subjects: initialSubjects = [], programId, onUpdate }) => {
     const { success: showSuccess, error: showError } = useToast();
+    const [subjects, setSubjects] = useState(initialSubjects);
     const [programs, setPrograms] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');

@@ -410,6 +410,32 @@ class ProfessorProfile(BaseModel):
         return f"{self.user.get_full_name()} - Professor Profile"
 
 
+class DepartmentHeadProfile(BaseModel):
+    """
+    Extended profile for Department Heads.
+    Links a head to one or more programs for administrative scoping.
+    """
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='department_head_profile',
+        limit_choices_to={'role': User.Role.DEPARTMENT_HEAD}
+    )
+    programs = models.ManyToManyField(
+        'academics.Program',
+        related_name='department_heads',
+        help_text='Programs this department head manages'
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Department Head Profile'
+        verbose_name_plural = 'Department Head Profiles'
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - Dept Head"
+
+
 class PermissionCategory(BaseModel):
     """Groups related permissions together for organization"""
 

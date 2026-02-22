@@ -92,6 +92,7 @@ const RegistrarStudentDetail = () => {
         { id: 'academic', label: 'Academic Status', icon: ShieldCheck },
         { id: 'enrollment', label: 'Enrollment History', icon: History },
         { id: 'credits', label: 'Credited Subjects', icon: Book },
+        { id: 'resolutions', label: 'Resolutions', icon: Award },
     ];
 
     return (
@@ -184,6 +185,7 @@ const RegistrarStudentDetail = () => {
                     />
                 )}
                 {activeTab === 'credits' && <CreditsPanel student={student} />}
+                {activeTab === 'resolutions' && <ResolutionsPanel student={student} />}
             </div>
 
             {/* Modal */}
@@ -400,6 +402,64 @@ const CreditsPanel = ({ student }) => (
         )}
     </div>
 );
+
+const ResolutionsPanel = ({ student }) => (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+        <div className="flex justify-between items-center">
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">Grade Resolutions</h3>
+        </div>
+        {student.grade_resolutions?.length > 0 ? (
+            <div className="divide-y divide-gray-50">
+                {student.grade_resolutions.map((res, i) => (
+                    <div key={i} className="py-6 flex flex-col md:flex-row md:items-center justify-between hover:bg-gray-50/50 px-4 rounded-2xl transition-colors gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                                <Award className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="font-black text-gray-900 uppercase tracking-tight">
+                                    {res.subject_code} - {res.subject_title}
+                                </p>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+                                    Grade: <span className="text-gray-600">{res.original_grade}</span> → <span className="text-blue-600">{res.requested_grade}</span>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex flex-col md:items-end gap-2">
+                             <ResolutionStatusBadge status={res.status} />
+                             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+                                Requested by {res.requested_by_name} • {new Date(res.created_at).toLocaleDateString()}
+                            </p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        ) : (
+            <div className="py-20 text-center">
+                <Award className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No Grade Resolutions Found</p>
+            </div>
+        )}
+    </div>
+);
+
+const ResolutionStatusBadge = ({ status }) => {
+    const configs = {
+        'PENDING_HEAD': { label: 'PENDING DEPT HEAD', color: 'text-amber-600 bg-amber-50 border-amber-100' },
+        'PENDING_REGISTRAR': { label: 'PENDING REGISTRAR', color: 'text-blue-600 bg-blue-50 border-blue-100' },
+        'APPROVED': { label: 'APPROVED', color: 'text-green-600 bg-green-50 border-green-100' },
+        'REJECTED': { label: 'REJECTED', color: 'text-red-600 bg-red-50 border-red-100' },
+    };
+    
+    const config = configs[status] || { label: status, color: 'text-gray-600 bg-gray-50 border-gray-100' };
+    
+    return (
+        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${config.color}`}>
+            {config.label}
+        </span>
+    );
+};
 
 const InfoGroup = ({ label, value, icon: Icon }) => (
     <div className="flex gap-4">

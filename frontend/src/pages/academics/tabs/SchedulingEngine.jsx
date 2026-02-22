@@ -143,13 +143,30 @@ const ScheduleCell = ({ day, time, children, onClick, onMouseEnter, isHovered })
 };
 
 const ScheduledSlotCard = ({ slot, onClick }) => {
+    const calculateHeight = (start, end) => {
+        if (!start || !end) return 80; // fallback to 1 slot
+        try {
+            const [sh, sm] = start.split(':').map(Number);
+            const [eh, em] = end.split(':').map(Number);
+            const diffMinutes = (eh * 60 + em) - (sh * 60 + sm);
+            // Each 30 mins = 80px (h-20)
+            // We use precisely 80px per 30m slot
+            return Math.max(80, (diffMinutes / 30) * 80);
+        } catch (e) {
+            return 80;
+        }
+    };
+
+    const height = calculateHeight(slot.start_time, slot.end_time);
+
     return (
         <div 
             onClick={(e) => {
                 e.stopPropagation();
                 onClick(slot);
             }}
-            className="absolute inset-x-1 top-1 bottom-1 bg-white rounded-xl border-l-4 border-l-indigo-500 border border-gray-100 shadow-md p-3 group animate-in zoom-in duration-300 z-10 cursor-pointer hover:border-indigo-300 hover:shadow-lg transition-all"
+            className="absolute inset-x-0 top-0 bg-white rounded-xl border-l-4 border-l-indigo-500 border border-gray-100 shadow-md p-3 group animate-in zoom-in duration-300 z-20 cursor-pointer hover:border-indigo-300 hover:shadow-lg transition-all overflow-hidden"
+            style={{ height: `${height - 2}px`, margin: '1px' }}
         >
             <div className="flex justify-between items-start mb-1 leading-none">
                 <span className="text-[10px] font-black text-indigo-600 uppercase tracking-tighter italic">
@@ -311,7 +328,8 @@ const SchedulingEngine = ({ section, onBack }) => {
                 start_time: time,
                 end_time: calculateEndTime(time, selectedSubject.units),
                 room: '',
-                qualified_professors: selectedSubject.qualified_professors || []
+                qualified_professors: selectedSubject.qualified_professors || [],
+                semester_id: sectionData.semester_info.id
             };
     
             setEditingSlot(newSlot);
@@ -340,7 +358,8 @@ const SchedulingEngine = ({ section, onBack }) => {
             start_time: pickerTarget.time,
             end_time: calculateEndTime(pickerTarget.time, subject.units),
             room: '',
-            qualified_professors: subject.qualified_professors || []
+            qualified_professors: subject.qualified_professors || [],
+            semester_id: sectionData.semester_info.id
         };
 
         setEditingSlot(newSlot);
@@ -363,7 +382,8 @@ const SchedulingEngine = ({ section, onBack }) => {
         
         setEditingSlot({
             ...slot,
-            qualified_professors: subject?.professors || slot.qualified_professors || []
+            qualified_professors: subject?.professors || slot.qualified_professors || [],
+            semester_id: sectionData.semester_info.id
         });
         setIsEditModalOpen(true);
     };
@@ -526,7 +546,7 @@ const SchedulingEngine = ({ section, onBack }) => {
                                 {TIME_SLOTS.map((slot) => (
                                     <div 
                                         key={slot.timeStr} 
-                                        className="h-20 flex flex-col items-center justify-center border-b border-r border-gray-100 border-dashed"
+                                        className="h-20 flex flex-col items-center justify-start pt-2 border-b border-r border-gray-100 border-dashed"
                                     >
                                         <span className="text-[10px] font-black text-gray-900 tracking-tighter">
                                             {slot.label.split(' ')[0]}

@@ -19,6 +19,8 @@ const EditScheduleSlotModal = ({ isOpen, onClose, slot, onUpdate, onDelete }) =>
     const [rooms, setRooms] = useState([]);
     const [filteredRooms, setFilteredRooms] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [professorConflicts, setProfessorConflicts] = useState({});
+    const [checkingConflicts, setCheckingConflicts] = useState(false);
 
     useEffect(() => {
         const fetchRooms = async () => {
@@ -53,6 +55,44 @@ const EditScheduleSlotModal = ({ isOpen, onClose, slot, onUpdate, onDelete }) =>
             });
         }
     }, [slot]);
+
+    // NEW: Real-time conflict checking
+    useEffect(() => {
+        const checkAllConflicts = async () => {
+            if (!slot || !formData.day || !formData.start_time || !formData.end_time) return;
+            if (!slot.semester_id && !slot.semester) return; // Need semester context
+
+            const semesterId = slot.semester_id || slot.semester;
+            const professors = slot.qualified_professors || [];
+            
+            if (professors.length === 0) return;
+
+            setCheckingConflicts(true);
+            const conflicts = {};
+
+            try {
+                await Promise.all(professors.map(async (p) => {
+                    const res = await SchedulingService.checkProfessorConflict({
+                        professor_id: p.id,
+                        semester_id: semesterId,
+                        day: formData.day,
+                        start_time: formData.start_time,
+                        end_time: formData.end_time,
+                        exclude_slot: slot.id
+                    });
+                    conflicts[p.id] = res.has_conflict ? res.conflict : null;
+                }));
+                setProfessorConflicts(conflicts);
+            } catch (err) {
+                console.error("Conflict check failed:", err);
+            } finally {
+                setCheckingConflicts(false);
+            }
+        };
+
+        const debounceTimer = setTimeout(checkAllConflicts, 500);
+        return () => clearTimeout(debounceTimer);
+    }, [formData.day, formData.start_time, formData.end_time, slot]);
 
     if (!isOpen || !slot) return null;
 
@@ -103,7 +143,30 @@ const EditScheduleSlotModal = ({ isOpen, onClose, slot, onUpdate, onDelete }) =>
             onUpdate();
             onClose();
         } catch (err) {
-            console.error(err);
+            console.error('Schedule Save Error:', err);
+            
+            // Handle structured field errors from DRF
+            if (err.data && typeof err.data === 'object' && !Array.isArray(err.data)) {
+                // Extract specific field errors
+                const fieldErrors = [];
+                
+                if (err.data.professor) fieldErrors.push(err.data.professor);
+                if (err.data.room) fieldErrors.push(err.data.room);
+                if (err.data.non_field_errors) fieldErrors.push(err.data.non_field_errors);
+                
+                // Handle conflict details object if present
+                if (err.data.conflict_details) {
+                    const { type, resource, conflict } = err.data.conflict_details;
+                    fieldErrors.push(`Conflict: ${type} "${resource}" is busy - ${conflict}`);
+                }
+
+                if (fieldErrors.length > 0) {
+                    showError(fieldErrors.flat().join(' | '));
+                    return;
+                }
+            }
+
+            // Fallback to generic message or error object message
             showError(err.message || 'Failed to save schedule. Check for conflicts.');
         } finally {
             setLoading(false);
@@ -226,11 +289,14 @@ const EditScheduleSlotModal = ({ isOpen, onClose, slot, onUpdate, onDelete }) =>
                                     }`}
                                 >
                                     <option value="">TBA (Select to Assign)</option>
-                                    {(slot.qualified_professors || []).map(p => (
-                                        <option key={p.id} value={p.id} disabled={p.has_conflict}>
-                                            {p.name} {p.has_conflict ? '• Busy at this time' : '• Available'}
-                                        </option>
-                                    ))}
+                                    {(slot.qualified_professors || []).map(p => {
+                                        const conflict = professorConflicts[p.id];
+                                        return (
+                                            <option key={p.id} value={p.id}>
+                                                {p.name} {conflict ? `• BUSY (${conflict})` : '• AVAILABLE'}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </div>
 

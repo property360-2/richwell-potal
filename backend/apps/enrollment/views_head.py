@@ -37,12 +37,12 @@ class HeadPendingEnrollmentsView(views.APIView):
             'section'
         ).order_by('-created_at')
         
-        # If department head, filter to their program/department
+        # If department head, filter to their programs
         if user.role == 'DEPARTMENT_HEAD' and hasattr(user, 'department_head_profile'):
-            program = user.department_head_profile.program
-            if program:
+            programs = user.department_head_profile.programs.all()
+            if programs.exists():
                 pending_qs = pending_qs.filter(
-                    subject__program=program
+                    subject__program__in=programs
                 )
         
         pending_enrollments = []

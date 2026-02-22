@@ -2,57 +2,52 @@ import { api, endpoints } from '../../../api';
 
 const HeadService = {
     getPendingEnrollments: async () => {
-        const res = await fetch(endpoints.headPendingEnrollments);
-        if (res.ok) {
-            const data = await res.json();
-            return data.results || data || [];
-        }
-        return [];
+        const data = await api.get(endpoints.headPendingEnrollments);
+        return data.results || data || [];
     },
 
     approveSubject: async (subjectEnrollmentId) => {
-        const res = await fetch(endpoints.headApprove(subjectEnrollmentId), {
-            method: 'POST'
-        });
-        return res.ok ? res.json() : null;
+        return await api.post(endpoints.headApprove(subjectEnrollmentId), {});
     },
 
     rejectSubject: async (subjectEnrollmentId, reason) => {
-        const res = await fetch(endpoints.headReject(subjectEnrollmentId), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason })
-        });
-        return res.ok ? res.json() : null;
+        return await api.post(endpoints.headReject(subjectEnrollmentId), { reason });
     },
 
     bulkApprove: async (subjectEnrollmentIds) => {
-        const res = await fetch(endpoints.headBulkApprove, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: subjectEnrollmentIds })
-        });
-        return res.ok ? res.json() : null;
+        return await api.post(endpoints.headBulkApprove, { ids: subjectEnrollmentIds });
     },
 
     getReports: async (params) => {
-        const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${endpoints.reports}?${query}`);
-        return res.ok ? res.json() : null;
+        const data = await api.get(endpoints.reports, params);
+        // api.get internally handles response parsing and mapping
+        if (data && !data.error) {
+            return {
+                success: true,
+                results: data.results || data,
+                count: Array.isArray(data.results || data) ? (data.results || data).length : 0
+            };
+        }
+        return { success: false, results: [] };
     },
 
     getPendingResolutions: async () => {
-        const res = await fetch(`${endpoints.gradeResolutions}pending/`);
-        return res.ok ? res.json() : [];
+        const data = await api.get(`${endpoints.gradeResolutions}pending/`);
+        return Array.isArray(data.results || data) ? (data.results || data) : [];
     },
 
     processResolution: async (id, action, data) => {
-        const res = await fetch(`${endpoints.gradeResolutions}${id}/${action}/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        return res.ok ? res.json() : null;
+        return await api.post(`${endpoints.gradeResolutions}${id}/${action}/`, data);
+    },
+
+    getStudents: async (params) => {
+        const data = await api.get(endpoints.registrarStudents, params);
+        return data.results || data || [];
+    },
+
+    getPrograms: async () => {
+        const data = await api.get(endpoints.academicPrograms);
+        return data.results || data || [];
     }
 };
 

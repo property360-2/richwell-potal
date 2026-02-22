@@ -13,7 +13,8 @@ import {
     Save,
     Info,
     LayoutGrid,
-    Archive
+    Archive,
+    Clock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -22,6 +23,7 @@ import Button from '../../components/ui/Button';
 import Tabs from '../../components/ui/Tabs';
 import SEO from '../../components/shared/SEO';
 import ProfessorService from './services/ProfessorService';
+import ResolutionStatus from '../../components/shared/ResolutionStatus';
 
 const ProfessorGrades = () => {
     const { user } = useAuth();
@@ -264,6 +266,18 @@ const ProfessorGrades = () => {
                                                 <div>
                                                     <p className="font-black text-gray-900 tracking-tight leading-none mb-1">{student.full_name}</p>
                                                     <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{student.student_number || 'TEMP_RECORD'}</p>
+                                                    
+                                                    {student.pending_resolution && (
+                                                        <div className="mt-4 p-3 bg-gray-50/50 rounded-2xl border border-gray-100 flex flex-col gap-2">
+                                                            <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest flex items-center gap-1.5">
+                                                                <Clock className="w-2.5 h-2.5" /> Resolution
+                                                            </p>
+                                                            <ResolutionStatus 
+                                                                status={student.pending_resolution.status} 
+                                                                resolution={student.pending_resolution}
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>

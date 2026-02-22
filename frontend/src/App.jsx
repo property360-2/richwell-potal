@@ -31,8 +31,8 @@ const RegistrarStudentMasterlist = lazy(() => import('./pages/registrar/students
 const RegistrarStudentDetail = lazy(() => import('./pages/registrar/students/Detail'));
 const RegistrarSubjectMasterlist = lazy(() => import('./pages/registrar/curriculum/SubjectMasterlist'));
 const RegistrarSemesterManagement = lazy(() => import('./pages/registrar/curriculum/SemesterManagement'));
-const RegistrarExamMappings = lazy(() => import('./pages/registrar/curriculum/ExamMappings'));
-const RegistrarExamPermitsPage = lazy(() => import('./pages/registrar/ExamPermits'));
+// const RegistrarExamMappings = lazy(() => import('./pages/registrar/curriculum/ExamMappings'));
+// const RegistrarExamPermitsPage = lazy(() => import('./pages/registrar/ExamPermits'));
 const RegistrarSectionManager = lazy(() => import('./pages/registrar/sections/Manager'));
 const RegistrarSectionDetail = lazy(() => import('./pages/registrar/sections/Detail'));
 const RegistrarCORManagement = lazy(() => import('./pages/registrar/enrollment/CORManagement'));
@@ -65,10 +65,10 @@ const HeadResolutions = lazy(() => import('./pages/head/Resolutions'));
 const CashierDashboard = lazy(() => import('./pages/cashier'));
 
 // Superadmin
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
 const AdminUserManagement = lazy(() => import('./pages/admin/UserManagement'));
-const AdminSystemConfig = lazy(() => import('./pages/admin/SystemConfig'));
+// const AdminSystemConfig = lazy(() => import('./pages/admin/SystemConfig'));
 const AuditLogsPage = lazy(() => import('./pages/admin/AuditLogs'));
-const PermissionsPage = lazy(() => import('./pages/admin/Permissions'));
 const AdminTermManagement = lazy(() => import('./pages/admin/TermManagement'));
 const AdminTransactionLog = lazy(() => import('./pages/admin/TransactionLog'));
 
@@ -126,8 +126,8 @@ function App() {
                     <Route path="/registrar/students/:id" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarStudentDetail /></ProtectedRoute>} />
                     <Route path="/registrar/subjects" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarSubjectMasterlist /></ProtectedRoute>} />
                     <Route path="/registrar/semesters" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarSemesterManagement /></ProtectedRoute>} />
-                    <Route path="/registrar/exam-mappings" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarExamMappings /></ProtectedRoute>} />
-                    <Route path="/registrar/exam-permits" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarExamPermitsPage /></ProtectedRoute>} />
+                    {/* <Route path="/registrar/exam-mappings" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarExamMappings /></ProtectedRoute>} /> */}
+                    {/* <Route path="/registrar/exam-permits" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarExamPermitsPage /></ProtectedRoute>} /> */}
                     <Route path="/registrar/sections" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarSectionManager /></ProtectedRoute>} />
                     <Route path="/registrar/sections/:id" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarSectionDetail /></ProtectedRoute>} />
                     <Route path="/registrar/cor" element={<ProtectedRoute roles={['REGISTRAR', 'ADMIN']}><RegistrarCORManagement /></ProtectedRoute>} />
@@ -149,24 +149,19 @@ function App() {
                     <Route path="/head" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN']}><HeadDashboard /></ProtectedRoute>} />
                     <Route path="/head/dashboard" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN']}><HeadDashboard /></ProtectedRoute>} />
                     <Route path="/head/reports" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN']}><HeadReports /></ProtectedRoute>} />
-                    <Route path="/head/resolutions" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN']}><HeadResolutions /></ProtectedRoute>} />
+                    <Route path="/head/resolutions" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR']}><HeadResolutions /></ProtectedRoute>} />
 
                     {/* Cashier Routes */}
                     <Route path="/cashier" element={<ProtectedRoute roles={['CASHIER', 'ADMIN']}><CashierDashboard /></ProtectedRoute>} />
                     <Route path="/cashier/dashboard" element={<ProtectedRoute roles={['CASHIER', 'ADMIN']}><CashierDashboard /></ProtectedRoute>} />
 
                     {/* Admin Routes */}
-                    <Route path="/admin/dashboard" element={<ProtectedRoute roles={['ADMIN']}><AdminUserManagement /></ProtectedRoute>} />
+                    <Route path="/admin/dashboard" element={<ProtectedRoute roles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
                     <Route path="/admin/users" element={<ProtectedRoute roles={['ADMIN']}><AdminUserManagement /></ProtectedRoute>} />
-                    <Route path="/admin/config" element={<ProtectedRoute roles={['ADMIN']}><AdminSystemConfig /></ProtectedRoute>} />
+                    {/* <Route path="/admin/config" element={<ProtectedRoute roles={['ADMIN']}><AdminSystemConfig /></ProtectedRoute>} /> */}
                     <Route path="/admin/audit-logs" element={
                       <ProtectedRoute allowedRoles={['ADMIN']}>
                         <AuditLogsPage />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="/admin/permissions" element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
-                        <PermissionsPage />
                       </ProtectedRoute>
                     } />
                     <Route path="/admin/terms" element={<ProtectedRoute roles={['ADMIN']}><AdminTermManagement /></ProtectedRoute>} />

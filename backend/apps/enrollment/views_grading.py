@@ -167,7 +167,11 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
                             'proposed_grade': str(pending_res.proposed_grade) if pending_res.proposed_status not in ['INC', 'DROPPED'] else pending_res.proposed_status,
                             'proposed_status': pending_res.proposed_status,
                             'status': pending_res.status,
-                            'remarks': pending_res.reason
+                            'remarks': pending_res.reason,
+                            'reviewed_by_head_name': pending_res.reviewed_by_head.get_full_name() if pending_res.reviewed_by_head else None,
+                            'head_action_at': pending_res.head_action_at,
+                            'reviewed_by_registrar_name': pending_res.reviewed_by_registrar.get_full_name() if pending_res.reviewed_by_registrar else None,
+                            'registrar_action_at': pending_res.registrar_action_at
                         }
 
                     if se.inc_marked_at:
@@ -190,7 +194,11 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
                             'proposed_grade': str(pending_res.proposed_grade) if pending_res.proposed_status not in ['INC', 'DROPPED'] else pending_res.proposed_status,
                             'proposed_status': pending_res.proposed_status,
                             'status': pending_res.status,
-                            'remarks': pending_res.reason
+                            'remarks': pending_res.reason,
+                            'reviewed_by_head_name': pending_res.reviewed_by_head.get_full_name() if pending_res.reviewed_by_head else None,
+                            'head_action_at': pending_res.head_action_at,
+                            'reviewed_by_registrar_name': pending_res.reviewed_by_registrar.get_full_name() if pending_res.reviewed_by_registrar else None,
+                            'registrar_action_at': pending_res.registrar_action_at
                         }
 
         # Group by section-subject for better UI organization

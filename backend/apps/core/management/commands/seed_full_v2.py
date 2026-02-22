@@ -27,7 +27,7 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 
 from apps.accounts.models import (
-    StudentProfile, ProfessorProfile,
+    StudentProfile, ProfessorProfile, DepartmentHeadProfile,
     Permission, PermissionCategory, UserPermission
 )
 from apps.academics.models import (
@@ -144,6 +144,7 @@ class Command(BaseCommand):
         
         # Level 4
         StudentProfile.objects.all().delete()
+        DepartmentHeadProfile.objects.all().delete()
         # Use all_objects to ensure soft-deleted sections are also wiped
         Section.all_objects.all().delete()
         
@@ -493,6 +494,9 @@ class Command(BaseCommand):
         # Professors
         self._create_professors()
         
+        # Dept Head Profiles (Requires programs from Level 2)
+        self._create_head_profiles()
+        
         self.stdout.write(self.style.SUCCESS('   ✓ Academics base complete'))
 
     def _create_programs(self):
@@ -602,6 +606,26 @@ class Command(BaseCommand):
             self.professors.append(user)
         
         self.stdout.write(f'   - Created {len(self.professors)} professors')
+
+    def _create_head_profiles(self):
+        """Create profiles for department heads and link them to programs."""
+        # Find the department head user created in level 1
+        head_user = User.objects.filter(role=User.Role.DEPARTMENT_HEAD).first()
+        if not head_user:
+            return
+
+        # Get BSIT and BSIS programs
+        programs = Program.objects.filter(code__in=['BSIT', 'BSIS'])
+        
+        profile, created = DepartmentHeadProfile.objects.get_or_create(
+            user=head_user,
+            defaults={'is_active': True}
+        )
+        if programs.exists():
+            profile.programs.set(programs)
+            profile.save()
+            
+        self.stdout.write(f'   - Created Department Head Profile for {head_user.get_full_name()} (Programs: {", ".join([p.code for p in programs])})')
 
     # =========================================================================
     # LEVEL 3: Curriculum & Subjects

@@ -63,6 +63,8 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
     const [isValidating, setIsValidating] = useState({ email: false, student_number: false });
     const [isGeneratingId, setIsGeneratingId] = useState(false);
     
+    const [programs, setPrograms] = useState([]);
+    
     const [formData, setFormData] = useState({
         email: '',
         first_name: '',
@@ -71,8 +73,22 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
         confirm_password: '',
         role: 'PROFESSOR',
         program: 'BSIT',
+        selected_programs: [], // Added for Department Head multi-select
         student_number: ''
     });
+
+    // Load programs for Department Head selection
+    useEffect(() => {
+        const fetchPrograms = async () => {
+            try {
+                const resp = await api.get(endpoints.managePrograms);
+                setPrograms(resp.results || resp || []);
+            } catch (err) {
+                console.error('Failed to load programs:', err);
+            }
+        };
+        fetchPrograms();
+    }, []);
 
     // Reset validation when modal opens
     useEffect(() => {
@@ -191,6 +207,23 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
+        
+        // Handle multi-select for Department Head programs
+        if (name === 'selected_programs') {
+            const options = e.target.options;
+            const values = [];
+            for (let i = 0, l = options.length; i < l; i++) {
+                if (options[i].selected) {
+                    values.push(options[i].value);
+                }
+            }
+            setFormData(prev => ({
+                ...prev,
+                selected_programs: values
+            }));
+            return;
+        }
+
         setFormData(prev => ({
             ...prev,
             [name]: value
@@ -226,6 +259,7 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
                 password: formData.password,
                 role: formData.role,
                 program: formData.role === 'STUDENT' ? formData.program : undefined,
+                programs: formData.role === 'DEPARTMENT_HEAD' ? formData.selected_programs : undefined,
                 student_number: formData.role === 'STUDENT' ? formData.student_number : undefined
             });
             
@@ -240,6 +274,7 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
                 confirm_password: '',
                 role: allowedRoles[0]?.value || 'PROFESSOR',
                 program: 'BSIT',
+                selected_programs: [],
                 student_number: ''
             });
             setValidationErrors({ email: null, student_number: null, password: null });
@@ -285,6 +320,7 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
     };
 
     const isStudent = formData.role === 'STUDENT';
+    const isDeptHead = formData.role === 'DEPARTMENT_HEAD';
     const hasErrors = validationErrors.email || validationErrors.student_number || validationErrors.password;
     const isChecking = isValidating.email || isValidating.student_number;
 
@@ -385,6 +421,34 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
                         </p>
                     )}
                 </div>
+
+                {/* Department Head Specific Fields */}
+                {isDeptHead && (
+                    <div>
+                        <label className="block text-xs font-black text-gray-700 uppercase tracking-widest mb-2">
+                            <Building className="w-3 h-3 inline mr-1" />
+                            Assigned Programs
+                        </label>
+                        <select
+                            multiple
+                            name="selected_programs"
+                            value={formData.selected_programs}
+                            onChange={handleChange}
+                            required={isDeptHead}
+                            size={4}
+                            className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-gray-900 min-h-[120px]"
+                        >
+                            {programs.map(p => (
+                                <option key={p.id} value={p.id}>
+                                    {p.code} - {p.name}
+                                </option>
+                            ))}
+                        </select>
+                        <p className="mt-2 text-[10px] text-gray-500 italic">
+                            Hold Ctrl (Windows) or Cmd (Mac) to select multiple programs.
+                        </p>
+                    </div>
+                )}
 
                 {/* Student-specific fields */}
                 {isStudent && (

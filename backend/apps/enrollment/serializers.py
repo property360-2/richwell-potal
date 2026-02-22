@@ -1048,15 +1048,29 @@ class GradeResolutionSerializer(serializers.ModelSerializer):
     student_number = serializers.CharField(source='subject_enrollment.enrollment.student.student_number', read_only=True)
     subject_code = serializers.CharField(source='subject_enrollment.subject.code', read_only=True)
     subject_title = serializers.CharField(source='subject_enrollment.subject.title', read_only=True)
-    original_grade = serializers.DecimalField(source='current_grade', max_digits=3, decimal_places=2, read_only=True)
-    requested_grade = serializers.DecimalField(source='proposed_grade', max_digits=3, decimal_places=2)
+    
+    # Tracking fields
     requested_by_name = serializers.CharField(source='requested_by.get_full_name', read_only=True)
+    reviewed_by_head_name = serializers.CharField(source='reviewed_by_head.get_full_name', read_only=True)
+    reviewed_by_registrar_name = serializers.CharField(source='reviewed_by_registrar.get_full_name', read_only=True)
     
     class Meta:
         model = GradeResolution
         fields = [
-            'id', 'student_name', 'student_number', 'subject_code', 'subject_title',
-            'original_grade', 'requested_grade', 'reason', 'status',
-            'requested_by_name', 'created_at', 'registrar_notes', 'head_notes'
+            'id', 'subject_enrollment', 'student_name', 'student_number', 
+            'subject_code', 'subject_title',
+            'current_grade', 'proposed_grade', 
+            'current_status', 'proposed_status',
+            'reason', 'status',
+            'requested_by', 'requested_by_name', 'created_at',
+            'reviewed_by_head', 'reviewed_by_head_name', 'head_notes', 'head_action_at',
+            'reviewed_by_registrar', 'reviewed_by_registrar_name', 'registrar_notes', 'registrar_action_at'
         ]
-        read_only_fields = ['id', 'status', 'created_at']
+        read_only_fields = [
+            'id', 'current_grade', 'current_status', 'status', 'created_at',
+            'requested_by', 'reviewed_by_head', 'reviewed_by_registrar',
+            'head_action_at', 'registrar_action_at'
+        ]
+        extra_kwargs = {
+            'subject_enrollment': {'write_only': True}
+        }

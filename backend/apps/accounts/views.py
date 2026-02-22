@@ -102,6 +102,18 @@ class ProfileView(APIView):
             "success": True,
             "data": serializer.data
         })
+
+
+class UserCountView(APIView):
+    """
+    User count endpoint for Admin Dashboard.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in ['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR']:
+            return Response({"error": "Unauthorized"}, status=403)
+        return Response({"count": User.objects.count()})
     
     @extend_schema(
         summary="Update Profile",
@@ -244,6 +256,7 @@ class StudentViewSet(viewsets.ModelViewSet):
     queryset = StudentProfile.objects.all()
     # Simplified permission: Must be authenticated. specific role checks in methods.
     permission_classes = [IsAuthenticated] 
+    pagination_class = None
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -254,7 +267,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         
     def get_queryset(self):
         # Role Check
-        allowed_roles = ['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMISSION_STAFF', 'PROFESSOR']
+        allowed_roles = ['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMISSION_STAFF', 'PROFESSOR', 'DEPARTMENT_HEAD']
         if not self.request.user.is_admin and self.request.user.role not in allowed_roles:
             return StudentProfile.objects.none()
 
@@ -262,6 +275,10 @@ class StudentViewSet(viewsets.ModelViewSet):
         qs = StudentProfile.objects.filter(user__is_active=True).select_related(
             'user', 'program', 'curriculum', 'home_section'
         )
+
+        # Apply Department Head scoping
+        if self.request.user.role == 'DEPARTMENT_HEAD' and hasattr(self.request.user, 'department_head_profile'):
+            qs = qs.filter(program__in=self.request.user.department_head_profile.programs.all())
         
         program = self.request.query_params.get('program')
         curriculum = self.request.query_params.get('curriculum')

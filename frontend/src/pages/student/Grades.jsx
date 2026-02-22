@@ -13,7 +13,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import Button from '../../components/ui/Button';
+import PageHeader from '../../components/shared/PageHeader';
+import ResolutionStatus from '../../components/shared/ResolutionStatus';
+
 
 const StudentGrades = () => {
     const { user } = useAuth();
@@ -180,9 +182,14 @@ const SemesterBlock = ({ semester }) => {
                                     <p className="font-black text-gray-900 text-sm">{s.subject_code}</p>
                                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 group-hover:text-blue-600 transition-colors uppercase">{s.subject_title}</p>
                                     {s.pending_resolution && (
-                                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-600 rounded-lg border border-amber-100">
-                                            <Clock className="w-3 h-3" />
-                                            <span className="text-[8px] font-black uppercase tracking-widest">Resolution Pending Approval</span>
+                                        <div className="mt-4">
+                                            <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest mb-2 flex items-center gap-2">
+                                                <Clock className="w-2.5 h-2.5" /> Resolution Progress
+                                            </p>
+                                            <ResolutionStatus 
+                                                status={s.pending_resolution.status} 
+                                                resolution={s.pending_resolution} 
+                                            />
                                         </div>
                                     )}
                                 </td>

@@ -12,7 +12,9 @@ import {
     ChevronRight,
     Loader2,
     Users,
-    ArrowUpDown
+    ArrowUpDown,
+    CheckCircle,
+    UserCircle
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import Button from '../../../components/ui/Button';
@@ -22,11 +24,13 @@ import AddStudentModal from './modals/AddStudentModal';
 import ExportButton from '../../../components/ui/ExportButton';
 import { useDebounce } from '../../../hooks/useDebounce';
 import PageHeader from '../../../components/shared/PageHeader';
+import HeadResolutions from '../../head/Resolutions';
 
 const RegistrarStudentMasterlist = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const { success, error, warning } = useToast();
+    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'students');
 
     // State
     const [loading, setLoading] = useState(true);
@@ -102,6 +106,18 @@ const RegistrarStudentMasterlist = () => {
         }
     };
 
+    const handleTabChange = (tab) => {
+        setActiveTab(tab);
+        const newParams = new URLSearchParams(searchParams);
+        newParams.set('tab', tab);
+        if (tab === 'resolutions') {
+            newParams.delete('page');
+            newParams.delete('search');
+            newParams.delete('program');
+        }
+        setSearchParams(newParams);
+    };
+
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
         const newParams = new URLSearchParams(searchParams);
@@ -133,29 +149,63 @@ const RegistrarStudentMasterlist = () => {
             <SEO title="Student Masterlist" description="Comprehensive archive of institutional student records and profiles." />
             {/* Header */}
             <PageHeader 
-                title="Student Management" 
-                subtitle="Archive & Masterlist"
-                icon={Users}
+                title="Registrar Control" 
+                subtitle={activeTab === 'students' ? "Student Masterlist" : "Grade Resolutions"}
+                icon={activeTab === 'students' ? Users : CheckCircle}
                 actions={
-                    <>
-                        <ExportButton 
-                            endpoint={endpoints.exportStudents} 
-                            filename="students" 
-                            label="Export Students" 
-                        />
-                        <Button 
-                            variant="primary" 
-                            icon={Plus} 
-                            onClick={() => setIsAddModalOpen(true)}
-                        >
-                            ADD STUDENT
-                        </Button>
-                    </>
+                    activeTab === 'students' ? (
+                        <>
+                            <ExportButton 
+                                endpoint={endpoints.exportStudents} 
+                                filename="students" 
+                                label="Export Students" 
+                            />
+                            <Button 
+                                variant="primary" 
+                                icon={Plus} 
+                                onClick={() => setIsAddModalOpen(true)}
+                            >
+                                ADD STUDENT
+                            </Button>
+                        </>
+                    ) : null
                 }
             />
 
-            {/* Filters Bar */}
-            <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-2xl shadow-blue-500/5 mb-8 flex flex-col md:flex-row gap-6 items-end">
+            {/* Tab Switcher */}
+            <div className="flex gap-2 mb-8 bg-gray-100/50 p-1.5 rounded-[24px] w-fit border border-gray-100">
+                <button 
+                    onClick={() => handleTabChange('students')}
+                    className={`flex items-center gap-3 px-8 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${
+                        activeTab === 'students' 
+                        ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-500/10' 
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                >
+                    <UserCircle className="w-4 h-4" />
+                    Student Records
+                </button>
+                <button 
+                    onClick={() => handleTabChange('resolutions')}
+                    className={`flex items-center gap-3 px-8 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${
+                        activeTab === 'resolutions' 
+                        ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-500/10' 
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                >
+                    <CheckCircle className="w-4 h-4" />
+                    Universal Resolutions
+                </button>
+            </div>
+
+            {activeTab === 'resolutions' ? (
+                <div className="animate-in slide-in-from-bottom-4 duration-700">
+                    <HeadResolutions hideTabs={true} />
+                </div>
+            ) : (
+                <div className="animate-in slide-in-from-bottom-4 duration-700">
+                    {/* Filters Bar */}
+                    <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-2xl shadow-blue-500/5 mb-8 flex flex-col md:flex-row gap-6 items-end">
                 <div className="flex-1 w-full space-y-2">
                     <label className="text-[10px] font-black uppercase text-gray-400 ml-2 tracking-widest flex items-center gap-2">
                         <Search className="w-3 h-3" /> Quick Search
@@ -293,6 +343,8 @@ const RegistrarStudentMasterlist = () => {
                     </div>
                 )}
             </div>
+            </div>
+            )}
             
             <AddStudentModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} programs={programs} onSuccess={fetchStudents} />
         </div>

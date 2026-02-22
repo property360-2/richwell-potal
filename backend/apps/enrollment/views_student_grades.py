@@ -67,10 +67,15 @@ class MyGradesView(views.APIView):
             if pending_res:
                 status_display = "Resolution Pending approval"
                 res_info = {
+                    'status': pending_res.status,
                     'proposed_grade': str(pending_res.proposed_grade),
                     'proposed_status': pending_res.proposed_status,
                     'requested_by': pending_res.requested_by.get_full_name(),
-                    'created_at': pending_res.created_at
+                    'created_at': pending_res.created_at,
+                    'reviewed_by_head_name': pending_res.reviewed_by_head.get_full_name() if pending_res.reviewed_by_head else None,
+                    'head_action_at': pending_res.head_action_at,
+                    'reviewed_by_registrar_name': pending_res.reviewed_by_registrar.get_full_name() if pending_res.reviewed_by_registrar else None,
+                    'registrar_action_at': pending_res.registrar_action_at
                 }
 
             grade_data = {

@@ -1262,7 +1262,7 @@ class GradeResolution(BaseModel):
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
-        default=Status.PENDING_REGISTRAR
+        default=Status.PENDING_HEAD
     )
     
     requested_by = models.ForeignKey(

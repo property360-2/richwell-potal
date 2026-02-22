@@ -92,11 +92,26 @@ class ProfessorProfileSerializer(serializers.ModelSerializer):
         return [{'id': str(s.id), 'code': s.code, 'title': s.title} for s in obj.assigned_subjects.all()]
 
 
+class DepartmentHeadProfileSerializer(serializers.ModelSerializer):
+    """Serializer for DepartmentHeadProfile."""
+    
+    program_details = serializers.SerializerMethodField()
+    
+    class Meta:
+        from .models import DepartmentHeadProfile
+        model = DepartmentHeadProfile
+        fields = ['programs', 'program_details', 'is_active']
+
+    def get_program_details(self, obj):
+        return [{'id': str(p.id), 'code': p.code, 'name': p.name} for p in obj.programs.all()]
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     """Serializer for User profile."""
     
     student_profile = StudentProfileSerializer(read_only=True)
     professor_profile = ProfessorProfileSerializer(read_only=True)
+    department_head_profile = DepartmentHeadProfileSerializer(read_only=True)
     
     first_name = serializers.CharField()
     last_name = serializers.CharField()
@@ -108,8 +123,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name', 'role',
-            'student_number', 'student_profile', 'professor_profile', 'created_at',
-            'effective_permissions', 'permission_scopes'
+            'student_number', 'student_profile', 'professor_profile', 'department_head_profile',
+            'created_at', 'effective_permissions', 'permission_scopes'
         ]
         read_only_fields = ['id', 'email', 'role', 'student_number', 'created_at']
 
@@ -264,14 +279,17 @@ class StudentDetailSerializer(RegistrarStudentSerializer):
     previous_school = serializers.CharField(read_only=True)
     
     academic_history = serializers.SerializerMethodField()
+    grade_resolutions = serializers.SerializerMethodField() # Added for EPIC 5 tab
     program_id = serializers.UUIDField(source='program.id', read_only=True)
     current_enrollment_semester_id = serializers.SerializerMethodField()
+    current_enrollment_id = serializers.SerializerMethodField()
+    current_enrollment = serializers.SerializerMethodField()
     
     class Meta(RegistrarStudentSerializer.Meta):
         fields = RegistrarStudentSerializer.Meta.fields + [
             'birthdate', 'address', 'contact_number', 'previous_school',
             'academic_history', 'current_enrollment', 'current_enrollment_id',
-            'program_id', 'current_enrollment_semester_id'
+            'program_id', 'current_enrollment_semester_id', 'grade_resolutions'
         ]
 
     def get_current_enrollment_semester_id(self, obj):
@@ -306,6 +324,19 @@ class StudentDetailSerializer(RegistrarStudentSerializer):
              })
         return history
 
+    def get_grade_resolutions(self, obj):
+        from apps.enrollment.models import GradeResolution
+        from apps.enrollment.serializers import GradeResolutionSerializer
+        
+        resolutions = GradeResolution.objects.filter(
+            subject_enrollment__enrollment__student=obj.user
+        ).select_related(
+            'subject_enrollment__subject',
+            'requested_by'
+        ).order_by('-created_at')
+        
+        return GradeResolutionSerializer(resolutions, many=True).data
+
     def get_current_enrollment(self, obj):
          from apps.enrollment.models import SubjectEnrollment, Semester
          current_sem = Semester.objects.filter(is_current=True).first()
@@ -328,27 +359,61 @@ class StudentDetailSerializer(RegistrarStudentSerializer):
 class HigherUserSerializer(serializers.ModelSerializer):
     """Serializer for managing higher level users (Registrar, Professor, etc.)."""
     password = serializers.CharField(write_only=True, required=False)
+    programs = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+        help_text="Required for DEPARTMENT_HEAD role"
+    )
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'role', 
-            'is_active', 'password', 'created_at'
+            'is_active', 'password', 'programs', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
+        programs_data = validated_data.pop('programs', None)
+        role = validated_data.get('role')
+        
         user = User.objects.create_user(**validated_data)
         if password:
             user.set_password(password)
             user.save()
+
+        # Handle Department Head Profile
+        if role == User.Role.DEPARTMENT_HEAD:
+            from .models import DepartmentHeadProfile
+            from apps.academics.models import Program
+            
+            profile = DepartmentHeadProfile.objects.create(user=user)
+            if programs_data:
+                programs = Program.objects.filter(id__in=programs_data)
+                profile.programs.set(programs)
+        
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
+        programs_data = validated_data.pop('programs', None)
+        role = validated_data.get('role', instance.role)
+        
         user = super().update(instance, validated_data)
         if password:
             user.set_password(password)
             user.save()
+
+        # Handle Department Head Profile updates
+        if role == User.Role.DEPARTMENT_HEAD:
+            from .models import DepartmentHeadProfile
+            from apps.academics.models import Program
+            
+            profile, _ = DepartmentHeadProfile.objects.get_or_create(user=user)
+            if programs_data is not None:
+                programs = Program.objects.filter(id__in=programs_data)
+                profile.programs.set(programs)
+        
         return user

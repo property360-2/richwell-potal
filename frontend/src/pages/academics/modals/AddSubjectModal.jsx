@@ -57,6 +57,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
     }, validate);
 
     // UI State
+    const [loading, setLoading] = useState(false);
     const [searching, setSearching] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [availablePrograms, setAvailablePrograms] = useState([]);
@@ -137,7 +138,14 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
             onClose();
         } catch (err) {
             console.error(err);
-            const errorMsg = err.response?.data?.code?.[0] || 'Failed to create subject. Please check your data.';
+            // Updated error extraction for our api.jsx structure
+            const errorData = err.data || {};
+            const errorMsg = 
+                errorData.code?.[0] || 
+                errorData.detail || 
+                errorData.error || 
+                errorData.message || 
+                'Failed to create subject. Please check your data.';
             showError(errorMsg);
         } finally {
             setLoading(false);
@@ -187,7 +195,7 @@ const AddSubjectModal = ({ isOpen, onClose, programId, programName, onSuccess })
                             leaveTo="opacity-0 scale-95"
                         >
                             <Dialog.Panel className="w-full max-w-5xl transform overflow-hidden rounded-[32px] bg-white text-left align-middle shadow-2xl transition-all border border-gray-100">
-                                <form onSubmit={handleSubmit} className="flex flex-col h-full">
+                                <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
                                     {/* Header */}
                                     <div className="px-10 py-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                                         <div className="flex items-center gap-4">

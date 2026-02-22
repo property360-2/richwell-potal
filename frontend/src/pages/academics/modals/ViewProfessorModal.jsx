@@ -142,30 +142,47 @@ const ViewProfessorModal = ({ isOpen, onClose, professor }) => {
                                                     {/* Separator */}
                                                     <div className="h-px bg-indigo-100/50 w-full" />
 
-                                                    {/* Active Term Load - from Schedule */}
+                                                    {/* Active Term Assignments - Simple Table */}
                                                     <div className="space-y-3">
                                                         <div className="flex items-center gap-3 text-indigo-600">
                                                             <Layout size={18} />
                                                             <span className="text-[10px] font-black uppercase tracking-widest">Active Term Assignments</span>
                                                         </div>
                                                         
-                                                        {workload.sections_detail?.length > 0 ? (
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {workload.sections_detail.map((detail, idx) => (
-                                                                    <div key={idx} className="bg-white p-3 rounded-2xl border border-indigo-100 shadow-sm flex items-center gap-3 group hover:border-indigo-300 transition-all">
-                                                                        <div className="bg-indigo-50 p-2 rounded-xl text-indigo-600 font-black text-xs">
-                                                                            {detail.subject_code}
-                                                                        </div>
-                                                                        <div>
-                                                                            <p className="text-[11px] font-black text-gray-900 leading-none">{detail.subject_title}</p>
-                                                                            <p className="text-[10px] font-bold text-indigo-500 uppercase mt-1">{detail.section}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        ) : (
-                                                            <p className="text-[10px] font-bold text-gray-400 italic italic">No active section assignments for the current term.</p>
-                                                        )}
+                                                        <div className="bg-white border border-indigo-100 rounded-2xl overflow-hidden shadow-sm">
+                                                            <table className="w-full text-left border-collapse">
+                                                                <thead className="bg-indigo-50/50">
+                                                                    <tr>
+                                                                        <th className="px-4 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest">Code</th>
+                                                                        <th className="px-4 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest">Subject Title</th>
+                                                                        <th className="px-4 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest">Section</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-indigo-50/50">
+                                                                    {workload.sections_detail?.length > 0 ? (
+                                                                        workload.sections_detail.map((detail, idx) => (
+                                                                            <tr key={idx} className="hover:bg-indigo-50/20 transition-colors">
+                                                                                <td className="px-4 py-3 text-[10px] font-black text-indigo-600 uppercase">
+                                                                                    {detail.subject_code}
+                                                                                </td>
+                                                                                <td className="px-4 py-3 text-[11px] font-bold text-gray-900">
+                                                                                    {detail.subject_title}
+                                                                                </td>
+                                                                                <td className="px-4 py-3 text-[10px] font-black text-indigo-500 uppercase">
+                                                                                    {detail.section}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))
+                                                                    ) : (
+                                                                        <tr>
+                                                                            <td colSpan="3" className="px-4 py-8 text-center">
+                                                                                <p className="text-[10px] font-bold text-gray-400 italic">No active section assignments for the current term.</p>
+                                                                            </td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>

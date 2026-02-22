@@ -22,13 +22,10 @@ urlpatterns = [
     path('password/validate-token/', password_reset_views.ValidateResetTokenView.as_view(), name='validate-reset-token'),
     path('password/reset/', password_reset_views.ResetPasswordView.as_view(), name='reset-password'),
 
-    # Permission Management
+    # User Management
     path('generate-student-id/', views.GenerateStudentIdView.as_view(), name='generate-student-id'),
+    path('users/count/', views.UserCountView.as_view(), name='user-count'),
     path('users/', views.UserListView.as_view(), name='user-list'),
-    
-    # Permission Management
-    path('permissions/', views.PermissionCategoryViewSet.as_view({'get': 'list'}), name='permission-list'),
-    path('permissions/<uuid:pk>/toggle/', views.PermissionToggleView.as_view(), name='permission-toggle'),
 ]
 
 router = DefaultRouter()

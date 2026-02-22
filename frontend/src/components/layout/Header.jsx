@@ -32,7 +32,7 @@ const Header = () => {
             'REGISTRAR': '/registrar/dashboard',
             'HEAD_REGISTRAR': '/registrar/dashboard',
             'ADMISSION_STAFF': '/admission/dashboard',
-            'ADMIN': '/registrar/dashboard',
+            'ADMIN': '/admin/dashboard',
             'CASHIER': '/cashier/dashboard',
             'PROFESSOR': '/professor/dashboard',
             'DEPARTMENT_HEAD': '/head/dashboard'
@@ -47,15 +47,11 @@ const Header = () => {
         { name: 'SOA', href: '/student/soa', icon: CreditCard, roles: ['STUDENT'] },
         { name: 'Schedule', href: '/student/schedule', icon: Calendar, roles: ['STUDENT'] },
         { name: 'Students', href: '/registrar/students', icon: Users, roles: ['REGISTRAR', 'ADMIN', 'CASHIER'] },
-        { name: 'Resolutions', href: '/head/resolutions', icon: CheckCircle, roles: ['DEPARTMENT_HEAD', 'ADMIN'] },
+        { name: 'Academic Hub', href: '/head/resolutions', icon: Shield, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
         { name: 'Reports', href: '/head/reports', icon: FileText, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
-        { name: 'Permits', href: '/registrar/exam-permits', icon: FileText, roles: ['REGISTRAR', 'ADMIN'] },
-        { name: 'Config', href: '/registrar/exam-mappings', icon: Settings, roles: ['REGISTRAR', 'ADMIN'] },
         { name: 'Academics', href: '/academics', icon: GraduationCap, roles: ['ADMIN', 'HEAD_REGISTRAR'] },
         { name: 'Terms', href: '/admin/terms', icon: Calendar, roles: ['ADMIN'] },
         { name: 'Users', href: '/admin/users', icon: Users, roles: ['ADMIN'] },
-        { name: 'Permissions', href: '/admin/permissions', icon: Shield, roles: ['ADMIN'] },
-        { name: 'System', href: '/admin/config', icon: Settings, roles: ['ADMIN'] },
         { name: 'Audit', href: '/admin/audit-logs', icon: Activity, roles: ['ADMIN'] },
     ];
 
