@@ -37,7 +37,9 @@ const StudentSOA = () => {
             const res = await CashierService.getMyPayments();
             setData(res);
         } catch (err) {
-            error('Failed to load your financial statement');
+            console.error("SOA Fetch Error:", err);
+            // Silently fail to avoid distracting toast for new students
+            setData(null);
         } finally {
             setLoading(false);
         }

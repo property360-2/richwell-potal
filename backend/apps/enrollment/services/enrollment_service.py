@@ -59,8 +59,17 @@ class EnrollmentService:
         # Generate school email as username
         school_email = self._generate_school_email(data['first_name'], data['last_name'])
         
-        # Password is the school email initially (until approved)
-        password = school_email
+        # Password format: RW@ + birth year (e.g., RW@2000)
+        birth_year = "2000" # Default fallback
+        try:
+            if isinstance(data['birthdate'], str):
+                birth_year = data['birthdate'].split('-')[0]
+            else:
+                birth_year = str(data['birthdate'].year)
+        except:
+            pass
+            
+        password = f"RW@{birth_year}"
         
         # Create User
         user = User.objects.create_user(

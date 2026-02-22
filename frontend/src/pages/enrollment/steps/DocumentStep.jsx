@@ -23,23 +23,32 @@ const DocumentStep = ({ documents, setDocuments }) => {
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-500">
-            <div>
-                <h3 className="text-xl font-black text-gray-900 tracking-tight mb-2">Required Documents</h3>
-                <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Upload clear copies of your documents</p>
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight">Required Documents</h3>
+                    <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Upload clear copies of your documents</p>
+                </div>
+                <div className="px-4 py-2 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-2">
+                    <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Work in Progress</span>
+                </div>
             </div>
 
-            <div className="bg-blue-50 border-2 border-blue-100 rounded-3xl p-6 flex items-start gap-4">
+            <div className="bg-blue-50 border-2 border-blue-100 rounded-3xl p-6 flex flex-col sm:flex-row items-start gap-4">
                 <div className="p-3 bg-white rounded-2xl text-blue-600 shadow-sm">
                     <ShieldAlert className="w-6 h-6" />
                 </div>
                 <div>
                     <h4 className="text-sm font-black text-blue-900 uppercase tracking-tight mb-1">Upload Checklist:</h4>
-                    <ul className="text-xs font-bold text-blue-700 space-y-1 grid grid-cols-2 gap-x-4">
+                    <ul className="text-xs font-bold text-blue-700 space-y-1 grid grid-cols-2 gap-x-8">
                         <li>• Valid ID (Front/Back)</li>
                         <li>• PSA Birth Certificate</li>
                         <li>• Form 138 / TOR</li>
                         <li>• Good Moral Certificate</li>
                     </ul>
+                    <p className="mt-4 text-[10px] font-black italic text-blue-400 uppercase tracking-widest leading-relaxed">
+                        will soon collaborate with registrar for every documents needed for enrollment
+                    </p>
                 </div>
             </div>
 

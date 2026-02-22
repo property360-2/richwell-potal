@@ -38,7 +38,7 @@ const NotFound = () => {
             </div>
             
             <p className="mt-8 text-gray-400 font-bold text-[10px] uppercase tracking-widest">
-                Richwell Colleges Portal
+                Richwell Portal
             </p>
         </div>
     );

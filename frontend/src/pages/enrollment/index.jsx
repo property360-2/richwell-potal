@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../context/ToastContext';
 import { api, endpoints } from '../../api';
-import { User, BookOpen, FileText, CreditCard, CheckCircle, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { User, BookOpen, FileText, CreditCard, CheckCircle, ArrowLeft, ArrowRight, Loader2, Mail, Lock, ShieldCheck, Copy, ExternalLink } from 'lucide-react';
 
 // Steps
 import PersonalInfoStep from './steps/PersonalInfoStep';
@@ -17,6 +17,8 @@ const EnrollmentPage = () => {
     const [enrollmentEnabled, setEnrollmentEnabled] = useState(true);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [showCredentials, setShowCredentials] = useState(false);
+    const [credentials, setCredentials] = useState(null);
     const [programs, setPrograms] = useState([]);
     const [semesterInfo, setSemesterInfo] = useState({});
     
@@ -25,13 +27,14 @@ const EnrollmentPage = () => {
         last_name: '',
         email: '',
         birthdate: '',
-        address: '',
+        province: 'Bulacan',
+        city: '',
+        barangay: '',
+        street: '',
+        address: '', // Will be joined on submit
         contact_number: '',
         program_id: '',
-        monthly_commitment: 5000,
-        is_transferee: false,
-        previous_school: '',
-        previous_course: ''
+        monthly_commitment: 5000
     });
 
     const [documents, setDocuments] = useState([]);
@@ -72,7 +75,41 @@ const EnrollmentPage = () => {
         }
     };
 
-    const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 5));
+    const validateStep = (step) => {
+        switch (step) {
+            case 1:
+                return (
+                    formData.first_name.trim() && 
+                    formData.last_name.trim() && 
+                    formData.email.trim() && 
+                    formData.birthdate && 
+                    formData.contact_number.trim() && 
+                    formData.province && 
+                    formData.city && 
+                    formData.barangay && 
+                    formData.street.trim()
+                );
+            case 2:
+                return !!formData.program_id;
+            case 3:
+                // Documents are optional for initial application but recommended
+                return true;
+            case 4:
+                // Payment commitment must be > 0
+                return formData.monthly_commitment > 0;
+            default:
+                return true;
+        }
+    };
+
+    const nextStep = () => {
+        if (!validateStep(currentStep)) {
+            warning('Please fill in all required fields to proceed.');
+            return;
+        }
+        setCurrentStep(prev => Math.min(prev + 1, 5));
+    };
+
     const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
 
     const handleFormChange = (field, value) => {
@@ -84,9 +121,16 @@ const EnrollmentPage = () => {
         try {
             const finalData = new FormData();
             
+            // Construct full address
+            const fullAddress = `${formData.street}, ${formData.barangay}, ${formData.city}, ${formData.province}`;
+            
             // Append basic info
             Object.keys(formData).forEach(key => {
-                finalData.append(key, formData[key]);
+                if (key === 'address') {
+                    finalData.append('address', fullAddress);
+                } else if (!['province', 'city', 'barangay', 'street'].includes(key)) {
+                    finalData.append(key, formData[key]);
+                }
             });
 
             // Append documents
@@ -94,14 +138,16 @@ const EnrollmentPage = () => {
                 finalData.append(`document_${index}`, file);
             });
 
-            const response = await fetch('/api/v1/admissions/enrollment/apply/', {
+            const response = await fetch('/api/v1/admissions/enroll/', {
                 method: 'POST',
                 body: finalData
             });
 
             if (response.ok) {
+                const result = await response.json();
+                setCredentials(result.credentials);
+                setShowCredentials(true);
                 success('Application submitted successfully!');
-                navigate('/enrollment/success');
             } else {
                 const errData = await response.json();
                 error(errData.detail || 'Failed to submit application');
@@ -151,12 +197,6 @@ const EnrollmentPage = () => {
         <div className="max-w-4xl mx-auto px-4 py-12">
             {/* Header */}
             <div className="text-center mb-12">
-                <div className="inline-flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                        <span className="text-xl font-black">R</span>
-                    </div>
-                    <h1 className="text-2xl font-black text-gray-900 tracking-tighter uppercase">Richwell Colleges</h1>
-                </div>
                 <h2 className="text-4xl font-black text-gray-900 mb-2">Student Enrollment</h2>
                 {semesterInfo.name && (
                     <p className="text-blue-600 font-black uppercase tracking-widest text-xs">
@@ -253,7 +293,94 @@ const EnrollmentPage = () => {
                     </button>
                 </p>
             </div>
+
+            <CredentialsModal 
+                isOpen={showCredentials} 
+                data={credentials} 
+                onClose={() => navigate('/enrollment/success')} 
+            />
         </div>
+    );
+};
+
+const CredentialsModal = ({ isOpen, data, onClose }) => {
+    const { success } = useToast();
+    if (!isOpen || !data) return null;
+
+    const copyToClipboard = (text, label) => {
+        navigator.clipboard.writeText(text);
+        success(`${label} copied!`);
+    };
+
+    return (
+        <AnimatePresence>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm"
+                    onClick={onClose}
+                />
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                    className="bg-white rounded-[40px] w-full max-w-lg relative z-10 overflow-hidden shadow-2xl"
+                >
+                    <div className="bg-blue-600 p-8 text-white relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-2xl -mr-16 -mt-16 rounded-full"></div>
+                        <div className="relative z-10 text-center">
+                            <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-6 backdrop-blur-md">
+                                <ShieldCheck className="w-10 h-10 text-white" />
+                            </div>
+                            <h3 className="text-2xl font-black mb-2">Student Account Created!</h3>
+                            <p className="text-blue-100 font-bold text-sm uppercase tracking-widest">Please save your login credentials</p>
+                        </div>
+                    </div>
+
+                    <div className="p-8 space-y-6">
+                        <div className="p-6 bg-gray-50 border border-gray-100 rounded-3xl space-y-4">
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Login Email (Gmail)</p>
+                                <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-gray-200">
+                                    <Mail className="w-5 h-5 text-blue-500" />
+                                    <span className="flex-1 font-black text-gray-900 truncate">{data.login_email}</span>
+                                    <button onClick={() => copyToClipboard(data.login_email, 'Email')} className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-blue-600">
+                                        <Copy className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Initial Password</p>
+                                <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-gray-200">
+                                    <Lock className="w-5 h-5 text-amber-500" />
+                                    <span className="flex-1 font-black text-gray-900 truncate">{data.initial_password}</span>
+                                    <button onClick={() => copyToClipboard(data.initial_password, 'Password')} className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-amber-600">
+                                        <Copy className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl">
+                            <p className="text-[10px] font-black text-amber-700 leading-relaxed uppercase tracking-wide text-center">
+                                ⚠️ Use your personal email to log in to the portal once approved.
+                            </p>
+                        </div>
+
+                        <button 
+                            onClick={onClose}
+                            className="w-full py-5 bg-gray-900 text-white rounded-[24px] font-black hover:bg-gray-800 transition-all flex items-center justify-center gap-3 group shadow-xl shadow-gray-200"
+                        >
+                            ENROLLMENT SUCCESS
+                            <ExternalLink className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                        </button>
+                    </div>
+                </motion.div>
+            </div>
+        </AnimatePresence>
     );
 };
 

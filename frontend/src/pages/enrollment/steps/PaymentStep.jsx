@@ -11,7 +11,7 @@ const PaymentStep = ({ data, onChange }) => {
                     <Wallet className="w-6 h-6" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black text-gray-900 tracking-tight">Payment Commitment</h3>
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight">Payment Commitment <span className="text-red-500">*</span></h3>
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Plan your semester budget</p>
                 </div>
             </div>
@@ -54,50 +54,7 @@ const PaymentStep = ({ data, onChange }) => {
                 ))}
             </div>
 
-            <div className="pt-8 border-t border-gray-100">
-                <label className="flex items-center gap-4 cursor-pointer group">
-                    <div className="relative flex items-center">
-                        <input 
-                            type="checkbox" 
-                            id="is_transferee"
-                            checked={data.is_transferee}
-                            onChange={(e) => onChange('is_transferee', e.target.checked)}
-                            className="w-6 h-6 rounded-lg border-2 border-gray-200 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer"
-                        />
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-xl transition-colors ${data.is_transferee ? 'bg-blue-100 text-blue-600' : 'bg-gray-50 text-gray-400'}`}>
-                            <School className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-gray-700 group-hover:text-gray-900 transition-colors">I am a transferee from another school</span>
-                    </div>
-                </label>
 
-                {data.is_transferee && (
-                    <div className="mt-8 space-y-6 pl-10 animate-in slide-in-from-left-4 duration-300">
-                        <div className="space-y-2">
-                            <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Previous School</label>
-                            <input 
-                                type="text"
-                                value={data.previous_school}
-                                onChange={(e) => onChange('previous_school', e.target.value)}
-                                className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 transition-all" 
-                                placeholder="Enter school name"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Previous Course</label>
-                            <input 
-                                type="text"
-                                value={data.previous_course}
-                                onChange={(e) => onChange('previous_course', e.target.value)}
-                                className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 transition-all" 
-                                placeholder="Enter course name"
-                            />
-                        </div>
-                    </div>
-                )}
-            </div>
         </div>
     );
 };

@@ -42,12 +42,13 @@ const Header = () => {
 
     const navigation = [
         { name: 'Dashboard', href: getDashboardUrl(), icon: LayoutDashboard, roles: ['STUDENT', 'REGISTRAR', 'ADMIN', 'ADMISSION_STAFF', 'CASHIER', 'PROFESSOR', 'DEPARTMENT_HEAD'] },
-        { name: 'Enrollment', href: '/enrollment', icon: BookOpen, roles: ['STUDENT', 'ADMISSION_STAFF'] },
+        { name: 'Enrollment', href: '/enrollment', icon: BookOpen, roles: ['ADMISSION_STAFF'] },
         { name: 'Grades', href: '/student/grades', icon: CheckCircle, roles: ['STUDENT'] },
         { name: 'SOA', href: '/student/soa', icon: CreditCard, roles: ['STUDENT'] },
         { name: 'Schedule', href: '/student/schedule', icon: Calendar, roles: ['STUDENT'] },
+        { name: 'Enlistment', href: '/enrollment/subjects', icon: BookOpen, roles: ['STUDENT'] },
         { name: 'Students', href: '/registrar/students', icon: Users, roles: ['REGISTRAR', 'ADMIN', 'CASHIER'] },
-        { name: 'Academic Hub', href: '/head/resolutions', icon: Shield, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
+        { name: 'Subject Approvals', href: '/head/dashboard', icon: Shield, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
         { name: 'Reports', href: '/head/reports', icon: FileText, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
         { name: 'Academics', href: '/academics', icon: GraduationCap, roles: ['ADMIN', 'HEAD_REGISTRAR'] },
         { name: 'Terms', href: '/admin/terms', icon: Calendar, roles: ['ADMIN'] },

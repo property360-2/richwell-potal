@@ -9,7 +9,7 @@ const ProgramStep = ({ data, programs, onChange }) => {
                     <Book className="w-6 h-6" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black text-gray-900 tracking-tight">Choice of Program</h3>
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight">Choice of Program <span className="text-red-500">*</span></h3>
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Select the course you wish to enroll in</p>
                 </div>
             </div>

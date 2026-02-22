@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Mail, UserCircle, Calendar, Phone, MapPin, Check, AlertCircle } from 'lucide-react';
+import { getProvinces, getCities, getBarangays } from '../../../utils/ph_locations';
 
 const PersonalInfoStep = ({ data, onChange }) => {
     const [emailStatus, setEmailStatus] = useState({ type: 'none', message: '' });
@@ -52,11 +53,17 @@ const PersonalInfoStep = ({ data, onChange }) => {
         return 'text-gray-400';
     };
 
+    const provinces = getProvinces();
+    const cities = getCities(data.province);
+    const barangays = getBarangays(data.province, data.city);
+
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-500">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">First Name</label>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">
+                        First Name <span className="text-red-500">*</span>
+                    </label>
                     <div className="relative group">
                         <UserCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                         <input 
@@ -66,11 +73,14 @@ const PersonalInfoStep = ({ data, onChange }) => {
                             onBlur={() => checkName(data.first_name, data.last_name)}
                             className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 transition-all" 
                             placeholder="Juan" 
+                            required
                         />
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Last Name</label>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">
+                        Last Name <span className="text-red-500">*</span>
+                    </label>
                     <div className="relative group">
                         <UserCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                         <input 
@@ -80,6 +90,7 @@ const PersonalInfoStep = ({ data, onChange }) => {
                             onBlur={() => checkName(data.first_name, data.last_name)}
                             className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 transition-all" 
                             placeholder="Dela Cruz" 
+                            required
                         />
                     </div>
                 </div>
@@ -93,7 +104,9 @@ const PersonalInfoStep = ({ data, onChange }) => {
             )}
 
             <div className="space-y-2">
-                <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Email Address</label>
+                <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">
+                    Email Address <span className="text-red-500">*</span>
+                </label>
                 <div className="relative group">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                     <input 
@@ -103,6 +116,7 @@ const PersonalInfoStep = ({ data, onChange }) => {
                         onBlur={(e) => checkEmail(e.target.value)}
                         className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 transition-all" 
                         placeholder="juan@email.com" 
+                        required
                     />
                 </div>
                 {emailStatus.message && (
@@ -115,7 +129,9 @@ const PersonalInfoStep = ({ data, onChange }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Birthdate</label>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">
+                        Birthdate <span className="text-red-500">*</span>
+                    </label>
                     <div className="relative group">
                         <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                         <input 
@@ -123,11 +139,14 @@ const PersonalInfoStep = ({ data, onChange }) => {
                             value={data.birthdate}
                             onChange={(e) => onChange('birthdate', e.target.value)}
                             className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold focus:outline-none focus:bg-white focus:border-blue-100 transition-all" 
+                            required
                         />
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Contact Number</label>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">
+                        Contact Number <span className="text-red-500">*</span>
+                    </label>
                     <div className="relative group">
                         <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                         <input 
@@ -137,22 +156,91 @@ const PersonalInfoStep = ({ data, onChange }) => {
                             maxLength={11}
                             className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 transition-all" 
                             placeholder="0917XXXXXXX" 
+                            required
                         />
                     </div>
                 </div>
             </div>
 
-            <div className="space-y-2">
-                <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Complete Address</label>
-                <div className="relative group">
-                    <MapPin className="absolute left-4 top-6 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
-                    <textarea 
-                        value={data.address}
-                        onChange={(e) => onChange('address', e.target.value)}
-                        rows="3"
-                        className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 transition-all" 
-                        placeholder="Barangay, City, Province" 
-                    />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">
+                        Province <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative group">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                        <select 
+                            value={data.province}
+                            onChange={(e) => {
+                                onChange('province', e.target.value);
+                                onChange('city', '');
+                                onChange('barangay', '');
+                            }}
+                            className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold focus:outline-none focus:bg-white focus:border-blue-100 transition-all appearance-none" 
+                            required
+                        >
+                            <option value="">Select Province</option>
+                            {provinces.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">
+                        City/Municipality <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative group">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                        <select 
+                            value={data.city}
+                            disabled={!data.province}
+                            onChange={(e) => {
+                                onChange('city', e.target.value);
+                                onChange('barangay', '');
+                            }}
+                            className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold focus:outline-none focus:bg-white focus:border-blue-100 transition-all appearance-none disabled:opacity-50" 
+                            required
+                        >
+                            <option value="">Select City</option>
+                            {cities.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">
+                        Barangay <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative group">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                        <select 
+                            value={data.barangay}
+                            disabled={!data.city}
+                            onChange={(e) => onChange('barangay', e.target.value)}
+                            className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold focus:outline-none focus:bg-white focus:border-blue-100 transition-all appearance-none disabled:opacity-50" 
+                            required
+                        >
+                            <option value="">Select Barangay</option>
+                            {barangays.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">
+                        Street / House No. <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative group">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                        <input 
+                            type="text" 
+                            value={data.street}
+                            onChange={(e) => onChange('street', e.target.value)}
+                            className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-gray-900 font-bold placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-100 transition-all" 
+                            placeholder="Unit 123, Street Name" 
+                            required
+                        />
+                    </div>
                 </div>
             </div>
         </div>

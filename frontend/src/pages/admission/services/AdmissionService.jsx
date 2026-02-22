@@ -1,36 +1,46 @@
 import { api, endpoints } from '../../../api';
 
 const AdmissionService = {
-    getApplicants: async () => {
-        const res = await fetch(endpoints.applicants);
-        if (res.ok) {
-            const data = await res.json();
-            return data.results || data || [];
+    getApplicants: async (status = 'PENDING') => {
+        try {
+            return await api.get(endpoints.applicants, { status });
+        } catch (err) {
+            console.error("Fetch Applicants Error:", err);
+            return [];
         }
-        return [];
     },
 
     checkIdAvailability: async (studentId) => {
-        const res = await fetch(endpoints.checkStudentId(studentId));
-        return res.ok ? res.json() : { available: false };
+        try {
+            const res = await api.get(endpoints.checkStudentId(studentId));
+            return res;
+        } catch (err) {
+            return { available: false };
+        }
+    },
+
+    generateStudentId: async () => {
+        try {
+            const res = await api.get(endpoints.generateStudentId);
+            return res;
+        } catch (err) {
+            console.error("Generate ID Error:", err);
+            return null;
+        }
     },
 
     approveApplicant: async (applicantId, studentId) => {
-        const res = await fetch(endpoints.applicantUpdate(applicantId), {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'accept', student_number: studentId })
+        return await api.patch(endpoints.applicantUpdate(applicantId), { 
+            action: 'accept', 
+            student_number: studentId 
         });
-        return res.ok ? res.json() : null;
     },
 
     rejectApplicant: async (applicantId, reason = '') => {
-        const res = await fetch(endpoints.applicantUpdate(applicantId), {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'reject', reason })
+        return await api.patch(endpoints.applicantUpdate(applicantId), { 
+            action: 'reject', 
+            reason 
         });
-        return res.ok ? res.json() : null;
     }
 };
 

@@ -9,12 +9,17 @@ import {
     Search,
     Loader2,
     Calendar,
-    ArrowUpRight
+    ArrowUpRight,
+    FileText
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { api, endpoints } from '../../api';
+import { domToPng } from 'modern-screenshot';
+import { jsPDF } from 'jspdf';
 import PageHeader from '../../components/shared/PageHeader';
 import ResolutionStatus from '../../components/shared/ResolutionStatus';
+import Button from '../../components/ui/Button';
 
 
 const StudentGrades = () => {
@@ -35,15 +40,11 @@ const StudentGrades = () => {
     const fetchGrades = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/v1/students/my-grades/');
-            if (res.ok) {
-                const data = await res.json();
-                setGradesData(data.success ? data.data : { semesters: [], summary: {} });
-            } else {
-                error('Failed to load grades');
-            }
+            const data = await api.get(endpoints.myGrades);
+            setGradesData(data || { semesters: [], summary: {} });
         } catch (err) {
-            error('Network error while fetching grades');
+            error('Failed to load grades');
+            console.error(err);
         } finally {
             setLoading(false);
         }
@@ -57,27 +58,53 @@ const StudentGrades = () => {
         );
     }
 
-    const { semesters, summary } = gradesData;
+    const { semesters, summary, program_info } = gradesData;
     const filteredSemesters = selectedSemester === 'all' 
         ? semesters 
         : semesters.filter(s => s.semester_id === selectedSemester);
 
+    const exportToPDF = async () => {
+        try {
+            const element = document.getElementById('grades-container');
+            const dataUrl = await domToPng(element, { scale: 2 });
+            
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'px',
+                format: 'letter'
+            });
+            
+            const imgProps = pdf.getImageProperties(dataUrl);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            
+            pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save('Summary_of_Grades.pdf');
+        } catch (err) {
+            console.error('Error generating PDF:', err);
+            error('Failed to generate PDF');
+        }
+    };
+
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in duration-700">
+        <div id="grades-container" className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in bg-white duration-700">
             {/* Page Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div>
-                    <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Academic Record</h1>
-                    <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-xs">Grades & GPA Tracking</p>
+                    <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Summary of Grades</h1>
+                    <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-xs">
+                        {program_info?.program_name || 'Program Info Unavailable'}
+                        {program_info?.curriculum_name && ` • ${program_info.curriculum_name}`}
+                    </p>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
                     <Button 
                         variant="secondary" 
-                        icon={Download} 
+                        icon={FileText} 
                         className="flex-1 md:flex-none"
-                        onClick={() => window.print()}
+                        onClick={exportToPDF}
                     >
-                        PRINT RECORD
+                        EXPORT TO PDF
                     </Button>
                 </div>
             </div>
@@ -106,7 +133,7 @@ const StudentGrades = () => {
                         <option value="all">All Semesters</option>
                         {semesters.map(s => (
                             <option key={s.semester_id} value={s.semester_id}>
-                                {s.semester_name} {s.academic_year}
+                                {s.semester_name}
                             </option>
                         ))}
                     </select>
@@ -122,8 +149,8 @@ const StudentGrades = () => {
                 {filteredSemesters.length === 0 && (
                     <div className="bg-white rounded-[40px] border border-gray-100 p-20 text-center shadow-2xl shadow-gray-500/5">
                         <Book className="w-16 h-16 text-gray-100 mx-auto mb-6" />
-                        <h3 className="text-xl font-black text-gray-900 tracking-tight">No grades posted yet</h3>
-                        <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-2">Your semester records will appear here.</p>
+                        <h3 className="text-xl font-black text-gray-900 tracking-tight">No subject enrolled yet</h3>
+                        <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-2">Your academic records will appear here once you are officially enrolled in subjects.</p>
                     </div>
                 )}
             </div>
@@ -225,11 +252,13 @@ const getGradeColor = (grade) => {
 };
 
 const getStatusColor = (status) => {
+    if (!status) return 'text-transparent bg-transparent border-transparent';
     switch (status) {
         case 'PASSED': return 'text-green-600 bg-green-50 border-green-100';
         case 'FAILED': return 'text-red-600 bg-red-50 border-red-100';
         case 'INC': return 'text-amber-600 bg-amber-50 border-amber-100';
         case 'DROPPED': return 'text-gray-500 bg-gray-50 border-gray-100';
+        case 'IN PROGRESS': return 'text-blue-600 bg-blue-50 border-blue-100';
         default: return 'text-blue-600 bg-blue-50 border-blue-100';
     }
 };

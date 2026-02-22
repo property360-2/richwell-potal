@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-    User, 
-    Book, 
-    CreditCard, 
-    CheckCircle, 
-    AlertCircle, 
-    Clock, 
+import {
+    User,
+    Book,
+    CreditCard,
+    CheckCircle, // Used in StatCard
+    AlertCircle,
+    Clock,
     ChevronRight,
     ArrowUpRight,
-    ShieldCheck,
+    ShieldCheck, // Used in StatCard
     Loader2,
-    Calendar,
+    Calendar, // Used in Button
     Briefcase
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { api, endpoints } from '../../api'; // Added this import
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import StatCard from '../../components/ui/StatCard';
@@ -32,6 +33,7 @@ const StudentDashboard = () => {
     const [dashboardData, setDashboardData] = useState({
         enrollmentStatus: 'N/A',
         enrolledUnits: 0,
+        currentSection: 'Loading...',
         stats: {},
         paymentBuckets: [],
         gpa: null
@@ -44,39 +46,37 @@ const StudentDashboard = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const [enrollRes, subjectsRes, paymentsRes, gradesRes] = await Promise.all([
-                fetch('/api/v1/students/my-enrollment/'),
-                fetch('/api/v1/students/my-enrollments/'),
-                fetch('/api/v1/students/my-payments/'),
-                fetch('/api/v1/students/my-grades/')
-            ]);
+            const newData = { ...dashboardData };
 
-            let newData = { ...dashboardData };
+            // Use the api client and centralized endpoints
+            try {
+                const enrollData = await api.get(endpoints.myEnrollment);
+                newData.enrollmentStatus = enrollData?.status || 'N/A';
+            } catch (e) { console.error("Enrollment fetch failed", e); }
 
-            if (enrollRes.ok) {
-                const data = await enrollRes.json();
-                newData.enrollmentStatus = data.status || 'N/A';
-            }
+            try {
+                const subjectsData = await api.get(endpoints.myEnrollments);
+                newData.enrolledUnits = subjectsData?.enrolled_units || 0;
+                
+                const enrollments = subjectsData?.subject_enrollments || [];
+                const validSection = enrollments.find(s => s.section_name && s.section_name !== 'TBA');
+                newData.currentSection = validSection ? validSection.section_name : 'No Section';
+            } catch (e) { console.error("Subjects fetch failed", e); }
 
-            if (subjectsRes.ok) {
-                const data = await subjectsRes.json();
-                newData.enrolledUnits = data.enrolled_units || 0;
-            }
+            try {
+                const paymentsData = await api.get(endpoints.myPayments);
+                newData.paymentBuckets = paymentsData?.buckets || [];
+            } catch (e) { console.error("Payments fetch failed", e); }
 
-            if (paymentsRes.ok) {
-                const data = await paymentsRes.json();
-                newData.paymentBuckets = data.buckets || [];
-            }
-
-            if (gradesRes.ok) {
-                const data = await gradesRes.json();
-                newData.gpa = data.summary?.cumulative_gpa || null;
-            }
+            try {
+                const gradesData = await api.get(endpoints.myGrades);
+                newData.gpa = gradesData?.summary?.cumulative_gpa || null;
+            } catch (e) { console.error("Grades fetch failed", e); }
 
             setDashboardData(newData);
         } catch (err) {
+            error('Failed to sync dashboard data');
             console.error(err);
-            error('Failed to load dashboard data');
         } finally {
             setLoading(false);
         }
@@ -86,7 +86,7 @@ const StudentDashboard = () => {
         return <DashboardSkeleton />;
     }
 
-    const { enrollmentStatus, enrolledUnits, paymentBuckets, gpa } = dashboardData;
+    const { enrollmentStatus, enrolledUnits, currentSection, paymentBuckets, gpa } = dashboardData;
     const profile = user?.student_profile;
     const studentType = profile?.overload_approved ? 'Overloaded' : (profile?.is_irregular ? 'Irregular' : 'Regular');
 
@@ -102,16 +102,21 @@ const StudentDashboard = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div>
                     <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Mabuhay, {user?.first_name}!</h1>
-                    <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-xs">Student Portal • {user?.student_number || 'REGISTRATION PENDING'}</p>
+                    <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-xs">
+                        Student Portal • {studentType} • {user?.student_number || 'waiting for approval and id'} • {currentSection || 'No Section'}
+                    </p>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
-                    <Button 
-                        variant="white"
-                        className="text-blue-600 bg-white shadow-sm border border-gray-200"
-                        onClick={() => navigate('/student/exam-permits')}
-                    >
-                        MY PERMITS
-                    </Button>
+                    {user?.student_number && enrollmentStatus !== 'ENROLLED' && (
+                        <Button 
+                            variant="primary" 
+                            icon={Book} 
+                            className="flex-1 md:flex-none shadow-xl shadow-blue-200"
+                            onClick={() => navigate('/enrollment/subjects')}
+                        >
+                            ENLIST SUBJECTS
+                        </Button>
+                    )}
                     <Button 
                         variant="secondary" 
                         icon={Calendar} 
@@ -131,9 +136,9 @@ const StudentDashboard = () => {
                             <Clock className="w-6 h-6" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">Account Pending Review</h3>
+                            <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">waiting for approval and id</h3>
                             <p className="text-xs font-bold text-amber-700/80 mt-1 leading-relaxed">
-                                Your application is currently being evaluated by the Admissions Office. You will be notified once a Student Number is issued.
+                                Your application is currently being evaluated by the Admissions Office. You will be notified once your Student ID is issued.
                             </p>
                         </div>
                     </div>
@@ -162,16 +167,15 @@ const StudentDashboard = () => {
             </div>
 
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
                 <StatCard label="Enrollment Status" value={enrollmentStatus} icon={ShieldCheck} color="blue" />
-                <StatCard label="Enrolled Units" value={enrolledUnits} icon={Book} color="indigo" />
-                <StatCard label="Cumulative GPA" value={gpa?.toFixed(2) || '--'} icon={CheckCircle} color="green" />
+                <StatCard label="Enrolled Units" value={enrolledUnits > 0 ? enrolledUnits : 'No subjects'} icon={Book} color="indigo" />
                 <StatCard label="Student Type" value={studentType} icon={User} color="purple" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Financial Progress */}
-                <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 gap-8">
+                {/* Financial Progress - Full Width */}
+                <div className="w-full">
                     <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 p-8 md:p-12 h-full">
                         <div className="flex items-center justify-between mb-10">
                             <div>
@@ -187,48 +191,17 @@ const StudentDashboard = () => {
                             </div>
                         </div>
 
-                        <div className="space-y-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                             {paymentBuckets.map((bucket, index) => (
                                 <PaymentBucket key={index} bucket={bucket} />
                             ))}
                             {paymentBuckets.length === 0 && (
-                                <div className="py-20 text-center">
+                                <div className="py-20 text-center md:col-span-2">
                                     <CreditCard className="w-12 h-12 text-gray-100 mx-auto mb-4" />
                                     <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">No payment schedule generated yet</p>
                                 </div>
                             )}
                         </div>
-                    </div>
-                </div>
-
-                {/* Academic Metadata & Alerts */}
-                <div className="space-y-6">
-                    <div className="bg-gray-900 text-white rounded-[40px] p-8 shadow-2xl shadow-gray-200">
-                        <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-500 mb-6">Subject Statistics</h3>
-                        <div className="space-y-6">
-                            <MetaItem label="Academic Program" value={user?.student_profile?.program_code || 'N/A'} />
-                            <MetaItem label="Active Curriculum" value={user?.student_profile?.curriculum_code || 'N/A'} />
-                            <MetaItem label="Home Section" value={user?.student_profile?.home_section_name || 'NOT ASSIGNED'} />
-                        </div>
-                        <div className="mt-8 pt-8 border-t border-white/10">
-                            <Link to="/student/grades" className="flex items-center justify-between group">
-                                <span className="text-xs font-black uppercase tracking-widest text-gray-400 group-hover:text-white transition-colors">View Grade Report</span>
-                                <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
-                            </Link>
-                        </div>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-purple-600 to-indigo-700 rounded-[40px] p-8 text-white relative overflow-hidden group">
-                        <div className="absolute bottom-0 right-0 w-32 h-32 bg-white/10 rounded-full translate-x-10 translate-y-10 group-hover:scale-125 transition-transform duration-700"></div>
-                        <h3 className="text-xl font-black tracking-tight mb-2">Subject Enlisting</h3>
-                        <p className="text-white/70 text-xs font-bold uppercase tracking-widest leading-relaxed">Enroll in your subjects for the current semester.</p>
-                        <Button 
-                            variant="white" 
-                            className="w-full mt-6 py-4 text-indigo-600 font-black tracking-widest"
-                            onClick={() => navigate('/enrollment/subjects')}
-                        >
-                            ENROLL NOW
-                        </Button>
                     </div>
                 </div>
             </div>
@@ -260,12 +233,5 @@ const PaymentBucket = ({ bucket }) => {
         </div>
     );
 };
-
-const MetaItem = ({ label, value }) => (
-    <div>
-        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">{label}</p>
-        <p className="text-xs font-black text-white uppercase tracking-tight">{value}</p>
-    </div>
-);
 
 export default StudentDashboard;

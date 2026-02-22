@@ -321,7 +321,7 @@ class OnlineEnrollmentView(APIView):
         data = request.data
         
         # Validate required fields
-        required = ['first_name', 'last_name', 'email', 'program_id']
+        required = ['first_name', 'last_name', 'email', 'program_id', 'birthdate', 'address', 'contact_number']
         for field in required:
             if not data.get(field):
                 return Response({"error": f"{field} is required"}, status=400)
@@ -338,20 +338,35 @@ class OnlineEnrollmentView(APIView):
             from .services import EnrollmentService
             
             service = EnrollmentService()
-            result = service.create_online_enrollment(data)
+            enrollment = service.create_online_enrollment(data)
+            user = enrollment.student
             
+            # Extract birth year for the password display
+            birth_year = "2000"
+            try:
+                if isinstance(data['birthdate'], str):
+                    birth_year = data['birthdate'].split('-')[0]
+                else:
+                    birth_year = str(data['birthdate'].year)
+            except:
+                pass
+
             return Response({
                 "success": True,
                 "message": "Enrollment submitted successfully",
-                "credentials": result['credentials'],
-                "tokens": result['tokens'],
+                "credentials": {
+                    "login_email": user.email,
+                    "school_email": user.username, # Keep for record
+                    "initial_password": f"RW@{birth_year}",
+                    "student_number": user.student_number or "PENDING"
+                },
                 "user": {
-                    "id": str(result['user'].id),
-                    "email": result['user'].email,
-                    "first_name": result['user'].first_name,
-                    "last_name": result['user'].last_name,
-                    "role": result['user'].role,
-                    "student_number": result['credentials']['student_number'],
+                    "id": str(user.id),
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "role": user.role,
+                    "student_number": user.student_number or "PENDING",
                 }
             }, status=201)
                 
@@ -434,28 +449,29 @@ class ApplicantListView(APIView):
         for enrollment in enrollments:
             student = enrollment.student
             profile = getattr(student, 'student_profile', None)
+            program = profile.program if profile else None
             
             data.append({
-                'id': str(enrollment.id), # Use enrollment ID as the primary ID for dashboard actions
-                'student_number': student.student_number,
+                'id': str(enrollment.id),
+                'student_id': str(student.id),
+                'student_number': student.student_number or 'PENDING',
                 'first_name': student.first_name,
                 'last_name': student.last_name,
+                'middle_name': profile.middle_name if profile else '',
+                'suffix': profile.suffix if profile else '',
                 'email': student.email,
-                'status': enrollment.status,
-                'created_at': enrollment.created_at,
-                'year_level': profile.year_level if profile else 1,
-                'program': {
-                    'code': profile.program.code if profile and profile.program else 'N/A',
-                    'name': profile.program.name if profile and profile.program else 'N/A'
-                } if profile else None,
                 'contact_number': profile.contact_number if profile else '',
                 'address': profile.address if profile else '',
-                'student_id': str(student.id),
-                # Additional fields for admission dashboard
-                'first_month_paid': enrollment.first_month_paid,
-                'has_subject_enrollments': enrollment.has_subject_enrollments,
-                'can_be_marked_admitted': enrollment.can_be_marked_admitted,
-                'subject_enrollment_count': enrollment.subject_enrollments.filter(is_deleted=False, status__in=['ENROLLED', 'PENDING', 'PENDING_PAYMENT', 'PENDING_HEAD']).count(),
+                'birthdate': profile.birthdate.isoformat() if profile and profile.birthdate else '',
+                'gender': getattr(profile, 'gender', 'Not Specified'),
+                'civil_status': getattr(profile, 'civil_status', 'Single'),
+                'program_name': program.name if program else 'N/A',
+                'program_code': program.code if program else 'N/A',
+                'year_level': profile.year_level if profile else 1,
+                'status': enrollment.status,
+                'created_at': enrollment.created_at.isoformat() if enrollment.created_at else None,
+                'updated_at': enrollment.updated_at.isoformat() if hasattr(enrollment, 'updated_at') and enrollment.updated_at else None,
+                'is_transferee': profile.is_transferee if profile else False
             })
             
         return Response(data)
@@ -1778,7 +1794,59 @@ class CashierStudentSearchView(APIView):
         return Response(data)
 CashierPendingPaymentsView = SimpleGETView
 CashierTodayTransactionsView = SimpleGETView
-MyPaymentsView = SimpleGETView
+class MyPaymentsView(APIView):
+    """
+    Get financial statement (SOA) for the logged-in student.
+    Returns payment buckets and recent transactions.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from .models import Enrollment, Semester, MonthlyPaymentBucket, PaymentTransaction
+        from .serializers import MonthlyPaymentBucketSerializer, PaymentTransactionSerializer
+        
+        # 1. Get active semester
+        active_semester = Semester.objects.filter(is_current=True).first()
+        if not active_semester:
+            return Response({
+                "buckets": [],
+                "recent_transactions": [],
+                "semester": "No active semester"
+            })
+
+        # 2. Get student enrollment
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            semester=active_semester
+        ).first()
+
+        if not enrollment:
+            return Response({
+                "buckets": [],
+                "recent_transactions": [],
+                "semester": active_semester.name
+            })
+
+        # 3. Get buckets
+        buckets_qs = MonthlyPaymentBucket.objects.filter(enrollment=enrollment).order_by('month_number')
+        buckets_data = []
+        for b in buckets_qs:
+            buckets_data.append({
+                'month': b.month_number,
+                'event_label': b.event_label,
+                'paid': float(b.paid_amount),
+                'required': float(b.required_amount)
+            })
+
+        # 4. Get recent transactions
+        transactions_qs = PaymentTransaction.objects.filter(enrollment=enrollment).order_by('-processed_at')[:10]
+        transactions_data = PaymentTransactionSerializer(transactions_qs, many=True).data
+
+        return Response({
+            "buckets": buckets_data,
+            "recent_transactions": transactions_data,
+            "semester": f"{active_semester.name} {active_semester.academic_year}"
+        })
 
 # Import exam views
 from .views_exam import (

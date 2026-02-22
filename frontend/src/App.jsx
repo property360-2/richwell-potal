@@ -79,7 +79,7 @@ const ProgramDetailPage = lazy(() => import('./pages/academics/ProgramDetailPage
 // Layout wrapper component
 function Layout({ children }) {
   const location = useLocation();
-  const hideHeaderPaths = ['/auth/login', '/auth/register', '/auth/forgot-password'];
+  const hideHeaderPaths = ['/auth/login', '/auth/register', '/auth/forgot-password', '/enrollment', '/enrollment/success'];
   const shouldShowHeader = !hideHeaderPaths.includes(location.pathname);
 
   return (

@@ -45,6 +45,7 @@ const StudentSchedule = () => {
     const { user } = useAuth();
     const { error } = useToast();
 
+    const [viewMode, setViewMode] = useState('grid');
     const { data: scheduleData, isLoading: loading, error: queryError } = useSchedule();
     const schedule = scheduleData?.schedule || [];
     const semesterInfo = scheduleData?.semester || '';

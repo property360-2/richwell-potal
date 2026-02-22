@@ -2,57 +2,46 @@ import { api, endpoints } from '../../../api';
 
 const CashierService = {
     getTodayTransactions: async () => {
-        const res = await fetch(endpoints.cashierTodayTransactions);
-        if (res.ok) {
-            const data = await res.json();
-            return data.data?.transactions || [];
+        try {
+            return await api.get(endpoints.cashierTodayTransactions);
+        } catch (err) {
+            return [];
         }
-        return [];
     },
 
     getPendingPayments: async () => {
-        const res = await fetch(endpoints.cashierPendingPayments);
-        if (res.ok) {
-            const data = await res.json();
-            return data.results || data.data?.results || [];
+        try {
+            const data = await api.get(endpoints.cashierPendingPayments);
+            return data.results || data || [];
+        } catch (err) {
+            return [];
         }
-        return [];
     },
 
     searchStudent: async (query) => {
-        const res = await fetch(`${endpoints.cashierStudentSearch}?q=${encodeURIComponent(query)}`);
-        if (res.ok) {
-            const data = await res.json();
-            return data.results || [];
+        try {
+            const data = await api.get(endpoints.cashierStudentSearch, { q: query });
+            return data.results || data || [];
+        } catch (err) {
+            return [];
         }
-        return [];
     },
 
     recordPayment: async (payload) => {
-        const res = await fetch(endpoints.cashierRecordPayment, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        return res.ok ? res.json() : null;
+        return await api.post(endpoints.cashierRecordPayment, payload);
     },
 
     getMyPayments: async () => {
-        const res = await fetch(endpoints.myPayments);
-        if (res.ok) {
-            const data = await res.json();
-            return data.data || data;
+        try {
+            return await api.get(endpoints.myPayments);
+        } catch (err) {
+            console.error("SOA Fetch Error:", err);
+            return null;
         }
-        return null;
     },
 
     adjustPayment: async (payload) => {
-        try {
-            return await api.post(endpoints.cashierPaymentAdjust, payload);
-        } catch (err) {
-            console.error('Adjustment failed:', err);
-            throw err;
-        }
+        return await api.post(endpoints.cashierPaymentAdjust, payload);
     }
 };
 

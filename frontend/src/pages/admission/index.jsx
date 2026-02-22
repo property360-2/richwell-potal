@@ -52,8 +52,9 @@ const AdmissionDashboard = () => {
     const fetchApplicants = async () => {
         try {
             setLoading(true);
-            const data = await AdmissionService.getApplicants();
-            setApplicants(data);
+            // Fetch all to allow client-side filtering and stats calculation
+            const data = await AdmissionService.getApplicants('all');
+            setApplicants(Array.isArray(data) ? data : []);
         } catch (err) {
             error('Failed to load applicant pool');
         } finally {
@@ -111,7 +112,22 @@ const AdmissionDashboard = () => {
         return matchesSearch && matchesStatus;
     });
 
-    const pendingCount = applicants.filter(a => a.status === 'PENDING').length;
+    // Dynamic Statistics
+    const isToday = (dateStr) => {
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        const today = new Date();
+        return d.getDate() === today.getDate() &&
+               d.getMonth() === today.getMonth() &&
+               d.getFullYear() === today.getFullYear();
+    };
+
+    const stats = {
+        pending: applicants.filter(a => a.status === 'PENDING').length,
+        approvedToday: applicants.filter(a => a.status === 'APPROVED' && isToday(a.updated_at || a.created_at)).length,
+        totalRejected: applicants.filter(a => a.status === 'REJECTED').length,
+        totalApplicants: applicants.length
+    };
 
     if (loading) return (
         <div className="h-screen flex items-center justify-center">
@@ -124,10 +140,10 @@ const AdmissionDashboard = () => {
             <SEO title="Admission Dashboard" description="Screen and approve student applications." />
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                <StatCard icon={Users} label="Pending Pool" value={pendingCount} color="blue" />
-                <StatCard icon={CheckCircle2} label="Approved Today" value="--" color="green" />
-                <StatCard icon={AlertCircle} label="Avg Review Time" value="12m" color="amber" />
-                <StatCard icon={ShieldCheck} label="Security Priority" value="High" color="indigo" />
+                <StatCard icon={Users} label="Pending Pool" value={stats.pending} color="blue" />
+                <StatCard icon={CheckCircle2} label="Approved Today" value={stats.approvedToday} color="green" />
+                <StatCard icon={AlertCircle} label="Declined Total" value={stats.totalRejected} color="red" />
+                <StatCard icon={ShieldCheck} label="Applicants" value={stats.totalApplicants} color="indigo" />
             </div>
 
             {/* Filter Bar */}
@@ -218,9 +234,9 @@ const AdmissionDashboard = () => {
 
             {/* Applicant Detail Drawer/Modal */}
             {selectedApplicant && (
-                <div className="fixed inset-0 z-50 flex items-center justify-end p-4 animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in fade-in duration-300">
                     <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setSelectedApplicant(null)} />
-                    <div className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-500 overflow-hidden">
+                    <div className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl max-h-[90vh] flex flex-col animate-in zoom-in duration-500 overflow-hidden">
                         <div className="p-10 border-b border-gray-50 shrink-0">
                             <div className="flex justify-between items-start mb-6">
                                 <div className="flex items-center gap-6">
@@ -249,9 +265,10 @@ const AdmissionDashboard = () => {
                                 </h4>
                                 <div className="grid grid-cols-2 gap-8">
                                     <DetailItem label="Full Legal Name" value={`${selectedApplicant.first_name} ${selectedApplicant.middle_name || ''} ${selectedApplicant.last_name}`} />
+                                    <DetailItem label="Suffix" value={selectedApplicant.suffix} />
                                     <DetailItem label="Gender" value={selectedApplicant.gender} />
-                                    <DetailItem label="Civil Status" value={selectedApplicant.civil_status || 'Single'} />
-                                    <DetailItem label="Date of Birth" value={selectedApplicant.date_of_birth} />
+                                    <DetailItem label="Civil Status" value={selectedApplicant.civil_status} />
+                                    <DetailItem label="Date of Birth" value={selectedApplicant.birthdate} />
                                 </div>
                             </section>
 
@@ -302,10 +319,22 @@ const AdmissionDashboard = () => {
                                     className="flex-1 py-5" 
                                     variant="primary" 
                                     icon={CheckCircle2}
-                                    onClick={() => {
-                                        const year = new Date().getFullYear();
-                                        setProposedId(`${year}-${Math.floor(1000 + Math.random() * 9000)}`);
+                                    onClick={async () => {
                                         setIsIdModalOpen(true);
+                                        setIdStatus({ loading: true, available: null });
+                                        
+                                        const res = await AdmissionService.generateStudentId();
+                                        let newId = '';
+                                        if (res && res.student_id) {
+                                            newId = res.student_id;
+                                        } else {
+                                            const year = new Date().getFullYear();
+                                            newId = `${year}-${Math.floor(1000 + Math.random() * 9000)}`;
+                                        }
+                                        
+                                        setProposedId(newId);
+                                        const checkRes = await AdmissionService.checkIdAvailability(newId);
+                                        setIdStatus({ loading: false, available: checkRes?.available === true });
                                     }}
                                 >
                                     ACCEPT & ASSIGN ID
@@ -318,7 +347,7 @@ const AdmissionDashboard = () => {
 
             {/* ID Assignment Modal */}
             {isIdModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setIsIdModalOpen(false)} />
                     <div className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
                         <div className="text-center mb-8">
@@ -368,7 +397,7 @@ const AdmissionDashboard = () => {
 
             {/* Rejection Modal */}
             {isRejecting && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setIsRejecting(false)} />
                     <div className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
                         <div className="text-center mb-8">

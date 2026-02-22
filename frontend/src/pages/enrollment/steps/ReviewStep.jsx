@@ -23,7 +23,7 @@ const ReviewStep = ({ data, documents, programs }) => {
                         <DetailItem label="Email" value={data.email} icon={Mail} />
                         <DetailItem label="Contact" value={data.contact_number} icon={Phone} />
                         <DetailItem label="Birthdate" value={data.birthdate} icon={Calendar} />
-                        <DetailItem label="Address" value={data.address} icon={MapPin} />
+                        <DetailItem label="Address" value={data.street ? `${data.street}, ${data.barangay}, ${data.city}, ${data.province}` : '---'} icon={MapPin} />
                     </div>
                 </div>
 
@@ -78,7 +78,7 @@ const ReviewStep = ({ data, documents, programs }) => {
                             className="w-5 h-5 rounded-lg border-2 border-green-200 text-green-600 focus:ring-green-500 transition-all mt-0.5"
                         />
                         <p className="text-xs font-bold text-green-800 leading-relaxed">
-                            I confirm that all information provided is accurate and I agree to the enrollment terms and conditions of Richwell Colleges. I understand that my application is subject for review and approval skip.
+                            I confirm that all information provided is accurate and I agree to the enrollment terms and conditions of the Portal. I understand that my application is subject for review and approval skip.
                         </p>
                     </label>
                 </div>
