@@ -462,6 +462,16 @@ class EnrollSubjectRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError("Section not found.")
 
 
+class BulkEnrollRequestSerializer(serializers.Serializer):
+    """Serializer for bulk subject enrollment."""
+    enrollments = EnrollSubjectRequestSerializer(many=True)
+
+    def validate_enrollments(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one enrollment is required.")
+        return value
+
+
 class RegistrarOverrideSerializer(serializers.Serializer):
     """Serializer for registrar override enrollment."""
     

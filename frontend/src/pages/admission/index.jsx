@@ -80,7 +80,7 @@ const AdmissionDashboard = () => {
         try {
             const res = await AdmissionService.approveApplicant(selectedApplicant.id, proposedId);
             if (res) {
-                success('Applicant approved and ID assigned');
+                success(res.message || 'Applicant approved and ID assigned');
                 setIsIdModalOpen(false);
                 setSelectedApplicant(null);
                 fetchApplicants();
@@ -201,14 +201,27 @@ const AdmissionDashboard = () => {
                                         </div>
                                         <div>
                                             <p className="font-bold text-gray-900 tracking-tight mb-1">{a.first_name} {a.last_name}</p>
-                                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-tight">{a.email}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-tight">{a.email}</p>
+                                                {a.student_number && a.student_number !== 'PENDING' && (
+                                                    <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">{a.student_number}</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td className="px-10 py-6">
-                                    <div className="flex items-center gap-2">
-                                        <span className="px-2 py-0.5 bg-gray-50 border border-gray-100 rounded text-[9px] font-black text-gray-600 uppercase">{a.program_code || '---'}</span>
-                                        <span className="text-[10px] font-bold text-gray-400 truncate max-w-[150px]">{a.program_name}</span>
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-2 py-0.5 bg-gray-50 border border-gray-100 rounded text-[9px] font-black text-gray-600 uppercase">{a.program_code || '---'}</span>
+                                            <span className="text-[10px] font-bold text-gray-400 truncate max-w-[150px]">{a.program_name}</span>
+                                        </div>
+                                        {a.section_name && a.section_name !== 'Awaiting Assignment' && (
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
+                                                <span className="text-[9px] font-black text-green-600 uppercase tracking-widest">{a.section_name}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </td>
                                 <td className="px-10 py-6">
@@ -298,6 +311,22 @@ const AdmissionDashboard = () => {
                                             <div className="flex items-center gap-2 mt-2">
                                                 <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-extrabold uppercase">{selectedApplicant.program_code || '---'}</span>
                                                 <span className="text-[10px] font-bold text-blue-600/60 uppercase tracking-widest">Year {selectedApplicant.year_level} Admission</span>
+                                            </div>
+                                            
+                                            {/* Assigned Section (NEW) */}
+                                            <div className="mt-4 pt-4 border-t border-blue-100/30">
+                                                <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Assigned Section</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-2 py-1 rounded text-[10px] font-black uppercase
+                                                        ${selectedApplicant.section_name === 'Awaiting Assignment' 
+                                                            ? 'bg-amber-50 text-amber-600 border border-amber-100' 
+                                                            : 'bg-green-50 text-green-600 border border-green-100'}`}>
+                                                        {selectedApplicant.section_name}
+                                                    </span>
+                                                    {selectedApplicant.section_name !== 'Awaiting Assignment' && (
+                                                        <span className="text-[10px] font-bold text-gray-400">Class Block Verified</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

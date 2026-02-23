@@ -323,6 +323,7 @@ export const endpoints = {
     myEnrollments: '/admissions/subjects/my-enrollments/',
     mySchedule: '/admissions/my-schedule/',
     enrollSubject: '/admissions/subjects/enroll/',
+    bulkEnrollSubject: '/admissions/subjects/bulk-enroll/',
     dropSubject: (id) => `/admissions/subjects/${id}/drop/`,
     overrideEnroll: (enrollmentId) => `/admissions/enrollment/${enrollmentId}/override-enroll/`,
 

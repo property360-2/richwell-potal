@@ -288,7 +288,7 @@ class StudentProfile(BaseModel):
     max_units_override = models.PositiveIntegerField(
         null=True, 
         blank=True,
-        help_text='Override for maximum units (default is 24)'
+        help_text='Override for maximum units (default is 30)'
     )
     
     status = models.CharField(

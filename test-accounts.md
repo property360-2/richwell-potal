@@ -29,6 +29,15 @@ test7@gmail.com
 Initial Password
 
 RW@2004
-
-
 cashier@richwell.edu
+
+
+Login Email (Gmail)
+
+test9@gmail.com
+
+Initial Password
+
+RW@2004
+
+⚠️ Use your personal email to log in to the portal once approved.

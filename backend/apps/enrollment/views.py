@@ -444,7 +444,9 @@ class ApplicantListView(APIView):
             enrollments = Enrollment.objects.filter(status=status)
         
         enrollments = enrollments.select_related(
-            'student', 'semester', 'student__student_profile', 'student__student_profile__program'
+            'student', 'semester', 'student__student_profile', 
+            'student__student_profile__program',
+            'student__student_profile__home_section'
         )
         
         data = []
@@ -452,6 +454,7 @@ class ApplicantListView(APIView):
             student = enrollment.student
             profile = getattr(student, 'student_profile', None)
             program = profile.program if profile else None
+            section = profile.home_section if profile else None
             
             data.append({
                 'id': str(enrollment.id),
@@ -470,6 +473,8 @@ class ApplicantListView(APIView):
                 'program_name': program.name if program else 'N/A',
                 'program_code': program.code if program else 'N/A',
                 'year_level': profile.year_level if profile else 1,
+                'section_name': section.name if section else 'Awaiting Assignment',
+                'section_id': str(section.id) if section else None,
                 'status': enrollment.status,
                 'created_at': enrollment.created_at.isoformat() if enrollment.created_at else None,
                 'updated_at': enrollment.updated_at.isoformat() if hasattr(enrollment, 'updated_at') and enrollment.updated_at else None,
@@ -1030,12 +1035,15 @@ class RecommendedSubjectsView(APIView):
                 'units': subject.units,
                 'year_level': cs.year_level,
                 'semester_number': cs.semester_number,
+                'program_code': subject.program.code if subject.program else 'Global',
+                'is_global': subject.is_global,
                 'can_enroll': can_enroll,
                 'is_retake': is_retake,  # Helpful for UI
                 'enrollment_blocked_reason': retake_blocked_reason,
                 'missing_prerequisites': missing_prereqs,
                 'available_sections': sections
             })
+
 
         # Calculate currently enrolled units
         current_units = SubjectEnrollment.objects.filter(
@@ -1050,7 +1058,7 @@ class RecommendedSubjectsView(APIView):
             "data": {
                 "recommended_subjects": recommended,
                 "current_units": current_units,
-                "max_units": 26 # Typically 24-26, hardcoded for now or fetch from config
+                "max_units": 30 # Standardized to 30
             }
         })
 class AvailableSubjectsView(APIView):
@@ -1071,15 +1079,19 @@ class AvailableSubjectsView(APIView):
         active_semester = Semester.objects.filter(is_current=True).first()
         if not active_semester:
             return Response({"error": "No active semester found"}, status=400)
-
+            
+        profile = user.student_profile
+        
         # 2. Get subjects that have sections offered this semester
         # Optimization: distinct() on subject
+        # Filter for student's program OR global subjects
         offered_subjects = Subject.objects.filter(
+            Q(program=profile.program) | Q(is_global=True),
             section_subjects__section__semester=active_semester,
             section_subjects__section__is_deleted=False,
             section_subjects__is_deleted=False,
             is_deleted=False
-        ).distinct().prefetch_related('prerequisites')
+        ).distinct().select_related('program').prefetch_related('prerequisites')
 
         # 3. Get Student status
         passed_subjects = set(SubjectEnrollment.objects.filter(
@@ -1187,10 +1199,14 @@ class AvailableSubjectsView(APIView):
                 'units': subject.units,
                 'year_level': subject.year_level,
                 'semester_number': subject.semester_number,
+                'program_code': subject.program.code if subject.program else 'Global',
+                'is_global': subject.is_global,
                 'prerequisites_met': prereqs_met,
                 'missing_prerequisites': missing_prereqs,
                 'is_enrolled': subject.id in current_subjects,
                 'is_passed': subject.id in passed_subjects,
+                'can_enroll': prereqs_met and (subject.id not in passed_subjects),
+                'enrollment_status': 'available' if prereqs_met else 'blocked',
                 'sections': available_sections
             })
 
@@ -1502,6 +1518,116 @@ class EnrollSubjectView(APIView):
             import traceback
             traceback.print_exc()
             return Response({"error": "An internal error occurred"}, status=500)
+
+
+class BulkEnrollSubjectView(APIView):
+    """
+    Bulk enroll a student in multiple subject sections.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        from apps.enrollment.models import Enrollment, Semester
+        from apps.academics.models import Subject, Section
+        from apps.enrollment.serializers import BulkEnrollRequestSerializer
+        from apps.enrollment.services import SubjectEnrollmentService
+        from apps.core.exceptions import (
+            PrerequisiteNotSatisfiedError, UnitCapExceededError,
+            PaymentRequiredError, ScheduleConflictError, ConflictError,
+            ValidationError
+        )
+        from django.db import transaction
+
+        user = request.user
+        serializer = BulkEnrollRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({"error": serializer.errors}, status=400)
+
+        enrollments_data = serializer.validated_data['enrollments']
+        
+        if not hasattr(user, 'student_profile'):
+            return Response({"error": "Student profile not found"}, status=400)
+            
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            return Response({"error": "No active semester"}, status=400)
+            
+        if not semester.is_enrollment_open:
+            return Response({"error": "Enrollment is currently closed"}, status=400)
+
+        service = SubjectEnrollmentService()
+        results = []
+        overall_success = True
+
+        try:
+            with transaction.atomic():
+                # Get/Create Enrollment Header
+                enrollment, _ = Enrollment.objects.get_or_create(
+                    student=user,
+                    semester=semester,
+                    defaults={
+                        'status': Enrollment.Status.PENDING,
+                        'monthly_commitment': 0
+                    }
+                )
+
+                for entry in enrollments_data:
+                    subj_id = entry['subject_id']
+                    sect_id = entry['section_id']
+                    
+                    try:
+                        subject = Subject.objects.get(id=subj_id, is_deleted=False)
+                        section = Section.objects.get(id=sect_id, is_deleted=False)
+                        
+                        service.enroll_in_subject(user, enrollment, subject, section)
+                        results.append({
+                            "subject_id": str(subj_id),
+                            "subject_code": subject.code,
+                            "status": "success",
+                            "message": "Enrolled successfully"
+                        })
+                    except (Subject.DoesNotExist, Section.DoesNotExist):
+                        results.append({
+                            "subject_id": str(subj_id),
+                            "status": "error",
+                            "message": "Subject or Section not found"
+                        })
+                        overall_success = False
+                    except (PrerequisiteNotSatisfiedError, UnitCapExceededError,
+                            PaymentRequiredError, ScheduleConflictError, ConflictError,
+                            ValidationError) as e:
+                        results.append({
+                            "subject_id": str(subj_id),
+                            "status": "error",
+                            "message": str(e)
+                        })
+                        overall_success = False
+                    except Exception as e:
+                        results.append({
+                            "subject_id": str(subj_id),
+                            "status": "error",
+                            "message": f"Unexpected error: {str(e)}"
+                        })
+                        overall_success = False
+
+                if not overall_success:
+                    transaction.set_rollback(True)
+                    # Extract the first error message for easier display on frontend
+                    first_error = next((r['message'] for r in results if r['status'] == 'error'), "Enrollment failed")
+                    return Response({
+                        "error": first_error,
+                        "results": results,
+                        "message": first_error # Fallback for some clients
+                    }, status=400)
+
+        except Exception as e:
+            return Response({"error": f"Internal server error: {str(e)}"}, status=500)
+
+        return Response({
+            "success": True,
+            "message": f"Successfully enrolled in {len(results)} subjects",
+            "results": results
+        }, status=200)
 DropSubjectView = SimplePOSTView
 EditSubjectEnrollmentView = SimplePOSTView
 class RegistrarOverrideEnrollmentView(APIView):

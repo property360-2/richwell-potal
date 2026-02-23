@@ -1308,7 +1308,7 @@ class Command(BaseCommand):
     def _seed_system_configs(self):
         configs = [
             ('ENROLLMENT_ENABLED', True, 'Master switch for online enrollment'),
-            ('MAX_UNITS_REGULAR', 24, 'Maximum units for regular students'),
+            ('MAX_UNITS_REGULAR', 30, 'Maximum units for regular students'),
             ('MAX_UNITS_OVERLOAD', 27, 'Maximum units with overload approval'),
             ('INC_EXPIRY_MAJOR_MONTHS', 6, 'Months before major INC converts to FAILED'),
             ('INC_EXPIRY_MINOR_MONTHS', 12, 'Months before minor INC converts to FAILED'),

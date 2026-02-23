@@ -12,7 +12,7 @@ const PaymentStep = ({ data, onChange }) => {
                 </div>
                 <div>
                     <h3 className="text-xl font-black text-gray-900 tracking-tight">Payment Commitment <span className="text-red-500">*</span></h3>
-                    <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Plan your semester budget</p>
+                    <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">magkano ba kaya mong bayaran and napag-usapan nyo ng admission?</p>
                 </div>
             </div>
 

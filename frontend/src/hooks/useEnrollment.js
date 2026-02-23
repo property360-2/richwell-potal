@@ -17,21 +17,27 @@ const mapSubject = (s) => ({
 });
 
 const fetchEnrollmentData = async () => {
-    // SubjectEnrollmentPage used /api/v1/admissions/enrollment/data/
-    // We'll use api.get to ensure auth headers
-    const data = await api.get('/admissions/enrollment/data/');
+    // We fetch from separate endpoints defined in api.jsx
+    try {
+        const [recommendedData, availableData, myEnrollmentsData, enrollmentInfo] = await Promise.all([
+            api.get(endpoints.recommendedSubjects).catch(() => ({ recommended_subjects: [], max_units: 30 })),
+            api.get(endpoints.availableSubjects).catch(() => ({ available_subjects: [] })),
+            api.get(endpoints.myEnrollments).catch(() => ({ subject_enrollments: [], enrolled_units: 0 })),
+            api.get(endpoints.myEnrollment).catch(() => null)
+        ]);
 
-    // api.get returns the json response directly (usually)
-    // The endpoint returns { recommendedSubjects, availableSubjects, ... }
-
-    return {
-        recommendedSubjects: (data.recommendedSubjects || []).map(mapSubject),
-        availableSubjects: (data.availableSubjects || []).map(mapSubject),
-        enrolledSubjects: data.enrolledSubjects || [],
-        maxUnits: data.maxUnits || 24,
-        enrollmentStatus: data.enrollmentStatus?.status || data.enrollmentStatus,
-        activeSemester: data.active_semester
-    };
+        return {
+            recommendedSubjects: (recommendedData?.recommended_subjects || []).map(mapSubject),
+            availableSubjects: (availableData?.available_subjects || []).map(mapSubject),
+            enrolledSubjects: (myEnrollmentsData?.subject_enrollments || []),
+            maxUnits: recommendedData?.max_units || 30,
+            enrollmentStatus: enrollmentInfo?.status || 'N/A',
+            activeSemester: enrollmentInfo?.semester || null
+        };
+    } catch (err) {
+        console.error("Failed to fetch full enrollment data bundle", err);
+        throw err;
+    }
 };
 
 export const useEnrollmentData = () => {
@@ -48,9 +54,17 @@ export const useEnrollSubjects = () => {
 
     return useMutation({
         mutationFn: async (payload) => {
-            // payload: { enrollments: [{ subject, section }] }
-            // Endpoint: /api/v1/admissions/enrollment/enroll/
-            return api.post('/admissions/enrollment/enroll/', payload);
+            // payload: { enrollments: [{ subject: subject_id, section: section_id }] }
+            // Backend BulkEnrollSubjectView expects subject_id and section_id in a nested list
+            // Transform frontend payload to backend expected structure:
+            // { enrollments: [{ subject_id, section_id }] }
+            const transformedPayload = {
+                enrollments: payload.enrollments.map(e => ({
+                    subject_id: e.subject,
+                    section_id: e.section
+                }))
+            };
+            return api.post(endpoints.bulkEnrollSubject, transformedPayload);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['enrollment-data'] });

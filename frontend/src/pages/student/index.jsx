@@ -62,7 +62,7 @@ const StudentDashboard = () => {
                 
                 const enrollments = subjectsData?.subject_enrollments || [];
                 const validSection = enrollments.find(s => s.section_name && s.section_name !== 'TBA');
-                newData.currentSection = validSection ? validSection.section_name : 'No Section';
+                newData.currentSection = validSection ? validSection.section_name : (user?.student_profile?.home_section_name || 'No Section');
             } catch (e) { console.error("Subjects fetch failed", e); }
 
             try {
@@ -102,10 +102,21 @@ const StudentDashboard = () => {
             <SEO title="Student Dashboard" description="Track your academic progress, grades, and financial status." />
             {/* Header Section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
-                <div>
-                    <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Mabuhay, {user?.first_name}!</h1>
-                    <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-xs">
-                        Student Portal • {studentType} • {user?.student_number || 'waiting for approval and id'} • {currentSection || 'No Section'}
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Mabuhay, {user?.first_name}!</h1>
+                        {user?.student_number ? (
+                            <span className="bg-blue-600 text-white px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-200">
+                                ID: {user.student_number}
+                            </span>
+                        ) : (
+                            <span className="bg-amber-100 text-amber-600 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-200">
+                                wala pa
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">
+                        Student Portal • {studentType} • {currentSection || 'No Section'}
                         {enrollmentDates?.enrollment_start && (
                             <span className="ml-2 text-blue-600">
                                 • Enrollment: {new Date(enrollmentDates.enrollment_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(enrollmentDates.enrollment_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -143,7 +154,7 @@ const StudentDashboard = () => {
                             <Clock className="w-6 h-6" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">waiting for approval and id</h3>
+                            <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">wala pa (waiting for approval)</h3>
                             <p className="text-xs font-bold text-amber-700/80 mt-1 leading-relaxed">
                                 Your application is currently being evaluated by the Admissions Office. You will be notified once your Student ID is issued.
                             </p>

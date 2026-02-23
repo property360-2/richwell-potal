@@ -59,6 +59,7 @@ urlpatterns = [
     
     # Enrollment actions
     path('subjects/enroll/', views.EnrollSubjectView.as_view(), name='enroll-subject'),
+    path('subjects/bulk-enroll/', views.BulkEnrollSubjectView.as_view(), name='bulk-enroll-subject'),
     path('subjects/<uuid:pk>/drop/', views.DropSubjectView.as_view(), name='drop-subject'),
     path('subjects/<uuid:pk>/edit/', views.EditSubjectEnrollmentView.as_view(), name='edit-subject'),
     
