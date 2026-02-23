@@ -161,7 +161,7 @@ export const api = {
 
         // Standardize: always return the payload
         if (data && data.success === true && data.data !== undefined) return data.data;
-        if (data && data.results !== undefined) return data.results;
+        if (data && data.results !== undefined && data.count === undefined) return data.results;
         return data;
     },
 

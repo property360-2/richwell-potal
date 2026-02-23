@@ -14,6 +14,7 @@ const LoginPage = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [loginError, setLoginError] = useState(null);
+    const [isEnrollmentEnabled, setIsEnrollmentEnabled] = useState(true);
 
     const { login, user } = useAuth();
     const { success, error, warning } = useToast();
@@ -25,6 +26,20 @@ const LoginPage = () => {
             handleRedirect(user.role);
         }
     }, [user, navigate]);
+
+    useEffect(() => {
+        const checkEnrollmentStatus = async () => {
+            try {
+                const response = await api.get(endpoints.enrollmentStatus);
+                // The API returns { enrollment_enabled: true/false, ... }
+                setIsEnrollmentEnabled(response?.enrollment_enabled ?? true);
+            } catch (err) {
+                console.error('Failed to fetch enrollment status:', err);
+                setIsEnrollmentEnabled(true); // Fallback to visible if API fails
+            }
+        };
+        checkEnrollmentStatus();
+    }, []);
 
     const handleRedirect = (role) => {
         const routes = {
@@ -181,12 +196,14 @@ const LoginPage = () => {
                         </Button>
                     </form>
                     
-                    <div className="mt-8 text-center">
-                        <p className="text-gray-500 font-bold text-sm uppercase tracking-tight">
-                            Don't have an account? 
-                            <Link to="/enrollment" className="text-blue-600 ml-2 hover:underline">Enroll Now</Link>
-                        </p>
-                    </div>
+                    {isEnrollmentEnabled && (
+                        <div className="mt-8 text-center">
+                            <p className="text-gray-500 font-bold text-sm uppercase tracking-tight">
+                                Don't have an account? 
+                                <Link to="/enrollment" className="text-blue-600 ml-2 hover:underline">Enroll Now</Link>
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

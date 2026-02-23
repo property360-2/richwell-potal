@@ -7,7 +7,8 @@ import {
     Trash2, 
     Loader2,
     Filter,
-    Calendar
+    Calendar,
+    Zap
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import ConfirmModal from '../../../components/shared/ConfirmModal';
@@ -34,6 +35,7 @@ const SectionsTab = ({ programId, onUpdate }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedSection, setSelectedSection] = useState(null);
+    const [isRunningQueue, setIsRunningQueue] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -92,6 +94,33 @@ const SectionsTab = ({ programId, onUpdate }) => {
         isDestructive: false
     });
 
+    const handleRunQueue = async () => {
+        if (!semesterFilter) {
+            showError('Please select a semester first');
+            return;
+        }
+
+        setConfirmModal({
+            isOpen: true,
+            title: 'Run Sectioning Queue?',
+            message: 'This will automatically assign admitted freshmen to their recommended home sections based on available capacity. Continue?',
+            isDestructive: false,
+            onConfirm: async () => {
+                try {
+                    setIsRunningQueue(true);
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    const res = await SectionService.runFreshmanQueue(semesterFilter, programFilter);
+                    showSuccess(res.message || 'Freshman queue processed successfully');
+                    fetchSections();
+                } catch (err) {
+                    showError(err.response?.data?.error || 'Failed to process sectioning queue');
+                } finally {
+                    setIsRunningQueue(false);
+                }
+            }
+        });
+    };
+
     const handleDelete = (id) => {
         setConfirmModal({
             isOpen: true,
@@ -144,6 +173,15 @@ const SectionsTab = ({ programId, onUpdate }) => {
                             className="bg-white border border-gray-200 text-gray-900 text-sm font-bold rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block w-full lg:w-80 pl-12 pr-6 py-4 shadow-sm transition-all outline-none"
                         />
                     </div>
+                    <Button 
+                        variant="secondary" 
+                        onClick={handleRunQueue}
+                        disabled={isRunningQueue}
+                        className="rounded-2xl px-6 py-4 h-auto shadow-xl shadow-indigo-50 flex items-center gap-2 shrink-0 border-indigo-100 text-indigo-600 hover:bg-indigo-50 transition-all group"
+                    >
+                        {isRunningQueue ? <Loader2 size={20} className="animate-spin" /> : <Zap size={20} className="group-hover:scale-110 transition-transform duration-300" />}
+                        <span className="font-black uppercase tracking-widest text-[11px]">Run Queue</span>
+                    </Button>
                     <Button 
                         variant="primary" 
                         onClick={() => setIsAddModalOpen(true)}

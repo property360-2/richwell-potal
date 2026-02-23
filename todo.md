@@ -1,37 +1,35 @@
-# Student Enrollment Flow Roadmap
+# Enrollment Workflow & Auto-Sectioning Roadmap
 
-Roadmap for implementing the features detailed in [enrollment_flow.md](file:///c:/Users/Administrator/Desktop/richwell-potal/enrollment_flow.md).
+This document outlines the phased development plan for implementing automated section assignment and handling student statuses (Active vs Inactive).
 
-## Phase 1: Admission & Identity
-- [x] **Frontend**: Implement Online Application Form for new students
-- [x] **Frontend**: Applicant Management Dashboard for Admissions Staff
-    - [x] List applicants with filtering
-    - [x] Decision modal (Accept/Reject/Admit) with Student ID generation
-- [x] **Backend**: OnlineEnrollmentView handles registration and documents
+---
 
-## Phase 2: Automated Sectioning & Grouping
-- [x] **Backend**: SectioningEngine to auto-assign students upon Admission
-- [/] **Frontend**: Registrar's Section Management UI
-    - [x] Manual re-sectioning (Integrated in Section Detail)
-    - [x] Capacity monitoring per section
-    - [ ] Automated Queue Trigger button (Phase 2 UI Polish)
+## Phase 1: Analyze
+- [x] **Understand Statuses**: Differentiate `StudentProfile.status` (School-wide) vs `Enrollment.status` (Semester-specific).
+- [x] **Identify Inactive/Ghost Rule**: Clarify that auto-assigned students who do not pay/enroll remain `PENDING` and do not count towards active numbers. They will not appear on CORs, class lists, or transcripts.
+- [x] **Locate Triggers**:
+    - *New Students*: Action happens in `ApplicantUpdateView`.
+    - *Current Students*: Action happens in `Semester.save()` when a new semester is marked `is_current=True`.
 
-## Phase 3: Subject Selection & Academic Approval
-- [x] **Frontend**: Student Subject Picker (Enrollment Portal)
-    - [x] Display recommended subjects based on curriculum
-    - [x] Real-time unit volume counter
-    - [x] Section availability indicators
-- [x] **Frontend**: Department Head Approval Dashboard
-    - [x] Bulk approve/reject subject enrollments
-    - [x] View student schedule preview for approval
+## Phase 2: Plan
+- [x] **Frontend UI**: Fix the missing `white` variant in `Button.jsx` to make the "VIEW STATEMENT" button readable.
+- [x] **Backend Service**: Design `section_service.py` to handle logic for finding a student's matching section based on program and year level.
+- [x] **Admission Hook**: Plan hook in `ApplicantUpdateView.patch` to call auto-sectioning upon acceptance.
+- [x] **Semester Hook**: Plan hook in `Semester.save()` to loop through active students and auto-enroll them in the new semester as `PENDING`.
 
-## Phase 4: Financial Settlement
-- [x] **Frontend**: Cashier's Payment Processing UI
-    - [x] Record initial payment (Month 1 fully paid)
-    - [x] Link payment to enrollment buckets
-- [x] **Backend**: Trigger `payment_approved` flag on SubjectEnrollments upon Phase 4 completion
+## Phase 3: Execute
+- [x] **Frontend Fix**: Update `frontend/src/components/ui/Button.jsx` with the `white` variant.
+- [x] **Backend Service Creation**:
+    - [x] Create `apps/enrollment/services/section_service.py`.
+    - [x] Write `auto_assign_new_student(enrollment)`.
+    - [x] Write `auto_assign_current_students(new_semester)`.
+- [x] **Backend Hook Implementation**:
+    - [x] Update `views.py` (`ApplicantUpdateView`) to call the new service.
+    - [x] Update `models.py` (`Semester.save()`) to call the new service.
+- [x] **Cleanup Script**: Created `management/commands/cleanup_ghost_students.py`.
 
-## Phase 5: Finalization & Activation
-- [x] **Backend**: Automated worker to transition status to `ENROLLED` once Dual Approval (Head + Payment) is met
-- [x] **Frontend**: Certificate of Registration (COR) Generation & Print
-- [x] **Frontend**: Student Schedule View activation (Finalized View)
+## Phase 4: Test
+- [ ] **UI Test**: Log in as a pending student and verify "VIEW STATEMENT" button visibility.
+- [ ] **New Student Test**: Approve a new applicant via Admissions Dashboard. Verify they are automatically placed in a Section and enrolled in subjects as `PENDING_PAYMENT` or `PENDING_HEAD`.
+- [ ] **Current Student Test**: Create and activate a new "2nd Semester". Verify that returning students from the 1st Semester are automatically enrolled in the 2nd Semester with a new section and subject load as `PENDING`.
+- [ ] **Ghost Student Test**: Verify a `PENDING` student does not appear on grading sheets or official counts.

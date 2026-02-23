@@ -199,9 +199,16 @@ const EnrollmentPage = () => {
             <div className="text-center mb-12">
                 <h2 className="text-4xl font-black text-gray-900 mb-2">Student Enrollment</h2>
                 {semesterInfo.name && (
-                    <p className="text-blue-600 font-black uppercase tracking-widest text-xs">
-                        {semesterInfo.academicYear} {semesterInfo.name}
-                    </p>
+                    <div className="flex flex-col items-center gap-1">
+                        <p className="text-blue-600 font-black uppercase tracking-widest text-xs">
+                            {semesterInfo.academicYear} {semesterInfo.name}
+                        </p>
+                        {semesterInfo.startDate && (
+                            <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">
+                                Enrollment Period: {new Date(semesterInfo.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(semesterInfo.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                        )}
+                    </div>
                 )}
             </div>
 

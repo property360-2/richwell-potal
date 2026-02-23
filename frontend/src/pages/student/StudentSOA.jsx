@@ -26,6 +26,7 @@ const StudentSOA = () => {
     const { error } = useToast();
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
+    const [activeTab, setActiveTab] = useState('schedule');
 
     useEffect(() => {
         fetchSOA();
@@ -94,47 +95,69 @@ const StudentSOA = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                {/* Left: Payment Schedule */}
+                {/* Left: Dynamic Tabs */}
                 <div className="lg:col-span-2 space-y-10">
-                    <section>
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-                                Payment Schedule
-                                <span className="text-[10px] bg-gray-100 px-3 py-1 rounded-full text-gray-400 uppercase tracking-widest">6-Month Plan</span>
-                            </h2>
-                        </div>
-                        <div className="space-y-4">
-                            {buckets.map((b, idx) => (
-                                <BucketItem key={idx} bucket={b} formatCurrency={formatCurrency} />
-                            ))}
-                        </div>
-                    </section>
+                    <div className="flex border-b border-gray-100 gap-8 mb-4">
+                        {[
+                            { id: 'schedule', name: 'Payment Schedule', icon: Calendar },
+                            { id: 'logs', name: 'Transaction Log', icon: History }
+                        ].map(t => (
+                            <button
+                                key={t.id}
+                                onClick={() => setActiveTab(t.id)}
+                                className={`flex items-center gap-2 pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative
+                                    ${activeTab === t.id ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                            >
+                                <t.icon className="w-4 h-4" />
+                                {t.name}
+                                {activeTab === t.id && (
+                                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full animate-in fade-in zoom-in duration-300" />
+                                )}
+                            </button>
+                        ))}
+                    </div>
 
-                    <section>
-                        <h2 className="text-xl font-black text-gray-900 tracking-tight mb-8">Transaction Log</h2>
-                        <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden">
-                            <table className="w-full text-left">
-                                <thead className="bg-gray-50/50">
-                                    <tr>
-                                        <th className="px-8 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Date</th>
-                                        <th className="px-8 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Receipt #</th>
-                                        <th className="px-8 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {recent_transactions.length === 0 ? (
-                                        <tr><td colSpan="3" className="text-center py-10 opacity-20 text-[10px] font-black uppercase">No payments recorded</td></tr>
-                                    ) : recent_transactions.map((t, idx) => (
-                                        <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase">{formatDate(t.processed_at)}</td>
-                                            <td className="px-8 py-5 text-[10px] font-black text-blue-600 uppercase tracking-widest">{t.receipt_number}</td>
-                                            <td className="px-8 py-5 text-right text-xs font-black text-green-600">{formatCurrency(t.amount)}</td>
+                    {activeTab === 'schedule' ? (
+                        <section className="animate-in fade-in slide-in-from-left-4 duration-500">
+                            <div className="flex items-center justify-between mb-8">
+                                <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-3">
+                                    Payment Schedule
+                                    <span className="text-[10px] bg-gray-100 px-3 py-1 rounded-full text-gray-400 uppercase tracking-widest">6-Month Plan</span>
+                                </h2>
+                            </div>
+                            <div className="space-y-4">
+                                {buckets.map((b, idx) => (
+                                    <BucketItem key={idx} bucket={b} formatCurrency={formatCurrency} />
+                                ))}
+                            </div>
+                        </section>
+                    ) : (
+                        <section className="animate-in fade-in slide-in-from-right-4 duration-500">
+                            <h2 className="text-xl font-black text-gray-900 tracking-tight mb-8">Transaction Log</h2>
+                            <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden">
+                                <table className="w-full text-left">
+                                    <thead className="bg-gray-50/50">
+                                        <tr>
+                                            <th className="px-8 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Date</th>
+                                            <th className="px-8 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Receipt #</th>
+                                            <th className="px-8 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">Amount</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {recent_transactions.length === 0 ? (
+                                            <tr><td colSpan="3" className="text-center py-10 opacity-20 text-[10px] font-black uppercase">No payments recorded</td></tr>
+                                        ) : recent_transactions.map((t, idx) => (
+                                            <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                                                <td className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase">{formatDate(t.processed_at)}</td>
+                                                <td className="px-8 py-5 text-[10px] font-black text-blue-600 uppercase tracking-widest">{t.receipt_number}</td>
+                                                <td className="px-8 py-5 text-right text-xs font-black text-green-600">{formatCurrency(t.amount)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    )}
                 </div>
 
                 {/* Right: progress and permits */}

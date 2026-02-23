@@ -63,6 +63,7 @@ const HeadResolutions = lazy(() => import('./pages/head/Resolutions'));
 
 // Cashier
 const CashierDashboard = lazy(() => import('./pages/cashier'));
+const CashierPaymentHistory = lazy(() => import('./pages/cashier/PaymentHistory'));
 
 // Superadmin
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
@@ -154,6 +155,7 @@ function App() {
                     {/* Cashier Routes */}
                     <Route path="/cashier" element={<ProtectedRoute roles={['CASHIER', 'ADMIN']}><CashierDashboard /></ProtectedRoute>} />
                     <Route path="/cashier/dashboard" element={<ProtectedRoute roles={['CASHIER', 'ADMIN']}><CashierDashboard /></ProtectedRoute>} />
+                    <Route path="/cashier/payments" element={<ProtectedRoute roles={['CASHIER', 'ADMIN']}><CashierPaymentHistory /></ProtectedRoute>} />
 
                     {/* Admin Routes */}
                     <Route path="/admin/dashboard" element={<ProtectedRoute roles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />

@@ -36,7 +36,8 @@ const StudentDashboard = () => {
         currentSection: 'Loading...',
         stats: {},
         paymentBuckets: [],
-        gpa: null
+        gpa: null,
+        enrollmentDates: null
     });
 
     useEffect(() => {
@@ -52,6 +53,7 @@ const StudentDashboard = () => {
             try {
                 const enrollData = await api.get(endpoints.myEnrollment);
                 newData.enrollmentStatus = enrollData?.status || 'N/A';
+                newData.enrollmentDates = enrollData?.semester || null;
             } catch (e) { console.error("Enrollment fetch failed", e); }
 
             try {
@@ -86,7 +88,7 @@ const StudentDashboard = () => {
         return <DashboardSkeleton />;
     }
 
-    const { enrollmentStatus, enrolledUnits, currentSection, paymentBuckets, gpa } = dashboardData;
+    const { enrollmentStatus, enrolledUnits, currentSection, paymentBuckets, gpa, enrollmentDates } = dashboardData;
     const profile = user?.student_profile;
     const studentType = profile?.overload_approved ? 'Overloaded' : (profile?.is_irregular ? 'Irregular' : 'Regular');
 
@@ -104,6 +106,11 @@ const StudentDashboard = () => {
                     <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Mabuhay, {user?.first_name}!</h1>
                     <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-xs">
                         Student Portal • {studentType} • {user?.student_number || 'waiting for approval and id'} • {currentSection || 'No Section'}
+                        {enrollmentDates?.enrollment_start && (
+                            <span className="ml-2 text-blue-600">
+                                • Enrollment: {new Date(enrollmentDates.enrollment_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(enrollmentDates.enrollment_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                        )}
                     </p>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">

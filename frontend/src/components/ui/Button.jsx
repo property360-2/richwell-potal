@@ -18,7 +18,8 @@ const Button = ({
         secondary: 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 focus:ring-gray-300',
         danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-lg shadow-red-200',
         outline: 'bg-transparent border-2 border-blue-600 text-blue-600 hover:bg-blue-50',
-        ghost: 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+        ghost: 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+        white: 'bg-white text-blue-600 hover:bg-gray-50 focus:ring-white shadow-lg'
     };
 
     const sizes = {

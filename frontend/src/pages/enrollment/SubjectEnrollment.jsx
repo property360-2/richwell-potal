@@ -14,8 +14,12 @@ import {
     X, 
     GraduationCap,
     ArrowRight,
-    Loader2
+    Loader2,
+    Search,
+    Download,
+    PartyPopper
 } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useEnrollmentData, useEnrollSubjects } from '../../hooks/useEnrollment';
@@ -28,7 +32,7 @@ const SubjectEnrollmentPage = () => {
 
 
     const [cart, setCart] = useState([]);
-    const [filters, setFilters] = useState({ yearLevel: '', semester: '' });
+    const [filters, setFilters] = useState({ yearLevel: '', semester: '', search: '' });
     const [isCartOpen, setIsCartOpen] = useState(false);
 
     const { data: enrollmentData, isLoading: loading, error: queryError } = useEnrollmentData();
@@ -105,9 +109,10 @@ const SubjectEnrollmentPage = () => {
         
         enroll(payload, {
             onSuccess: () => {
-                success('Enrollment submitted successfully!');
+                success('🎉 OFFICIALLY ENROLLED! Your subjects have been secured.');
                 setCart([]);
                 setIsCartOpen(false);
+                setTimeout(() => navigate('/student/dashboard'), 2000);
             },
             onError: (err) => {
                 error(err.message || 'Submission failed');
@@ -181,6 +186,20 @@ const SubjectEnrollmentPage = () => {
 
                 <div className="lg:col-span-3">
                     <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-2xl shadow-blue-100/20 flex flex-col md:flex-row gap-6 h-full items-end">
+                        <div className="flex-[2] w-full space-y-2">
+                            <label className="text-[10px] font-black uppercase text-gray-400 ml-2 tracking-widest flex items-center gap-2">
+                                <Search className="w-3 h-3" /> Search Subjects
+                            </label>
+                            <div className="relative">
+                                <input 
+                                    type="text"
+                                    placeholder="Code or Title..."
+                                    value={filters.search}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-sm font-black text-gray-600 focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 transition-all"
+                                />
+                            </div>
+                        </div>
                         <div className="flex-1 w-full space-y-2">
                             <label className="text-[10px] font-black uppercase text-gray-400 ml-2 tracking-widest flex items-center gap-2">
                                 <Filter className="w-3 h-3" /> Filter by Year
@@ -190,7 +209,7 @@ const SubjectEnrollmentPage = () => {
                                 onChange={(e) => setFilters(prev => ({ ...prev, yearLevel: e.target.value }))}
                                 className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-sm font-black text-gray-600 focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 transition-all appearance-none cursor-pointer"
                             >
-                                <option value="">Full Academic History</option>
+                                <option value="">Mixed Levels</option>
                                 {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year Level {y}</option>)}
                             </select>
                         </div>
@@ -212,7 +231,7 @@ const SubjectEnrollmentPage = () => {
                         <Button 
                             variant="secondary" 
                             className="h-[60px] px-8"
-                            onClick={() => setFilters({ yearLevel: '', semester: '' })}
+                            onClick={() => setFilters({ yearLevel: '', semester: '', search: '' })}
                         >
                             RESET
                         </Button>
@@ -227,7 +246,8 @@ const SubjectEnrollmentPage = () => {
                     subtitle="Standard subjects based on your year level"
                     subjects={data.recommendedSubjects.filter(s => 
                         (!filters.yearLevel || s.year_level == filters.yearLevel) &&
-                        (!filters.semester || s.semester_number == filters.semester)
+                        (!filters.semester || s.semester_number == filters.semester) &&
+                        (!filters.search || s.code.toLowerCase().includes(filters.search.toLowerCase()) || s.title.toLowerCase().includes(filters.search.toLowerCase()))
                     )} 
                     onAdd={addToCart}
                     cart={cart}
@@ -239,7 +259,8 @@ const SubjectEnrollmentPage = () => {
                     subjects={data.availableSubjects.filter(s => 
                         !data.recommendedSubjects.find(r => r.id === s.id) &&
                         (!filters.yearLevel || s.year_level == filters.yearLevel) &&
-                        (!filters.semester || s.semester_number == filters.semester)
+                        (!filters.semester || s.semester_number == filters.semester) &&
+                        (!filters.search || s.code.toLowerCase().includes(filters.search.toLowerCase()) || s.title.toLowerCase().includes(filters.search.toLowerCase()))
                     )}
                     onAdd={addToCart}
                     cart={cart}

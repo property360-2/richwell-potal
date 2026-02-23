@@ -118,10 +118,34 @@ class Semester(BaseModel):
 
     def save(self, *args, **kwargs):
         self.clean()
+        is_becoming_current = False
         if self.is_current:
+            # Check if it was already current
+            if self.pk:
+                try:
+                    old_instance = Semester.objects.get(pk=self.pk)
+                    if not old_instance.is_current:
+                        is_becoming_current = True
+                except Semester.DoesNotExist:
+                    is_becoming_current = True
+            else:
+                is_becoming_current = True
+
             # Atomic update: Reset other active semesters
             Semester.objects.exclude(pk=self.pk).update(is_current=False)
+            
         super().save(*args, **kwargs)
+        
+        # Trigger auto-sectioning for current students if this semester just became active
+        if is_becoming_current:
+            try:
+                from .services.section_service import SectionService
+                SectionService().auto_assign_current_students(self)
+            except Exception as e:
+                # Log or handle appropriately - we don't want to crash the whole save
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error in auto-assigning students for new semester: {str(e)}")
 
 
 class Enrollment(BaseModel):

@@ -414,7 +414,9 @@ class EnrollmentDetailView(APIView):
                 "semester": {
                     "id": str(enrollment.semester.id) if enrollment.semester else None,
                     "term": enrollment.semester.name if enrollment.semester else None,
-                    "year": enrollment.semester.academic_year if enrollment.semester else None
+                    "year": enrollment.semester.academic_year if enrollment.semester else None,
+                    "enrollment_start": enrollment.semester.enrollment_start_date,
+                    "enrollment_end": enrollment.semester.enrollment_end_date
                 } if enrollment.semester else None,
                 "created_at": enrollment.created_at,
                 "monthly_commitment": enrollment.monthly_commitment
@@ -471,7 +473,11 @@ class ApplicantListView(APIView):
                 'status': enrollment.status,
                 'created_at': enrollment.created_at.isoformat() if enrollment.created_at else None,
                 'updated_at': enrollment.updated_at.isoformat() if hasattr(enrollment, 'updated_at') and enrollment.updated_at else None,
-                'is_transferee': profile.is_transferee if profile else False
+                'is_transferee': profile.is_transferee if profile else False,
+                'total_paid': float(enrollment.total_paid),
+                'total_required': float(enrollment.total_required),
+                'balance': float(enrollment.balance),
+                'first_month_paid': enrollment.first_month_paid
             })
             
         return Response(data)
@@ -766,12 +772,23 @@ class ApplicantUpdateView(APIView):
                     enrollment.status = 'ACTIVE'
                     enrollment.save()
                     
+                    # NEW: Auto-assign section and subjects
+                    from .services.section_service import SectionService
+                    section_service = SectionService()
+                    section = section_service.auto_assign_new_student(enrollment)
+                    
+                    if section:
+                        message = f"Applicant approved with ID {student_number} and assigned to section {section.name}."
+                    else:
+                        message = f"Applicant approved with ID {student_number}, but no available section was found."
+
                     return Response({
                         "success": True,
-                        "message": f"Applicant approved with ID {student_number}",
+                        "message": message,
                         "data": {
                             "status": "ACTIVE",
-                            "student_number": student_number
+                            "student_number": student_number,
+                            "section": section.name if section else None
                         }
                     })
             except Exception as e:
@@ -1569,7 +1586,98 @@ class RegistrarOverrideEnrollmentView(APIView):
             traceback.print_exc()
             return Response({"error": str(e)}, status=500)
 
-PaymentRecordView = SimplePOSTView
+class PaymentRecordView(APIView):
+    """
+    Record a payment for an enrollment.
+    Allocates amount to monthly buckets and updates status.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        from apps.enrollment.serializers import PaymentRecordSerializer, PaymentTransactionSerializer
+        from apps.enrollment.models import Enrollment, PaymentTransaction, MonthlyPaymentBucket
+        from django.db import transaction
+        import uuid
+        from datetime import datetime
+        
+        serializer = PaymentRecordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+        
+        enrollment_id = serializer.validated_data['enrollment_id']
+        amount = serializer.validated_data['amount']
+        payment_mode = serializer.validated_data['payment_mode']
+        reference_number = serializer.validated_data.get('reference_number', '')
+        notes = serializer.validated_data.get('notes', '')
+        
+        try:
+            with transaction.atomic():
+                enrollment = Enrollment.objects.get(id=enrollment_id)
+                
+                # Generate receipt number
+                now = datetime.now()
+                random_suffix = str(uuid.uuid4())[:5].upper()
+                receipt_number = f"RCPT-{now.strftime('%Y%m%d')}-{random_suffix}"
+                
+                # Create transaction
+                txn = PaymentTransaction.objects.create(
+                    enrollment=enrollment,
+                    amount=amount,
+                    payment_mode=payment_mode,
+                    receipt_number=receipt_number,
+                    reference_number=reference_number,
+                    processed_by=request.user,
+                    notes=notes
+                )
+                
+                # Allocation logic: fill buckets in order
+                remaining = amount
+                buckets = MonthlyPaymentBucket.objects.filter(
+                    enrollment=enrollment, 
+                    is_fully_paid=False
+                ).order_by('month_number')
+
+                allocated_info = []
+                for bucket in buckets:
+                    if remaining <= 0:
+                        break
+                    
+                    due = bucket.required_amount - bucket.paid_amount
+                    pay = min(remaining, due)
+                    
+                    bucket.paid_amount += pay
+                    if bucket.paid_amount >= bucket.required_amount:
+                        bucket.is_fully_paid = True
+                    bucket.save()
+                    remaining -= pay
+                    allocated_info.append({"month": bucket.month_number, "amount": str(pay)})
+                
+                # Store allocation info if needed (optional)
+                txn.allocated_buckets = allocated_info
+                txn.save()
+
+                # Update enrollment status if first payment
+                if not enrollment.first_month_paid:
+                    # Check if month 1 is paid
+                    month1 = MonthlyPaymentBucket.objects.filter(enrollment=enrollment, month_number=1).first()
+                    if month1 and month1.is_fully_paid:
+                        enrollment.first_month_paid = True
+                        if enrollment.status == 'PENDING':
+                            enrollment.status = 'ACTIVE'
+                        enrollment.save()
+                
+                return Response({
+                    "success": True,
+                    "message": "Payment recorded successfully",
+                    "data": PaymentTransactionSerializer(txn).data
+                }, status=201)
+                
+        except Enrollment.DoesNotExist:
+            return Response({"error": "Enrollment not found"}, status=404)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"error": str(e)}, status=500)
 class PaymentAdjustmentView(APIView):
     """
     Create a payment adjustment transaction.
@@ -1741,7 +1849,25 @@ class PaymentTransactionListView(APIView):
             'next': page * per_page < total,
             'previous': page > 1,
         })
-StudentPaymentHistoryView = SimpleGETView
+class StudentPaymentHistoryView(APIView):
+    """
+    Get payment history for a specific enrollment.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, enrollment_id, *args, **kwargs):
+        from apps.enrollment.models import PaymentTransaction
+        from apps.enrollment.serializers import PaymentTransactionSerializer
+        
+        transactions = PaymentTransaction.objects.filter(
+            enrollment_id=enrollment_id
+        ).select_related('processed_by').order_by('-processed_at')
+        
+        serializer = PaymentTransactionSerializer(transactions, many=True)
+        return Response({
+            "success": True,
+            "results": serializer.data
+        })
 class CashierStudentSearchView(APIView):
     """
     Search for students for cashier/registrar.
@@ -1749,13 +1875,14 @@ class CashierStudentSearchView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        from apps.accounts.models import User
-        from django.db.models import Q
+        from apps.enrollment.models import Enrollment, Semester, MonthlyPaymentBucket
+        from apps.enrollment.serializers import MonthlyPaymentBucketSerializer
         
         query = request.query_params.get('q', '')
+        active_semester = Semester.objects.filter(is_current=True).first()
         
         # Filter students
-        students = User.objects.filter(role='STUDENT')
+        students = User.objects.filter(role='STUDENT').select_related('student_profile', 'student_profile__program')
         
         if query:
             students = students.filter(
@@ -1770,30 +1897,174 @@ class CashierStudentSearchView(APIView):
         
         data = []
         for s in students:
-            # Get latest enrollment
-            latest_enrollment = s.enrollments.order_by('-created_at').first()
+            # Get latest enrollment in active semester (or most recent if none in active)
+            enrollment = None
+            if active_semester:
+                enrollment = s.enrollments.filter(semester=active_semester).first()
             
-            # Get program code safely
-            program_code = 'N/A'
-            if hasattr(s, 'student_profile') and s.student_profile and s.student_profile.program:
-                program_code = s.student_profile.program.code
-                
-            data.append({
+            if not enrollment:
+                enrollment = s.enrollments.order_by('-created_at').first()
+            
+            profile = getattr(s, 'student_profile', None)
+            program_code = profile.program.code if profile and profile.program else 'N/A'
+            
+            payload = {
                 'id': str(s.id),
                 'student_number': s.student_number,
                 'first_name': s.first_name,
                 'last_name': s.last_name,
+                'student_name': s.get_full_name(),
                 'email': s.email,
                 'program_code': program_code,
-                'year_level': s.student_profile.year_level if hasattr(s, 'student_profile') and s.student_profile else 1,
-                'enrollment_id': str(latest_enrollment.id) if latest_enrollment else None,
-                'student_name': s.get_full_name(),
-                'balance': '0.00'
-            })
+                'year_level': profile.year_level if profile else 1,
+                'enrollment_id': str(enrollment.id) if enrollment else None,
+                'enrollment_status': enrollment.status if enrollment else 'UNENROLLED',
+                'payment_buckets': [],
+                'total_balance': 0.0,
+                'balance': '0.00' # Legacy field
+            }
+
+            if enrollment:
+                buckets = list(enrollment.payment_buckets.all().order_by('month_number'))
+                bucket_serializer = MonthlyPaymentBucketSerializer(buckets, many=True)
+                payload['payment_buckets'] = bucket_serializer.data
+                
+                total_balance = sum(
+                    max(float(b.required_amount) - float(b.paid_amount), 0)
+                    for b in buckets
+                )
+                payload['total_balance'] = round(total_balance, 2)
+                payload['balance'] = str(payload['total_balance'])
+                payload['monthly_commitment'] = str(enrollment.monthly_commitment)
+
+            data.append(payload)
             
         return Response(data)
-CashierPendingPaymentsView = SimpleGETView
-CashierTodayTransactionsView = SimpleGETView
+class CashierPendingPaymentsView(APIView):
+    """
+    List all students with any outstanding balance (any unpaid month bucket).
+    Includes both PENDING and ACTIVE enrollments.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.enrollment.models import Enrollment, Semester, MonthlyPaymentBucket
+        from django.db.models import Sum, F, Q
+        
+        active_semester = Semester.objects.filter(is_current=True).first()
+        if not active_semester:
+            return Response([])
+
+        # Get all enrollments in this semester that have at least one unpaid bucket
+        enrollments_with_balance = Enrollment.objects.filter(
+            semester=active_semester,
+            status__in=['PENDING', 'ACTIVE'],
+            payment_buckets__paid_amount__lt=F('payment_buckets__required_amount')
+        ).distinct().select_related(
+            'student', 'student__student_profile__program'
+        ).order_by('student__last_name')
+
+        from apps.enrollment.serializers import MonthlyPaymentBucketSerializer
+        data = []
+        for e in enrollments_with_balance:
+            profile = getattr(e.student, 'student_profile', None)
+            buckets = list(e.payment_buckets.all().order_by('month_number'))
+            bucket_serializer = MonthlyPaymentBucketSerializer(buckets, many=True)
+
+            # Compute total outstanding balance
+            total_balance = sum(
+                max(float(b.required_amount) - float(b.paid_amount), 0)
+                for b in buckets
+            )
+            
+            # Skip if no actual balance (e.g. overpaid edge case)
+            if total_balance <= 0:
+                continue
+
+            # Find the next unpaid month
+            next_unpaid = next(
+                (b for b in buckets if float(b.paid_amount) < float(b.required_amount)),
+                None
+            )
+
+            data.append({
+                'id': str(e.id),
+                'enrollment_id': str(e.id),
+                'student_id': str(e.student.id),
+                'student_number': e.student.student_number,
+                'first_name': e.student.first_name,
+                'last_name': e.student.last_name,
+                'student_name': e.student.get_full_name(),
+                'program_code': profile.program.code if profile and profile.program else 'N/A',
+                'year_level': profile.year_level if profile else 1,
+                'enrollment_status': e.status,
+                'monthly_commitment': str(e.monthly_commitment),
+                'total_balance': round(total_balance, 2),
+                'next_unpaid_month': next_unpaid.month_number if next_unpaid else None,
+                'payment_buckets': bucket_serializer.data,
+                'created_at': e.created_at
+            })
+        
+        # Sort by highest balance first
+        data.sort(key=lambda x: x['total_balance'], reverse=True)
+        return Response(data)
+
+class CashierTodayTransactionsView(APIView):
+    """
+    List all collections processed today.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.enrollment.models import PaymentTransaction, Enrollment, Semester
+        from apps.enrollment.serializers import PaymentTransactionSerializer
+        from django.utils import timezone
+        from django.db.models import Sum, Count
+        
+        today = timezone.localtime().date()
+        transactions = PaymentTransaction.objects.filter(
+            processed_at__date=today
+        ).select_related('enrollment__student', 'processed_by').order_by('-processed_at')
+        
+        # Today's Metrics
+        total_collection = transactions.aggregate(total=Sum('amount'))['total'] or 0
+        transactions_count = transactions.count()
+        avg_collection = float(total_collection) / transactions_count if transactions_count > 0 else 0
+        
+        # System/Semester Metrics
+        active_semester = Semester.objects.filter(is_current=True).first()
+        pending_count = 0
+        target_percentage = 0
+        
+        if active_semester:
+            pending_count = Enrollment.objects.filter(
+                semester=active_semester,
+                status='PENDING',
+                first_month_paid=False
+            ).count()
+            
+            # Aggregate through MonthlyPaymentBucket which has the real DB fields
+            from apps.enrollment.models import MonthlyPaymentBucket
+            bucket_qs = MonthlyPaymentBucket.objects.filter(
+                enrollment__semester=active_semester
+            )
+            total_receivable = bucket_qs.aggregate(total=Sum('required_amount'))['total'] or 1
+            total_paid = bucket_qs.aggregate(total=Sum('paid_amount'))['total'] or 0
+            
+            target_percentage = (float(total_paid) / float(total_receivable)) * 100
+
+        serializer = PaymentTransactionSerializer(transactions, many=True)
+        return Response({
+            "success": True,
+            "results": serializer.data,
+            "stats": {
+                "today_total": float(total_collection),
+                "today_count": transactions_count,
+                "avg_collection": avg_collection,
+                "pending_enrollees": pending_count,
+                "collection_target": f"{min(100, round(target_percentage, 1))}%"
+            }
+        })
 class MyPaymentsView(APIView):
     """
     Get financial statement (SOA) for the logged-in student.

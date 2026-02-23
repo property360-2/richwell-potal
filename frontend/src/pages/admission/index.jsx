@@ -139,7 +139,7 @@ const AdmissionDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in duration-700">
             <SEO title="Admission Dashboard" description="Screen and approve student applications." />
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 <StatCard icon={Users} label="Pending Pool" value={stats.pending} color="blue" />
                 <StatCard icon={CheckCircle2} label="Approved Today" value={stats.approvedToday} color="green" />
                 <StatCard icon={AlertCircle} label="Declined Total" value={stats.totalRejected} color="red" />
@@ -147,7 +147,7 @@ const AdmissionDashboard = () => {
             </div>
 
             {/* Filter Bar */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
                 <div className="lg:col-span-3 relative group">
                     <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                     <input 
@@ -155,14 +155,14 @@ const AdmissionDashboard = () => {
                         placeholder="Search applicants by name or email..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-16 pr-8 py-4 bg-white border border-gray-100 rounded-3xl text-[11px] font-black uppercase tracking-widest focus:outline-none focus:border-blue-200 shadow-xl shadow-blue-500/5 transition-all"
+                        className="w-full pl-16 pr-8 py-3.5 bg-white border border-gray-100 rounded-2xl text-sm font-medium focus:outline-none focus:border-blue-200 shadow-xl shadow-blue-500/5 transition-all placeholder:text-gray-400"
                     />
                 </div>
                 <div className="relative group">
                     <select 
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
-                        className="w-full pl-6 pr-10 py-4 bg-white border border-gray-100 rounded-3xl text-[10px] font-black uppercase tracking-widest appearance-none focus:outline-none focus:border-blue-200 shadow-xl shadow-blue-500/5 transition-all"
+                        className="w-full pl-6 pr-10 py-3.5 bg-white border border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest appearance-none focus:outline-none focus:border-blue-200 shadow-xl shadow-blue-500/5 transition-all cursor-pointer"
                     >
                         <option value="all">All Status</option>
                         <option value="PENDING">Pending Review</option>
@@ -177,11 +177,11 @@ const AdmissionDashboard = () => {
                 <table className="w-full text-left">
                     <thead className="bg-gray-50/50">
                         <tr>
-                            <th className="px-10 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Applicant</th>
-                            <th className="px-10 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Applied Program</th>
-                            <th className="px-10 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
-                            <th className="px-10 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date Submitted</th>
-                            <th className="px-10 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
+                            <th className="px-10 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-tight">Applicant</th>
+                            <th className="px-10 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-tight">Applied Program</th>
+                            <th className="px-10 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-tight">Status</th>
+                            <th className="px-10 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-tight">Date Submitted</th>
+                            <th className="px-10 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-tight text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -200,8 +200,8 @@ const AdmissionDashboard = () => {
                                             {a.first_name[0]}{a.last_name[0]}
                                         </div>
                                         <div>
-                                            <p className="font-black text-gray-900 tracking-tight leading-none mb-1">{a.first_name} {a.last_name}</p>
-                                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">{a.email}</p>
+                                            <p className="font-bold text-gray-900 tracking-tight mb-1">{a.first_name} {a.last_name}</p>
+                                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-tight">{a.email}</p>
                                         </div>
                                     </div>
                                 </td>
@@ -244,8 +244,8 @@ const AdmissionDashboard = () => {
                                         {selectedApplicant.first_name[0]}{selectedApplicant.last_name[0]}
                                     </div>
                                     <div>
-                                        <h2 className="text-3xl font-black text-gray-900 tracking-tighter">{selectedApplicant.first_name} {selectedApplicant.last_name}</h2>
-                                        <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">Applicant ID: {selectedApplicant.id.slice(0, 8)}</p>
+                                        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{selectedApplicant.first_name} {selectedApplicant.last_name}</h2>
+                                        <p className="text-gray-400 font-bold uppercase tracking-widest text-[9px] mt-1">Applicant ID: {selectedApplicant.id.split('-')[0]}</p>
                                     </div>
                                 </div>
                                 <button onClick={() => setSelectedApplicant(null)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors">
@@ -260,7 +260,7 @@ const AdmissionDashboard = () => {
                         <div className="flex-grow overflow-y-auto p-10 space-y-12">
                             {/* Personal Info */}
                             <section>
-                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-3">
                                     <Users className="w-4 h-4" /> Personal Information
                                 </h4>
                                 <div className="grid grid-cols-2 gap-8">
@@ -273,7 +273,7 @@ const AdmissionDashboard = () => {
                             </section>
 
                             <section>
-                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-3">
                                     <Mail className="w-4 h-4" /> Contact & Residence
                                 </h4>
                                 <div className="grid grid-cols-2 gap-8">
@@ -286,20 +286,44 @@ const AdmissionDashboard = () => {
                             </section>
 
                             <section>
-                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-3">
                                     <GraduationCap className="w-4 h-4" /> Academic Intent
                                 </h4>
-                                <div className="p-8 bg-blue-50/50 rounded-[32px] border border-blue-100/50">
+                                <div className="p-6 bg-blue-50/50 rounded-[32px] border border-blue-100/50">
                                     <div className="flex items-start gap-4">
                                         <div className="p-3 bg-white rounded-2xl shadow-sm"><GraduationCap className="w-6 h-6 text-blue-600" /></div>
-                                        <div>
+                                        <div className="flex-1">
                                             <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Proposed Academic Program</p>
-                                            <p className="text-lg font-black text-blue-900 leading-tight">{selectedApplicant.program_name}</p>
+                                            <p className="text-base font-bold text-blue-900 leading-tight">{selectedApplicant.program_name}</p>
                                             <div className="flex items-center gap-2 mt-2">
                                                 <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-extrabold uppercase">{selectedApplicant.program_code || '---'}</span>
                                                 <span className="text-[10px] font-bold text-blue-600/60 uppercase tracking-widest">Year {selectedApplicant.year_level} Admission</span>
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section>
+                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+                                    <ShieldCheck className="w-4 h-4" /> Financial Standing
+                                </h4>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="p-5 bg-white border border-gray-100 rounded-3xl shadow-sm">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Initial Required</p>
+                                        <p className="text-lg font-bold text-gray-900">₱{selectedApplicant.total_required?.toLocaleString()}</p>
+                                    </div>
+                                    <div className="p-5 bg-white border border-gray-100 rounded-3xl shadow-sm">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Paid</p>
+                                        <p className={`text-lg font-bold ${selectedApplicant.total_paid > 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                                            ₱{selectedApplicant.total_paid?.toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <div className="p-5 bg-white border border-gray-100 rounded-3xl shadow-sm">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Status</p>
+                                        <p className={`text-base font-bold ${selectedApplicant.first_month_paid ? 'text-green-600' : 'text-orange-500'}`}>
+                                            {selectedApplicant.first_month_paid ? 'First Month Paid' : 'Awaiting Payment'}
+                                        </p>
                                     </div>
                                 </div>
                             </section>
@@ -445,8 +469,8 @@ const StatusPill = ({ status, large = false }) => {
 
 const DetailItem = ({ label, value }) => (
     <div>
-        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">{label}</p>
-        <p className="text-sm font-black text-gray-900 tracking-tight">{value || '---'}</p>
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight mb-1">{label}</p>
+        <p className="text-sm font-bold text-gray-900 tracking-tight">{value || '---'}</p>
     </div>
 );
 

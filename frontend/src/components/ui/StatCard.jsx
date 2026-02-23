@@ -1,4 +1,4 @@
-import React from 'react';
+ import React from 'react';
 import { ArrowRightLeft } from 'lucide-react';
 
 const StatCard = ({ icon: Icon, label, value, color = 'blue', className = '' }) => {
@@ -21,8 +21,8 @@ const StatCard = ({ icon: Icon, label, value, color = 'blue', className = '' }) 
                 </div>
                 <ArrowRightLeft className="w-4 h-4 opacity-10 group-hover:opacity-20 transition-opacity" />
             </div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{label}</p>
-            <p className="text-xl font-black text-gray-900 tracking-tighter leading-none">{value}</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight mb-1">{label}</p>
+            <p className="text-xl font-bold text-gray-900 tracking-tight leading-none">{value}</p>
         </div>
     );
 };

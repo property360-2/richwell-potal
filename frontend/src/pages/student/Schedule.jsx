@@ -9,8 +9,10 @@ import {
     Loader2,
     ChevronLeft,
     ChevronRight,
-    Search
+    Search,
+    Download
 } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import Button from '../../components/ui/Button';
@@ -56,6 +58,19 @@ const StudentSchedule = () => {
         }
     }, [queryError]);
 
+    const handleExportPDF = () => {
+        const element = document.getElementById('printable-schedule');
+        const opt = {
+            margin: 0.5,
+            filename: `Schedule_${user?.student_number || 'Student'}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
+        };
+
+        html2pdf().set(opt).from(element).save();
+    };
+
     const getSubjectColor = (code) => {
         const uniqueCodes = [...new Set(schedule.map(s => s.subject_code))];
         const index = uniqueCodes.indexOf(code);
@@ -95,6 +110,18 @@ const StudentSchedule = () => {
                         <List className="w-4 h-4" /> LIST VIEW
                     </button>
                 </div>
+
+                <div className="flex gap-2 w-full md:w-auto">
+                    <Button 
+                        variant="secondary" 
+                        icon={Download} 
+                        className="flex-1 md:flex-none py-3"
+                        onClick={handleExportPDF}
+                        disabled={schedule.length === 0}
+                    >
+                        EXPORT PDF
+                    </Button>
+                </div>
             </div>
 
             {schedule.length === 0 ? (
@@ -106,6 +133,58 @@ const StudentSchedule = () => {
             ) : (
                 viewMode === 'grid' ? <Timetable schedule={schedule} getColor={getSubjectColor} /> : <ListView schedule={schedule} getColor={getSubjectColor} />
             )}
+
+            {/* Hidden Printable Schedule */}
+            <div className="hidden">
+                 <div id="printable-schedule" className="p-10 bg-white">
+                    <div className="text-center mb-10 border-b-2 border-gray-900 pb-8">
+                        <h1 className="text-3xl font-black tracking-tighter uppercase">Richwell Colleges, Inc.</h1>
+                        <p className="text-xs font-bold uppercase tracking-widest mt-1">Student Class Schedule</p>
+                        <p className="text-[10px] text-gray-500 mt-2">{semesterInfo || 'Current Semester'}</p>
+                    </div>
+
+                    <div className="flex justify-between items-start mb-10">
+                        <div>
+                            <p className="text-[10px] font-black uppercase text-gray-400">Student Name</p>
+                            <p className="text-sm font-black uppercase">{user?.first_name} {user?.last_name}</p>
+                            <p className="text-[10px] font-bold text-gray-400 mt-1">{user?.student_number}</p>
+                        </div>
+                        <div className="text-right">
+                             <p className="text-[10px] font-black uppercase text-gray-400">Date Generated</p>
+                             <p className="text-sm font-black">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                        </div>
+                    </div>
+
+                    <table className="w-full border-collapse border border-gray-200">
+                        <thead>
+                            <tr className="bg-gray-50">
+                                <th className="border border-gray-200 p-3 text-left text-[10px] font-black uppercase text-gray-500">Subject</th>
+                                <th className="border border-gray-200 p-3 text-left text-[10px] font-black uppercase text-gray-500">Title</th>
+                                <th className="border border-gray-200 p-3 text-left text-[10px] font-black uppercase text-gray-500">Day</th>
+                                <th className="border border-gray-200 p-3 text-left text-[10px] font-black uppercase text-gray-500">Time</th>
+                                <th className="border border-gray-200 p-3 text-left text-[10px] font-black uppercase text-gray-500">Room</th>
+                                <th className="border border-gray-200 p-3 text-left text-[10px] font-black uppercase text-gray-500">Professor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {schedule.map((s, i) => (
+                                <tr key={i}>
+                                    <td className="border border-gray-200 p-3 text-xs font-black">{s.subject_code}</td>
+                                    <td className="border border-gray-200 p-3 text-xs font-bold">{s.subject_title}</td>
+                                    <td className="border border-gray-200 p-3 text-xs font-bold">{s.day}</td>
+                                    <td className="border border-gray-200 p-3 text-xs font-bold">{s.start_time} - {s.end_time}</td>
+                                    <td className="border border-gray-200 p-3 text-xs font-bold">{s.room || 'TBA'}</td>
+                                    <td className="border border-gray-200 p-3 text-xs font-bold">{s.professor_name || 'TBA'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+
+                    <div className="mt-20 text-center border-t border-gray-100 pt-8 opacity-50">
+                        <p className="text-[8px] font-black uppercase tracking-[0.3em]">Institutional document generated via Richwell Portal</p>
+                    </div>
+                 </div>
+            </div>
         </div>
     );
 };

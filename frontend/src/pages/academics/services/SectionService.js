@@ -80,13 +80,16 @@ export const SectionService = {
     /**
      * Fetch all active curricula for a program
      */
-    async getProgramCurricula(programId) {
+    /**
+     * Run the automated sectioning queue for freshmen
+     */
+    async runFreshmanQueue(semesterId, programId = null) {
         try {
-            const resp = await api.get(`${endpoints.curricula}?program=${programId}&is_active=true`);
-            return resp.results || resp || [];
+            const query = programId ? `?semester_id=${semesterId}&program_id=${programId}` : `?semester_id=${semesterId}`;
+            return await api.post(`${endpoints.sections}run-freshman-queue/${query}`);
         } catch (e) {
-            console.error('Failed to fetch curricula', e);
-            return [];
+            console.error('Failed to run freshman queue', e);
+            throw e;
         }
     }
 };

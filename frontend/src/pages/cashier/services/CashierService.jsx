@@ -3,9 +3,10 @@ import { api, endpoints } from '../../../api';
 const CashierService = {
     getTodayTransactions: async () => {
         try {
-            return await api.get(endpoints.cashierTodayTransactions);
+            const data = await api.get(endpoints.cashierTodayTransactions);
+            return data;
         } catch (err) {
-            return [];
+            return { results: [], stats: {} };
         }
     },
 
