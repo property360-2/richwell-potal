@@ -139,6 +139,7 @@ function App() {
 
                     {/* Professor Routes */}
                     <Route path="/professor" element={<ProtectedRoute roles={['PROFESSOR', 'ADMIN']}><ProfessorDashboard /></ProtectedRoute>} />
+                    <Route path="/professor/dashboard" element={<ProtectedRoute roles={['PROFESSOR', 'ADMIN']}><ProfessorDashboard /></ProtectedRoute>} />
                     <Route path="/professor/schedule" element={<ProtectedRoute roles={['PROFESSOR', 'ADMIN']}><ProfessorSchedule /></ProtectedRoute>} />
                     <Route path="/professor/grades" element={<ProtectedRoute roles={['PROFESSOR', 'ADMIN']}><ProfessorGrades /></ProtectedRoute>} />
 
@@ -161,17 +162,13 @@ function App() {
                     <Route path="/admin/dashboard" element={<ProtectedRoute roles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
                     <Route path="/admin/users" element={<ProtectedRoute roles={['ADMIN']}><AdminUserManagement /></ProtectedRoute>} />
                     {/* <Route path="/admin/config" element={<ProtectedRoute roles={['ADMIN']}><AdminSystemConfig /></ProtectedRoute>} /> */}
-                    <Route path="/admin/audit-logs" element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
-                        <AuditLogsPage />
-                      </ProtectedRoute>
-                    } />
+                    <Route path="/admin/audit-logs" element={<ProtectedRoute roles={['ADMIN']}><AuditLogsPage /></ProtectedRoute>} />
                     <Route path="/admin/terms" element={<ProtectedRoute roles={['ADMIN']}><AdminTermManagement /></ProtectedRoute>} />
                     <Route path="/admin/transactions" element={<ProtectedRoute roles={['ADMIN']}><AdminTransactionLog /></ProtectedRoute>} />
 
                     {/* Academics Routes */}
-                    <Route path="/academics" element={<ProtectedRoute roles={['ADMIN', 'HEAD_REGISTRAR']}><AcademicsPage /></ProtectedRoute>} />
-                    <Route path="/academics/programs/:id" element={<ProtectedRoute roles={['ADMIN', 'HEAD_REGISTRAR']}><ProgramDetailPage /></ProtectedRoute>} />
+                    <Route path="/academics" element={<ProtectedRoute roles={['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR']}><AcademicsPage /></ProtectedRoute>} />
+                    <Route path="/academics/programs/:id" element={<ProtectedRoute roles={['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR']}><ProgramDetailPage /></ProtectedRoute>} />
 
                     {/* Fallback */}
                     <Route path="*" element={<NotFound />} />

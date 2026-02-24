@@ -419,7 +419,13 @@ class EnrollmentDetailView(APIView):
                     "enrollment_end": enrollment.semester.enrollment_end_date
                 } if enrollment.semester else None,
                 "created_at": enrollment.created_at,
-                "monthly_commitment": enrollment.monthly_commitment
+                "monthly_commitment": enrollment.monthly_commitment,
+                "student_profile": {
+                    "student_number": request.user.student_number,
+                    "section_name": request.user.student_profile.home_section.name if request.user.student_profile.home_section else "N/A",
+                    "program_code": request.user.student_profile.program.code if request.user.student_profile.program else "N/A",
+                    "program_name": request.user.student_profile.program.name if request.user.student_profile.program else "N/A",
+                }
             }
         })
 # Admission Staff Views
@@ -903,8 +909,10 @@ class RecommendedSubjectsView(APIView):
         # 5. Get Subjects for Recommendation
         # Logic: Current Year/Sem + Back Subjects (Lower Years, Same Sem)
         
-        target_year = request.query_params.get('year_level')
-        target_sem = request.query_params.get('semester_number')
+        # Use .query_params for DRF, .GET for standard Django requests (e.g. during shell imports)
+        query_params = getattr(request, 'query_params', getattr(request, 'GET', {}))
+        target_year = query_params.get('year_level')
+        target_sem = query_params.get('semester_number')
         
         # Build Query
         query = Q(curriculum=curriculum)
@@ -1058,7 +1066,13 @@ class RecommendedSubjectsView(APIView):
             "data": {
                 "recommended_subjects": recommended,
                 "current_units": current_units,
-                "max_units": 30 # Standardized to 30
+                "max_units": 30,
+                "student_profile": {
+                    "student_number": user.student_number,
+                    "section_name": profile.home_section.name if profile.home_section else "N/A",
+                    "program_code": profile.program.code if profile.program else "N/A",
+                    "program_name": profile.program.name if profile.program else "N/A",
+                }
             }
         })
 class AvailableSubjectsView(APIView):

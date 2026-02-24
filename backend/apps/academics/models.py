@@ -15,7 +15,7 @@ class Program(BaseModelWithActiveManager):
     """
     
     code = models.CharField(
-        max_length=20,
+        max_length=50,
         unique=True,
         help_text='Short code (e.g., BSIT, BSCS)'
     )
@@ -107,7 +107,7 @@ class Subject(BaseModelWithActiveManager):
         help_text='The program this subject belongs to'
     )
     code = models.CharField(
-        max_length=20,
+        max_length=50,
         help_text='Subject code (e.g., CS101, MATH1)'
     )
     title = models.CharField(

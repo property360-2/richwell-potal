@@ -9,10 +9,12 @@ const mapSubject = (s) => ({
     title: s.title || s.name,
     units: parseFloat(s.units || 0),
     sections: (s.available_sections || s.sections || []).map(sec => ({
-        id: sec.id,
+        id: sec.id || sec.section_id,
         name: sec.name || sec.section_name,
-        slots: sec.slots || 40,
-        enrolled: sec.enrolled_count || 0
+        slots: sec.slots || sec.available_slots || 40,
+        enrolled: sec.enrolled || sec.enrolled_count || 0,
+        professor: sec.professor || 'TBA',
+        schedule: sec.schedule || []
     }))
 });
 
@@ -32,7 +34,8 @@ const fetchEnrollmentData = async () => {
             enrolledSubjects: (myEnrollmentsData?.subject_enrollments || []),
             maxUnits: recommendedData?.max_units || 30,
             enrollmentStatus: enrollmentInfo?.status || 'N/A',
-            activeSemester: enrollmentInfo?.semester || null
+            activeSemester: enrollmentInfo?.semester || null,
+            studentProfile: enrollmentInfo?.student_profile || recommendedData?.student_profile || null
         };
     } catch (err) {
         console.error("Failed to fetch full enrollment data bundle", err);

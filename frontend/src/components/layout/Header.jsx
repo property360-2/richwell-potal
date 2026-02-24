@@ -14,11 +14,9 @@ import {
     FileText,
     Menu,
     X,
-    Bell,
     GraduationCap,
     Shield
 } from 'lucide-react';
-import NotificationBell from '../shared/NotificationBell';
 import MobileMenu from '../shared/MobileMenu';
 
 const Header = () => {
@@ -49,9 +47,9 @@ const Header = () => {
         { name: 'Enlistment', href: '/enrollment/subjects', icon: BookOpen, roles: ['STUDENT'] },
         { name: 'Students', href: '/registrar/students', icon: Users, roles: ['REGISTRAR', 'ADMIN'] },
         { name: 'Payment History', href: '/cashier/payments', icon: CreditCard, roles: ['CASHIER', 'ADMIN'] },
-        { name: 'Subject Approvals', href: '/head/dashboard', icon: Shield, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
+        { name: 'Subject Approvals', href: '/head/dashboard', icon: Shield, roles: ['DEPARTMENT_HEAD', 'ADMIN'] },
         { name: 'Reports', href: '/head/reports', icon: FileText, roles: ['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR'] },
-        { name: 'Academics', href: '/academics', icon: GraduationCap, roles: ['ADMIN', 'HEAD_REGISTRAR'] },
+        { name: 'Academics', href: '/academics', icon: GraduationCap, roles: ['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR'] },
         { name: 'Terms', href: '/admin/terms', icon: Calendar, roles: ['ADMIN'] },
         { name: 'Users', href: '/admin/users', icon: Users, roles: ['ADMIN'] },
         { name: 'Audit', href: '/admin/audit-logs', icon: Activity, roles: ['ADMIN'] },
@@ -94,8 +92,6 @@ const Header = () => {
                     <div className="hidden sm:ml-6 sm:flex sm:items-center gap-6">
                         {user ? (
                             <>
-                                <NotificationBell />
-                                
                                 <div className="flex items-center gap-4 pl-6 border-l border-gray-100">
                                     <div className="text-right hidden md:block">
                                         <p className="text-sm font-black text-gray-900 leading-none uppercase tracking-tight">{user.first_name} {user.last_name}</p>

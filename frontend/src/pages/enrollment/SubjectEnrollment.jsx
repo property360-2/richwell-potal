@@ -55,19 +55,6 @@ const SubjectEnrollmentPage = () => {
         }
     }, [queryError]);
 
-    const mapSubject = (s) => ({
-        ...s,
-        id: s.id,
-        code: s.code,
-        title: s.title || s.name,
-        units: parseFloat(s.units || 0),
-        sections: (s.available_sections || s.sections || []).map(sec => ({
-            id: sec.id,
-            name: sec.name || sec.section_name,
-            slots: sec.slots || 40,
-            enrolled: sec.enrolled_count || 0
-        }))
-    });
 
     const totalUnits = useCallback(() => {
         const selectionUnits = selectionList.reduce((sum, item) => sum + item.subject.units, 0);
@@ -156,16 +143,21 @@ const SubjectEnrollmentPage = () => {
         <div className="max-w-[1600px] mx-auto px-4 py-8 lg:py-12 animate-in fade-in duration-700">
             <SEO title="Subject Enrollment" description="Personalize your academic load for the upcoming term." />
             
-            <div className="flex flex-col lg:flex-row gap-10">
+            <div className="flex flex-col gap-10 relative pb-32">
                 {/* Main Content Area */}
-                <div className="flex-grow lg:max-w-[calc(100%-400px)]">
+                <div className="w-full max-w-7xl mx-auto">
                     {/* Header */}
                     <header className="mb-10">
-                        <div className="flex items-center gap-3 mb-3">
+                        <div className="flex flex-wrap items-center gap-3 mb-3">
                             <span className="px-3 py-1 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100">
                                 Enlistment Portal
                             </span>
                             <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">{data.activeSemester?.name}</span>
+                            {data.studentProfile && (
+                                <span className="px-3 py-1 bg-gray-100 text-gray-500 rounded-xl text-[10px] font-black uppercase tracking-widest border border-gray-200">
+                                    Section: {data.studentProfile.section_name} • {data.studentProfile.program_code}
+                                </span>
+                            )}
                         </div>
                         <h1 className="text-5xl font-black text-gray-900 tracking-tighter">Subject Enrollment</h1>
                         <p className="text-gray-500 font-medium mt-2">Personalize your academic load for the upcoming term.</p>
@@ -200,7 +192,7 @@ const SubjectEnrollmentPage = () => {
                                 <option value="">Semesters</option>
                                 <option value="1">1st Sem</option>
                                 <option value="2">2nd Sem</option>
-                                <option value="Summer">Summer</option>
+                                <option value="3">Summer</option>
                             </select>
                             <button 
                                 onClick={() => setFilters({ yearLevel: '', semester: '', search: '' })}
@@ -213,19 +205,6 @@ const SubjectEnrollmentPage = () => {
 
                     {/* Subjects Grid */}
                     <div className="space-y-16">
-                        <SubjectSection 
-                            key="global-catalog"
-                            title="Global Catalog" 
-                            subtitle="All subjects available for cross-enrollment"
-                            subjects={data.availableSubjects.filter(s => 
-                                !data.recommendedSubjects.find(r => r.id === s.id) &&
-                                (!filters.yearLevel || s.year_level == filters.yearLevel) &&
-                                (!filters.semester || s.semester_number == filters.semester) &&
-                                (!filters.search || s.code.toLowerCase().includes(filters.search.toLowerCase()) || s.title.toLowerCase().includes(filters.search.toLowerCase()))
-                            )}
-                            onAdd={addToList}
-                            selectionList={selectionList}
-                        />
 
                         <SubjectSection 
                             key="curriculum-picks"
@@ -241,91 +220,16 @@ const SubjectEnrollmentPage = () => {
                         />
                     </div>
                 </div>
-
-                {/* Desktop Sidebar Selection Summary */}
-                <div className="hidden lg:block w-[360px] shrink-0">
-                    <div className="sticky top-12 bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden flex flex-col max-h-[calc(100vh-100px)]">
-                        <div className="p-8 border-b border-gray-50">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-black text-gray-900 tracking-tight">Selected Subjects</h3>
-                                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-100">
-                                    <List className="w-5 h-5" />
-                                </div>
-                            </div>
-                            
-                            <div className="mb-2 flex justify-between items-end">
-                                <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Credit Load</span>
-                                <span className="text-xl font-black text-gray-900">{totalUnits()} <span className="text-xs text-gray-400">/ {data.maxUnits}</span></span>
-                            </div>
-                            <div className="w-full bg-gray-50 h-2 rounded-full overflow-hidden border border-gray-100">
-                                <motion.div 
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${Math.min((totalUnits() / data.maxUnits) * 100, 100)}%` }}
-                                    className={`h-full transition-all duration-1000 ${totalUnits() > data.maxUnits ? 'bg-red-500' : totalUnits() > data.maxUnits - 3 ? 'bg-amber-500' : 'bg-blue-600'}`}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex-grow overflow-y-auto p-6 space-y-4">
-                            {selectionList.length === 0 ? (
-                                <div className="py-12 text-center">
-                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-dashed border-gray-100">
-                                        <BookOpen className="w-6 h-6 text-gray-300" />
-                                    </div>
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">No subjects selected</p>
-                                </div>
-                            ) : (
-                                selectionList.map((item, idx) => (
-                                    <motion.div 
-                                        key={item.subject.id}
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: -20 }}
-                                        className="p-4 bg-gray-50/50 rounded-3xl border border-gray-50 group hover:border-blue-100 hover:bg-white transition-all"
-                                    >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <p className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">{item.subject.code}</p>
-                                                <p className="text-xs font-bold text-gray-900 truncate max-w-[180px]">{item.subject.title}</p>
-                                            </div>
-                                            <button 
-                                                onClick={() => removeFromList(item.subject.id)}
-                                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Section {item.section.name}</span>
-                                            <span className="text-[9px] font-black text-gray-500">{item.subject.units} Units</span>
-                                        </div>
-                                    </motion.div>
-                                ))
-                            )}
-                        </div>
-
-                        <div className="p-8 border-t border-gray-50 bg-gray-50/30">
-                            <Button 
-                                variant="primary" 
-                                className="w-full py-5 rounded-[24px] shadow-xl shadow-blue-500/20"
-                                onClick={finalizeEnrollment}
-                                disabled={selectionList.length === 0 || submitting || totalUnits() > data.maxUnits}
-                            >
-                                {submitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'FINALIZE ENLISTMENT'}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
             </div>
 
-            {/* Mobile Selection Drawer Toggle */}
+            {/* Unified Floating Selection Toggle */}
             <AnimatePresence>
                 {selectionList.length > 0 && (
                     <motion.div 
                         initial={{ y: 100, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 100, opacity: 0 }}
-                        className="lg:hidden fixed bottom-6 left-4 right-4 z-50"
+                        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md"
                     >
                         <button 
                             onClick={() => setIsSummaryOpen(true)}
@@ -413,9 +317,9 @@ const SubjectSection = ({ title, subtitle, subjects, onAdd, selectionList }) => 
             const sem = s.semester_number || 'General';
             const yearLabel = year === 'N/A' ? 'Other Regular Subjects' : `Year Level ${year}`;
             let semLabel = `Semester ${sem}`;
-            if (sem === '1') semLabel = 'FIRST SEMESTER';
-            else if (sem === '2') semLabel = 'SECOND SEMESTER';
-            else if (sem === 'Summer') semLabel = 'SUMMER SESSION';
+            if (sem == 1) semLabel = 'FIRST SEMESTER';
+            else if (sem == 2) semLabel = 'SECOND SEMESTER';
+            else if (sem == 3 || sem === 'Summer') semLabel = 'SUMMER SESSION';
 
             if (!groups[yearLabel]) groups[yearLabel] = {};
             if (!groups[yearLabel][semLabel]) groups[yearLabel][semLabel] = [];
@@ -437,54 +341,96 @@ const SubjectSection = ({ title, subtitle, subjects, onAdd, selectionList }) => 
                 <span className="px-4 py-1 bg-gray-50 text-gray-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-gray-100">{subjects.length} Available</span>
             </div>
             
-            <div className="space-y-12">
+            <div className="space-y-16">
                 {sortedYears.map((yearLabel, yIdx) => (
-                    <div key={`${title}-${yearLabel}-${yIdx}`} className="space-y-6">
-                        <div className="flex items-center gap-4">
-                            <div className="h-[2px] flex-grow bg-blue-100/50"></div>
-                            <h3 className="text-xs font-black text-blue-600 uppercase tracking-[0.3em] bg-blue-50 px-6 py-2 rounded-full border border-blue-100 shadow-sm whitespace-nowrap">
-                                {yearLabel}
-                            </h3>
-                            <div className="h-[2px] flex-grow bg-blue-100/50"></div>
-                        </div>
-
-                        {Object.keys(groupedSubjects[yearLabel]).sort().map((semLabel, sIdx) => (
-                            <div key={`${title}-${yearLabel}-${semLabel}-${sIdx}`} className="space-y-4">
-                                <div className="flex items-center gap-3 ml-2">
-                                    <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></div>
-                                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{semLabel}</h4>
-                                </div>
-                                <div className="bg-white rounded-[32px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full border-collapse">
-                                            <thead>
-                                                <tr className="bg-gray-50/50">
-                                                    <th className="px-8 py-6 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Academic Subject</th>
-                                                    <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Units</th>
-                                                    <th className="px-8 py-6 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Section Selection</th>
-                                                    <th className="px-8 py-6 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-50">
-                                                {groupedSubjects[yearLabel][semLabel].map(s => (
-                                                    <SubjectTableRow key={s.id} subject={s} onAdd={onAdd} inList={selectionList.some(c => c.subject.id === s.id)} />
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ))}
-
-                {subjects.length === 0 && (
+                    <YearGroup 
+                        key={`${yearLabel}-${yIdx}`}
+                        yearLabel={yearLabel}
+                        semestersData={groupedSubjects[yearLabel]}
+                        onAdd={onAdd}
+                        selectionList={selectionList}
+                    />
+                ))}                {subjects.length === 0 && (
                     <div className="py-20 text-center bg-white rounded-[40px] border border-dashed border-gray-100 shadow-sm">
                         <p className="text-sm font-bold text-gray-300 uppercase tracking-widest">No subjects match your filters</p>
                     </div>
                 )}
             </div>
         </section>
+    );
+};
+
+const YearGroup = ({ yearLabel, semestersData, onAdd, selectionList }) => {
+    const semKeys = Object.keys(semestersData).sort();
+    const [activeSem, setActiveSem] = useState(semKeys[0]);
+
+    // Update active tab if data changes and current tab is no longer valid
+    useEffect(() => {
+        if (!semKeys.includes(activeSem) && semKeys.length > 0) {
+            setActiveSem(semKeys[0]);
+        }
+    }, [semKeys, activeSem]);
+
+    if(semKeys.length === 0) return null;
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight">{yearLabel}</h3>
+                    <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-blue-100">
+                        {Object.values(semestersData).flat().length} Subjects
+                    </span>
+                </div>
+                
+                {semKeys.length > 1 && (
+                    <div className="flex p-1 bg-gray-50 rounded-xl border border-gray-100 self-start sm:self-auto">
+                        {semKeys.map(sem => (
+                            <button
+                                key={sem}
+                                onClick={() => setActiveSem(sem)}
+                                className={`px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                                    activeSem === sem 
+                                        ? 'bg-white text-blue-600 shadow-sm border border-gray-200/60' 
+                                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 border border-transparent'
+                                }`}
+                            >
+                                {sem}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <AnimatePresence mode="wait">
+                <motion.div
+                    key={activeSem}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="bg-white rounded-[32px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden"
+                >
+                    <div className="overflow-x-auto">
+                        <table className="w-full border-collapse min-w-[800px]">
+                            <thead>
+                                <tr className="bg-gray-50/50">
+                                    <th className="px-8 py-6 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Academic Subject</th>
+                                    <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 w-32">Units</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">Section Selection</th>
+                                    <th className="px-8 py-6 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 w-48">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {semestersData[activeSem]?.map(s => (
+                                    <SubjectTableRow key={s.id} subject={s} onAdd={onAdd} inList={selectionList.some(c => c.subject.id === s.id)} />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </motion.div>
+            </AnimatePresence>
+        </div>
     );
 };
 
@@ -537,13 +483,38 @@ const SubjectTableRow = ({ subject, onAdd, inList }) => {
                             key={`${subject.id}-sec-${sec.id}-${idx}`}
                             disabled={inList || sec.enrolled >= sec.slots}
                             onClick={() => setSelectedSection(sec.id)}
-                            className={`px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase transition-all
+                            className={`px-4 py-3 rounded-xl text-left border-2 transition-all min-w-[200px]
                                 ${selectedSection === sec.id 
-                                    ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                                    : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200'
-                                } ${inList ? 'opacity-50 cursor-not-allowed' : ''} ${sec.enrolled >= sec.slots ? 'text-red-300 border-red-50' : ''}`}
+                                    ? 'border-blue-500 bg-blue-50 shadow-sm' 
+                                    : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-gray-50'
+                                } ${inList ? 'opacity-50 cursor-not-allowed' : ''} ${sec.enrolled >= sec.slots ? 'border-red-100 bg-red-50 opacity-60' : ''}`}
                         >
-                            {sec.name} ({sec.enrolled}/{sec.slots})
+                            <div className="flex justify-between items-start mb-1">
+                                <div className={`text-xs font-black uppercase tracking-tight ${selectedSection === sec.id ? 'text-blue-700' : 'text-gray-700'}`}>
+                                    {sec.name}
+                                </div>
+                                <div className={`text-[9px] font-bold ${sec.enrolled >= sec.slots ? 'text-red-500' : 'text-gray-500'}`}>
+                                    {sec.enrolled}/{sec.slots}
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-1">
+                                <div className="text-[9px] font-bold text-gray-400 truncate flex items-center gap-1">
+                                    <span className="text-blue-400">👤</span> {sec.professor || 'Wala pa'}
+                                </div>
+                                {sec.schedule && sec.schedule.length > 0 ? (
+                                    <div className="text-[8px] font-bold text-gray-400 flex flex-col gap-0.5">
+                                        {sec.schedule.map((slot, sidx) => (
+                                            <div key={sidx} className="flex items-center gap-1">
+                                                <span className="text-amber-400">⏰</span>
+                                                {slot.day} {slot.start_time}-{slot.end_time} ({slot.room})
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-[8px] font-bold text-gray-300 italic">No schedule set</div>
+                                )}
+                            </div>
                         </button>
                     ))}
                     {subject.sections.length === 0 && <span className="text-[10px] font-black text-red-400 uppercase">Closed</span>}

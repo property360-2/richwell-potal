@@ -153,7 +153,7 @@ const ProfessorGrades = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div className="flex items-center gap-6">
                     <button 
-                        onClick={() => selectedSS ? setSelectedSS(null) : navigate('/professor')}
+                        onClick={() => selectedSS ? setSelectedSS(null) : navigate('/professor/dashboard')}
                         className="p-4 bg-white border border-gray-100 rounded-2xl text-gray-400 hover:text-blue-600 hover:border-blue-100 shadow-sm transition-all"
                     >
                         <ArrowLeft className="w-5 h-5" />
