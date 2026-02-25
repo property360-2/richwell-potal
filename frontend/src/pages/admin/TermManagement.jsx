@@ -43,7 +43,8 @@ const TermManagement = () => {
             setLoading(true);
             const data = await AdminService.getSemesters();
             // Backend might return wrapped object or direct array
-            setSemesters(data.semesters || data || []);
+            const semesterData = data?.semesters || data?.results || data;
+            setSemesters(Array.isArray(semesterData) ? semesterData : []);
         } catch (err) {
             error('Institutional portal failure: Could not reach config engine.');
         } finally {
@@ -83,9 +84,9 @@ const TermManagement = () => {
         setIsModalOpen(true);
     };
 
-    const filteredSemesters = semesters.filter(s => 
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.academic_year.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredSemesters = (Array.isArray(semesters) ? semesters : []).filter(s => 
+        s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.academic_year?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const getStatusTheme = (status) => {

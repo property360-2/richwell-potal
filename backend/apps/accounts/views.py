@@ -130,6 +130,16 @@ class UserCountView(APIView):
         )
         if serializer.is_valid():
             serializer.save()
+            
+            # Log the profile update
+            AuditLog.log(
+                action=AuditLog.Action.USER_UPDATED,
+                target_model='User',
+                target_id=request.user.id,
+                payload={'action': 'profile_update', 'fields': list(request.data.keys())},
+                actor=request.user
+            )
+            
             return Response({
                 "success": True,
                 "data": UserProfileSerializer(request.user).data
@@ -180,6 +190,15 @@ class ChangePasswordView(APIView):
         # Set new password
         request.user.set_password(new_password)
         request.user.save()
+        
+        # Log the password change
+        AuditLog.log(
+            action=AuditLog.Action.USER_UPDATED,
+            target_model='User',
+            target_id=request.user.id,
+            payload={'action': 'password_change'},
+            actor=request.user
+        )
         
         return Response({
             "success": True,

@@ -3,7 +3,7 @@ import { api, endpoints } from '../../../api';
 const HeadService = {
     getPendingEnrollments: async () => {
         const data = await api.get(endpoints.headPendingEnrollments);
-        return data.results || data || [];
+        return data.pending_enrollments || data.results || data || [];
     },
 
     approveSubject: async (subjectEnrollmentId) => {
@@ -15,7 +15,7 @@ const HeadService = {
     },
 
     bulkApprove: async (subjectEnrollmentIds) => {
-        return await api.post(endpoints.headBulkApprove, { ids: subjectEnrollmentIds });
+        return await api.post(endpoints.headBulkApprove, { enrollment_ids: subjectEnrollmentIds });
     },
 
     getReports: async (params) => {

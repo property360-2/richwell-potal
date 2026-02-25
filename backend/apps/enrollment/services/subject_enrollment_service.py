@@ -938,7 +938,7 @@ class SubjectEnrollmentService:
         # Payment status will determine if enrollment is PENDING or ENROLLED
 
         # Fetch SectionSubject for schedule/capacity check
-        from apps.academics.models import SectionSubject
+        from apps.academics.models import SectionSubject, CurriculumSubject
         target_section_subject = SectionSubject.objects.filter(
             section=section, 
             subject=subject,
@@ -968,10 +968,7 @@ class SubjectEnrollmentService:
         home_section = profile.home_section
 
         # Determine Enrollment Type and Validations based on Student Category
-        if profile.overload_approved:
-            # 1. Overloaded Students: Can enroll in subjects from ANY section
-            enrollment_type = SubjectEnrollment.EnrollmentType.OVERLOAD
-        elif profile.is_irregular:
+        if profile.is_irregular:
             # 2. Irregular Students: Home Section OR Retake subjects from OTHER sections
             if section == home_section:
                 enrollment_type = SubjectEnrollment.EnrollmentType.HOME

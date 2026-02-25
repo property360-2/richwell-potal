@@ -47,6 +47,7 @@ const UserManagement = () => {
     const [roleFilter, setRoleFilter] = useState('');
     const [programFilter, setProgramFilter] = useState('');
     const [showAddUser, setShowAddUser] = useState(false);
+    const [editingUser, setEditingUser] = useState(null);
 
     // Check if current user can add users
     const canAddUser = useMemo(() => {
@@ -192,6 +193,17 @@ const UserManagement = () => {
                                                     <Button 
                                                         variant="secondary" 
                                                         className="text-[10px] font-black tracking-widest px-4 py-2 rounded-xl"
+                                                        icon={Settings}
+                                                        onClick={() => {
+                                                            setEditingUser(user);
+                                                            setShowAddUser(true);
+                                                        }}
+                                                    >
+                                                        EDIT
+                                                    </Button>
+                                                    <Button 
+                                                        variant="secondary" 
+                                                        className="text-[10px] font-black tracking-widest px-4 py-2 rounded-xl opacity-50 hover:opacity-100"
                                                         icon={Activity}
                                                         onClick={() => window.location.href=`/admin/audit-logs?search=${user.email}`}
                                                     >
@@ -210,7 +222,11 @@ const UserManagement = () => {
 
             <AddUserModal 
                 isOpen={showAddUser}
-                onClose={() => setShowAddUser(false)}
+                onClose={() => {
+                    setShowAddUser(false);
+                    setEditingUser(null);
+                }}
+                editingUser={editingUser}
                 onSuccess={fetchUsers}
             />
         </div>

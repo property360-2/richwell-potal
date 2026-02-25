@@ -6,6 +6,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import User, StudentProfile, PermissionCategory, Permission, UserPermission
+from apps.audit.models import AuditLog
 
 
 class LoginSerializer(TokenObtainPairSerializer):
@@ -170,17 +171,27 @@ class UserWithPermissionsSerializer(serializers.ModelSerializer):
 
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     permission_count = serializers.SerializerMethodField()
+    assigned_programs = serializers.SerializerMethodField()
 
     def get_permission_count(self, obj):
         """Get count of effective permissions for this user."""
         return obj.get_effective_permissions().count()
+
+    def get_assigned_programs(self, obj):
+        """Get assigned programs if role is DEPARTMENT_HEAD."""
+        if obj.role == 'DEPARTMENT_HEAD':
+            # Avoid circular import or heavy model load by checking attribute
+            profile = getattr(obj, 'department_head_profile', None)
+            if profile:
+                return [{'id': str(p.id), 'code': p.code, 'name': p.name} for p in profile.programs.all()]
+        return []
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name',
             'role', 'student_number', 'is_active', 'permission_count',
-            'created_at'
+            'assigned_programs', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -394,6 +405,14 @@ class HigherUserSerializer(serializers.ModelSerializer):
                 programs = Program.objects.filter(id__in=programs_data)
                 profile.programs.set(programs)
         
+        # Log the creation
+        AuditLog.log(
+            action=AuditLog.Action.USER_CREATED,
+            target_model='User',
+            target_id=user.id,
+            payload={'role': role, 'email': user.email}
+        )
+        
         return user
 
     def update(self, instance, validated_data):
@@ -415,5 +434,13 @@ class HigherUserSerializer(serializers.ModelSerializer):
             if programs_data is not None:
                 programs = Program.objects.filter(id__in=programs_data)
                 profile.programs.set(programs)
+        
+        # Log the update
+        AuditLog.log(
+            action=AuditLog.Action.USER_UPDATED,
+            target_model='User',
+            target_id=user.id,
+            payload={'changes': list(validated_data.keys())}
+        )
         
         return user

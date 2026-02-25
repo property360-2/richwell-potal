@@ -367,8 +367,8 @@ export const endpoints = {
     headApprove: (id) => `/admissions/head/approve/${id}/`,
     headReject: (id) => `/admissions/head/reject/${id}/`,
     headBulkApprove: '/admissions/head/bulk-approve/',
-
-
+    gradeResolutions: '/admissions/grade-resolutions/',
+    reports: '/admissions/reports/',
 
     // Document Release (EPIC 6)
     createDocumentRelease: '/admissions/documents/release/',

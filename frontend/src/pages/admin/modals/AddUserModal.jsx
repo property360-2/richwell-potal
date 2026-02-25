@@ -17,6 +17,8 @@ import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
+import ProgramPicker from '../../../components/shared/ProgramPicker';
+import { api, endpoints } from '../../../api';
 
 // Based on defined RBAC rules
 const CREATION_PERMISSIONS = {
@@ -55,7 +57,7 @@ const PROGRAM_OPTIONS = [
     { value: 'BSBA', label: 'BSBA - Business Administration' }
 ];
 
-const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
+const AddUserModal = ({ isOpen, onClose, onSuccess, editingUser = null }) => {
     const { user } = useAuth();
     const { success, error } = useToast();
     const [loading, setLoading] = useState(false);
@@ -73,9 +75,39 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
         confirm_password: '',
         role: 'PROFESSOR',
         program: 'BSIT',
-        selected_programs: [], // Added for Department Head multi-select
+        selected_programs: [], 
         student_number: ''
     });
+
+    // Handle Edit Mode - Pre-fill data
+    useEffect(() => {
+        if (isOpen && editingUser) {
+            setFormData({
+                email: editingUser.email || '',
+                first_name: editingUser.first_name || '',
+                last_name: editingUser.last_name || '',
+                password: '', // Don't pre-fill password for security
+                confirm_password: '',
+                role: editingUser.role || 'PROFESSOR',
+                program: editingUser.program_code || 'BSIT',
+                selected_programs: editingUser.assigned_programs ? editingUser.assigned_programs.map(p => p.id) : [],
+                student_number: editingUser.student_number || ''
+            });
+        } else if (isOpen) {
+            // Reset for Add mode
+            setFormData({
+                email: '',
+                first_name: '',
+                last_name: '',
+                password: '',
+                confirm_password: '',
+                role: allowedRoles[0]?.value || 'PROFESSOR',
+                program: 'BSIT',
+                selected_programs: [],
+                student_number: ''
+            });
+        }
+    }, [isOpen, editingUser]);
 
     // Load programs for Department Head selection
     useEffect(() => {
@@ -252,18 +284,28 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
 
         try {
             setLoading(true);
-            await AdminService.createUser({
+            const payload = {
                 email: formData.email,
                 first_name: formData.first_name,
                 last_name: formData.last_name,
-                password: formData.password,
                 role: formData.role,
                 program: formData.role === 'STUDENT' ? formData.program : undefined,
                 programs: formData.role === 'DEPARTMENT_HEAD' ? formData.selected_programs : undefined,
                 student_number: formData.role === 'STUDENT' ? formData.student_number : undefined
-            });
-            
-            success('User created successfully');
+            };
+
+            // Only include password if provided (required for Create, optional for Update)
+            if (formData.password) {
+                payload.password = formData.password;
+            }
+
+            if (editingUser) {
+                await AdminService.updateUser(editingUser.id, payload);
+                success('User updated successfully');
+            } else {
+                await AdminService.createUser(payload);
+                success('User created successfully');
+            }
             
             // Reset form
             setFormData({
@@ -328,7 +370,7 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
         <Modal 
             isOpen={isOpen} 
             onClose={onClose} 
-            title="Add New User"
+            title={editingUser ? "Edit User Account" : "Add New User"}
             maxWidth="max-w-2xl"
         >
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -424,29 +466,12 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
 
                 {/* Department Head Specific Fields */}
                 {isDeptHead && (
-                    <div>
-                        <label className="block text-xs font-black text-gray-700 uppercase tracking-widest mb-2">
-                            <Building className="w-3 h-3 inline mr-1" />
-                            Assigned Programs
-                        </label>
-                        <select
-                            multiple
-                            name="selected_programs"
-                            value={formData.selected_programs}
-                            onChange={handleChange}
-                            required={isDeptHead}
-                            size={4}
-                            className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-gray-900 min-h-[120px]"
-                        >
-                            {programs.map(p => (
-                                <option key={p.id} value={p.id}>
-                                    {p.code} - {p.name}
-                                </option>
-                            ))}
-                        </select>
-                        <p className="mt-2 text-[10px] text-gray-500 italic">
-                            Hold Ctrl (Windows) or Cmd (Mac) to select multiple programs.
-                        </p>
+                    <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+                        <ProgramPicker 
+                            allPrograms={programs}
+                            selectedIds={formData.selected_programs}
+                            onChange={(ids) => setFormData(prev => ({ ...prev, selected_programs: ids }))}
+                        />
                     </div>
                 )}
 
@@ -578,11 +603,11 @@ const AddUserModal = ({ isOpen, onClose, onSuccess }) => {
                     <Button 
                         variant="primary" 
                         type="submit"
-                        icon={loading ? Loader2 : UserPlus}
+                        icon={loading ? Loader2 : (editingUser ? RefreshCcw : UserPlus)}
                         disabled={loading || allowedRoles.length === 0 || hasErrors}
                         className="shadow-lg shadow-blue-500/20"
                     >
-                        {loading ? 'CREATING...' : 'CREATE USER'}
+                        {loading ? (editingUser ? 'SAVING...' : 'CREATING...') : (editingUser ? 'SAVE CHANGES' : 'CREATE USER')}
                     </Button>
                 </div>
             </form>

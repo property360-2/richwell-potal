@@ -18,6 +18,11 @@ export const AdminService = {
         return await api.post(url, userData);
     },
 
+    updateUser: async (userId, userData) => {
+        const url = userData.role === 'STUDENT' ? endpoints.registrarStudentDetail(userId) : `${endpoints.staff}${userId}/`;
+        return await api.patch(url, userData);
+    },
+
     generateStudentId: async () => {
         return await api.get(endpoints.generateStudentId);
     },

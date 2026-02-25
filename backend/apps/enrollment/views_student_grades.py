@@ -129,6 +129,13 @@ class MyGradesView(views.APIView):
                 
                 if display_status == 'ENROLLED':
                     display_status = 'IN PROGRESS'
+                
+                grade_str = str(best_se.grade) if best_se.grade else ''
+                
+                if display_status == 'INC' and best_se.is_retake_eligible:
+                    display_status = 'RETAKE'
+                    status_display = 'Must Retake'
+                    grade_str = ''
                     
                 res_info = None
                 pending_res = best_se.grade_resolutions.filter(
@@ -144,11 +151,13 @@ class MyGradesView(views.APIView):
                     'subject_title': subj.title,
                     'units': subj.units,
                     'section_name': best_se.section.name if best_se.section else 'N/A',
-                    'grade': str(best_se.grade) if best_se.grade else '',
+                    'grade': grade_str,
                     'status': display_status,
                     'status_display': status_display,
                     'is_finalized': best_se.is_finalized,
                     'pending_resolution': res_info,
+                    'retake_eligibility_date': best_se.retake_eligibility_date,
+                    'is_retake_eligible': best_se.is_retake_eligible,
                 }
                 
                 # Accumulate stats

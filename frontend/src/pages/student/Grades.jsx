@@ -232,6 +232,19 @@ const SemesterBlock = ({ semester }) => {
                                     <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${getStatusColor(s.status)}`}>
                                         {s.status}
                                     </span>
+                                    {s.status === 'INC' && s.retake_eligibility_date && (
+                                        <div className="mt-2 group-hover:scale-105 transition-transform duration-300">
+                                            <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-start gap-3 shadow-sm">
+                                                <Calendar className="w-3 h-3 text-red-500 mt-0.5 shrink-0" />
+                                                <div className="text-left">
+                                                    <p className="text-[9px] font-black text-red-900 uppercase tracking-tighter leading-none mb-1">Retake Target Date</p>
+                                                    <p className="text-[10px] font-bold text-red-600 tracking-tight whitespace-nowrap">
+                                                        {new Date(s.retake_eligibility_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -257,6 +270,7 @@ const getStatusColor = (status) => {
         case 'PASSED': return 'text-green-600 bg-green-50 border-green-100';
         case 'FAILED': return 'text-red-600 bg-red-50 border-red-100';
         case 'INC': return 'text-amber-600 bg-amber-50 border-amber-100';
+        case 'RETAKE': return 'text-purple-600 bg-purple-50 border-purple-100';
         case 'DROPPED': return 'text-gray-500 bg-gray-50 border-gray-100';
         case 'IN PROGRESS': return 'text-blue-600 bg-blue-50 border-blue-100';
         default: return 'text-blue-600 bg-blue-50 border-blue-100';

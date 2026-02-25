@@ -26,6 +26,19 @@ class CreateDocumentReleaseView(views.APIView):
         serializer = DocumentReleaseCreateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             doc = serializer.save(released_by=request.user)
+            
+            from apps.audit.models import AuditLog
+            AuditLog.log(
+                action=AuditLog.Action.DOCUMENT_RELEASED,
+                target_model='DocumentRelease',
+                target_id=doc.id,
+                payload={
+                    'code': doc.document_code,
+                    'type': doc.document_type,
+                    'student': doc.student.get_full_name()
+                }
+            )
+            
             return Response(DocumentReleaseSerializer(doc).data, status=201)
         return Response(serializer.errors, status=400)
 
@@ -132,6 +145,14 @@ class RevokeDocumentView(views.APIView):
         doc.revocation_reason = reason
         doc.save()
         
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.DOCUMENT_REVOKED,
+            target_model='DocumentRelease',
+            target_id=doc.id,
+            payload={'code': doc.document_code, 'reason': reason}
+        )
+        
         return Response({"success": True, "message": "Document revoked"})
 
 class ReissueDocumentView(views.APIView):
@@ -159,6 +180,18 @@ class ReissueDocumentView(views.APIView):
             released_by=request.user,
             purpose=f"Reissue of {old_doc.document_code}",
             replaces=old_doc
+        )
+        
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.DOCUMENT_REISSUED,
+            target_model='DocumentRelease',
+            target_id=new_doc.id,
+            payload={
+                'old_code': old_doc.document_code,
+                'new_code': new_doc.document_code,
+                'student': new_doc.student.get_full_name()
+            }
         )
         
         return Response(DocumentReleaseSerializer(new_doc).data)

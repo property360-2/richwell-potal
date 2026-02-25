@@ -128,14 +128,14 @@ class AuditLogFiltersView(APIView):
     )
     def get(self, request):
         # Get unique action types that have been used
-        actions = AuditLog.objects.values_list('action', flat=True).distinct()
+        actions = AuditLog.objects.order_by().values_list('action', flat=True).distinct()
         action_choices = [
             {'value': action, 'label': dict(AuditLog.Action.choices).get(action, action)}
             for action in actions
         ]
 
         # Get unique target models
-        target_models = AuditLog.objects.values_list('target_model', flat=True).distinct()
+        target_models = AuditLog.objects.order_by().values_list('target_model', flat=True).distinct()
 
         return Response({
             'actions': sorted(action_choices, key=lambda x: x['label']),

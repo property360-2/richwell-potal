@@ -90,7 +90,7 @@ const StudentDashboard = () => {
 
     const { enrollmentStatus, enrolledUnits, currentSection, paymentBuckets, gpa, enrollmentDates } = dashboardData;
     const profile = user?.student_profile;
-    const studentType = profile?.overload_approved ? 'Overloaded' : (profile?.is_irregular ? 'Irregular' : 'Regular');
+    const studentType = profile?.is_irregular ? 'Irregular' : 'Regular';
 
     // Payment Calculations
     const totalPaid = paymentBuckets.reduce((sum, b) => sum + b.paid, 0);

@@ -107,6 +107,20 @@ class GradingService:
         
         subject_enrollment.save()
         
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.GRADE_SUBMITTED,
+            target_model='SubjectEnrollment',
+            target_id=subject_enrollment.id,
+            payload={
+                'student': subject_enrollment.enrollment.student.get_full_name(),
+                'subject': subject_enrollment.subject.code,
+                'grade': str(grade),
+                'status': subject_enrollment.status,
+                'submitted_by': user.get_full_name()
+            }
+        )
+        
         # Create grade history entry
         history = GradeHistory.objects.create(
             subject_enrollment=subject_enrollment,

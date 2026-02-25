@@ -235,6 +235,20 @@ class EnrollmentService:
             }
         )
         
+        # Log user creation
+        AuditLog.log(
+            action=AuditLog.Action.USER_CREATED,
+            target_model='User',
+            target_id=user.id,
+            actor=registrar,
+            payload={
+                'email': user.email,
+                'role': user.role,
+                'student_number': student_number,
+                'created_via': 'TRANSFEREE'
+            }
+        )
+        
         return enrollment
     
     def generate_student_number(self) -> str:

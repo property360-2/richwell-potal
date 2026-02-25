@@ -125,11 +125,35 @@ class ProgramViewSet(viewsets.ModelViewSet):
             return ProgramWithSubjectsSerializer
         return ProgramSerializer
     
+    def perform_create(self, serializer):
+        program = serializer.save()
+        AuditLog.log(
+            action=AuditLog.Action.PROGRAM_CREATED,
+            target_model='Program',
+            target_id=program.id,
+            payload={'code': program.code, 'name': program.name}
+        )
+
+    def perform_update(self, serializer):
+        program = serializer.save()
+        AuditLog.log(
+            action=AuditLog.Action.PROGRAM_UPDATED,
+            target_model='Program',
+            target_id=program.id,
+            payload={'code': program.code, 'changes': serializer.validated_data}
+        )
+
     def perform_destroy(self, instance):
         """Soft delete."""
         instance.is_deleted = True
         instance.is_active = False
         instance.save()
+        AuditLog.log(
+            action=AuditLog.Action.PROGRAM_DELETED,
+            target_model='Program',
+            target_id=instance.id,
+            payload={'code': instance.code, 'name': instance.name}
+        )
 
     @action(detail=False, methods=['get'], url_path='check-duplicate')
     def check_duplicate(self, request):
@@ -272,10 +296,34 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
         return queryset.select_related('program').prefetch_related('programs', 'prerequisites')
     
+    def perform_create(self, serializer):
+        subject = serializer.save()
+        AuditLog.log(
+            action=AuditLog.Action.SUBJECT_CREATED,
+            target_model='Subject',
+            target_id=subject.id,
+            payload={'code': subject.code, 'title': subject.title}
+        )
+
+    def perform_update(self, serializer):
+        subject = serializer.save()
+        AuditLog.log(
+            action=AuditLog.Action.SUBJECT_UPDATED,
+            target_model='Subject',
+            target_id=subject.id,
+            payload={'code': subject.code, 'changes': serializer.validated_data}
+        )
+
     def perform_destroy(self, instance):
         """Soft delete."""
         instance.is_deleted = True
         instance.save()
+        AuditLog.log(
+            action=AuditLog.Action.SUBJECT_DELETED,
+            target_model='Subject',
+            target_id=instance.id,
+            payload={'code': instance.code, 'title': instance.title}
+        )
     
     @action(detail=True, methods=['get'], url_path='prerequisite-tree')
     @extend_schema(
@@ -357,6 +405,35 @@ class RoomViewSet(viewsets.ModelViewSet):
     queryset = Room.objects.filter(is_active=True)
     serializer_class = RoomSerializer
     permission_classes = [IsRegistrarOrAdmin]
+
+    def perform_create(self, serializer):
+        room = serializer.save()
+        AuditLog.log(
+            action=AuditLog.Action.RECORD_CREATED,
+            target_model='Room',
+            target_id=room.id,
+            payload={'name': room.name, 'type': room.room_type}
+        )
+
+    def perform_update(self, serializer):
+        room = serializer.save()
+        AuditLog.log(
+            action=AuditLog.Action.RECORD_UPDATED,
+            target_model='Room',
+            target_id=room.id,
+            payload={'name': room.name, 'changes': serializer.validated_data}
+        )
+
+    def perform_destroy(self, instance):
+        """Soft delete."""
+        instance.is_deleted = True
+        instance.save()
+        AuditLog.log(
+            action=AuditLog.Action.RECORD_DELETED,
+            target_model='Room',
+            target_id=instance.id,
+            payload={'name': instance.name}
+        )
 
     def get_queryset(self):
         queryset = Room.objects.all()
@@ -808,7 +885,7 @@ class SectionViewSet(viewsets.ModelViewSet):
         section.is_dissolved = True
         section.parent_section = target
         section.save()
-        
+
         AuditLog.log(
             action=AuditLog.Action.SECTION_UPDATED,
             target_model='Section',
@@ -851,21 +928,17 @@ class SectionViewSet(viewsets.ModelViewSet):
         profiles = StudentProfile.objects.filter(user_id__in=student_ids)
         updated = profiles.update(home_section=section)
         
-        # Auto-enroll in section subjects
-        # This mirrors the "Regular Student" flow where assignment = enrollment
-        from apps.enrollment.services import SubjectEnrollmentService
-        service = SubjectEnrollmentService()
-        
-        enroll_errors = []
-        for profile in profiles:
-            try:
-                service.enroll_student_in_section_subjects(profile.user, section)
-            except Exception as e:
-                enroll_errors.append(f"Student {profile.user.email}: {str(e)}")
-        
+        # Auto-enrollment disabled per user request
+        # 1. We no longer auto-enroll sectioned students. They must manually enlist via portal.
         msg = f'{updated} students assigned to {section.name}.'
-        if enroll_errors:
-            msg += f" {len(enroll_errors)} enrollment errors."
+        msg = f'{updated} students assigned to {section.name}.'
+        
+        AuditLog.log(
+            action=AuditLog.Action.SECTION_UPDATED,
+            target_model='Section',
+            target_id=section.id,
+            payload={'action': 'assign_students', 'count': updated, 'student_ids': student_ids}
+        )
         
         return Response({'message': msg, 'errors': enroll_errors})
 
@@ -914,6 +987,13 @@ class SectionViewSet(viewsets.ModelViewSet):
             # Note: We don't automatically drop subjects as they might have been enrolled manually?
             # Requirement says "remove them from the section". 
             # Usually strict sectioning implies dropping section subjects too, but let's keep it safe.
+            
+            AuditLog.log(
+                action=AuditLog.Action.SECTION_UPDATED,
+                target_model='Section',
+                target_id=section.id,
+                payload={'action': 'remove_student', 'student_id': str(student_id)}
+            )
             
             return Response({'message': 'Student removed from section.'})
         except StudentProfile.DoesNotExist:
@@ -1052,6 +1132,12 @@ class SectionSubjectViewSet(viewsets.ModelViewSet):
         """Soft delete."""
         instance.is_deleted = True
         instance.save()
+        AuditLog.log(
+            action=AuditLog.Action.SECTION_UPDATED,
+            target_model='SectionSubject',
+            target_id=instance.id,
+            payload={'action': 'removed', 'section': instance.section.name, 'subject': instance.subject.code}
+        )
 
 
 # ============================================================
@@ -1108,19 +1194,45 @@ class ScheduleSlotViewSet(viewsets.ModelViewSet):
             section_subject.is_tba = False
             section_subject.save()
         
-        # Log override if applicable
+        # Log action
+        payload = {
+            'section': slot.section_subject.section.name,
+            'subject': slot.section_subject.subject.code,
+            'day': slot.get_day_display(),
+            'time': f"{slot.start_time}-{slot.end_time}",
+            'room': slot.room
+        }
+        
         if hasattr(serializer.validated_data, '_override_reason'):
+            payload['override_reason'] = serializer.validated_data['_override_reason']
             AuditLog.log(
                 action=AuditLog.Action.SCHEDULE_CONFLICT_OVERRIDE,
                 target_model='ScheduleSlot',
                 target_id=slot.id,
-                payload={'reason': serializer.validated_data['_override_reason']}
+                payload=payload
+            )
+        else:
+            AuditLog.log(
+                action=AuditLog.Action.RECORD_CREATED,
+                target_model='ScheduleSlot',
+                target_id=slot.id,
+                payload=payload
             )
     
     def perform_destroy(self, instance):
         """Soft delete."""
         instance.is_deleted = True
         instance.save()
+        AuditLog.log(
+            action=AuditLog.Action.RECORD_DELETED,
+            target_model='ScheduleSlot',
+            target_id=instance.id,
+            payload={
+                'section': instance.section_subject.section.name,
+                'subject': instance.section_subject.subject.code,
+                'day': instance.get_day_display()
+            }
+        )
 
 
 # ============================================================

@@ -37,6 +37,26 @@ class SemesterViewSet(ModelViewSet):
             return SemesterCreateSerializer
         return SemesterSerializer
 
+    def perform_create(self, serializer):
+        semester = serializer.save()
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.SEMESTER_CREATED,
+            target_model='Semester',
+            target_id=semester.id,
+            payload={'name': semester.name, 'academic_year': semester.academic_year}
+        )
+
+    def perform_update(self, serializer):
+        semester = serializer.save()
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.SEMESTER_UPDATED,
+            target_model='Semester',
+            target_id=semester.id,
+            payload={'name': semester.name, 'changes': serializer.validated_data}
+        )
+
     @action(detail=False, methods=['get'])
     def active(self, request):
         """
@@ -80,6 +100,14 @@ class SemesterViewSet(ModelViewSet):
         target_semester.is_current = True
         target_semester.status = Semester.TermStatus.ENROLLMENT_OPEN
         target_semester.save()
+        
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.SEMESTER_SET_CURRENT,
+            target_model='Semester',
+            target_id=target_semester.id,
+            payload={'name': target_semester.name}
+        )
         
         return Response({'success': True, 'message': f'Term "{target_semester.name}" is now active and open for enrollment.'})
 
@@ -988,33 +1016,48 @@ class RecommendedSubjectsView(APIView):
             valid_sections = []
             for ss in section_subjects:
                 allowed = False
+                # Optimization: Compare program IDs directly
+                is_same_program = (ss.section.program_id == program.id)
                 
-                # Rule 1: Overloaded (Overvolumed)
+                # Rule 1: Overloaded (Overvolumed) - Can pick anything
                 if is_overloaded:
                      allowed = True
                 
-                # Rule 2: Irregular
+                # Rule 2: Irregular - Can pick cross-program if needed
                 elif is_irregular:
-                    if ss.section == home_section:
-                        allowed = True
-                    elif is_retake:
-                        allowed = True
+                    allowed = True
                 
-                # Rule 3: Regular Freshman (Year 1 Sem 1)
+                # Rule 3: Regular Retake - Allow anything? 
+                # User says: "can only supposed to enroll subject from their curriculum and program"
+                # Even for retakes, we should stick to program if available.
+                elif is_retake:
+                    # Let's keep it open for retakes to ensure they can MUST take it somewhere
+                    allowed = True
+                
+                # Rule 4: Regular Freshman (Year 1 Sem 1)
                 elif is_freshman_first_sem:
                     # If Home Section is ASSIGNED -> Restrict to it
                     if home_section:
-                        if ss.section == home_section:
+                        if ss.section == home_section or ss.section.name == home_section.name:
                             allowed = True
-                        elif home_section and ss.section.name == home_section.name:
-                             allowed = True
-                    # If NO Home Section -> First Come First Serve (Enable All)
+                    # If NO Home Section -> First Come First Serve WITHIN THEIR PROGRAM
                     else:
+                        if is_same_program:
+                            allowed = True
+
+                # Rule 5: Regular Current Students (Year > 1 OR Year 1 Sem 2)
+                else:
+                    # Regular students should stick to their program sections
+                    if is_same_program:
                         allowed = True
 
-                # Rule 4: Current Students (Year > 1 OR Year 1 Sem 2) -> Open Choice
-                else:
-                    allowed = True
+                # FINAL ENFORCEMENT: Regular students (Not irregular, not overloaded) 
+                # MUST NOT see sections from other programs even if 'allowed' was True due to retake logic.
+                # Actually, if they are regular, we want to hide the 'clutter' of other programs.
+                if allowed and not is_same_program:
+                    if not (is_irregular or is_overloaded):
+                        # Strict: If you are a regular student, you only see your program's sections.
+                        allowed = False
 
                 if allowed:
                     valid_sections.append(ss)
@@ -1022,13 +1065,14 @@ class RecommendedSubjectsView(APIView):
             sections = []
             for ss in valid_sections:
                 sections.append({
-                    'section_id': str(ss.section.id),
-                    'section_name': ss.section.name,
-                    'available_slots': ss.section.available_slots,
+                    'id': str(ss.section.id),
+                    'name': ss.section.name,
+                    'slots': ss.section.available_slots,
+                    'enrolled': ss.section.enrolled_count,
                     'professor': ss.professor.get_full_name() if ss.professor else 'TBA',
                     'schedule': [
                         {
-                            'day': slot.get_day_display(),
+                            'day': slot.day,
                             'start_time': slot.start_time.strftime("%I:%M %p"),
                             'end_time': slot.end_time.strftime("%I:%M %p"),
                             'room': slot.room or 'TBA'
@@ -1163,27 +1207,31 @@ class AvailableSubjectsView(APIView):
             valid_sections = []
             for ss in section_subjects:
                 allowed = False
-                # Rule 3: Overloaded
+                is_same_program = (ss.section.program_id == profile.program_id)
+
+                # Rule 1: Overloaded
                 if is_overloaded:
                      allowed = True
                 # Rule 2: Irregular
                 elif is_irregular:
-                    if ss.section == home_section:
-                        allowed = True
-                    elif is_retake:
-                        allowed = True
-                # Rule 3: Current Students (Year > 1 OR Year 1 Sem 2)
-                # Open Choice ("At Will")
-                elif not ((profile.year_level == 1) and ("1st" in active_semester.name or "First" in active_semester.name)):
-                     allowed = True
-                
+                    allowed = True
+                # Rule 3: Regular Retake
+                elif is_retake:
+                    allowed = True
                 # Rule 4: Regular Freshman (Year 1 Sem 1)
-                # Restricted to Home Section
+                elif (profile.year_level == 1) and ("1st" in active_semester.name or "First" in active_semester.name):
+                    if ss.section == home_section or (home_section and ss.section.name == home_section.name):
+                        allowed = True
+                    elif not home_section and is_same_program:
+                        allowed = True
+                # Rule 5: Regular Current Students (Year > 1 OR Year 1 Sem 2)
                 else:
-                    if ss.section == home_section:
-                        allowed = True
-                    elif home_section and ss.section.name == home_section.name:
-                        allowed = True
+                    if is_same_program:
+                         allowed = True
+                
+                # Strict Enforcement for Regular Students
+                if allowed and not is_same_program and not (is_irregular or is_overloaded):
+                    allowed = False
                 
                 if allowed:
                     valid_sections.append(ss)
@@ -1198,9 +1246,9 @@ class AvailableSubjectsView(APIView):
                     'professor': ss.professor.get_full_name() if ss.professor else 'TBA',
                     'schedule': [
                         {
-                            'day': slot.get_day_display(),
-                            'start_time': slot.start_time.strftime("%H:%M"),
-                            'end_time': slot.end_time.strftime("%H:%M"),
+                            'day': slot.day,
+                            'start_time': slot.start_time.strftime("%I:%M %p"),
+                            'end_time': slot.end_time.strftime("%I:%M %p"),
                             'room': slot.room or 'TBA'
                         } for slot in ss.schedule_slots.filter(is_deleted=False)
                     ]
@@ -1294,8 +1342,8 @@ class MySubjectEnrollmentsView(APIView):
                 'status': se.status,
                 'payment_approved': se.payment_approved,
                 'head_approved': se.head_approved,
-                'approval_status_display': 'Enrolled' if se.status == 'ENROLLED' else 'Pending Head' if not se.head_approved else 'Pending Payment',
-                'is_fully_enrolled': se.status == 'ENROLLED',
+                'approval_status_display': se.get_approval_status_display(),
+                'is_fully_enrolled': se.is_fully_enrolled,
                 'professor': prof_name,
                 'schedule': [
                     {
@@ -1441,7 +1489,87 @@ class StudentCurriculumView(APIView):
             }
         })
 
-MyScheduleView = SimpleGETView
+class MyScheduleView(APIView):
+    """
+    Get the student's current class schedule grouped by day.
+    Used for the Timetable and List views.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.enrollment.models import Semester, SubjectEnrollment
+        from apps.academics.models import SectionSubject
+        
+        user = request.user
+        active_semester = Semester.objects.filter(is_current=True).first()
+        
+        if not active_semester:
+            return Response({"schedule": [], "semester": ""})
+
+        # Get all enrollments for the current semester (ENROLLED status)
+        # Note: We also include PENDING_HEAD/PENDING_PAYMENT if we want them to see 
+        # their "prospective" schedule during enrollment.
+        enrollments = SubjectEnrollment.objects.filter(
+            enrollment__student=user,
+            enrollment__semester=active_semester,
+            status__in=['ENROLLED', 'PENDING_HEAD', 'PENDING_PAYMENT'],
+            is_deleted=False
+        ).select_related('subject', 'section')
+
+        # Map to organize by day
+        days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+        schedule_by_day = {day: [] for day in days}
+
+        # Bulk fetch section subjects and their slots
+        section_ids = [se.section_id for se in enrollments if se.section_id]
+        subject_ids = [se.subject_id for se in enrollments]
+        
+        ss_map = {}
+        if section_ids:
+            section_subjects = SectionSubject.objects.filter(
+                section_id__in=section_ids,
+                subject_id__in=subject_ids
+            ).select_related('professor').prefetch_related('schedule_slots')
+            
+            for ss in section_subjects:
+                key = (ss.section_id, ss.subject_id)
+                ss_map[key] = ss
+
+        for se in enrollments:
+            ss = ss_map.get((se.section_id, se.subject_id))
+            if not ss:
+                continue
+            
+            # Use specific section-subject professor or fallback
+            prof = ss.professor
+            prof_name = prof.get_full_name() if prof else 'TBA'
+            
+            for slot in ss.schedule_slots.all():
+                schedule_by_day[slot.day].append({
+                    'subject_code': se.subject.code,
+                    'subject_title': se.subject.title,
+                    'section': se.section.name if se.section else 'TBA',
+                    'start_time': slot.start_time.strftime('%H:%M'),
+                    'end_time': slot.end_time.strftime('%H:%M'),
+                    'room': slot.room or 'TBA',
+                    'professor_name': prof_name
+                })
+
+        # Format for frontend: list of { "day": "MON", "slots": [...] }
+        formatted_schedule = []
+        for day in days:
+            if schedule_by_day[day]:
+                # Sort slots by start time
+                day_slots = sorted(schedule_by_day[day], key=lambda x: x['start_time'])
+                formatted_schedule.append({
+                    'day': day,
+                    'slots': day_slots
+                })
+
+        return Response({
+            "schedule": formatted_schedule,
+            "semester": f"{active_semester.name} FY {active_semester.academic_year}"
+        })
 
 class EnrollSubjectView(APIView):
     """
@@ -1751,66 +1879,22 @@ class PaymentRecordView(APIView):
         notes = serializer.validated_data.get('notes', '')
         
         try:
-            with transaction.atomic():
-                enrollment = Enrollment.objects.get(id=enrollment_id)
-                
-                # Generate receipt number
-                now = datetime.now()
-                random_suffix = str(uuid.uuid4())[:5].upper()
-                receipt_number = f"RCPT-{now.strftime('%Y%m%d')}-{random_suffix}"
-                
-                # Create transaction
-                txn = PaymentTransaction.objects.create(
-                    enrollment=enrollment,
-                    amount=amount,
-                    payment_mode=payment_mode,
-                    receipt_number=receipt_number,
-                    reference_number=reference_number,
-                    processed_by=request.user,
-                    notes=notes
-                )
-                
-                # Allocation logic: fill buckets in order
-                remaining = amount
-                buckets = MonthlyPaymentBucket.objects.filter(
-                    enrollment=enrollment, 
-                    is_fully_paid=False
-                ).order_by('month_number')
-
-                allocated_info = []
-                for bucket in buckets:
-                    if remaining <= 0:
-                        break
-                    
-                    due = bucket.required_amount - bucket.paid_amount
-                    pay = min(remaining, due)
-                    
-                    bucket.paid_amount += pay
-                    if bucket.paid_amount >= bucket.required_amount:
-                        bucket.is_fully_paid = True
-                    bucket.save()
-                    remaining -= pay
-                    allocated_info.append({"month": bucket.month_number, "amount": str(pay)})
-                
-                # Store allocation info if needed (optional)
-                txn.allocated_buckets = allocated_info
-                txn.save()
-
-                # Update enrollment status if first payment
-                if not enrollment.first_month_paid:
-                    # Check if month 1 is paid
-                    month1 = MonthlyPaymentBucket.objects.filter(enrollment=enrollment, month_number=1).first()
-                    if month1 and month1.is_fully_paid:
-                        enrollment.first_month_paid = True
-                        if enrollment.status == 'PENDING':
-                            enrollment.status = 'ACTIVE'
-                        enrollment.save()
-                
-                return Response({
-                    "success": True,
-                    "message": "Payment recorded successfully",
-                    "data": PaymentTransactionSerializer(txn).data
-                }, status=201)
+            from apps.enrollment.services import PaymentService
+            
+            txn = PaymentService.record_payment(
+                enrollment=Enrollment.objects.get(id=enrollment_id),
+                amount=amount,
+                payment_mode=payment_mode,
+                cashier=request.user,
+                reference_number=reference_number,
+                notes=notes
+            )
+            
+            return Response({
+                "success": True,
+                "message": "Payment recorded successfully",
+                "data": PaymentTransactionSerializer(txn).data
+            }, status=201)
                 
         except Enrollment.DoesNotExist:
             return Response({"error": "Enrollment not found"}, status=404)
@@ -1893,6 +1977,19 @@ class PaymentAdjustmentView(APIView):
             original_transaction=original_txn,
             processed_by=user,
             notes=f"Adjustment: {adjustment_reason.strip()}"
+        )
+
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.PAYMENT_ADJUSTED,
+            target_model='PaymentTransaction',
+            target_id=transaction.id,
+            payload={
+                'amount': str(transaction.amount),
+                'reason': transaction.adjustment_reason,
+                'student': enrollment.student.get_full_name(),
+                'original_receipt': original_txn.receipt_number if original_txn else None
+            }
         )
 
         return Response({
@@ -2390,6 +2487,14 @@ class UpdateAcademicStandingView(APIView):
         profile.academic_standing = standing
         profile.save(update_fields=['academic_standing'])
 
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.USER_UPDATED,
+            target_model='StudentProfile',
+            target_id=profile.id,
+            payload={'action': 'update_standing', 'standing': standing, 'student': profile.user.get_full_name()}
+        )
+
         return Response({
             "message": "Academic standing updated successfully",
             "academic_standing": profile.academic_standing,
@@ -2457,11 +2562,24 @@ class GradeResolutionViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         subject_enrollment = serializer.validated_data['subject_enrollment']
-        serializer.save(
+        resolution = serializer.save(
             requested_by=self.request.user,
             current_grade=subject_enrollment.grade,
             current_status=subject_enrollment.status,
             status=GradeResolution.Status.PENDING_HEAD
+        )
+        
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.GRADE_UPDATED,
+            target_model='GradeResolution',
+            target_id=resolution.id,
+            payload={
+                'action': 'requested',
+                'student': subject_enrollment.enrollment.student.get_full_name(),
+                'subject': subject_enrollment.subject.code,
+                'proposed_grade': str(resolution.proposed_grade)
+            }
         )
 
     @action(detail=False, methods=['get'])
@@ -2499,6 +2617,18 @@ class GradeResolutionViewSet(ModelViewSet):
                 resolution.registrar_action_at = timezone.now()
                 resolution.registrar_notes = notes or resolution.registrar_notes
                 resolution.save()
+
+                from apps.audit.models import AuditLog
+                AuditLog.log(
+                    action=AuditLog.Action.GRADE_UPDATED,
+                    target_model='GradeResolution',
+                    target_id=resolution.id,
+                    payload={
+                        'action': 'approved_by_registrar',
+                        'student': resolution.subject_enrollment.enrollment.student.get_full_name(),
+                        'proposed_grade': str(resolution.proposed_grade)
+                    }
+                )
                 
                 # Apply the grade change to SubjectEnrollment
                 se = resolution.subject_enrollment
@@ -2537,6 +2667,18 @@ class GradeResolutionViewSet(ModelViewSet):
                 resolution.head_action_at = timezone.now()
                 resolution.head_notes = notes or resolution.head_notes
                 resolution.save()
+
+                from apps.audit.models import AuditLog
+                AuditLog.log(
+                    action=AuditLog.Action.GRADE_UPDATED,
+                    target_model='GradeResolution',
+                    target_id=resolution.id,
+                    payload={
+                        'action': 'approved_by_head',
+                        'student': resolution.subject_enrollment.enrollment.student.get_full_name(),
+                        'proposed_grade': str(resolution.proposed_grade)
+                    }
+                )
                 
                 return Response({'success': True, 'message': 'Approved by Head and forwarded to Registrar'})
             
@@ -2560,6 +2702,19 @@ class GradeResolutionViewSet(ModelViewSet):
             resolution.head_notes = reason
             
         resolution.save()
+
+        from apps.audit.models import AuditLog
+        AuditLog.log(
+            action=AuditLog.Action.GRADE_UPDATED,
+            target_model='GradeResolution',
+            target_id=resolution.id,
+            payload={
+                'action': 'rejected',
+                'rejected_by': request.user.get_full_name(),
+                'role': request.user.role,
+                'reason': reason
+            }
+        )
         return Response({'success': True, 'message': 'Resolution rejected'})
 
 # ============================================================

@@ -13,6 +13,32 @@ from apps.core.permissions import IsDepartmentHead, IsRegistrar, IsAdmin
 from .models import SubjectEnrollment, Enrollment
 
 
+def can_manage_subject(user, se):
+    """Helper to check if user has permission to manage this subject enrollment."""
+    if user.role in ['ADMIN', 'REGISTRAR']:
+        return True
+    
+    if user.role == 'DEPARTMENT_HEAD' and hasattr(user, 'department_head_profile'):
+        programs = user.department_head_profile.programs.all()
+        if not programs.exists():
+            return False
+            
+        # 1. Check subject's primary program
+        if programs.filter(id=se.subject.program_id).exists():
+            return True
+            
+        # 2. Check section's program
+        if se.section and programs.filter(id=se.section.program_id).exists():
+            return True
+            
+        # 3. Check student's program
+        profile = getattr(se.enrollment.student, 'student_profile', None)
+        if profile and profile.program and programs.filter(id=profile.program_id).exists():
+            return True
+            
+    return False
+
+
 class HeadPendingEnrollmentsView(views.APIView):
     """
     GET: Get pending enrollments requiring department head approval.
@@ -28,7 +54,7 @@ class HeadPendingEnrollmentsView(views.APIView):
         # Filter by department if user is department head
         pending_qs = SubjectEnrollment.objects.filter(
             head_approved=False,
-            status='PENDING',
+            status__in=['PENDING', 'PENDING_HEAD'],
             is_deleted=False
         ).select_related(
             'enrollment__student',
@@ -41,24 +67,36 @@ class HeadPendingEnrollmentsView(views.APIView):
         if user.role == 'DEPARTMENT_HEAD' and hasattr(user, 'department_head_profile'):
             programs = user.department_head_profile.programs.all()
             if programs.exists():
+                from django.db.models import Q
                 pending_qs = pending_qs.filter(
-                    subject__program__in=programs
-                )
+                    Q(subject__program__in=programs) |
+                    Q(section__program__in=programs) |
+                    Q(enrollment__student__student_profile__program__in=programs)
+                ).distinct()
+            else:
+                pending_qs = SubjectEnrollment.objects.none()
         
         pending_enrollments = []
         for se in pending_qs:
+            student = se.enrollment.student
+            profile = getattr(student, 'student_profile', None)
+            
             pending_enrollments.append({
                 'id': str(se.id),
-                'student_id': str(se.enrollment.student.id),
-                'student_number': se.enrollment.student.student_number,
-                'student_name': se.enrollment.student.get_full_name(),
+                'student_id': str(student.id),
+                'student_number': student.student_number,
+                'student_name': student.get_full_name(),
+                'program_code': profile.program.code if profile and profile.program else 'N/A',
+                'year_level': profile.year_level if profile else 1,
+                'is_month1_paid': se.enrollment.first_month_paid,
                 'subject_code': se.subject.code,
-                'subject_title': se.subject.title,
-                'units': se.subject.units,
+                'subject_name': se.subject.title,  # Renamed to name for consistency
+                'subject_units': se.subject.units,  # Renamed to units for consistency
                 'section_name': se.section.name if se.section else 'N/A',
                 'semester': se.enrollment.semester.name,
                 'academic_year': se.enrollment.semester.academic_year,
                 'enrollment_type': se.enrollment_type,
+                'is_irregular': profile.is_irregular if profile else False,
                 'is_retake': se.is_retake,
                 'created_at': se.created_at.isoformat()
             })
@@ -84,12 +122,21 @@ class HeadApproveEnrollmentView(views.APIView):
         except SubjectEnrollment.DoesNotExist:
             return Response({'error': 'Enrollment not found'}, status=404)
         
+        if not can_manage_subject(request.user, se):
+            return Response({'error': 'You do not have permission to approve this subject'}, status=403)
+            
         if se.head_approved:
             return Response({'error': 'Already approved'}, status=400)
         
         se.head_approved = True
-        se.head_approved_by = request.user
-        se.head_approved_at = timezone.now()
+        
+        # Note: head_approved_by/at are not in current model, 
+        # using them as ephemeral attributes if needed for other logic
+        # but they won't persist unless fields are added.
+        if hasattr(se, 'head_approved_by'):
+            se.head_approved_by = request.user
+        if hasattr(se, 'head_approved_at'):
+            se.head_approved_at = timezone.now()
         
         # If payment is also approved, mark as ENROLLED
         if se.payment_approved:
@@ -117,6 +164,9 @@ class HeadRejectEnrollmentView(views.APIView):
         except SubjectEnrollment.DoesNotExist:
             return Response({'error': 'Enrollment not found'}, status=404)
         
+        if not can_manage_subject(request.user, se):
+            return Response({'error': 'You do not have permission to reject this subject'}, status=403)
+            
         se.status = 'REJECTED'
         se.rejection_reason = reason
         se.rejected_by = request.user
@@ -148,10 +198,17 @@ class HeadBulkApproveView(views.APIView):
             for eid in enrollment_ids:
                 try:
                     se = SubjectEnrollment.objects.get(id=eid)
+                    if not can_manage_subject(request.user, se):
+                        errors.append(f"Permission denied for enrollment {eid}")
+                        continue
+
                     if not se.head_approved:
                         se.head_approved = True
-                        se.head_approved_by = request.user
-                        se.head_approved_at = timezone.now()
+                        
+                        if hasattr(se, 'head_approved_by'):
+                            se.head_approved_by = request.user
+                        if hasattr(se, 'head_approved_at'):
+                            se.head_approved_at = timezone.now()
                         
                         if se.payment_approved:
                             se.status = 'ENROLLED'

@@ -101,12 +101,6 @@ const CurriculumStructureView = ({ structure, program, onAssign, onRemove }) => 
                                         )}
                                     </div>
                                     
-                                    {totalUnits > 24 && (
-                                        <div className="px-6 py-2 bg-amber-50 text-amber-600 flex items-center gap-2">
-                                            <AlertCircle size={12} />
-                                            <span className="text-[8px] font-black uppercase tracking-widest">Unit Overload Warning</span>
-                                        </div>
-                                    )}
                                 </div>
                             );
                         })}

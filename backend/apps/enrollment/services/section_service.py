@@ -47,8 +47,9 @@ class SectionService:
         profile.home_section = section
         profile.save()
 
-        # 3. Auto-enroll in all subjects of that section
-        self._enroll_student_in_section_subjects(enrollment, section)
+        # 3. Auto-enrollment disabled per user request
+        # Silently enlisting students is removed to force manual flow via portal.
+        # self._enroll_student_in_section_subjects(enrollment, section)
         
         return section
 
@@ -107,7 +108,7 @@ class SectionService:
             if next_section:
                 profile.home_section = next_section
                 profile.save()
-                self._enroll_student_in_section_subjects(enrollment, next_section)
+                # self._enroll_student_in_section_subjects(enrollment, next_section)
                 logger.info(f"Auto-assigned {profile.user.email} to {next_section.name} for {new_semester.name}")
             else:
                 logger.warning(f"Could not find a section for {profile.user.email} in {new_semester}")

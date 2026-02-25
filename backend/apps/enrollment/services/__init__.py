@@ -4,9 +4,10 @@ Import all services here for easy access.
 """
 
 from .enrollment_service import EnrollmentService
-from .subject_enrollment_service import SubjectEnrollmentService
+from .subject_enrollment_service import SubjectEnrollmentService, PaymentService
 
 __all__ = [
     'EnrollmentService',
     'SubjectEnrollmentService',
+    'PaymentService',
 ]

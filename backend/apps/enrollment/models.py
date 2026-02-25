@@ -629,13 +629,16 @@ class SubjectEnrollment(ArchivableMixin, BaseModel):
     def get_approval_status_display(self):
         """Get human-readable approval status for UI."""
         if self.is_fully_enrolled:
-            return "Enrolled"
+            return "Officially Enrolled"
+        
+        if not self.payment_approved and not self.head_approved:
+            return "Pending Payment & Head Approval"
         elif self.payment_approved and not self.head_approved:
-            return "Payment Complete - Awaiting Head Approval"
+            return "Pending Head Approval"
         elif not self.payment_approved and self.head_approved:
-            return "Head Approved - Payment Pending"
-        else:
-            return "Pending Approval"
+            return "Pending Payment"
+        
+        return "Pending Approval"
 
 
 class EnrollmentApproval(BaseModel):

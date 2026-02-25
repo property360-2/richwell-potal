@@ -58,6 +58,7 @@ const AdmissionDashboard = lazy(() => import('./pages/admission'));
 
 // Head Oversight
 const HeadDashboard = lazy(() => import('./pages/head'));
+const HeadStudents = lazy(() => import('./pages/head/Students'));
 const HeadReports = lazy(() => import('./pages/head/Reports'));
 const HeadResolutions = lazy(() => import('./pages/head/Resolutions'));
 
@@ -150,6 +151,7 @@ function App() {
                     {/* Head Routes */}
                     <Route path="/head" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN']}><HeadDashboard /></ProtectedRoute>} />
                     <Route path="/head/dashboard" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN']}><HeadDashboard /></ProtectedRoute>} />
+                    <Route path="/head/students" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN']}><HeadStudents /></ProtectedRoute>} />
                     <Route path="/head/reports" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN']}><HeadReports /></ProtectedRoute>} />
                     <Route path="/head/resolutions" element={<ProtectedRoute roles={['DEPARTMENT_HEAD', 'ADMIN', 'REGISTRAR']}><HeadResolutions /></ProtectedRoute>} />
 

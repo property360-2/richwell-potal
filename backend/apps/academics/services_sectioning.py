@@ -60,9 +60,6 @@ class SectioningEngine:
                     profile.home_section = section
                     profile.save()
                     
-                    # Auto-enroll in all subjects for this section's curriculum
-                    cls._auto_enroll_subjects(enrollment, section)
-                    
                     assigned = True
                     processed_count += 1
                     break
@@ -139,7 +136,6 @@ class SectioningEngine:
                 profile = enrollment.student.student_profile
                 profile.home_section = section
                 profile.save()
-                cls._auto_enroll_subjects(enrollment, section)
                 assigned_count += 1
             else:
                 # Fallback to any other available section
@@ -148,7 +144,6 @@ class SectioningEngine:
                         profile = enrollment.student.student_profile
                         profile.home_section = alt_section
                         profile.save()
-                        cls._auto_enroll_subjects(enrollment, alt_section)
                         assigned_count += 1
                         break
 
