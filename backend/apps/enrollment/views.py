@@ -1008,7 +1008,12 @@ class RecommendedSubjectsView(APIView):
                      if not last_enrollment.is_retake_eligible:
                          can_enroll = False
                          date_str = last_enrollment.retake_eligibility_date.strftime('%b %d, %Y') if last_enrollment.retake_eligibility_date else 'Unknown'
-                         retake_blocked_reason = f"Retake blocked until {date_str}"
+                         
+                         if last_enrollment.status == 'INC':
+                             is_retake = False
+                             retake_blocked_reason = f"Please resolve your INC grade first."
+                         else:
+                             retake_blocked_reason = f"Retake blocked until {date_str}"
 
             # Define Freshman Status once
             is_freshman_first_sem = (profile.year_level == 1) and ("1st" in active_semester.name or "First" in active_semester.name)
@@ -1080,6 +1085,9 @@ class RecommendedSubjectsView(APIView):
                     ]
                 })
 
+            if not can_enroll and not retake_blocked_reason and missing_prereqs:
+                retake_blocked_reason = f"Missing prerequisites: {', '.join(missing_prereqs)}"
+
             recommended.append({
                 'id': str(subject.id),
                 'code': subject.code,
@@ -1093,6 +1101,7 @@ class RecommendedSubjectsView(APIView):
                 'is_retake': is_retake,  # Helpful for UI
                 'enrollment_blocked_reason': retake_blocked_reason,
                 'missing_prerequisites': missing_prereqs,
+                'prerequisites': [{'code': p.code, 'title': p.title} for p in prereqs],
                 'available_sections': sections
             })
 
@@ -1265,6 +1274,7 @@ class AvailableSubjectsView(APIView):
                 'is_global': subject.is_global,
                 'prerequisites_met': prereqs_met,
                 'missing_prerequisites': missing_prereqs,
+                'prerequisites': [{'code': p.code, 'title': p.title} for p in subject.prerequisites.all()],
                 'is_enrolled': subject.id in current_subjects,
                 'is_passed': subject.id in passed_subjects,
                 'can_enroll': prereqs_met and (subject.id not in passed_subjects),
@@ -2549,15 +2559,19 @@ class GradeResolutionViewSet(ModelViewSet):
             from django.db.models import Q
             return self.queryset.filter(
                 Q(requested_by=user) | 
-                Q(subject_enrollment__section__professor=user) |
-                Q(subject_enrollment__section__professor_assignments__professor=user)
+                Q(subject_enrollment__section__section_subjects__professor=user) |
+                Q(subject_enrollment__section__section_subjects__professor_assignments__professor=user)
             ).distinct()
         elif user.role in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
             return self.queryset.all()
-        elif user.role == 'DEPARTMENT_HEAD' and hasattr(user, 'department_head_profile'):
-            return self.queryset.filter(
-                subject_enrollment__subject__program__in=user.department_head_profile.programs.all()
-            )
+        elif user.role == 'DEPARTMENT_HEAD':
+            # If the head has specific programs assigned, filter by those;
+            # otherwise give access to all resolutions so they can review anything pending.
+            if hasattr(user, 'department_head_profile') and user.department_head_profile.programs.exists():
+                return self.queryset.filter(
+                    subject_enrollment__subject__program__in=user.department_head_profile.programs.all()
+                )
+            return self.queryset.all()
         return self.queryset.none()
 
     def perform_create(self, serializer):

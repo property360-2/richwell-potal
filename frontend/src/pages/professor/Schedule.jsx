@@ -1,23 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Calendar, 
-    ArrowLeft, 
     Clock, 
     MapPin, 
     BookOpen,
     Loader2,
-    Search,
     ChevronDown
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { api, endpoints } from '../../api';
 import SEO from '../../components/shared/SEO';
+import ProfessorLayout from './ProfessorLayout';
 import ProfessorService from './services/ProfessorService';
 
 const ProfessorSchedule = () => {
     const { user } = useAuth();
-    const navigate = useNavigate();
     const { error } = useToast();
     const [loading, setLoading] = useState(true);
     const [semesters, setSemesters] = useState([]);
@@ -30,19 +28,20 @@ const ProfessorSchedule = () => {
 
     const fetchInitialData = async () => {
         try {
-            const res = await fetch('/api/v1/academics/semesters/');
-            if (res.ok) {
-                const data = await res.json();
-                const semList = data.results || data || [];
-                setSemesters(semList);
-                const current = semList.find(s => s.is_current) || semList[0];
-                if (current) {
-                    setSelectedSemesterId(current.id);
-                    fetchSchedule(current.id);
-                }
+            const data = await api.get(endpoints.semesters);
+            const semList = data.results || data || [];
+            setSemesters(semList);
+            
+            const current = semList.find(s => s.is_current) || semList[0];
+            if (current) {
+                setSelectedSemesterId(current.id);
+                fetchSchedule(current.id);
+            } else {
+                setLoading(false);
             }
         } catch (err) {
             error('Failed to load terms');
+            setLoading(false);
         }
     };
 
@@ -67,49 +66,43 @@ const ProfessorSchedule = () => {
     const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in duration-700">
-            <SEO title="Teaching Schedule" description="Full weekly teaching schedule and room assignments." />
-            
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
-                <div className="flex items-center gap-6">
-                    <button 
-                        onClick={() => navigate('/professor/dashboard')}
-                        className="p-4 bg-white border border-gray-100 rounded-2xl text-gray-400 hover:text-blue-600 hover:border-blue-100 shadow-sm transition-all"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
+        <ProfessorLayout>
+            <div className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in duration-700">
+                <SEO title="Teaching Schedule" description="Full weekly teaching schedule and room assignments." />
+                
+                {/* Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                     <div>
                         <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Teaching Schedule</h1>
                         <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-[10px]">Academic Engagement Planning</p>
                     </div>
+
+                    <div className="w-full md:w-64 relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10"><Calendar className="w-4 h-4" /></div>
+                        <select 
+                            value={selectedSemesterId || ''}
+                            onChange={(e) => handleSemesterChange(e.target.value)}
+                            className="w-full pl-12 pr-10 py-3.5 bg-white border border-gray-100 rounded-2xl text-[11px] font-black uppercase tracking-widest appearance-none focus:outline-none focus:border-blue-200 shadow-xl shadow-blue-500/5 transition-all"
+                        >
+                            {semesters.map(s => (
+                                <option key={s.id} value={s.id}>{s.name} {s.academic_year}</option>
+                            ))}
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:rotate-180 transition-transform"><ChevronDown className="w-4 h-4" /></div>
+                    </div>
                 </div>
 
-                <div className="w-full md:w-64 relative group">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10"><Calendar className="w-4 h-4" /></div>
-                    <select 
-                        value={selectedSemesterId || ''}
-                        onChange={(e) => handleSemesterChange(e.target.value)}
-                        className="w-full pl-12 pr-10 py-3.5 bg-white border border-gray-100 rounded-2xl text-[11px] font-black uppercase tracking-widest appearance-none focus:outline-none focus:border-blue-200 shadow-xl shadow-blue-500/5 transition-all"
-                    >
-                        {semesters.map(s => (
-                            <option key={s.id} value={s.id}>{s.name} {s.academic_year}</option>
+                {loading ? (
+                    <div className="h-96 flex items-center justify-center"><Loader2 className="w-12 h-12 text-blue-600 animate-spin" /></div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {days.map(day => (
+                            <DayCard key={day} day={day} slots={schedule[day] || []} />
                         ))}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:rotate-180 transition-transform"><ChevronDown className="w-4 h-4" /></div>
-                </div>
+                    </div>
+                )}
             </div>
-
-            {loading ? (
-                <div className="h-96 flex items-center justify-center"><Loader2 className="w-12 h-12 text-blue-600 animate-spin" /></div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {days.map(day => (
-                        <DayCard key={day} day={day} slots={schedule[day] || []} />
-                    ))}
-                </div>
-            )}
-        </div>
+        </ProfessorLayout>
     );
 };
 

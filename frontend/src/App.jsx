@@ -52,6 +52,8 @@ const StudentSOA = lazy(() => import('./pages/student/StudentSOA'));
 const ProfessorDashboard = lazy(() => import('./pages/professor'));
 const ProfessorSchedule = lazy(() => import('./pages/professor/Schedule'));
 const ProfessorGrades = lazy(() => import('./pages/professor/Grades'));
+const ProfessorSections = lazy(() => import('./pages/professor/Sections'));
+const ProfessorResolutions = lazy(() => import('./pages/professor/Resolutions'));
 
 // Admission
 const AdmissionDashboard = lazy(() => import('./pages/admission'));
@@ -82,7 +84,7 @@ const ProgramDetailPage = lazy(() => import('./pages/academics/ProgramDetailPage
 function Layout({ children }) {
   const location = useLocation();
   const hideHeaderPaths = ['/auth/login', '/auth/register', '/auth/forgot-password', '/enrollment', '/enrollment/success'];
-  const shouldShowHeader = !hideHeaderPaths.includes(location.pathname);
+  const shouldShowHeader = !hideHeaderPaths.includes(location.pathname) && !location.pathname.startsWith('/professor');
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -143,6 +145,8 @@ function App() {
                     <Route path="/professor/dashboard" element={<ProtectedRoute roles={['PROFESSOR', 'ADMIN']}><ProfessorDashboard /></ProtectedRoute>} />
                     <Route path="/professor/schedule" element={<ProtectedRoute roles={['PROFESSOR', 'ADMIN']}><ProfessorSchedule /></ProtectedRoute>} />
                     <Route path="/professor/grades" element={<ProtectedRoute roles={['PROFESSOR', 'ADMIN']}><ProfessorGrades /></ProtectedRoute>} />
+                    <Route path="/professor/sections" element={<ProtectedRoute roles={['PROFESSOR', 'ADMIN']}><ProfessorSections /></ProtectedRoute>} />
+                    <Route path="/professor/resolutions" element={<ProtectedRoute roles={['PROFESSOR', 'ADMIN']}><ProfessorResolutions /></ProtectedRoute>} />
 
                     {/* Admission Routes */}
                     <Route path="/admission" element={<ProtectedRoute roles={['ADMISSION_STAFF', 'ADMIN']}><AdmissionDashboard /></ProtectedRoute>} />

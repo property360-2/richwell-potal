@@ -2,51 +2,55 @@ import { api, endpoints } from '../../../api';
 
 const ProfessorService = {
     getProfile: async () => {
-        const res = await fetch(endpoints.me);
-        return res.ok ? res.json() : null;
+        return await api.get(endpoints.me);
     },
 
     getActiveSemester: async () => {
-        const res = await fetch(endpoints.semesters);
-        if (res.ok) {
-            const data = await res.json();
+        try {
+            const data = await api.get(endpoints.semesters);
             const semesters = data.results || data || [];
             return semesters.find(s => s.is_current) || semesters[0];
+        } catch (err) {
+            console.error("Failed to fetch semesters:", err);
+            return null;
         }
-        return null;
     },
 
     getDashboardData: async (professorId, semesterId) => {
-        const res = await fetch(`/api/v1/academics/professor/${professorId}/schedule/${semesterId}/`);
-        return res.ok ? res.json() : null;
+        return await api.get(`/academics/professor/${professorId}/schedule/${semesterId}/`);
     },
 
     getGradingSections: async (semesterId) => {
-        const url = `/api/v1/grading/sections/?semester=${semesterId}`;
-        const res = await fetch(url);
-        return res.ok ? res.json() : null;
+        return await api.get(`/admissions/grading/sections/?semester=${semesterId}`);
     },
 
     getGradingStudents: async (sectionSubjectId, query = '', ordering = '') => {
-        let url = `/api/v1/grading/students/?section_subject=${sectionSubjectId}`;
+        let url = `/admissions/grading/students/?section_subject=${sectionSubjectId}`;
         if (query) url += `&search=${encodeURIComponent(query)}`;
         if (ordering) url += `&ordering=${ordering}`;
-        const res = await fetch(url);
-        return res.ok ? res.json() : null;
+        return await api.get(url);
     },
 
     submitGrade: async (payload) => {
-        const res = await fetch('/api/v1/grading/submit-grade/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        return res.ok ? res.json() : null;
+        return await api.post('/admissions/grading/submit/', payload);
     },
 
     getGradeHistory: async (subjectEnrollmentId) => {
-        const res = await fetch(`/api/v1/grading/history/${subjectEnrollmentId}/`);
-        return res.ok ? res.json() : null;
+        return await api.get(`/admissions/grading/history/${subjectEnrollmentId}/`);
+    },
+
+    // Grade Resolution methods
+    getResolutions: async () => {
+        return await api.get(endpoints.gradeResolutions);
+    },
+
+    createResolution: async (data) => {
+        return await api.post(endpoints.gradeResolutions, data);
+    },
+
+    getSemesters: async () => {
+        const data = await api.get(endpoints.semesters);
+        return data.results || data || [];
     }
 };
 

@@ -115,7 +115,7 @@ const SubjectEnrollmentPage = () => {
         }
 
         if (subject.can_enroll === false || subject.prerequisites_met === false) {
-            error(subject.enrollment_message || 'Contact Registrar');
+            error(subject.enrollment_blocked_reason || subject.enrollment_message || 'Contact Registrar');
             return;
         }
 
@@ -548,11 +548,17 @@ const SubjectTableRow = ({ subject, onAdd, inList }) => {
                         <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 truncate max-w-[250px]">
                             {subject.title}
                         </div>
+                        {subject.prerequisites && subject.prerequisites.length > 0 && (
+                            <div className="text-[9px] text-blue-500 font-bold uppercase tracking-widest mt-1 flex gap-1 items-center flex-wrap">
+                                <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100 mr-1">Prereq:</span>
+                                {subject.prerequisites.map(p => typeof p === 'string' ? p : p.code).join(', ')}
+                            </div>
+                        )}
                         {subject.can_enroll === false && (
                             <div className="flex items-center gap-1.5 mt-2">
                                 <AlertTriangle className="w-3 h-3 text-red-400" />
                                 <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">
-                                    {subject.enrollment_message || 'Cannot enroll'}
+                                    {subject.enrollment_message || subject.enrollment_blocked_reason || 'Cannot enroll'}
                                 </span>
                             </div>
                         )}

@@ -783,16 +783,14 @@ class GradeHistory(BaseModel):
         on_delete=models.CASCADE,
         related_name='grade_history'
     )
-    previous_grade = models.DecimalField(
-        max_digits=3,
-        decimal_places=2,
+    previous_grade = models.CharField(
+        max_length=5,
         null=True,
         blank=True,
         help_text='Previous grade value'
     )
-    new_grade = models.DecimalField(
-        max_digits=3,
-        decimal_places=2,
+    new_grade = models.CharField(
+        max_length=5,
         null=True,
         blank=True,
         help_text='New grade value'
@@ -1277,8 +1275,8 @@ class GradeResolution(BaseModel):
         help_text='The enrollment record being resolved'
     )
     
-    current_grade = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)
-    proposed_grade = models.DecimalField(max_digits=3, decimal_places=2)
+    current_grade = models.CharField(max_length=5, null=True, blank=True)
+    proposed_grade = models.CharField(max_length=5, null=True, blank=True)
     
     current_status = models.CharField(max_length=20) # Snapshot of status
     proposed_status = models.CharField(max_length=20)

@@ -32,10 +32,8 @@ class GradeableStudentSerializer(serializers.Serializer):
     section_name = serializers.CharField(source='section.name', allow_null=True)
     
     # Grade info
-    current_grade = serializers.DecimalField(
+    current_grade = serializers.CharField(
         source='grade', 
-        max_digits=3, 
-        decimal_places=2, 
         allow_null=True
     )
     current_status = serializers.CharField(source='status')
