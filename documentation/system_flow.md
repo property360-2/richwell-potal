@@ -72,14 +72,6 @@ For a subject to be officially enrolled, it must pass two gates:
     *   **Status**: `SubjectEnrollment.head_approved` → True.
 *   **Result**: When BOTH are True, `SubjectEnrollment.is_fully_enrolled` becomes True.
 
-### 3.2 Overload Requests
-*   **Scenario**: Student wants to exceed max unit cap.
-*   **Flow**:
-    1.  Student submits `OverloadRequest`.
-    2.  **Status**: `PENDING`.
-    3.  **Approval**: Department Head or Registrar approves.
-    4.  **Effect**: `StudentProfile.max_units_override` is temporarily increased for the semester.
-
 ### 3.4 Comprehensive Approval Workflows
 The system implements several approval chains for critical academic and administrative actions.
 
@@ -87,10 +79,8 @@ The system implements several approval chains for critical academic and administ
 | :--- | :--- | :--- | :--- | :--- |
 | **Online Enrollment** | Student Form | System (Internal Check) | — | Creates pending student account. |
 | **Subject Enrollment** | Student Selection | Cashier (Payment) | Dept Head (Academic) | Enrolls subject; sets `payment_approved` & `head_approved`. |
-| **Overload Request** | Student Request | Registrar | Dept Head | Increases unit limit (`max_units_override`). |
 | **Grade Finalization** | End of Term | Registrar | — | Locks grades for a section (`is_finalized = True`). |
 | **INC Resolution** | Prof Request | Registrar (Validates Eligibility) | Dept Head (Academic Merit) | Updates grade from `INC` to final grade. |
-| **Grade Override** | Registrar Action | *Self-Logged* | — | Compulsory grade change (even if finalized). Logs to `GradeHistory` as `OVERRIDE`. |
 | **Transferee Credit** | Registrar Entry | *Auto-Approved* | — | Credits subjects from previous school. |
 | **Admitted Status** | Payment w/o Subjects| Admin/Staff | — | Sets status to `ADMITTED` (Paid but no load). |
 
