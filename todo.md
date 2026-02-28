@@ -1,35 +1,68 @@
-# Enrollment Workflow & Auto-Sectioning Roadmap
+# System Architecture Analysis — Richwell Portal
 
-This document outlines the phased development plan for implementing automated section assignment and handling student statuses (Active vs Inactive).
+## Critical Bottlenecks
 
----
+| File | Lines | Items | Risk |
+|---|---|---|---|
+| `enrollment/views.py` | **~200** ✅ | 95 views (split) | 🟢 Split into 5 domain modules |
+| `academics/views.py` | **~50** ✅ | 97 views (split) | 🟢 Split into 5 domain modules |
+| `enrollment/models.py` | 929 | 65 items | 🟡 Partially split |
+| `academics/models.py` | 684 | 51 items | 🟡 Moderate |
+| `frontend/api.jsx` | **~14** ✅ | 107 endpoints (split) | 🟢 Split into api/client + api/endpoints |
 
-## Phase 1: Analyze
-- [x] **Understand Statuses**: Differentiate `StudentProfile.status` (School-wide) vs `Enrollment.status` (Semester-specific).
-- [x] **Identify Inactive/Ghost Rule**: Clarify that auto-assigned students who do not pay/enroll remain `PENDING` and do not count towards active numbers. They will not appear on CORs, class lists, or transcripts.
-- [x] **Locate Triggers**:
-    - *New Students*: Action happens in `ApplicantUpdateView`.
-    - *Current Students*: Action happens in `Semester.save()` when a new semester is marked `is_current=True`.
+## Cross-App Coupling
 
-## Phase 2: Plan
-- [x] **Frontend UI**: Fix the missing `white` variant in `Button.jsx` to make the "VIEW STATEMENT" button readable.
-- [x] **Backend Service**: Design `section_service.py` to handle logic for finding a student's matching section based on program and year level.
-- [x] **Admission Hook**: Plan hook in `ApplicantUpdateView.patch` to call auto-sectioning upon acceptance.
-- [x] **Semester Hook**: Plan hook in `Semester.save()` to loop through active students and auto-enroll them in the new semester as `PENDING`.
+- 🔴 **enrollment ↔ academics**: 98+ bidirectional imports — #1 risk
+- 🟡 enrollment → accounts: ~15 imports
+- 🟢 enrollment → core/audit: Clean dependency
 
-## Phase 3: Execute
-- [x] **Frontend Fix**: Update `frontend/src/components/ui/Button.jsx` with the `white` variant.
-- [x] **Backend Service Creation**:
-    - [x] Create `apps/enrollment/services/section_service.py`.
-    - [x] Write `auto_assign_new_student(enrollment)`.
-    - [x] Write `auto_assign_current_students(new_semester)`.
-- [x] **Backend Hook Implementation**:
-    - [x] Update `views.py` (`ApplicantUpdateView`) to call the new service.
-    - [x] Update `models.py` (`Semester.save()`) to call the new service.
-- [x] **Cleanup Script**: Created `management/commands/cleanup_ghost_students.py`.
+## Completed Splits ✅
 
-## Phase 4: Test
-- [ ] **UI Test**: Log in as a pending student and verify "VIEW STATEMENT" button visibility.
-- [ ] **New Student Test**: Approve a new applicant via Admissions Dashboard. Verify they are automatically placed in a Section and enrolled in subjects as `PENDING_PAYMENT` or `PENDING_HEAD`.
-- [ ] **Current Student Test**: Create and activate a new "2nd Semester". Verify that returning students from the 1st Semester are automatically enrolled in the 2nd Semester with a new section and subject load as `PENDING`.
-- [ ] **Ghost Student Test**: Verify a `PENDING` student does not appear on grading sheets or official counts.
+- `enrollment/models.py` → `models_grading.py`, `models_payments.py`
+- `enrollment/serializers.py` → `serializers_payments.py`, `serializers_grading.py`
+- `academics/services.py` → `services_scheduling.py`, `services_professor.py`
+- Enrollment views already split by prior work (6 files)
+- `enrollment/views.py` → `views_public.py`, `views_applicants.py`, `views_enrollment.py`, `views_payments.py`, `views_reports.py`
+- `academics/views.py` → `views_programs.py`, `views_sections.py`, `views_scheduling.py`, `views_curriculum.py`, `views_professors.py`
+- `frontend/api.jsx` → `api/client.js`, `api/endpoints.js`, `api/index.js`
+- `academics/serializers.py` → `serializers_programs.py`, `serializers_sections.py`, `serializers_curriculum.py`, `serializers_professors.py`
+- `accounts/views.py` → `views_auth.py`, `views_users.py`, `views_permissions.py`
+
+## Priority TODO
+
+### 🔴 P0 — Split Monolith Views (~12–16 iterations)
+
+- [x] Split `enrollment/views.py` (2,747L → ~200L + 5 modules) ✅
+  - `views_public.py` (enrollment status, program list)
+  - `views_applicants.py` (online enrollment, applicant mgmt)
+  - `views_enrollment.py` (enrollment CRUD, subject enrollment)
+  - `views_payments.py` (payment recording, exam permits)
+  - `views_reports.py` (head reports, registrar reports)
+- [x] Split `academics/views.py` (2,102L → ~50L + 5 modules) ✅
+  - `views_programs.py` (programs, subjects, rooms)
+  - `views_sections.py` (sections, section subjects)
+  - `views_scheduling.py` (schedule slots, conflicts, availability)
+  - `views_curriculum.py` (curriculum versions, curriculum CRUD)
+  - `views_professors.py` (professor management, archives)
+
+### 🟡 P1 — Frontend & Testing (~8–12 iterations)
+
+- [x] Split `frontend/api.jsx` (490L → ~14L + 3 modules) ✅
+  - `api/client.js` (TokenManager, HTTP client, downloadFile)
+  - `api/endpoints.js` (all 107 endpoint paths, domain-grouped)
+  - `api/index.js` (barrel re-export)
+- [ ] Add basic integration tests for critical flows
+
+### 🟢 P2 — Lower Priority ✅
+
+- [x] Split `academics/serializers.py` (936L → ~50L + 4 modules) ✅
+- [x] Split `accounts/views.py` (572L → ~35L + 3 modules) ✅
+
+### ⚪ P3 — Deferred
+
+- [ ] Move Semester-related logic to academics (high risk, defer)
+
+## Rewrite Verdict: ❌ NOT Justified
+
+Incremental refactoring: **25–35 iterations** | Full rewrite: **80–120 iterations**
+Zero migration risk with re-export pattern. Django architecture is sound — problems are file size, not design.

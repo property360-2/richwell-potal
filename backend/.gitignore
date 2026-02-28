@@ -77,3 +77,13 @@ coverage.xml
 
 # mypy
 .mypy_cache/
+
+# Database backups
+*.backup
+db.sqlite3*
+
+# Debug output
+output.json
+
+# Windows artifacts
+NUL

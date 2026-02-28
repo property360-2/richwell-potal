@@ -1,0 +1,78 @@
+new flow suggested by sir gil (feasibility approved by jun) 
+
+enrollment
+
+1: applicant initially enroll on the portal online
+2: fill the form and choose a curriculum
+3: the system generates a new account for the student then he can now login
+4: system tells that he is pending for admission approval and shows the required documents and assigned visit date (date is dynamic and set by admission)
+5: student goes to school on the specified date, documents are checked and encoded in the system
+6: admission approves the student account and generates student ID (auto-generated with school format)
+7: if student is new and regular, the system auto-assigns block subjects (complete curriculum for 1st year 1st sem) and auto-approves it, student only chooses AM or PM session; if AM is full, system blocks AM selection
+8: if student is transferee, he must proceed to registrar (separate flow)
+
+subject enrollment
+
+1: student login
+2: if student is regular, system automatically assigns subjects; student only chooses AM or PM session, system assigns section
+3: if student is irregular, student can choose subjects, section, and schedule, but system validates prerequisites, schedule conflict, and caps units at 30
+4: if irregular student tries to enroll a subject not available for the current term (example: 2nd year 1st sem subject during 2nd semester), system will show:
+"this subject is not available for this term"
+5: when student clicks enroll, system triggers approval chain (head and cashier)
+6: head approval:
+
+regular students can be approved in bulk
+
+irregular students are reviewed manually
+7: cashier approval: student must pay first month before subjects are officially approved
+8: student can see approval status; if both head and cashier approve, enrollment is officially confirmed for the semester
+
+scheduling and sectioning
+
+1: system dynamically creates sections based on number of approved students per year level, divided into AM and PM equally
+2: if AM is full, system blocks further AM enrollment
+3: higher user can assign professor schedules, but it must follow subject schedule and available sections (example: Monday–Wednesday, AM only)
+4: student and professor can view their assigned schedules
+5: system enforces schedule conflict checking and capacity validation during enrollment and scheduling
+st
+
+grade resolution
+1: if (professor is still active/ not resigned) then professor will open a grade resolution request, else if (professor is inactive / resigned) then dean will be the one responsible for grade resolution request[dean can access the inactive professors, specifically for grade resolution only]
+2: when grade resolution request is submitted then registrar needs to login to view it and approves it to trigger an approval chain (grade -> head -> registrar)
+3: when approval chain is triggered then professor/dean can now give grade and an optional comment 
+4: head now login and can approve in approval chain and also comment on it
+5: after head approval is registrar can now see it in their ui to further verify it, and also approve the grade 
+6: student, professor, dean can view the approval chain 
+7: the flow is  (grade resolution request -> registrar approval -> grade input -> head approval -> registrar approval)
+
+grade submission and retake subject
+1: professor submit grade from specific date (example jan 1 to jan 17, which will be specified by the registrar) 
+2: professor can only submit grade from that date range
+2: if professor failed to give grade on a student from that range of time is inc na yung student
+4: if merong inc ang student is magkakaroon na ng trigger countdown for retake yung student, ganito yung logic 
+if major yung subject is after 6 months is retake na yung subject if hindi maayos 
+if minot yung subject is after 1 year is retake na yung subject if hindi maayos  
+
+role based audit logs (create delete, download, print and update)
+1: head admission can see the every actions of admission role
+2: head registrar can see the every actions made by the registrar role
+3: head can see the every actions made by the professors such as grade resolution and grade submission
+4: admin can see the actions of every users (para sa system integrity, NOTE: need to obey data privacy act)
+5: cashier can see every transaction they made 
+
+role based reports
+1: admission can see the number of students who initially enrolled online vs who actually completed the enrollment, admission can also see the number of each student per year level (we can add more based on their needs)
+2: head registrar, i dont know kung ano need nila, maybe performance of students per section
+3: lets add a page, kahit hindi muna role based , kahit link lang since di pa alam kung sino ba dapat yung makakakita nito, in this page makikita na yung dami ng students na nagbayad na, gumawa ng promisory note, saka mga di pa nagbabayad (basta about sa payment)
+4: this part is work in progress (we will collaborate with maam angel for this matter if pumayag sya, even kahit opinion nya lang)
+
+permits and payments
+month 1: subject enrollment
+month 2: chapter test
+month 3: prelims
+month 4: midterms
+month 5: pre finals
+month 6: Finals
+1: student can apply for promisory payment which si cashier mag process
+2: student can see the permits he have, even if it was promisory payment or paid
+3: student cant have a new promisory payment for the current month if hindi pa bayad yung past month nya
