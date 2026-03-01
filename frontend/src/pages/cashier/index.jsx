@@ -47,21 +47,32 @@ const CashierDashboard = () => {
     const debouncedSearch = useDebounce(searchQuery, 500);
     
     // UI State
+    const [activeTab, setActiveTab] = useState('balances'); // 'balances' | 'promissory'
+    const [promissoryNotes, setPromissoryNotes] = useState([]);
     const [selectedStudent, setSelectedStudent] = useState(null);
+    const [selectedNote, setSelectedNote] = useState(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+    const [isCreateNoteModalOpen, setIsCreateNoteModalOpen] = useState(false);
     const [successReceipt, setSuccessReceipt] = useState(null); // holds finalized txn data for the receipt modal
     const [printingTransaction, setPrintingTransaction] = useState(null);
     const [processing, setProcessing] = useState(false);
     
     const [paymentData, setPaymentData] = useState({
         amount: '',
-        receipt: ''
+        receipt: '',
+        isPromissory: false
     });
     const [adjustData, setAdjustData] = useState({
         amount: '',
         reason: '',
         paymentMode: 'CASH'
+    });
+    const [newNoteData, setNewNoteData] = useState({
+        amount: '',
+        dueDate: '',
+        reason: '',
+        coveredMonths: []
     });
 
     useEffect(() => {
@@ -87,13 +98,15 @@ const CashierDashboard = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const [transactionRes, pending] = await Promise.all([
+            const [transactionRes, pending, pnRes] = await Promise.all([
                 CashierService.getTodayTransactions(),
-                CashierService.getPendingPayments()
+                CashierService.getPendingPayments(),
+                CashierService.getPromissoryNotes()
             ]);
             setTodayTransactions(transactionRes.results || []);
             setDashboardStats(transactionRes.stats || {});
             setPendingMonth1(pending);
+            setPromissoryNotes(pnRes);
         } catch (err) {
             error('Financial data sync failed');
         } finally {
@@ -147,6 +160,71 @@ const CashierDashboard = () => {
             }
         } catch (err) {
             error('Transaction rejection by ledger');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleRecordPromissoryPayment = async () => {
+        if (!paymentData.amount) return warning('Please enter a payment amount');
+        
+        try {
+            setProcessing(true);
+            const orNumber = paymentData.receipt || generateOR();
+            const res = await CashierService.recordPromissoryPayment(
+                selectedNote.id,
+                parseFloat(paymentData.amount),
+                orNumber,
+                'Payment towards promissory note'
+            );
+            
+            if (res) {
+                success('Payment recorded successfully');
+                setIsPaymentModalOpen(false);
+                setSuccessReceipt({
+                    receipt_number: orNumber,
+                    student_name: selectedNote.student_name,
+                    student_number: selectedNote.student_number,
+                    amount: parseFloat(paymentData.amount),
+                    payment_mode: 'CASH',
+                    processed_at: new Date().toISOString(),
+                    processed_by: user?.first_name ? `${user.first_name} ${user.last_name}` : user?.username || 'Cashier',
+                });
+                setPaymentData({ amount: '', receipt: '', isPromissory: false });
+                fetchDashboardData();
+                setSelectedNote(null);
+            }
+        } catch (err) {
+            error('Payment rejected');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleCreatePromissoryNote = async () => {
+        if (!newNoteData.amount || !newNoteData.dueDate || !newNoteData.reason || newNoteData.coveredMonths.length === 0) {
+            return warning('Please complete all required fields for the promissory note');
+        }
+
+        try {
+            setProcessing(true);
+            const payload = {
+                enrollment_id: selectedStudent.enrollment_id || selectedStudent.enrollment?.id,
+                total_amount: parseFloat(newNoteData.amount),
+                due_date: newNoteData.dueDate,
+                reason: newNoteData.reason,
+                covered_months: newNoteData.coveredMonths,
+            };
+
+            const res = await CashierService.createPromissoryNote(payload);
+            if (res) {
+                success('Promissory Note created successfully');
+                setIsCreateNoteModalOpen(false);
+                setNewNoteData({ amount: '', dueDate: '', reason: '', coveredMonths: [] });
+                fetchDashboardData();
+            }
+        } catch (err) {
+            error('Failed to create promissory note');
         } finally {
             setProcessing(false);
         }
@@ -279,11 +357,41 @@ const CashierDashboard = () => {
                 )}
             </div>
 
-            {/* Main Content: table + optional detail panel side by side */}
-            <div className={`grid gap-6 ${selectedStudent ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
+            {/* Tabs */}
+            <div className="flex gap-4 mb-6 relative z-10">
+                <button
+                    onClick={() => { setActiveTab('balances'); setSelectedNote(null); }}
+                    className={`px-8 py-3.5 rounded-[20px] text-[11px] font-black uppercase tracking-widest transition-all ${
+                        activeTab === 'balances' 
+                            ? 'bg-gray-900 text-white shadow-xl shadow-gray-900/10' 
+                            : 'bg-white text-gray-400 hover:text-gray-900 border border-gray-100 shadow-sm'
+                    }`}
+                >
+                    Pending Collections
+                </button>
+                <button
+                    onClick={() => { setActiveTab('promissory'); setSelectedStudent(null); }}
+                    className={`px-8 py-3.5 rounded-[20px] text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${
+                        activeTab === 'promissory' 
+                            ? 'bg-gray-900 text-white shadow-xl shadow-gray-900/10' 
+                            : 'bg-white text-gray-400 hover:text-gray-900 border border-gray-100 shadow-sm'
+                    }`}
+                >
+                    Promissory Notes
+                    {promissoryNotes.filter(p => !['FULFILLED', 'CANCELLED'].includes(p.status)).length > 0 && (
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black ${activeTab === 'promissory' ? 'bg-white text-gray-900' : 'bg-green-500 text-white'}`}>
+                            {promissoryNotes.filter(p => !['FULFILLED', 'CANCELLED'].includes(p.status)).length}
+                        </span>
+                    )}
+                </button>
+            </div>
 
-                {/* Unpaid Balances Table — takes full width or 2/3 when detail is open */}
-                <div className={`${selectedStudent ? 'lg:col-span-2' : ''} bg-white rounded-[32px] border border-gray-100 shadow-xl shadow-amber-500/5 overflow-hidden`}>
+            {/* Main Content: table + optional detail panel side by side */}
+            <div className={`grid gap-6 ${(selectedStudent || selectedNote) ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
+
+                {/* Tab: Pending Balances Table */}
+                {activeTab === 'balances' && (
+                <div className={`${selectedStudent ? 'lg:col-span-2' : ''} bg-white rounded-[32px] border border-gray-100 shadow-xl shadow-amber-500/5 overflow-hidden animate-in fade-in slide-in-from-bottom-4`}>
                     <div className="px-8 py-5 border-b border-gray-50 flex items-center justify-between">
                         <h3 className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
                             <AlertCircle className="w-4 h-4" /> Outstanding Balances
@@ -371,9 +479,88 @@ const CashierDashboard = () => {
                         </div>
                     )}
                 </div>
+                )}
 
-                {/* Student Detail Panel — only shown when a student is selected */}
-                {selectedStudent && (
+                {/* Tab: Promissory Notes Table */}
+                {activeTab === 'promissory' && (
+                <div className={`${selectedNote ? 'lg:col-span-2' : ''} bg-white rounded-[32px] border border-gray-100 shadow-xl shadow-green-500/5 overflow-hidden animate-in fade-in slide-in-from-bottom-4`}>
+                    <div className="px-8 py-5 border-b border-gray-50 flex items-center justify-between">
+                        <h3 className="text-[10px] font-black text-green-600 uppercase tracking-widest flex items-center gap-2">
+                            <Clock className="w-4 h-4" /> Promissory Notes
+                        </h3>
+                        <div className="flex gap-3">
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full flex items-center">
+                                {promissoryNotes.length} Note{promissoryNotes.length !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+                    </div>
+
+                    {promissoryNotes.length === 0 ? (
+                        <div className="py-20 text-center">
+                            <CheckCircle2 className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                            <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">No promissory notes found</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-50/80">
+                                        <th className="text-left text-[9px] font-black text-gray-400 uppercase tracking-widest px-6 py-3">Student</th>
+                                        <th className="text-left text-[9px] font-black text-gray-400 uppercase tracking-widest px-4 py-3">Reference</th>
+                                        <th className="text-right text-[9px] font-black text-gray-400 uppercase tracking-widest px-4 py-3">Amount</th>
+                                        <th className="text-right text-[9px] font-black text-gray-400 uppercase tracking-widest px-4 py-3">Balance</th>
+                                        <th className="text-center text-[9px] font-black text-gray-400 uppercase tracking-widest px-4 py-3">Due Date</th>
+                                        <th className="text-center text-[9px] font-black text-gray-400 uppercase tracking-widest px-6 py-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {promissoryNotes.map((pn) => (
+                                        <tr
+                                            key={pn.id}
+                                            className={`transition-colors hover:bg-green-50/30 cursor-pointer ${
+                                                selectedNote?.id === pn.id ? 'bg-green-50/60 border-l-4 border-l-green-500' : ''
+                                            }`}
+                                            onClick={() => setSelectedNote(pn)}
+                                        >
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 bg-green-50 rounded-xl flex items-center justify-center text-green-600 text-xs font-black flex-shrink-0">
+                                                        {(pn.student_name?.[0] || '?')}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-black text-gray-900 leading-tight">{pn.student_name}</p>
+                                                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{pn.student_number}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4 text-[11px] font-black text-gray-600">{pn.reference_code}</td>
+                                            <td className="px-4 py-4 text-right text-[11px] font-black text-gray-500">{formatCurrency(pn.total_amount)}</td>
+                                            <td className="px-4 py-4 text-right text-[13px] font-black text-red-600">{formatCurrency(pn.remaining_balance)}</td>
+                                            <td className="px-4 py-4 text-center">
+                                                <p className={`text-[11px] font-black ${pn.is_overdue ? 'text-red-600' : 'text-gray-600'}`}>
+                                                    {new Date(pn.due_date).toLocaleDateString()}
+                                                </p>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <Badge variant={
+                                                    pn.status === 'FULFILLED' ? 'success' : 
+                                                    pn.status === 'ACTIVE' ? 'primary' : 
+                                                    pn.status === 'DEFAULTED' ? 'danger' : 'warning'
+                                                }>
+                                                    {pn.status_display}
+                                                </Badge>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+                )}
+
+                {/* Student Detail Panel */}
+                {selectedStudent && activeTab === 'balances' && (
                     <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-2xl shadow-green-500/5 animate-in slide-in-from-right-5 h-fit sticky top-24">
                         {/* Close button */}
                         <button
@@ -432,12 +619,92 @@ const CashierDashboard = () => {
                             <Button 
                                 variant="secondary" 
                                 className="py-5" 
-                                icon={ArrowRightLeft}
-                                onClick={() => setIsAdjustModalOpen(true)}
+                                onClick={() => setIsCreateNoteModalOpen(true)}
                             >
-                                ADJUST
+                                CREATE P.N.
                             </Button>
                         </div>
+                    </div>
+                )}
+
+                {/* Promissory Note Detail Panel */}
+                {selectedNote && activeTab === 'promissory' && (
+                    <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-2xl shadow-green-500/5 animate-in slide-in-from-right-5 h-fit sticky top-24">
+                        <button
+                            className="absolute top-4 right-4 p-2 text-gray-300 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-all"
+                            onClick={() => setSelectedNote(null)}
+                        >
+                            ✕
+                        </button>
+
+                        <div className="flex items-center gap-5 mb-8">
+                            <div className="w-14 h-14 bg-green-600 rounded-[20px] shadow-lg shadow-green-200 flex items-center justify-center text-white text-xl font-black">
+                                {(selectedNote.student_name?.[0] || 'U').toUpperCase()}
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-black text-gray-900 tracking-tight leading-none mb-1">
+                                    {selectedNote.student_name}
+                                </h2>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{selectedNote.student_number || 'NO-ID'}</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 mb-8">
+                            <BalanceItem label="Reference Code" value={selectedNote.reference_code} />
+                            <BalanceItem label="Status" value={selectedNote.status_display} />
+                            <BalanceItem label="Amount Due" value={formatCurrency(selectedNote.total_amount)} />
+                            <BalanceItem label="Balance" value={formatCurrency(selectedNote.remaining_balance)} />
+                            <BalanceItem label="Due Date" value={new Date(selectedNote.due_date).toLocaleDateString()} />
+                            
+                            {selectedNote.reason && (
+                                <div className="mt-4 pt-4 border-t border-gray-50">
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Student's Reason</p>
+                                    <p className="text-sm font-medium text-gray-600 italic bg-gray-50 p-4 rounded-2xl">
+                                        "{selectedNote.reason}"
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {['ACTIVE', 'PARTIALLY_PAID', 'DEFAULTED'].includes(selectedNote.status) && (
+                            <div className="flex gap-3">
+                                <Button 
+                                    variant="primary" 
+                                    className="flex-1 py-5" 
+                                    icon={Banknote}
+                                    onClick={() => {
+                                        setSelectedStudent({ 
+                                            enrollment_id: selectedNote.enrollment, 
+                                            student_name: selectedNote.student_name,
+                                            student_number: selectedNote.student_number
+                                        });
+                                        setPaymentData({ 
+                                            amount: selectedNote.remaining_balance, 
+                                            receipt: generateOR(),
+                                            isPromissory: true
+                                        });
+                                        setIsPaymentModalOpen(true);
+                                    }}
+                                >
+                                    PAY P.N.
+                                </Button>
+                                {selectedNote.amount_paid === '0.00' && (
+                                    <Button 
+                                        variant="danger" 
+                                        className="py-5" 
+                                        onClick={async () => {
+                                            if (window.confirm('Are you sure you want to cancel this promissory note?')) {
+                                                await CashierService.cancelPromissoryNote(selectedNote.id);
+                                                setSelectedNote(null);
+                                                fetchDashboardData();
+                                            }
+                                        }}
+                                    >
+                                        CANCEL
+                                    </Button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -480,7 +747,7 @@ const CashierDashboard = () => {
                                     variant="primary" 
                                     className="flex-1" 
                                     icon={CheckCircle2} 
-                                    onClick={handleRecordPayment}
+                                    onClick={paymentData.isPromissory ? handleRecordPromissoryPayment : handleRecordPayment}
                                     disabled={processing}
                                 >
                                     {processing ? 'POSTING...' : 'FINALIZE'}
@@ -554,6 +821,92 @@ const CashierDashboard = () => {
                             >
                                 Close
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Promissory Note Modal */}
+            {isCreateNoteModalOpen && selectedStudent && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setIsCreateNoteModalOpen(false)} />
+                    <div className="relative w-full max-w-md bg-white rounded-[50px] shadow-2xl p-10 animate-in zoom-in duration-300">
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-4">
+                                <Clock className="w-8 h-8" />
+                            </div>
+                            <h3 className="text-2xl font-black text-gray-900 tracking-tighter">New Promissory</h3>
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
+                                {selectedStudent.student_name || `${selectedStudent.first_name} ${selectedStudent.last_name}`}
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <FormField label="Total Amount (PHP)">
+                                <Input 
+                                    type="number" 
+                                    value={newNoteData.amount}
+                                    onChange={(e) => setNewNoteData(d => ({ ...d, amount: e.target.value }))}
+                                    placeholder="Enter amount..."
+                                />
+                            </FormField>
+                            
+                            <FormField label="Due Date">
+                                <Input 
+                                    type="date" 
+                                    value={newNoteData.dueDate}
+                                    onChange={(e) => setNewNoteData(d => ({ ...d, dueDate: e.target.value }))}
+                                    min={new Date().toISOString().split('T')[0]}
+                                />
+                            </FormField>
+
+                            <FormField label="Covered Months">
+                                <div className="flex flex-wrap gap-2">
+                                    {[1,2,3,4,5,6].map(m => {
+                                        const isSelected = newNoteData.coveredMonths.includes(m);
+                                        return (
+                                            <button
+                                                key={m}
+                                                onClick={() => {
+                                                    setNewNoteData(prev => ({
+                                                        ...prev,
+                                                        coveredMonths: isSelected 
+                                                            ? prev.coveredMonths.filter(x => x !== m)
+                                                            : [...prev.coveredMonths, m]
+                                                    }));
+                                                }}
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-colors ${
+                                                    isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                M{m}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </FormField>
+
+                            <FormField label="Reason">
+                                <textarea 
+                                    value={newNoteData.reason}
+                                    onChange={(e) => setNewNoteData(d => ({ ...d, reason: e.target.value }))}
+                                    placeholder="Enter reason for note..."
+                                    className="w-full px-4 py-3 bg-gray-50 border-0 rounded-2xl text-[13px] font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 transition-all min-h-[80px]"
+                                />
+                            </FormField>
+
+                            <div className="flex gap-4 mt-8">
+                                <Button variant="secondary" className="flex-1" onClick={() => setIsCreateNoteModalOpen(false)}>CANCEL</Button>
+                                <Button 
+                                    variant="primary" 
+                                    className="flex-1" 
+                                    icon={CheckCircle2} 
+                                    onClick={handleCreatePromissoryNote}
+                                    disabled={processing}
+                                >
+                                    {processing ? 'CREATING...' : 'CREATE NOTE'}
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>

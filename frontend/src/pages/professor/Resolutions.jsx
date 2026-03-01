@@ -31,6 +31,7 @@ const ProfessorResolutions = () => {
     const [incStudents, setIncStudents] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStudentForResolution, setSelectedStudentForResolution] = useState(null);
+    const [selectedStudentForInput, setSelectedStudentForInput] = useState(null);
 
     useEffect(() => {
         fetchInitialData();
@@ -161,18 +162,31 @@ const ProfessorResolutions = () => {
                                 key={student.subject_enrollment_id} 
                                 student={student} 
                                 onResolve={() => setSelectedStudentForResolution(student)}
+                                onInputGrade={() => setSelectedStudentForInput(student)}
                             />
                         ))}
                     </div>
                 )}
 
-                {/* Resolution Modal */}
+                {/* Resolution Request Modal */}
                 {selectedStudentForResolution && (
-                    <ResolveGradeModal 
+                    <RequestResolutionModal 
                         student={selectedStudentForResolution}
                         onClose={() => setSelectedStudentForResolution(null)}
                         onSuccess={() => {
                             setSelectedStudentForResolution(null);
+                            fetchIncStudents(selectedSemesterId);
+                        }}
+                    />
+                )}
+
+                {/* Input Grade Modal */}
+                {selectedStudentForInput && (
+                    <InputGradeModal 
+                        student={selectedStudentForInput}
+                        onClose={() => setSelectedStudentForInput(null)}
+                        onSuccess={() => {
+                            setSelectedStudentForInput(null);
                             fetchIncStudents(selectedSemesterId);
                         }}
                     />
@@ -266,7 +280,7 @@ const IncStudentCard = ({ student, onResolve }) => {
                     </div>
                 </div>
 
-                {/* Resolve Action */}
+                {/* Resolve / Input Grade Actions */}
                 {!resolution && !isExpired && (
                     <div className="mt-4 lg:mt-0 flex-shrink-0 flex items-center justify-end">
                         <button 
@@ -274,7 +288,18 @@ const IncStudentCard = ({ student, onResolve }) => {
                             className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
                         >
                             <FileCheck2 className="w-4 h-4" />
-                            Resolve
+                            Request Resolution
+                        </button>
+                    </div>
+                )}
+                {resolution && resolution.status === 'GRADE_INPUT_PENDING' && (
+                    <div className="mt-4 lg:mt-0 flex-shrink-0 flex items-center justify-end">
+                        <button 
+                            onClick={onInputGrade}
+                            className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-green-500/20 transition-all flex items-center gap-2"
+                        >
+                            <BookOpen className="w-4 h-4" />
+                            Input Grade
                         </button>
                     </div>
                 )}
@@ -291,9 +316,11 @@ const IncStudentCard = ({ student, onResolve }) => {
                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Active Resolution</p>
                             <div className="flex flex-wrap items-center gap-3">
                                 <ResolutionStatus status={resolution.status} resolution={resolution} />
-                                <span className="text-[10px] text-gray-500 font-bold">
-                                    Proposed: <span className="text-blue-600 font-black">{resolution.proposed_grade}</span>
-                                </span>
+                                {resolution.proposed_grade && (
+                                    <span className="text-[10px] text-gray-500 font-bold">
+                                        Proposed: <span className="text-blue-600 font-black">{resolution.proposed_grade}</span>
+                                    </span>
+                                )}
                                 {resolution.remarks && (
                                     <span className="text-[10px] text-gray-400 italic">"{resolution.remarks}"</span>
                                 )}
@@ -318,10 +345,9 @@ const StatCard = ({ label, value, icon: Icon, color = 'blue' }) => (
     </div>
 );
 
-const ResolveGradeModal = ({ student, onClose, onSuccess }) => {
+const RequestResolutionModal = ({ student, onClose, onSuccess }) => {
     const { error, success } = useToast();
     const [loading, setLoading] = useState(false);
-    const [newGrade, setNewGrade] = useState('');
     const [reason, setReason] = useState('');
 
     const handleSubmit = async (e) => {
@@ -330,14 +356,12 @@ const ResolveGradeModal = ({ student, onClose, onSuccess }) => {
             setLoading(true);
             await ProfessorService.createResolution({
                 subject_enrollment: student.subject_enrollment_id,
-                proposed_grade: newGrade,
-                proposed_status: 'PASSED', // Standardizing as passed once a numeric grade > 3.0 is given
                 reason: reason
             });
-            success('Grade resolution submitted successfully!');
+            success('Resolution request submitted successfully!');
             onSuccess();
         } catch (err) {
-            error(err.response?.data?.detail || 'Failed to submit resolution');
+            error(err.response?.data?.detail || 'Failed to submit request');
         } finally {
             setLoading(false);
         }
@@ -348,7 +372,83 @@ const ResolveGradeModal = ({ student, onClose, onSuccess }) => {
             <div className="bg-white rounded-[32px] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4">
                 <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <div>
-                        <h3 className="text-xl font-black text-gray-900 tracking-tight">Resolve Grade</h3>
+                        <h3 className="text-xl font-black text-gray-900 tracking-tight">Request Resolution</h3>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">
+                            {student.full_name} • {student.subject_code}
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-gray-900 shadow-sm border border-gray-100 transition-colors">
+                        <XCircle className="w-5 h-5" />
+                    </button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                    <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Reason for Resolution Request</label>
+                        <textarea
+                            required
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="Explain why this INC grade should be resolved (e.g., 'Student completed the missing final project within the allowed timeframe.')"
+                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm h-32 resize-none"
+                        />
+                    </div>
+
+                    <div className="flex gap-3 pt-4 border-t border-gray-50">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 px-4 py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading || !reason}
+                            className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50"
+                        >
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                            Submit Request
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const InputGradeModal = ({ student, onClose, onSuccess }) => {
+    const { error, success } = useToast();
+    const resolutionId = student.pending_resolution?.id;
+    const [loading, setLoading] = useState(false);
+    const [newGrade, setNewGrade] = useState('');
+    const [comment, setComment] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!resolutionId) return;
+        try {
+            setLoading(true);
+            await ProfessorService.inputGrade(resolutionId, {
+                proposed_grade: newGrade,
+                proposed_status: 'PASSED', // Because any valid grade <= 3.0 is a pass 
+                comment: comment
+            });
+            success('Grade inputted successfully!');
+            onSuccess();
+        } catch (err) {
+            error(err.response?.data?.detail || 'Failed to input grade');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="bg-white rounded-[32px] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4">
+                <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-green-50/50">
+                    <div>
+                        <h3 className="text-xl font-black text-gray-900 tracking-tight">Input Final Grade</h3>
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">
                             {student.full_name} • {student.subject_code}
                         </p>
@@ -365,7 +465,7 @@ const ResolveGradeModal = ({ student, onClose, onSuccess }) => {
                             required
                             value={newGrade}
                             onChange={(e) => setNewGrade(e.target.value)}
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-sm"
                         >
                             <option value="">Select passing grade...</option>
                             {['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00'].map(g => (
@@ -375,13 +475,12 @@ const ResolveGradeModal = ({ student, onClose, onSuccess }) => {
                     </div>
 
                     <div>
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Reason for Change</label>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Comment (Optional)</label>
                         <textarea
-                            required
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            placeholder="Explain why the grade is being changed (e.g., 'Completed missing project within deadline')"
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm h-32 resize-none"
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                            placeholder="Add a remark about this grade (e.g., 'Final project score: 92%')"
+                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-sm h-24 resize-none"
                         />
                     </div>
 
@@ -395,11 +494,11 @@ const ResolveGradeModal = ({ student, onClose, onSuccess }) => {
                         </button>
                         <button
                             type="submit"
-                            disabled={loading || !newGrade || !reason}
-                            className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50"
+                            disabled={loading || !newGrade}
+                            className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all disabled:opacity-50"
                         >
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                            Submit Resolution
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
+                            Submit Grade
                         </button>
                     </div>
                 </form>

@@ -24,7 +24,7 @@ import html2pdf from 'html2pdf.js';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import SEO from '../../components/shared/SEO';
-import { useEnrollmentData, useEnrollSubjects } from '../../hooks/useEnrollment';
+import { useEnrollmentData, useEnrollSubjects, useAutoAssignEnrollment } from '../../hooks/useEnrollment';
 
 const SubjectEnrollmentPage = () => {
     const { user } = useAuth();
@@ -37,9 +37,11 @@ const SubjectEnrollmentPage = () => {
     const [filters, setFilters] = useState({ yearLevel: '', semester: '', search: '' });
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [summaryTab, setSummaryTab] = useState('list'); // 'list' or 'schedule'
+    const [selectedShift, setSelectedShift] = useState('AM');
 
     const { data: enrollmentData, isLoading: loading, error: queryError } = useEnrollmentData();
     const { mutate: enroll, isPending: submitting } = useEnrollSubjects();
+    const { mutate: autoAssign, isPending: assigning } = useAutoAssignEnrollment();
 
     const data = enrollmentData || {
         recommendedSubjects: [],
@@ -164,6 +166,18 @@ const SubjectEnrollmentPage = () => {
         });
     };
 
+    const handleAutoAssign = () => {
+        autoAssign(selectedShift, {
+            onSuccess: (res) => {
+                success(`🎉 OFFICIALLY ENROLLED! You are assigned to section ${res.data?.section || selectedShift}.`);
+                setTimeout(() => navigate('/student/dashboard'), 2000);
+            },
+            onError: (err) => {
+                error(err.response?.data?.error || err.message || 'Auto-assignment failed');
+            }
+        });
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -187,6 +201,10 @@ const SubjectEnrollmentPage = () => {
     if (!isApproved) return <AdmissionPendingView />;
     if (hasEnrolled) return <EnrolledSubjectsView subjects={data.enrolledSubjects} />;
     if (enrollmentExpired) return <EnrollmentEndedView semester={data.activeSemester?.name} />;
+
+    const isRegular = data.studentProfile && data.studentProfile.is_irregular === False;
+    // Wait, is_irregular in python bool translates to true/false in JS. Let's use strict boolean check.
+    const isRegularStudent = data.studentProfile && data.studentProfile.is_irregular === false;
 
     return (
         <div className="max-w-[1600px] mx-auto px-4 py-8 lg:py-12 animate-in fade-in duration-700">
@@ -212,62 +230,116 @@ const SubjectEnrollmentPage = () => {
                         <p className="text-gray-500 font-medium mt-2">Personalize your academic load for the upcoming term.</p>
                     </header>
 
-                    {/* Compact Filters Toolbar */}
-                    <div className="bg-white p-4 rounded-[32px] border border-gray-100 shadow-2xl shadow-blue-100/20 flex flex-wrap lg:flex-nowrap gap-4 mb-12 items-center">
-                        <div className="flex-grow min-w-[200px] relative group">
-                            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
-                            <input 
-                                type="text"
-                                placeholder="Search by Code or Title..."
-                                value={filters.search}
-                                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                                className="w-full pl-12 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-sm font-bold text-gray-600 focus:bg-white focus:border-blue-100 transition-all"
-                            />
-                        </div>
-                        <div className="flex gap-4 w-full lg:w-auto">
-                            <select 
-                                value={filters.yearLevel}
-                                onChange={(e) => setFilters(prev => ({ ...prev, yearLevel: e.target.value }))}
-                                className="flex-1 lg:w-40 px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-xs font-black uppercase tracking-widest text-gray-500 focus:bg-white focus:border-blue-100 transition-all appearance-none cursor-pointer"
-                            >
-                                <option value="">Mixed Levels</option>
-                                {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year {y}</option>)}
-                            </select>
-                            <select 
-                                value={filters.semester}
-                                onChange={(e) => setFilters(prev => ({ ...prev, semester: e.target.value }))}
-                                className="flex-1 lg:w-40 px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-xs font-black uppercase tracking-widest text-gray-500 focus:bg-white focus:border-blue-100 transition-all appearance-none cursor-pointer"
-                            >
-                                <option value="">Semesters</option>
-                                <option value="1">1st Sem</option>
-                                <option value="2">2nd Sem</option>
-                                <option value="3">Summer</option>
-                            </select>
-                            <button 
-                                onClick={() => setFilters({ yearLevel: '', semester: '', search: '' })}
-                                className="p-4 bg-gray-50 hover:bg-gray-100 text-gray-400 rounded-2xl transition-colors"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                    </div>
+                    {isRegularStudent ? (
+                        <div className="bg-white p-12 rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 max-w-3xl mx-auto text-center mt-12 mb-20">
+                            <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-100">
+                                <Clock className="h-10 w-10 text-blue-500" />
+                            </div>
+                            <h2 className="text-3xl font-black text-gray-900 tracking-tight mb-4">Select Session Preference</h2>
+                            <p className="text-gray-500 font-medium mb-10 leading-relaxed max-w-lg mx-auto">
+                                As a regular student, your block subjects are automatically assigned based on your curriculum. Choose your preferred session schedule below.
+                            </p>
+                            
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+                                <button 
+                                    onClick={() => setSelectedShift('AM')}
+                                    className={`relative flex-1 p-8 rounded-[32px] border-2 transition-all duration-300 ${selectedShift === 'AM' ? 'border-blue-500 bg-blue-50 shadow-xl shadow-blue-500/20 scale-105 z-10' : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-gray-50'}`}
+                                >
+                                    {selectedShift === 'AM' && (
+                                        <div className="absolute top-4 right-4 text-blue-500">
+                                            <CheckCircle2 className="w-6 h-6" />
+                                        </div>
+                                    )}
+                                    <div className={`text-4xl mb-4 ${selectedShift === 'AM' ? 'opacity-100' : 'opacity-50 grayscale'}`}>🌅</div>
+                                    <h3 className={`text-xl font-black mb-2 uppercase tracking-wide ${selectedShift === 'AM' ? 'text-blue-900' : 'text-gray-900'}`}>Morning Session</h3>
+                                    <p className={`text-xs font-bold uppercase tracking-widest ${selectedShift === 'AM' ? 'text-blue-600' : 'text-gray-400'}`}>7:00 AM - 1:00 PM</p>
+                                </button>
 
-                    {/* Subjects Grid */}
-                    <div className="space-y-16">
+                                <button 
+                                    onClick={() => setSelectedShift('PM')}
+                                    className={`relative flex-1 p-8 rounded-[32px] border-2 transition-all duration-300 ${selectedShift === 'PM' ? 'border-blue-500 bg-blue-50 shadow-xl shadow-blue-500/20 scale-105 z-10' : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-gray-50'}`}
+                                >
+                                    {selectedShift === 'PM' && (
+                                        <div className="absolute top-4 right-4 text-blue-500">
+                                            <CheckCircle2 className="w-6 h-6" />
+                                        </div>
+                                    )}
+                                    <div className={`text-4xl mb-4 ${selectedShift === 'PM' ? 'opacity-100' : 'opacity-50 grayscale'}`}>🌇</div>
+                                    <h3 className={`text-xl font-black mb-2 uppercase tracking-wide ${selectedShift === 'PM' ? 'text-blue-900' : 'text-gray-900'}`}>Afternoon Session</h3>
+                                    <p className={`text-xs font-bold uppercase tracking-widest ${selectedShift === 'PM' ? 'text-blue-600' : 'text-gray-400'}`}>1:00 PM - 7:00 PM</p>
+                                </button>
+                            </div>
 
-                        <SubjectSection 
-                            key="curriculum-picks"
-                            title="Curriculum Picks" 
-                            subtitle="Standard subjects based on your year level"
-                            subjects={data.recommendedSubjects.filter(s => 
-                                (!filters.yearLevel || s.year_level == filters.yearLevel) &&
-                                (!filters.semester || s.semester_number == filters.semester) &&
-                                (!filters.search || s.code.toLowerCase().includes(filters.search.toLowerCase()) || s.title.toLowerCase().includes(filters.search.toLowerCase()))
-                            )} 
-                            onAdd={addToList}
-                            selectionList={selectionList}
-                        />
-                    </div>
+                            <Button 
+                                variant="primary" 
+                                className="w-full sm:w-auto h-16 px-12 text-sm uppercase tracking-widest font-black rounded-2xl shadow-xl shadow-blue-500/20 hover:scale-105 transition-transform"
+                                onClick={handleAutoAssign}
+                                disabled={assigning}
+                                loading={assigning}
+                            >
+                                Enlist Regular Block ({selectedShift})
+                            </Button>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Compact Filters Toolbar */}
+                            <div className="bg-white p-4 rounded-[32px] border border-gray-100 shadow-2xl shadow-blue-100/20 flex flex-wrap lg:flex-nowrap gap-4 mb-12 items-center">
+                                <div className="flex-grow min-w-[200px] relative group">
+                                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                                    <input 
+                                        type="text"
+                                        placeholder="Search by Code or Title..."
+                                        value={filters.search}
+                                        onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                                        className="w-full pl-12 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-sm font-bold text-gray-600 focus:bg-white focus:border-blue-100 transition-all"
+                                    />
+                                </div>
+                                <div className="flex gap-4 w-full lg:w-auto">
+                                    <select 
+                                        value={filters.yearLevel}
+                                        onChange={(e) => setFilters(prev => ({ ...prev, yearLevel: e.target.value }))}
+                                        className="flex-1 lg:w-40 px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-xs font-black uppercase tracking-widest text-gray-500 focus:bg-white focus:border-blue-100 transition-all appearance-none cursor-pointer"
+                                    >
+                                        <option value="">Mixed Levels</option>
+                                        {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year {y}</option>)}
+                                    </select>
+                                    <select 
+                                        value={filters.semester}
+                                        onChange={(e) => setFilters(prev => ({ ...prev, semester: e.target.value }))}
+                                        className="flex-1 lg:w-40 px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-xs font-black uppercase tracking-widest text-gray-500 focus:bg-white focus:border-blue-100 transition-all appearance-none cursor-pointer"
+                                    >
+                                        <option value="">Semesters</option>
+                                        <option value="1">1st Sem</option>
+                                        <option value="2">2nd Sem</option>
+                                        <option value="3">Summer</option>
+                                    </select>
+                                    <button 
+                                        onClick={() => setFilters({ yearLevel: '', semester: '', search: '' })}
+                                        className="p-4 bg-gray-50 hover:bg-gray-100 text-gray-400 rounded-2xl transition-colors"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Subjects Grid */}
+                            <div className="space-y-16">
+
+                                <SubjectSection 
+                                    key="curriculum-picks"
+                                    title="Curriculum Picks" 
+                                    subtitle="Standard subjects based on your year level"
+                                    subjects={data.recommendedSubjects.filter(s => 
+                                        (!filters.yearLevel || s.year_level == filters.yearLevel) &&
+                                        (!filters.semester || s.semester_number == filters.semester) &&
+                                        (!filters.search || s.code.toLowerCase().includes(filters.search.toLowerCase()) || s.title.toLowerCase().includes(filters.search.toLowerCase()))
+                                    )} 
+                                    onAdd={addToList}
+                                    selectionList={selectionList}
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 

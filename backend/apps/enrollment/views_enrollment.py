@@ -274,6 +274,7 @@ class RecommendedSubjectsView(APIView):
                     "section_name": profile.home_section.name if profile.home_section else "N/A",
                     "program_code": profile.program.code if profile.program else "N/A",
                     "program_name": profile.program.name if profile.program else "N/A",
+                    "is_irregular": profile.is_irregular
                 }
             }
         })
@@ -889,6 +890,76 @@ class BulkEnrollSubjectView(APIView):
             "message": f"Successfully enrolled in {len(results)} subjects",
             "results": results
         }, status=200)
+
+
+class AutoAssignEnrollmentView(APIView):
+    """
+    Auto-enroll a regular student in a block section based on AM/PM session preference.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        from apps.academics.models import Section
+        from apps.enrollment.services import SubjectEnrollmentService
+        from django.db.models import F
+
+        user = request.user
+        shift = request.data.get('shift', 'AM')
+        
+        if not hasattr(user, 'student_profile'):
+            return Response({"error": "Student profile not found"}, status=400)
+            
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            return Response({"error": "No active semester"}, status=400)
+            
+        if not semester.is_enrollment_open:
+            return Response({"error": "Enrollment is currently closed"}, status=400)
+            
+        profile = user.student_profile
+        
+        # If student is irregular, this point shouldn't be reached ideally (handled on frontend)
+        # But we don't strictly block it, we just try to find a section.
+        
+        # Find matching section with capacity
+        # A section has capacity if enrolled_count < available_slots
+        section = Section.objects.filter(
+            program=profile.program,
+            year_level=profile.year_level,
+            semester=semester,
+            shift=shift,
+            is_dissolved=False,
+        ).filter(enrolled_count__lt=F('available_slots')).order_by('name').first()
+        
+        if not section:
+            return Response({
+                "error": f"No {shift} schedule available. All {shift} sections for your program and year level are currently full or unavailable. Please try another shift.",
+                "shift": shift
+            }, status=400)
+            
+        # Optional: Save shift preference
+        if shift in ['AM', 'PM', 'FULL_DAY']:
+            profile.preferred_shift = shift
+        profile.home_section = section
+        profile.save()
+        
+        service = SubjectEnrollmentService()
+        try:
+            results = service.enroll_student_in_section_subjects(user, section)
+            
+            error_msgs = [res for res in results if res.startswith("Failed") or res.startswith("Error")]
+            if len(error_msgs) == len(results) and len(results) > 0:
+                 return Response({"error": "Failed to enroll in any subjects. " + ", ".join(error_msgs)}, status=400)
+                 
+            return Response({
+                "success": True,
+                "message": f"Successfully enlisted in section {section.name} ({shift})",
+                "results": results,
+                "section": section.name
+            }, status=200)
+            
+        except Exception as e:
+            return Response({"error": f"Internal server error: {str(e)}"}, status=500)
 
 
 class RegistrarOverrideEnrollmentView(APIView):

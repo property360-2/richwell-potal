@@ -126,6 +126,29 @@ const ProfessorGrades = () => {
         { v: 'DROPPED', l: 'DROPPED' }
     ];
 
+    const activeSemester = semesters.find(s => s.id === selectedSemesterId);
+    let isGradingOpen = true;
+    let gradingMessage = "Dates not configured. Grading is Open.";
+    
+    if (activeSemester && activeSemester.grading_start_date && activeSemester.grading_end_date) {
+        const now = new Date();
+        const start = new Date(activeSemester.grading_start_date);
+        const end = new Date(activeSemester.grading_end_date);
+        end.setHours(23, 59, 59, 999);
+        
+        isGradingOpen = now >= start && now <= end;
+        
+        const formatStr = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        
+        if (isGradingOpen) {
+            gradingMessage = `Grading is openly available until ${formatStr(activeSemester.grading_end_date)}.`;
+        } else if (now < start) {
+            gradingMessage = `Grading periods opens on ${formatStr(activeSemester.grading_start_date)}.`;
+        } else {
+            gradingMessage = `Grading period closed on ${formatStr(activeSemester.grading_end_date)}.`;
+        }
+    }
+
     if (loading) return (
         <ProfessorLayout>
             <div className="h-screen flex items-center justify-center">
@@ -227,10 +250,11 @@ const ProfessorGrades = () => {
                                     className="w-full pl-16 pr-8 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[11px] font-bold focus:outline-none focus:bg-white focus:border-blue-100 transition-all shadow-inner"
                                 />
                             </div>
-                            <div className="flex items-center gap-4 px-6 bg-blue-50/50 rounded-2xl border border-blue-100">
-                                 <Info className="w-4 h-4 text-blue-600" />
-                                 <p className="text-[10px] font-bold text-blue-900/60 leading-none uppercase tracking-tighter">
-                                    Grading is currently <span className="text-blue-600 font-black">Open</span> for this term.
+                            <div className={`flex items-center gap-4 px-6 rounded-2xl border ${isGradingOpen ? 'bg-blue-50/50 border-blue-100' : 'bg-red-50/50 border-red-100'}`}>
+                                 <Info className={`w-4 h-4 ${isGradingOpen ? 'text-blue-600' : 'text-red-600'}`} />
+                                 <p className={`text-[10px] font-bold leading-none uppercase tracking-tighter ${isGradingOpen ? 'text-blue-900/60' : 'text-red-900/60'}`}>
+                                    Grading is currently <span className={`font-black ${isGradingOpen ? 'text-blue-600' : 'text-red-600'}`}>{isGradingOpen ? 'Open' : 'Closed'}</span> for this term.
+                                    <span className="block mt-1 normal-case tracking-normal">{gradingMessage}</span>
                                  </p>
                             </div>
                         </div>
@@ -277,10 +301,11 @@ const ProfessorGrades = () => {
                                                 <div className="w-48 mx-auto relative">
                                                     <select 
                                                         value={student.current_grade || student.proposed_grade || ''}
-                                                        disabled={processingId === student.subject_enrollment_id}
+                                                        disabled={processingId === student.subject_enrollment_id || !isGradingOpen}
                                                         onChange={(e) => handleGradeSubmit(student.subject_enrollment_id, e.target.value)}
                                                         className={`w-full px-5 py-3 rounded-xl border-2 text-[11px] font-black uppercase tracking-widest appearance-none focus:outline-none transition-all
-                                                            ${student.current_grade ? 'bg-green-50 border-green-100 text-green-700' : 'bg-white border-gray-100 text-gray-900 focus:border-blue-100 shadow-sm'}`}
+                                                            ${student.current_grade ? 'bg-green-50 border-green-100 text-green-700' : 'bg-white border-gray-100 text-gray-900 focus:border-blue-100 shadow-sm'}
+                                                            ${!isGradingOpen ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                     >
                                                         <option value="">Ungraded</option>
                                                         {gradeOptions.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}

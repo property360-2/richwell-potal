@@ -44,6 +44,12 @@ const AdmissionDashboard = () => {
     const [idStatus, setIdStatus] = useState({ loading: false, available: null });
     const [rejectReason, setRejectReason] = useState('');
     const [isRejecting, setIsRejecting] = useState(false);
+    
+    // Visit Schedule State
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+    const [visitDate, setVisitDate] = useState('');
+    const [visitNotes, setVisitNotes] = useState('');
+    const [isScheduling, setIsScheduling] = useState(false);
 
     useEffect(() => {
         fetchApplicants();
@@ -78,15 +84,34 @@ const AdmissionDashboard = () => {
         if (idStatus.available === false) return error('ID is already taken');
 
         try {
-            const res = await AdmissionService.approveApplicant(selectedApplicant.id, proposedId);
+            const res = await AdmissionService.admitApplicant(selectedApplicant.id, proposedId);
             if (res) {
-                success(res.message || 'Applicant approved and ID assigned');
+                success(res.message || 'Applicant admitted and ID assigned');
                 setIsIdModalOpen(false);
                 setSelectedApplicant(null);
                 fetchApplicants();
             }
         } catch (err) {
-            error('Approval projection failed');
+            error('Admission process failed');
+        }
+    };
+
+    const handleScheduleVisit = async () => {
+        if (!visitDate) return error('Please select a visit date');
+        
+        try {
+            setIsScheduling(true);
+            const res = await AdmissionService.assignVisitDate(selectedApplicant.id, visitDate, visitNotes);
+            if (res) {
+                success('Visit scheduled successfully');
+                setIsScheduleModalOpen(false);
+                setSelectedApplicant(null);
+                fetchApplicants();
+            }
+        } catch (err) {
+            error('Failed to schedule visit');
+        } finally {
+            setIsScheduling(false);
         }
     };
 
@@ -165,8 +190,10 @@ const AdmissionDashboard = () => {
                         className="w-full pl-6 pr-10 py-3.5 bg-white border border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest appearance-none focus:outline-none focus:border-blue-200 shadow-xl shadow-blue-500/5 transition-all cursor-pointer"
                     >
                         <option value="all">All Status</option>
-                        <option value="PENDING">Pending Review</option>
-                        <option value="APPROVED">Enrolled Students</option>
+                        <option value="PENDING_ADMISSION">Awaiting Campus Visit</option>
+                        <option value="PENDING">Pending Review (Visited)</option>
+                        <option value="ADMITTED">Admitted (Pre-Enrollment)</option>
+                        <option value="ACTIVE">Enrolled Students</option>
                         <option value="REJECTED">Declined Applications</option>
                     </select>
                 </div>
@@ -358,18 +385,34 @@ const AdmissionDashboard = () => {
                             </section>
                         </div>
 
-                        {selectedApplicant.status === 'PENDING' && (
-                            <div className="p-10 border-t border-gray-50 flex gap-4 shrink-0">
+                        {(selectedApplicant.status === 'PENDING' || selectedApplicant.status === 'PENDING_ADMISSION') && (
+                            <div className="p-10 border-t border-gray-50 flex gap-4 shrink-0 bg-gray-50/50">
                                 <Button 
-                                    className="flex-1 py-5" 
+                                    className="flex-1 py-5 shadow-sm" 
                                     variant="danger" 
                                     icon={XCircle}
                                     onClick={() => setIsRejecting(true)}
                                 >
                                     REJECT APPLICANT
                                 </Button>
+
+                                {selectedApplicant.status === 'PENDING_ADMISSION' && (
+                                    <Button 
+                                        className="flex-1 py-5 shadow-md shadow-blue-500/20" 
+                                        variant="secondary" 
+                                        icon={Clock}
+                                        onClick={() => {
+                                            setVisitDate('');
+                                            setVisitNotes('');
+                                            setIsScheduleModalOpen(true);
+                                        }}
+                                    >
+                                        SCHEDULE VISIT
+                                    </Button>
+                                )}
+                                
                                 <Button 
-                                    className="flex-1 py-5" 
+                                    className="flex-1 py-5 shadow-md shadow-blue-500/20" 
                                     variant="primary" 
                                     icon={CheckCircle2}
                                     onClick={async () => {
@@ -390,7 +433,7 @@ const AdmissionDashboard = () => {
                                         setIdStatus({ loading: false, available: checkRes?.available === true });
                                     }}
                                 >
-                                    ACCEPT & ASSIGN ID
+                                    ADMIT & ASSIGN ID
                                 </Button>
                             </div>
                         )}
@@ -476,19 +519,71 @@ const AdmissionDashboard = () => {
                     </div>
                 </div>
             )}
+
+            {/* Schedule Visit Modal */}
+            {isScheduleModalOpen && (
+                <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setIsScheduleModalOpen(false)} />
+                    <div className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-4">
+                                <Clock className="w-8 h-8" />
+                            </div>
+                            <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Schedule Campus Visit</h3>
+                            <p className="text-gray-500 font-bold text-xs mt-1">Assign a date for document submission</p>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Visit Date</label>
+                                <input 
+                                    type="date" 
+                                    value={visitDate}
+                                    min={new Date().toISOString().split('T')[0]}
+                                    onChange={(e) => setVisitDate(e.target.value)}
+                                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 focus:outline-none focus:border-blue-400 focus:bg-white transition-all custom-calendar-icon"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Notes / Instructions (Optional)</label>
+                                <textarea 
+                                    value={visitNotes}
+                                    onChange={(e) => setVisitNotes(e.target.value)}
+                                    placeholder="Any specific documents they must bring..."
+                                    className="w-full bg-gray-50 border border-gray-100 rounded-[28px] p-6 text-sm font-bold min-h-[100px] focus:outline-none focus:bg-white focus:border-blue-400 transition-all"
+                                />
+                            </div>
+
+                            <div className="flex gap-4 pt-4 border-t border-gray-50">
+                                <Button variant="secondary" className="flex-1 py-4" onClick={() => setIsScheduleModalOpen(false)}>CANCEL</Button>
+                                <Button variant="primary" className="flex-1 py-4" onClick={handleScheduleVisit} disabled={!visitDate || isScheduling}>
+                                    {isScheduling ? 'SCHEDULING...' : 'CONFIRM VISIT'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 const StatusPill = ({ status, large = false }) => {
     const variants = {
-        PENDING: 'warning',
+        PENDING_ADMISSION: 'warning',
+        PENDING: 'indigo',
+        ADMITTED: 'success',
+        ACTIVE: 'success',
         APPROVED: 'success',
         REJECTED: 'danger'
     };
     
     const labels = {
+        PENDING_ADMISSION: 'Awaiting Campus Visit',
         PENDING: 'Pending Review',
+        ADMITTED: 'Admitted',
+        ACTIVE: 'Enrolled',
         APPROVED: 'Enrolled',
         REJECTED: 'Declined'
     };

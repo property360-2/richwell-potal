@@ -43,6 +43,33 @@ const CashierService = {
 
     adjustPayment: async (payload) => {
         return await api.post(endpoints.cashierPaymentAdjust, payload);
+    },
+
+    // ── Promissory Notes ──
+    getPromissoryNotes: async (status) => {
+        try {
+            const url = status ? `${endpoints.promissoryNotes}?status=${status}` : endpoints.promissoryNotes;
+            const data = await api.get(url);
+            return data.results || data || [];
+        } catch (err) {
+            return [];
+        }
+    },
+
+    createPromissoryNote: async (payload) => {
+        return await api.post(endpoints.promissoryNotes, payload);
+    },
+
+    recordPromissoryPayment: async (id, amount, reference, notes) => {
+        return await api.post(endpoints.promissoryNoteRecordPayment(id), {
+            amount: amount,
+            reference_number: reference,
+            notes: notes
+        });
+    },
+
+    cancelPromissoryNote: async (id) => {
+        return await api.post(endpoints.promissoryNoteCancel(id));
     }
 };
 

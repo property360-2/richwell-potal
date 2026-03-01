@@ -168,9 +168,9 @@ from .views_enrollment import (
     MySubjectEnrollmentsView,
     StudentCurriculumView,
     MyScheduleView,
-    EnrollSubjectView,
-    BulkEnrollSubjectView,
+    AutoAssignEnrollmentView, EnrollSubjectView, BulkEnrollSubjectView,
     RegistrarOverrideEnrollmentView,
+    DropSubjectView, EditSubjectEnrollmentView
 )
 
 # --- Payment views ---
@@ -187,6 +187,7 @@ from .views_payments import (
 
 # --- Report and resolution views ---
 from .views_reports import (
+    GradingDeadlineStatusView,
     HeadReportView,
     SubmitGradeView,
     UpdateAcademicStandingView,
@@ -257,3 +258,44 @@ GenerateCORView = SimplePOSTView
 
 # Legacy alias
 GradeHistoryViewLegacy = GradeHistoryView
+
+
+class ShiftPreferenceView(APIView):
+    """
+    Student endpoint to get/set preferred AM/PM shift for section assignment.
+    GET  → returns current preferred_shift
+    PATCH → updates preferred_shift (AM, PM, NO_PREFERENCE)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile = getattr(request.user, 'student_profile', None)
+        if not profile:
+            return Response({'error': 'Student profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({
+            'preferred_shift': profile.preferred_shift,
+            'home_section': str(profile.home_section) if profile.home_section else None,
+            'section_shift': profile.home_section.shift if profile.home_section else None,
+        })
+
+    def patch(self, request):
+        profile = getattr(request.user, 'student_profile', None)
+        if not profile:
+            return Response({'error': 'Student profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        shift = request.data.get('preferred_shift')
+        valid = ['AM', 'PM', 'NO_PREFERENCE']
+        if shift not in valid:
+            return Response(
+                {'error': f'Invalid shift. Must be one of: {valid}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        profile.preferred_shift = shift
+        profile.save(update_fields=['preferred_shift', 'updated_at'])
+
+        return Response({
+            'success': True,
+            'preferred_shift': profile.preferred_shift,
+            'message': f'Shift preference updated to {shift}'
+        })

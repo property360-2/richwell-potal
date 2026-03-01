@@ -158,7 +158,12 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
                     
                     # Check for pending resolutions
                     pending_res = se.grade_resolutions.filter(
-                        status__in=[GradeResolution.Status.PENDING_REGISTRAR, GradeResolution.Status.PENDING_HEAD]
+                        status__in=[
+                            GradeResolution.Status.PENDING_REGISTRAR_INITIAL,
+                            GradeResolution.Status.GRADE_INPUT_PENDING,
+                            GradeResolution.Status.PENDING_HEAD,
+                            GradeResolution.Status.PENDING_REGISTRAR_FINAL,
+                        ]
                     ).first()
                     
                     if pending_res:
@@ -185,7 +190,12 @@ class ProfessorGradeableStudentsView(generics.ListAPIView):
                     # Even if not INC, check for resolutions (e.g. for archived semesters)
                     se = SubjectEnrollment.objects.prefetch_related('grade_resolutions').get(id=record['subject_enrollment_id'])
                     pending_res = se.grade_resolutions.filter(
-                        status__in=[GradeResolution.Status.PENDING_REGISTRAR, GradeResolution.Status.PENDING_HEAD]
+                        status__in=[
+                            GradeResolution.Status.PENDING_REGISTRAR_INITIAL,
+                            GradeResolution.Status.GRADE_INPUT_PENDING,
+                            GradeResolution.Status.PENDING_HEAD,
+                            GradeResolution.Status.PENDING_REGISTRAR_FINAL,
+                        ]
                     ).first()
                     
                     if pending_res:

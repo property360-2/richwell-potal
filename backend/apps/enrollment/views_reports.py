@@ -18,6 +18,53 @@ from .models import Enrollment, SubjectEnrollment, Semester, GradeResolution, Gr
 from .serializers import GradeResolutionSerializer
 
 
+class GradingDeadlineStatusView(APIView):
+    """
+    Returns the current grading window status for the active semester.
+    Professors can use this to check their deadline.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        semester = Semester.objects.filter(is_current=True).first()
+        if not semester:
+            return Response({'error': 'No active semester'}, status=status.HTTP_404_NOT_FOUND)
+
+        today = timezone.now().date()
+        is_open = semester.is_grading_open
+        days_remaining = None
+
+        if semester.grading_end_date:
+            delta = (semester.grading_end_date - today).days
+            days_remaining = max(delta, 0)
+
+        data = {
+            'semester': str(semester),
+            'semester_id': str(semester.id),
+            'grading_start_date': semester.grading_start_date.isoformat() if semester.grading_start_date else None,
+            'grading_end_date': semester.grading_end_date.isoformat() if semester.grading_end_date else None,
+            'is_grading_open': is_open,
+            'days_remaining': days_remaining,
+            'status': semester.status,
+        }
+
+        # If professor, show their ungraded count
+        user = request.user
+        if user.role == 'PROFESSOR':
+            from django.db.models import Q
+            ungraded_count = SubjectEnrollment.objects.filter(
+                Q(section__section_subjects__professor=user) |
+                Q(section__section_subjects__professor_assignments__professor=user),
+                enrollment__semester=semester,
+                status='ENROLLED',
+                grade__isnull=True,
+                is_deleted=False,
+            ).distinct().count()
+            data['ungraded_count'] = ungraded_count
+
+        return Response(data)
+
+
 class HeadReportView(APIView):
     """
     Generate reports for department heads.
@@ -220,12 +267,26 @@ class UpdateAcademicStandingView(APIView):
 
 class GradeResolutionViewSet(ModelViewSet):
     """
-    ViewSet for handling grade resolution requests.
+    ViewSet for grade resolution requests (Sir Gil's 5-step workflow).
+    
+    Actions:
+      GET    /grade-resolutions/          — list (filtered by role)
+      POST   /grade-resolutions/          — create request (professor/dean)
+      GET    /grade-resolutions/pending/   — pending for current role
+      POST   /grade-resolutions/{id}/registrar_initial_approve/
+      POST   /grade-resolutions/{id}/input_grade/
+      POST   /grade-resolutions/{id}/head_approve/
+      POST   /grade-resolutions/{id}/registrar_final_approve/
+      POST   /grade-resolutions/{id}/reject/
+      POST   /grade-resolutions/{id}/cancel/
     """
     queryset = GradeResolution.objects.all().select_related(
         'subject_enrollment__enrollment__student',
         'subject_enrollment__subject',
-        'requested_by'
+        'requested_by',
+        'reviewed_by_registrar',
+        'reviewed_by_head',
+        'grade_input_by',
     )
     serializer_class = GradeResolutionSerializer
     permission_classes = [IsAuthenticated]
@@ -236,7 +297,7 @@ class GradeResolutionViewSet(ModelViewSet):
         if user.role == 'PROFESSOR':
             from django.db.models import Q
             return self.queryset.filter(
-                Q(requested_by=user) | 
+                Q(requested_by=user) |
                 Q(subject_enrollment__section__section_subjects__professor=user) |
                 Q(subject_enrollment__section__section_subjects__professor_assignments__professor=user)
             ).distinct()
@@ -251,14 +312,18 @@ class GradeResolutionViewSet(ModelViewSet):
         return self.queryset.none()
 
     def perform_create(self, serializer):
+        """Step 1: Professor/Dean creates a resolution request."""
         subject_enrollment = serializer.validated_data['subject_enrollment']
+        is_dean = self.request.user.role == 'DEPARTMENT_HEAD'
+
         resolution = serializer.save(
             requested_by=self.request.user,
             current_grade=subject_enrollment.grade,
             current_status=subject_enrollment.status,
-            status=GradeResolution.Status.PENDING_HEAD
+            submitted_by_dean=is_dean,
+            status=GradeResolution.Status.PENDING_REGISTRAR_INITIAL
         )
-        
+
         from apps.audit.models import AuditLog
         AuditLog.log(
             action=AuditLog.Action.GRADE_UPDATED,
@@ -268,137 +333,136 @@ class GradeResolutionViewSet(ModelViewSet):
                 'action': 'requested',
                 'student': subject_enrollment.enrollment.student.get_full_name(),
                 'subject': subject_enrollment.subject.code,
-                'proposed_grade': str(resolution.proposed_grade)
+                'proposed_grade': str(resolution.proposed_grade),
+                'submitted_by_dean': is_dean,
             }
         )
 
     @action(detail=False, methods=['get'])
     def pending(self, request):
-        """List resolutions pending review based on role."""
+        """List resolutions pending for the current user's role."""
         user = request.user
+        qs = self.get_queryset()
+
         if user.role in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
-            pending = self.get_queryset().filter(status=GradeResolution.Status.PENDING_REGISTRAR)
+            # Registrar sees Step 1 (initial review) and Step 5 (final sign-off)
+            pending = qs.filter(
+                status__in=[
+                    GradeResolution.Status.PENDING_REGISTRAR_INITIAL,
+                    GradeResolution.Status.PENDING_REGISTRAR_FINAL,
+                ]
+            )
         elif user.role == 'DEPARTMENT_HEAD':
-            pending = self.get_queryset().filter(status=GradeResolution.Status.PENDING_HEAD)
+            # Head sees Step 4 (head approval)
+            pending = qs.filter(status=GradeResolution.Status.PENDING_HEAD)
+        elif user.role == 'PROFESSOR':
+            # Professor sees Step 3 (grade input pending)
+            pending = qs.filter(status=GradeResolution.Status.GRADE_INPUT_PENDING)
         else:
-            pending = self.get_queryset().none()
-            
+            pending = qs.none()
+
         serializer = self.get_serializer(pending, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
-    def approve(self, request, pk=None):
-        """Approve a resolution (Registrar or Head)."""
+    def registrar_initial_approve(self, request, pk=None):
+        """Step 2: Registrar reviews and approves for grade input."""
         resolution = self.get_object()
         user = request.user
+
+        if user.role not in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
+            return Response({'error': 'Only registrar can perform initial approval'}, status=status.HTTP_403_FORBIDDEN)
+
+        from .services_grading import GradeResolutionService
         notes = request.data.get('notes', '')
-        
-        with transaction.atomic():
-            if user.role in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
-                if resolution.status != GradeResolution.Status.PENDING_REGISTRAR:
-                    return Response(
-                        {'detail': f'Resolution is in {resolution.status} status, cannot be approved by registrar'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                resolution.status = GradeResolution.Status.APPROVED
-                resolution.reviewed_by_registrar = user
-                resolution.registrar_action_at = timezone.now()
-                resolution.registrar_notes = notes or resolution.registrar_notes
-                resolution.save()
+        result = GradeResolutionService.registrar_initial_approve(resolution, user, notes)
 
-                from apps.audit.models import AuditLog
-                AuditLog.log(
-                    action=AuditLog.Action.GRADE_UPDATED,
-                    target_model='GradeResolution',
-                    target_id=resolution.id,
-                    payload={
-                        'action': 'approved_by_registrar',
-                        'student': resolution.subject_enrollment.enrollment.student.get_full_name(),
-                        'proposed_grade': str(resolution.proposed_grade)
-                    }
-                )
-                
-                # Apply the grade change to SubjectEnrollment
-                se = resolution.subject_enrollment
-                previous_grade = se.grade
-                previous_status = se.status
-                
-                se.grade = resolution.proposed_grade
-                se.status = resolution.proposed_status
-                se.save()
-                
-                GradeHistory.objects.create(
-                    subject_enrollment=se,
-                    previous_grade=previous_grade,
-                    new_grade=se.grade,
-                    previous_status=previous_status,
-                    new_status=se.status,
-                    changed_by=user,
-                    change_reason=f"Grade Resolution Approved: {resolution.reason}",
-                    is_system_action=False
-                )
-                
-                return Response({'success': True, 'message': 'Resolution approved and grade updated'})
-                
-            elif user.role == 'DEPARTMENT_HEAD':
-                if resolution.status != GradeResolution.Status.PENDING_HEAD:
-                    return Response(
-                        {'detail': f'Resolution is in {resolution.status} status, cannot be approved by head'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                resolution.status = GradeResolution.Status.PENDING_REGISTRAR
-                resolution.reviewed_by_head = user
-                resolution.head_action_at = timezone.now()
-                resolution.head_notes = notes or resolution.head_notes
-                resolution.save()
+        if not result['success']:
+            return Response({'detail': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
 
-                from apps.audit.models import AuditLog
-                AuditLog.log(
-                    action=AuditLog.Action.GRADE_UPDATED,
-                    target_model='GradeResolution',
-                    target_id=resolution.id,
-                    payload={
-                        'action': 'approved_by_head',
-                        'student': resolution.subject_enrollment.enrollment.student.get_full_name(),
-                        'proposed_grade': str(resolution.proposed_grade)
-                    }
-                )
-                
-                return Response({'success': True, 'message': 'Approved by Head and forwarded to Registrar'})
-            
-            return Response({'error': 'Unauthorized role for approval'}, status=status.HTTP_403_FORBIDDEN)
+    @action(detail=True, methods=['post'])
+    def input_grade(self, request, pk=None):
+        """Step 3: Professor/Dean inputs the actual grade."""
+        resolution = self.get_object()
+        user = request.user
+
+        if user.role not in ['PROFESSOR', 'DEPARTMENT_HEAD']:
+            return Response({'error': 'Only professor or department head can input grade'}, status=status.HTTP_403_FORBIDDEN)
+
+        from .serializers_grading import GradeInputSerializer
+        serializer = GradeInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        from .services_grading import GradeResolutionService
+        result = GradeResolutionService.input_grade(
+            resolution,
+            user,
+            proposed_grade=serializer.validated_data['proposed_grade'],
+            proposed_status=serializer.validated_data['proposed_status'],
+            comment=serializer.validated_data.get('comment', '')
+        )
+
+        if not result['success']:
+            return Response({'detail': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
+    @action(detail=True, methods=['post'])
+    def head_approve(self, request, pk=None):
+        """Step 4: Department head reviews and approves."""
+        resolution = self.get_object()
+        user = request.user
+
+        if user.role != 'DEPARTMENT_HEAD':
+            return Response({'error': 'Only department head can approve at this step'}, status=status.HTTP_403_FORBIDDEN)
+
+        from .services_grading import GradeResolutionService
+        notes = request.data.get('notes', '')
+        result = GradeResolutionService.head_approve(resolution, user, notes)
+
+        if not result['success']:
+            return Response({'detail': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
+    @action(detail=True, methods=['post'])
+    def registrar_final_approve(self, request, pk=None):
+        """Step 5: Registrar final sign-off — applies the grade."""
+        resolution = self.get_object()
+        user = request.user
+
+        if user.role not in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
+            return Response({'error': 'Only registrar can perform final approval'}, status=status.HTTP_403_FORBIDDEN)
+
+        from .services_grading import GradeResolutionService
+        notes = request.data.get('notes', '')
+        result = GradeResolutionService.registrar_final_approve(resolution, user, notes)
+
+        if not result['success']:
+            return Response({'detail': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
-        """Reject a resolution."""
+        """Reject a resolution at any active step."""
         resolution = self.get_object()
         reason = request.data.get('reason', '') or request.data.get('notes', '')
-        
-        resolution.status = GradeResolution.Status.REJECTED
-        
-        if request.user.role in ['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']:
-            resolution.reviewed_by_registrar = request.user
-            resolution.registrar_action_at = timezone.now()
-            resolution.registrar_notes = reason
-        else:
-            resolution.reviewed_by_head = request.user
-            resolution.head_action_at = timezone.now()
-            resolution.head_notes = reason
-            
-        resolution.save()
 
-        from apps.audit.models import AuditLog
-        AuditLog.log(
-            action=AuditLog.Action.GRADE_UPDATED,
-            target_model='GradeResolution',
-            target_id=resolution.id,
-            payload={
-                'action': 'rejected',
-                'rejected_by': request.user.get_full_name(),
-                'role': request.user.role,
-                'reason': reason
-            }
-        )
-        return Response({'success': True, 'message': 'Resolution rejected'})
+        from .services_grading import GradeResolutionService
+        result = GradeResolutionService.reject_resolution(resolution, request.user, reason)
+
+        if not result['success']:
+            return Response({'detail': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Cancel a resolution (only by requester)."""
+        resolution = self.get_object()
+
+        from .services_grading import GradeResolutionService
+        result = GradeResolutionService.cancel_resolution(resolution, request.user)
+
+        if not result['success']:
+            return Response({'detail': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+

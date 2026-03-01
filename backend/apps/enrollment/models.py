@@ -157,6 +157,7 @@ class Enrollment(BaseModel):
     """
     
     class Status(models.TextChoices):
+        PENDING_ADMISSION = 'PENDING_ADMISSION', 'Pending Admission'
         PENDING = 'PENDING', 'Pending Approval'
         ACTIVE = 'ACTIVE', 'Active'
         PENDING_PAYMENT = 'PENDING_PAYMENT', 'Pending Payment'
@@ -202,6 +203,17 @@ class Enrollment(BaseModel):
     first_month_paid = models.BooleanField(
         default=False,
         help_text='Whether the first month payment has been completed'
+    )
+    
+    # Admission fields
+    assigned_visit_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Assigned date for the student to visit campus for document submission'
+    )
+    admission_notes = models.TextField(
+        blank=True,
+        help_text='Notes from admission staff during the admission process'
     )
     
     class Meta:
@@ -925,4 +937,4 @@ class DocumentRelease(BaseModel):
 # Backward-compatible re-exports from split model files
 # ============================================================
 from .models_grading import GradeHistory, SemesterGPA, GradeResolution  # noqa: E402, F401
-from .models_payments import PaymentTransaction, ExamMonthMapping, ExamPermit  # noqa: E402, F401
+from .models_payments import PaymentTransaction, ExamMonthMapping, ExamPermit, PromissoryNote  # noqa: E402, F401

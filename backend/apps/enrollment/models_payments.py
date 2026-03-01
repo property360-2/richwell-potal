@@ -238,3 +238,147 @@ class ExamPermit(BaseModel):
             month_number=self.required_month
         ).first()
         return bucket and bucket.is_fully_paid
+
+
+# ============================================================
+# EPIC 5 — Promissory Notes
+# ============================================================
+
+
+class PromissoryNote(BaseModel):
+    """
+    Promissory note for deferred payment.
+    Allows students to attend exams while committing to pay by a due date.
+    Workflow: Cashier creates → Student signs → Due date enforced → Fulfilled/Defaulted.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = 'ACTIVE', 'Active'
+        PARTIALLY_PAID = 'PARTIALLY_PAID', 'Partially Paid'
+        FULFILLED = 'FULFILLED', 'Fulfilled'
+        DEFAULTED = 'DEFAULTED', 'Defaulted'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    enrollment = models.ForeignKey(
+        Enrollment,
+        on_delete=models.CASCADE,
+        related_name='promissory_notes'
+    )
+
+    # Amount details
+    total_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        help_text='Total amount promised'
+    )
+    amount_paid = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Amount paid so far against this promissory note'
+    )
+
+    # Which months this covers
+    covered_months = models.JSONField(
+        default=list,
+        help_text='List of month numbers (1-6) covered by this promissory note'
+    )
+
+    # Due date and status
+    due_date = models.DateField(
+        help_text='Date by which the student must pay'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE
+    )
+
+    # Reason and terms
+    reason = models.TextField(
+        help_text='Reason for requesting promissory note'
+    )
+    terms = models.TextField(
+        blank=True,
+        help_text='Terms and conditions agreed upon'
+    )
+
+    # Guarantor (parent/guardian)
+    guarantor_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text='Name of parent/guardian guarantor'
+    )
+    guarantor_contact = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Contact number of guarantor'
+    )
+    guarantor_relationship = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Relationship to student (e.g., Parent, Guardian)'
+    )
+
+    # Approval tracking
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_promissory_notes',
+        help_text='Cashier who created the promissory note'
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_promissory_notes',
+        help_text='Registrar/admin who approved the promissory note'
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    # Fulfillment tracking
+    fulfilled_at = models.DateTimeField(null=True, blank=True)
+    defaulted_at = models.DateTimeField(null=True, blank=True)
+
+    # Note reference code
+    reference_code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text='Unique reference code (PN-YYYYMMDD-XXXXX)'
+    )
+
+    class Meta:
+        verbose_name = 'Promissory Note'
+        verbose_name_plural = 'Promissory Notes'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.reference_code} - ₱{self.total_amount} ({self.status})"
+
+    @property
+    def student(self):
+        return self.enrollment.student
+
+    @property
+    def remaining_balance(self):
+        """Amount still owed."""
+        return self.total_amount - self.amount_paid
+
+    @property
+    def is_overdue(self):
+        """Check if the promissory note is past due."""
+        from django.utils import timezone
+        return (
+            self.status in [self.Status.ACTIVE, self.Status.PARTIALLY_PAID]
+            and timezone.now().date() > self.due_date
+        )
+
+    @property
+    def payment_percentage(self):
+        """Percentage of total amount paid."""
+        if self.total_amount == 0:
+            return Decimal('0.00')
+        return (self.amount_paid / self.total_amount * 100).quantize(Decimal('0.01'))

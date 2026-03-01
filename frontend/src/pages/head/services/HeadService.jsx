@@ -20,7 +20,6 @@ const HeadService = {
 
     getReports: async (params) => {
         const data = await api.get(endpoints.reports, params);
-        // api.get internally handles response parsing and mapping
         if (data && !data.error) {
             return {
                 success: true,
@@ -29,6 +28,16 @@ const HeadService = {
             };
         }
         return { success: false, results: [] };
+    },
+
+    getAdmissionStats: async (semesterId) => {
+        const params = semesterId ? { semester: semesterId } : {};
+        return await api.get(endpoints.admissionStats, { params });
+    },
+
+    getPaymentReport: async (semesterId) => {
+        const params = semesterId ? { semester: semesterId } : {};
+        return await api.get(endpoints.paymentReport, { params });
     },
 
     getPendingResolutions: async () => {

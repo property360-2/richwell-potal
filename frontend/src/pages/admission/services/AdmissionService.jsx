@@ -36,6 +36,21 @@ const AdmissionService = {
         });
     },
 
+    admitApplicant: async (applicantId, studentId) => {
+        return await api.patch(endpoints.applicantUpdate(applicantId), { 
+            action: 'admit', 
+            student_number: studentId 
+        });
+    },
+
+    assignVisitDate: async (applicantId, date, notes = '') => {
+        return await api.patch(endpoints.applicantUpdate(applicantId), {
+            action: 'assign_visit_date',
+            visit_date: date,
+            notes: notes
+        });
+    },
+
     rejectApplicant: async (applicantId, reason = '') => {
         return await api.patch(endpoints.applicantUpdate(applicantId), { 
             action: 'reject', 

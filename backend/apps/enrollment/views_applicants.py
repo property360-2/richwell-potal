@@ -70,7 +70,9 @@ class ApplicantListView(APIView):
                 'total_paid': float(enrollment.total_paid),
                 'total_required': float(enrollment.total_required),
                 'balance': float(enrollment.balance),
-                'first_month_paid': enrollment.first_month_paid
+                'first_month_paid': enrollment.first_month_paid,
+                'assigned_visit_date': enrollment.assigned_visit_date.isoformat() if enrollment.assigned_visit_date else None,
+                'admission_notes': enrollment.admission_notes,
             })
             
         return Response(data)
@@ -407,4 +409,45 @@ class ApplicantUpdateView(APIView):
             except Exception as e:
                 return Response({"error": str(e)}, status=500)
             
-        return Response({"error": "Invalid action. Use 'accept', 'reject', or 'admit'"}, status=400)
+        elif action == 'assign_visit_date':
+            visit_date = request.data.get('visit_date')
+            notes = request.data.get('notes', '')
+
+            if not visit_date:
+                return Response({'error': 'visit_date is required'}, status=400)
+
+            try:
+                from datetime import date as date_type
+                if isinstance(visit_date, str):
+                    visit_date = date_type.fromisoformat(visit_date)
+            except ValueError:
+                return Response({'error': 'Invalid date format. Use YYYY-MM-DD'}, status=400)
+
+            enrollment.assigned_visit_date = visit_date
+            if notes:
+                enrollment.admission_notes = notes
+            enrollment.save(update_fields=['assigned_visit_date', 'admission_notes', 'updated_at'])
+
+            from apps.audit.models import AuditLog
+            AuditLog.log(
+                action=AuditLog.Action.USER_UPDATED,
+                target_model='Enrollment',
+                target_id=enrollment.id,
+                payload={
+                    'action': 'assign_visit_date',
+                    'student': enrollment.student.get_full_name(),
+                    'visit_date': str(visit_date),
+                    'assigned_by': request.user.get_full_name(),
+                }
+            )
+
+            return Response({
+                'success': True,
+                'message': f'Visit date {visit_date} assigned to {enrollment.student.get_full_name()}',
+                'data': {
+                    'assigned_visit_date': str(visit_date),
+                    'admission_notes': enrollment.admission_notes,
+                }
+            })
+
+        return Response({'error': "Invalid action. Use 'accept', 'reject', 'admit', or 'assign_visit_date'"}, status=400)

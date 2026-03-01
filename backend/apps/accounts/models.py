@@ -290,6 +290,18 @@ class StudentProfile(BaseModel):
         blank=True,
         help_text='Override for maximum units (default is 30)'
     )
+
+    class PreferredShift(models.TextChoices):
+        AM = 'AM', 'Morning (AM)'
+        PM = 'PM', 'Afternoon (PM)'
+        NO_PREFERENCE = 'NO_PREFERENCE', 'No Preference'
+
+    preferred_shift = models.CharField(
+        max_length=15,
+        choices=PreferredShift.choices,
+        default=PreferredShift.NO_PREFERENCE,
+        help_text='Student preferred time-of-day shift for classes'
+    )
     
     status = models.CharField(
         max_length=20,

@@ -130,6 +130,8 @@ export const endpoints = {
     headReject: (id) => `/admissions/head/reject/${id}/`,
     headBulkApprove: '/admissions/head/bulk-approve/',
     reports: '/admissions/reports/',
+    admissionStats: '/admissions/reports/admission-stats/',
+    paymentReport: '/admissions/reports/payment-report/',
 
     // ── Document Release (EPIC 6) ────────────────────────────
     createDocumentRelease: '/admissions/documents/release/',
@@ -183,11 +185,15 @@ export const endpoints = {
         delete: (id) => `/core/notifications/${id}/`,
     },
 
-    // ── Grade Resolution (Phase 4) ──────────────────────────
+    // ── Grade Resolution (Phase 3 Workflow) ──────────────────────────
     gradeResolutions: '/admissions/grade-resolutions/',
     gradeResolution: (id) => `/admissions/grade-resolutions/${id}/`,
-    gradeResolutionApprove: (id) => `/admissions/grade-resolutions/${id}/approve/`,
+    gradeResolutionRegistrarInitial: (id) => `/admissions/grade-resolutions/${id}/registrar_initial_approve/`,
+    gradeResolutionInputGrade: (id) => `/admissions/grade-resolutions/${id}/input_grade/`,
+    gradeResolutionHeadApprove: (id) => `/admissions/grade-resolutions/${id}/head_approve/`,
+    gradeResolutionRegistrarFinal: (id) => `/admissions/grade-resolutions/${id}/registrar_final_approve/`,
     gradeResolutionReject: (id) => `/admissions/grade-resolutions/${id}/reject/`,
+    gradeResolutionCancel: (id) => `/admissions/grade-resolutions/${id}/cancel/`,
     pendingResolutions: '/admissions/grade-resolutions/pending/',
 
     // ── Professor Grading (EPIC 5) ──────────────────────────
@@ -207,6 +213,15 @@ export const endpoints = {
     exportStudents: '/admissions/export/students/',
     exportEnrollments: '/admissions/export/enrollments/',
     exportPayments: '/admissions/export/payments/',
+
+    // ── Promissory Notes ─────────────────────────────────────
+    promissoryNotes: '/admissions/promissory-notes/',
+    promissoryNoteDetail: (id) => `/admissions/promissory-notes/${id}/`,
+    promissoryNoteRecordPayment: (id) => `/admissions/promissory-notes/${id}/record_payment/`,
+    promissoryNoteMarkDefaulted: (id) => `/admissions/promissory-notes/${id}/mark_defaulted/`,
+    promissoryNoteCancel: (id) => `/admissions/promissory-notes/${id}/cancel/`,
+    promissoryNotesOverdue: '/admissions/promissory-notes/overdue/',
+    promissoryNotesStudent: (enrollmentId) => `/admissions/promissory-notes/student/${enrollmentId}/`,
 
     // ── Legacy ───────────────────────────────────────────────
     me: '/accounts/me/',

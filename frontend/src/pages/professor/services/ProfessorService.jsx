@@ -41,11 +41,19 @@ const ProfessorService = {
 
     // Grade Resolution methods
     getResolutions: async () => {
-        return await api.get(endpoints.gradeResolutions);
+        return await api.get(endpoints.pendingResolutions);
     },
 
     createResolution: async (data) => {
         return await api.post(endpoints.gradeResolutions, data);
+    },
+
+    inputGrade: async (id, data) => {
+        return await api.post(endpoints.gradeResolutionInputGrade(id), data);
+    },
+
+    cancelResolution: async (id) => {
+        return await api.post(endpoints.gradeResolutionCancel(id));
     },
 
     getSemesters: async () => {

@@ -75,3 +75,17 @@ export const useEnrollSubjects = () => {
         }
     });
 };
+
+export const useAutoAssignEnrollment = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (shift) => {
+            return api.post('/admissions/enrollment/subjects/auto-assign/', { shift });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['enrollment-data'] });
+            queryClient.invalidateQueries({ queryKey: ['schedule'] });
+        }
+    });
+};

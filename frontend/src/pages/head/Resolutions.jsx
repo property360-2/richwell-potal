@@ -82,18 +82,28 @@ const Resolutions = ({ hideTabs = false }) => {
         }
     };
 
-    const handleAction = async (action) => {
-        if (action === 'reject' && !notes) {
-            return warning('Please provide a reason for rejection');
+    const handleAction = async (isApprove) => {
+        if (!isApprove && !notes) {
+            return warning('Please provide a reason for declining/cancellation');
+        }
+
+        let actionPrefix = '';
+        if (selectedRes.status === 'PENDING_REGISTRAR_INITIAL') {
+            actionPrefix = isApprove ? 'registrar_initial_approve' : 'reject';
+        } else if (selectedRes.status === 'PENDING_HEAD') {
+             actionPrefix = isApprove ? 'head_approve' : 'reject';
+        } else if (selectedRes.status === 'PENDING_REGISTRAR_FINAL') {
+             actionPrefix = isApprove ? 'registrar_final_approve' : 'cancel';
+        } else {
+             return error('Invalid resolution status');
         }
 
         try {
             setProcessing(true);
-            const res = await HeadService.processResolution(selectedRes.id, action, { notes, reason: notes });
+            const res = await HeadService.processResolution(selectedRes.id, actionPrefix, { notes, reason: notes });
             if (res) {
-                if (action === 'approve') {
-                    const isFinal = ['REGISTRAR', 'ADMIN', 'HEAD_REGISTRAR'].includes(user?.role);
-                    success(isFinal ? 'Grade updated successfully' : 'Resolution forwarded to Registrar');
+                if (isApprove) {
+                    success('Action successfully processed.');
                 } else {
                     success('Request declined');
                 }
@@ -297,11 +307,13 @@ const Resolutions = ({ hideTabs = false }) => {
                                         <div className="flex flex-col gap-1">
                                             <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest w-fit border ${
                                                 res.status === 'PENDING_HEAD' ? 'bg-yellow-50 text-yellow-600 border-yellow-100' :
-                                                res.status === 'PENDING_REGISTRAR' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                res.status === 'PENDING_REGISTRAR_FINAL' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                res.status === 'PENDING_REGISTRAR_INITIAL' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
                                                 'bg-gray-50 text-gray-600 border-gray-100'
                                             }`}>
                                                 {res.status === 'PENDING_HEAD' ? 'Awaiting Head' : 
-                                                 res.status === 'PENDING_REGISTRAR' ? 'Awaiting Registrar' : res.status}
+                                                 res.status === 'PENDING_REGISTRAR_FINAL' ? 'Awaiting Registrar Final' : 
+                                                 res.status === 'PENDING_REGISTRAR_INITIAL' ? 'Awaiting Registrar Initial' : res.status}
                                             </span>
                                             <p className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">
                                                 By: {res.requested_by_name}
@@ -450,7 +462,7 @@ const Resolutions = ({ hideTabs = false }) => {
                                         </div>
                                         <div className="text-center">
                                             <span className="block text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-3">Proposed Release</span>
-                                            <span className="text-5xl font-black text-indigo-600 tracking-tighter">{selectedRes.proposed_grade}</span>
+                                            <span className="text-5xl font-black text-indigo-600 tracking-tighter">{selectedRes.proposed_grade || '?'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -466,7 +478,7 @@ const Resolutions = ({ hideTabs = false }) => {
                                     </div>
                                 </div>
 
-                                {selectedRes.status === 'PENDING_REGISTRAR' && selectedRes.head_notes && (
+                                {selectedRes.status === 'PENDING_REGISTRAR_FINAL' && selectedRes.head_notes && (
                                     <div className="p-6 bg-green-50 rounded-3xl border border-green-100">
                                         <h4 className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-3 flex items-center gap-2">
                                             <Shield className="w-4 h-4" /> Department Head Review
@@ -497,10 +509,10 @@ const Resolutions = ({ hideTabs = false }) => {
                                     <Clock className="w-4 h-4" /> Record Lifecycle
                                 </h4>
                                 
-                                <div className="space-y-12 relative">
+                                <div className="space-y-10 relative">
                                     <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gray-200" />
                                     
-                                    {/* Requested */}
+                                    {/* Step 1: Requested */}
                                     <div className="relative pl-10">
                                         <div className="absolute left-0 top-0 w-8 h-8 bg-white border-2 border-indigo-600 rounded-full flex items-center justify-center z-10 shadow-lg shadow-indigo-100">
                                             <User className="w-4 h-4 text-indigo-600" />
@@ -510,7 +522,43 @@ const Resolutions = ({ hideTabs = false }) => {
                                         <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-tighter mt-1">Initiated by {selectedRes.requested_by_name}</p>
                                     </div>
 
-                                    {/* Department Head Stage */}
+                                    {/* Step 2: Registrar Initial */}
+                                    <div className="relative pl-10">
+                                        <div className={`absolute left-0 top-0 w-8 h-8 rounded-full flex items-center justify-center z-10 border-2 ${
+                                            selectedRes.registrar_action_at 
+                                                ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100' 
+                                                : 'bg-white border-gray-200'
+                                        }`}>
+                                            {selectedRes.registrar_action_at ? <CheckCircle2 className="w-4 h-4 text-white" /> : <Building className="w-4 h-4 text-gray-300" />}
+                                        </div>
+                                        <p className={`text-[10px] font-black uppercase ${selectedRes.registrar_action_at ? 'text-gray-900' : 'text-gray-300'}`}>Initial Review</p>
+                                        {selectedRes.registrar_action_at && (
+                                            <>
+                                                <p className="text-[9px] font-bold text-gray-400 mt-1">{new Date(selectedRes.registrar_action_at).toLocaleDateString()}</p>
+                                                <p className="text-[9px] font-bold text-green-600 uppercase tracking-tighter mt-1">Reg: {selectedRes.reviewed_by_registrar_name || 'Registrar'}</p>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* Step 3: Grade Input */}
+                                    <div className="relative pl-10">
+                                        <div className={`absolute left-0 top-0 w-8 h-8 rounded-full flex items-center justify-center z-10 border-2 ${
+                                            selectedRes.grade_input_at 
+                                                ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100' 
+                                                : 'bg-white border-gray-200'
+                                        }`}>
+                                            {selectedRes.grade_input_at ? <CheckCircle2 className="w-4 h-4 text-white" /> : <Award className="w-4 h-4 text-gray-300" />}
+                                        </div>
+                                        <p className={`text-[10px] font-black uppercase ${selectedRes.grade_input_at ? 'text-gray-900' : 'text-gray-300'}`}>Grade Input</p>
+                                        {selectedRes.grade_input_at && (
+                                            <>
+                                                <p className="text-[9px] font-bold text-gray-400 mt-1">{new Date(selectedRes.grade_input_at).toLocaleDateString()}</p>
+                                                <p className="text-[9px] font-bold text-green-600 uppercase tracking-tighter mt-1">By: {selectedRes.grade_input_by_name || 'Prof'}</p>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* Step 4: Department Head Stage */}
                                     <div className="relative pl-10">
                                         <div className={`absolute left-0 top-0 w-8 h-8 rounded-full flex items-center justify-center z-10 border-2 ${
                                             selectedRes.head_action_at 
@@ -528,19 +576,19 @@ const Resolutions = ({ hideTabs = false }) => {
                                         )}
                                     </div>
 
-                                    {/* Registrar Stage */}
+                                    {/* Step 5: Registrar Final Stage */}
                                     <div className="relative pl-10">
                                         <div className={`absolute left-0 top-0 w-8 h-8 rounded-full flex items-center justify-center z-10 border-2 ${
-                                            selectedRes.registrar_action_at 
+                                            selectedRes.registrar_final_at 
                                                 ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100' 
                                                 : 'bg-white border-gray-200'
                                         }`}>
-                                            {selectedRes.registrar_action_at ? <CheckCircle2 className="w-4 h-4 text-white" /> : <Building className="w-4 h-4 text-gray-300" />}
+                                            {selectedRes.registrar_final_at ? <CheckCircle2 className="w-4 h-4 text-white" /> : <Building className="w-4 h-4 text-gray-300" />}
                                         </div>
-                                        <p className={`text-[10px] font-black uppercase ${selectedRes.registrar_action_at ? 'text-gray-900' : 'text-gray-300'}`}>Registrar Finalization</p>
-                                        {selectedRes.registrar_action_at && (
+                                        <p className={`text-[10px] font-black uppercase ${selectedRes.registrar_final_at ? 'text-gray-900' : 'text-gray-300'}`}>Registrar Finalization</p>
+                                        {selectedRes.registrar_final_at && (
                                             <>
-                                                <p className="text-[9px] font-bold text-gray-400 mt-1">{new Date(selectedRes.registrar_action_at).toLocaleDateString()}</p>
+                                                <p className="text-[9px] font-bold text-gray-400 mt-1">{new Date(selectedRes.registrar_final_at).toLocaleDateString()}</p>
                                                 <p className="text-[9px] font-bold text-green-600 uppercase tracking-tighter mt-1">Final Authorization</p>
                                             </>
                                         )}
@@ -552,14 +600,14 @@ const Resolutions = ({ hideTabs = false }) => {
                         {/* Control Actions */}
                         <div className="p-10 border-t border-gray-50 flex gap-6 shrink-0 bg-white">
                             <button 
-                                onClick={() => handleAction('reject')}
+                                onClick={() => handleAction(false)}
                                 disabled={processing}
                                 className="px-10 py-5 rounded-3xl text-[10px] font-black uppercase tracking-widest text-red-600 border border-red-50 hover:bg-red-50 transition-all flex items-center gap-2"
                             >
                                 <XCircle className="w-4 h-4" /> Decline Amendment
                             </button>
                             <button 
-                                onClick={() => handleAction('approve')}
+                                onClick={() => handleAction(true)}
                                 disabled={processing}
                                 className="flex-1 bg-indigo-600 py-5 rounded-3xl text-[11px] font-black text-white uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:translate-y-0"
                             >
@@ -571,7 +619,9 @@ const Resolutions = ({ hideTabs = false }) => {
                                 ) : (
                                     <div className="flex items-center gap-2">
                                         <CheckCircle2 className="w-5 h-5" />
-                                        {selectedRes.status === 'PENDING_HEAD' ? 'Authorize & Forward to Registrar' : 'Authorize Final Record Update'}
+                                        {selectedRes.status === 'PENDING_HEAD' ? 'Authorize & Forward to Registrar' : 
+                                         selectedRes.status === 'PENDING_REGISTRAR_INITIAL' ? 'Initial Review: Authorize Grade Input' : 
+                                         'Finalize & Update Academic Record'}
                                     </div>
                                 )}
                             </button>

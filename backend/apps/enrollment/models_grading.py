@@ -127,14 +127,26 @@ class SemesterGPA(BaseModel):
 
 class GradeResolution(BaseModel):
     """
-    Formal request handling for grade changes/resolutions.
-    Required for changing grades after they are finalized or during restricted periods.
-    Workflow: Professor Request -> Registrar Review -> Program Head Approval
+    Grade resolution workflow (Sir Gil's 5-step flow):
+    1. Professor/Dean opens request
+    2. Registrar reviews and approves to proceed
+    3. Professor/Dean inputs grade + comment
+    4. Head reviews and approves
+    5. Registrar final sign-off → grade applied
+
+    If professor is inactive/resigned, Dean can submit on their behalf.
     """
-    
+
     class Status(models.TextChoices):
-        PENDING_REGISTRAR = 'PENDING_REGISTRAR', 'Pending Registrar Review'
-        PENDING_HEAD = 'PENDING_HEAD', 'Pending Program Head Approval'
+        # Step 1: Request submitted → waiting for registrar initial review
+        PENDING_REGISTRAR_INITIAL = 'PENDING_REGISTRAR_INITIAL', 'Pending Registrar Review'
+        # Step 2: Registrar approved → waiting for professor/dean to input grade
+        GRADE_INPUT_PENDING = 'GRADE_INPUT_PENDING', 'Waiting for Grade Input'
+        # Step 3: Grade inputted → waiting for head approval
+        PENDING_HEAD = 'PENDING_HEAD', 'Pending Head Approval'
+        # Step 4: Head approved → waiting for registrar final sign-off
+        PENDING_REGISTRAR_FINAL = 'PENDING_REGISTRAR_FINAL', 'Pending Registrar Final Approval'
+        # Terminal states
         APPROVED = 'APPROVED', 'Approved'
         REJECTED = 'REJECTED', 'Rejected'
         CANCELLED = 'CANCELLED', 'Cancelled'
@@ -145,28 +157,34 @@ class GradeResolution(BaseModel):
         related_name='grade_resolutions',
         help_text='The enrollment record being resolved'
     )
-    
+
     current_grade = models.CharField(max_length=5, null=True, blank=True)
     proposed_grade = models.CharField(max_length=5, null=True, blank=True)
-    
-    current_status = models.CharField(max_length=20) # Snapshot of status
+
+    current_status = models.CharField(max_length=20)
     proposed_status = models.CharField(max_length=20)
-    
+
     reason = models.TextField(help_text='Reason for grade change request')
-    
-    # Workflow Tracking
+
+    # Workflow status
     status = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=Status.choices,
-        default=Status.PENDING_HEAD
+        default=Status.PENDING_REGISTRAR_INITIAL
     )
-    
+
+    # Step 1: Who requested
     requested_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='requested_resolutions'
     )
-    
+    submitted_by_dean = models.BooleanField(
+        default=False,
+        help_text='True if dean submitted on behalf of inactive/resigned professor'
+    )
+
+    # Step 2: Registrar initial review
     reviewed_by_registrar = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -176,7 +194,23 @@ class GradeResolution(BaseModel):
     )
     registrar_notes = models.TextField(blank=True)
     registrar_action_at = models.DateTimeField(null=True, blank=True)
-    
+
+    # Step 3: Grade input by professor/dean
+    grade_input_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='grade_input_resolutions',
+        help_text='Professor or Dean who inputted the grade'
+    )
+    grade_input_at = models.DateTimeField(null=True, blank=True)
+    grade_input_comment = models.TextField(
+        blank=True,
+        help_text='Optional comment from professor/dean when inputting grade'
+    )
+
+    # Step 4: Head approval
     reviewed_by_head = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -186,7 +220,11 @@ class GradeResolution(BaseModel):
     )
     head_notes = models.TextField(blank=True)
     head_action_at = models.DateTimeField(null=True, blank=True)
-    
+
+    # Step 5: Registrar final — reuses reviewed_by_registrar fields
+    # registrar_final_notes stored in registrar_notes (appended)
+    registrar_final_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         verbose_name = "Grade Resolution"
         verbose_name_plural = "Grade Resolutions"
@@ -194,3 +232,17 @@ class GradeResolution(BaseModel):
 
     def __str__(self):
         return f"Resolution for {self.subject_enrollment} ({self.status})"
+
+    @property
+    def current_step_number(self):
+        """Return the current step number (1-5) for UI display."""
+        step_map = {
+            self.Status.PENDING_REGISTRAR_INITIAL: 1,
+            self.Status.GRADE_INPUT_PENDING: 2,
+            self.Status.PENDING_HEAD: 3,
+            self.Status.PENDING_REGISTRAR_FINAL: 4,
+            self.Status.APPROVED: 5,
+            self.Status.REJECTED: 0,
+            self.Status.CANCELLED: 0,
+        }
+        return step_map.get(self.status, 0)

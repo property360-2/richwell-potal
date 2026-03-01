@@ -32,12 +32,26 @@ class SectionService:
 
         # 1. Find a suitable section
         # Criteria: Same Program, Same Year Level, Active Semester, Has Slots
-        section = Section.objects.filter(
+        # Priority: Match shift preference first, then fall back
+        base_qs = Section.objects.filter(
             program=profile.program,
             year_level=profile.year_level,
             semester=enrollment.semester,
-            is_dissolved=False
-        ).order_by('name').first() # Simple FCFS assignment to first available section
+            is_dissolved=False,
+        )
+
+        section = None
+        preferred_shift = getattr(profile, 'preferred_shift', 'NO_PREFERENCE')
+
+        # Try shift-matched section first (if student has a preference)
+        if preferred_shift in ('AM', 'PM'):
+            section = base_qs.filter(shift=preferred_shift).order_by('name').first()
+
+        # Fall back to FULL_DAY or any section
+        if not section:
+            section = base_qs.filter(shift='FULL_DAY').order_by('name').first()
+        if not section:
+            section = base_qs.order_by('name').first()
 
         if not section:
             logger.warning(f"No available section found for {student.email} in {profile.program.code}")

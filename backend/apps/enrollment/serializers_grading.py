@@ -314,10 +314,13 @@ class GradeResolutionSerializer(serializers.ModelSerializer):
     subject_code = serializers.CharField(source='subject_enrollment.subject.code', read_only=True)
     subject_title = serializers.CharField(source='subject_enrollment.subject.title', read_only=True)
     
-    # Tracking fields
+    # Step tracking
     requested_by_name = serializers.CharField(source='requested_by.get_full_name', read_only=True)
-    reviewed_by_head_name = serializers.CharField(source='reviewed_by_head.get_full_name', read_only=True)
-    reviewed_by_registrar_name = serializers.CharField(source='reviewed_by_registrar.get_full_name', read_only=True)
+    reviewed_by_head_name = serializers.CharField(source='reviewed_by_head.get_full_name', read_only=True, allow_null=True)
+    reviewed_by_registrar_name = serializers.CharField(source='reviewed_by_registrar.get_full_name', read_only=True, allow_null=True)
+    grade_input_by_name = serializers.CharField(source='grade_input_by.get_full_name', read_only=True, allow_null=True)
+    current_step_number = serializers.IntegerField(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
         model = GradeResolution
@@ -326,16 +329,65 @@ class GradeResolutionSerializer(serializers.ModelSerializer):
             'subject_code', 'subject_title',
             'current_grade', 'proposed_grade', 
             'current_status', 'proposed_status',
-            'reason', 'status',
+            'reason', 'status', 'status_display', 'current_step_number',
+            'submitted_by_dean',
+            # Step 1
             'requested_by', 'requested_by_name', 'created_at',
-            'reviewed_by_head', 'reviewed_by_head_name', 'head_notes', 'head_action_at',
-            'reviewed_by_registrar', 'reviewed_by_registrar_name', 'registrar_notes', 'registrar_action_at'
+            # Step 2
+            'reviewed_by_registrar', 'reviewed_by_registrar_name', 
+            'registrar_notes', 'registrar_action_at',
+            # Step 3
+            'grade_input_by', 'grade_input_by_name', 
+            'grade_input_at', 'grade_input_comment',
+            # Step 4
+            'reviewed_by_head', 'reviewed_by_head_name', 
+            'head_notes', 'head_action_at',
+            # Step 5
+            'registrar_final_at',
         ]
         read_only_fields = [
             'id', 'current_grade', 'current_status', 'status', 'created_at',
             'requested_by', 'reviewed_by_head', 'reviewed_by_registrar',
-            'head_action_at', 'registrar_action_at'
+            'grade_input_by', 'grade_input_at',
+            'head_action_at', 'registrar_action_at', 'registrar_final_at',
+            'current_step_number', 'status_display',
         ]
         extra_kwargs = {
             'subject_enrollment': {'write_only': True}
         }
+
+
+class GradeInputSerializer(serializers.Serializer):
+    """Serializer for Step 3: Professor/Dean inputs grade into a resolution."""
+    proposed_grade = serializers.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        min_value=Decimal('1.00'),
+        max_value=Decimal('5.00'),
+        help_text='Grade value to assign'
+    )
+    proposed_status = serializers.ChoiceField(
+        choices=['PASSED', 'FAILED'],
+        help_text='Resulting status'
+    )
+    comment = serializers.CharField(
+        max_length=500,
+        required=False,
+        allow_blank=True,
+        help_text='Optional comment'
+    )
+
+    def validate(self, data):
+        grade = data.get('proposed_grade')
+        status = data.get('proposed_status')
+        if grade is not None and status:
+            if status == 'PASSED' and grade > Decimal('3.00'):
+                raise serializers.ValidationError({
+                    'proposed_grade': 'Grade must be 3.0 or lower for PASSED status'
+                })
+            if status == 'FAILED' and grade <= Decimal('3.00'):
+                raise serializers.ValidationError({
+                    'proposed_grade': 'Grade must be greater than 3.0 for FAILED status'
+                })
+        return data
+

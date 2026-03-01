@@ -105,11 +105,11 @@ class EnrollmentService:
             previous_course=data.get('previous_course', '')
         )
         
-        # Create Enrollment - Set to PENDING (wait for Admission approval)
+        # Create Enrollment - Set to PENDING_ADMISSION (wait for Campus Visit)
         enrollment = Enrollment.objects.create(
             student=user,
             semester=semester,
-            status=Enrollment.Status.PENDING,
+            status=Enrollment.Status.PENDING_ADMISSION,
             created_via=Enrollment.CreatedVia.ONLINE,
             monthly_commitment=data.get('monthly_commitment', 0.00)
         )
@@ -213,7 +213,7 @@ class EnrollmentService:
         enrollment = Enrollment.objects.create(
             student=user,
             semester=semester,
-            status=Enrollment.Status.PENDING,
+            status=Enrollment.Status.PENDING_ADMISSION,
             created_via=Enrollment.CreatedVia.TRANSFEREE,
             monthly_commitment=data.get('monthly_commitment', 0.00)
         )

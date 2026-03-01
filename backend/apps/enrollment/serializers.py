@@ -704,4 +704,5 @@ from .serializers_grading import (  # noqa: E402, F401
     SectionGradeListSerializer, MyGradesSerializer,
     TranscriptSerializer, INCReportSerializer,
     UpdateStandingSerializer, GradeResolutionSerializer,
+    GradeInputSerializer,
 )

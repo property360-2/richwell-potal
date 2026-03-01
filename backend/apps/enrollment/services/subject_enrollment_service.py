@@ -17,10 +17,8 @@ from ..models import (
 )
 
 
-# Re-export for backward compatibility
-from .payment_service import PaymentService, ExamPermitService  # noqa: F401
-from .grade_service import GradeService, INCAutomationService  # noqa: F401
-from .document_release_service import DocumentReleaseService  # noqa: F401
+# Note: PaymentService, ExamPermitService, GradeService, INCAutomationService, 
+# DocumentReleaseService were extracted to app-level modules (services_grading.py, etc.)
 
 
 class SubjectEnrollmentService:

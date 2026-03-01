@@ -7,11 +7,14 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 from . import export_views
+from .views_promissory import PromissoryNoteViewSet
+from .views_analytics import AdmissionStatsView, PaymentReportView, DepartmentEnrollmentStatsView
 
 app_name = 'enrollment'
 
 router = DefaultRouter()
 router.register(r'grade-resolutions', views.GradeResolutionViewSet, basename='grade-resolution')
+router.register(r'promissory-notes', PromissoryNoteViewSet, basename='promissory-note')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -28,6 +31,7 @@ urlpatterns = [
     
     # User enrollment
     path('my-enrollment/', views.EnrollmentDetailView.as_view(), name='my-enrollment'),
+    path('my-enrollment/shift-preference/', views.ShiftPreferenceView.as_view(), name='shift-preference'),
     
     # Registrar - Transferee management
     path('transferee/', views.TransfereeCreateView.as_view(), name='transferee-create'),
@@ -58,6 +62,7 @@ urlpatterns = [
     path('my-curriculum/', views.StudentCurriculumView.as_view(), name='student-curriculum'),
     
     # Enrollment actions
+    path('subjects/auto-assign/', views.AutoAssignEnrollmentView.as_view(), name='auto-assign-enrollment'),
     path('subjects/enroll/', views.EnrollSubjectView.as_view(), name='enroll-subject'),
     path('subjects/bulk-enroll/', views.BulkEnrollSubjectView.as_view(), name='bulk-enroll-subject'),
     path('subjects/<uuid:pk>/drop/', views.DropSubjectView.as_view(), name='drop-subject'),
@@ -106,6 +111,7 @@ urlpatterns = [
     path('grading/submit/', views.ProfessorSubmitGradeView.as_view(), name='professor-submit-grade'),
     path('grading/bulk/', views.BulkGradeSubmissionView.as_view(), name='professor-bulk-grade'),
     path('grading/history/<uuid:pk>/', views.GradeHistoryView.as_view(), name='grade-history'),
+    path('grading/deadline-status/', views.GradingDeadlineStatusView.as_view(), name='grading-deadline-status'),
     
     # Legacy professor grading endpoints (for backward compatibility)
     path('grades/my-sections/', views.ProfessorSectionsView.as_view(), name='professor-sections'),
@@ -160,6 +166,9 @@ urlpatterns = [
     # Reports (EPIC 13)
     # ============================================================
     path('reports/', views.HeadReportView.as_view(), name='head-reports'),
+    path('reports/admission-stats/', AdmissionStatsView.as_view(), name='admission-stats'),
+    path('reports/payment-report/', PaymentReportView.as_view(), name='payment-report'),
+    path('reports/enrollment-stats/', DepartmentEnrollmentStatsView.as_view(), name='enrollment-stats'),
 
     # ============================================================
     # COR (Certificate of Registration)

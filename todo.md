@@ -11,166 +11,291 @@
 
 ---
 
-## New Enrollment Flow (Sir Gil's Document)
+## Current Structure Map
 
-### Gap Analysis
+### Frontend (Vite + React)
 
-| Area | Status | Gap |
-|---|---|---|
-| Online Enrollment | ✅ Exists | 🟢 Low |
-| Admission Approval | ⚠️ Partial | 🟡 Visit date, doc encoding, student ID gen |
-| Subject Enrollment (Regular) | ❌ Manual | 🔴 Auto-assign block + AM/PM session |
-| Subject Enrollment (Irregular) | ✅ Exists | 🟢 Prereqs, conflict, cap 30 |
-| Approval Chain (Head + Cashier) | ✅ Exists | 🟢 Aligned |
-| Scheduling & Sectioning | ⚠️ Manual | 🟡 Dynamic sections, AM/PM capacity |
-| Grade Resolution | ❌ Wrong flow | 🔴 Need 5-step workflow |
-| Grade Submission | ⚠️ Partial | 🟡 Date range enforcement, auto-INC |
-| INC / Retake | ✅ Exists | 🟢 6mo major, 12mo minor |
-| Promissory Notes | ❌ Missing | 🔴 New model + cashier flow |
-| Role-Based Audit | ✅ Exists | 🟢 Aligned |
-| Role-Based Reports | ❌ Missing | 🔴 Admission stats, payment reports |
+```
+src/pages/
+├── admission/        → index.jsx (applicant dashboard)
+├── cashier/          → index.jsx (payment), PaymentHistory.jsx
+├── enrollment/       → index.jsx, SubjectEnrollment.jsx, steps/
+├── head/             → index.jsx, Resolutions.jsx, Students.jsx, Reports.jsx
+├── professor/        → Grades.jsx, Resolutions.jsx, Sections.jsx, Schedule.jsx
+├── registrar/        → grades/, sections/, students/, documents/, enrollment/
+├── student/          → index.jsx, Grades.jsx, ExamPermits.jsx, Schedule.jsx, StudentSOA.jsx
+├── admin/            → AuditLogs.jsx, UserManagement.jsx, TermManagement.jsx
 
----
+src/api/
+├── endpoints.js      → 200+ endpoint definitions (centralized)
+├── client.js         → Axios client with interceptors
+```
 
-## 🔴 Critical Items & Proposed Solutions
+### Backend (Django REST)
 
-### 1. AM/PM Auto-Assign (Phase 2) — 🔴 High Effort, High Risk
-
-**Problem**: Regular students manually pick subjects — Sir Gil wants auto-assign.
-
-**Solution**:
-- Add `session` field (`AM`/`PM`) sa `Section` model
-- New service method: `auto_assign_block_subjects(student, semester)`
-  - Kukunin lahat ng curriculum subjects for student's year + sem
-  - Hahanapin matching section na may slot sa preferred session
-  - Bulk-create lahat ng `SubjectEnrollment` in one go
-- Frontend: Regular student landing = AM/PM selector lang, hindi subject picker
-- If AM full → disable AM button, auto-suggest PM
-- Feature flag para pwedeng i-rollback
-
-**Files affected**: `Section` model, `StudentProfile`, `subject_enrollment_service.py`, `section_service.py`, frontend enrollment page
-
-**Checklist**:
-- [ ] Add `session` field to Section model
-- [ ] Add `session_preference` to StudentProfile
-- [ ] Capacity tracking per session per year level
-- [ ] `auto_assign_block_subjects()` service method
-- [ ] Frontend: AM/PM selector for regular students
-- [ ] Feature flag toggle
+```
+apps/enrollment/
+├── models.py              → Semester, Enrollment, SubjectEnrollment, MonthlyPaymentBucket
+├── models_grading.py      → GradeHistory, SemesterGPA, GradeResolution
+├── models_payments.py     → PaymentTransaction, ExamMonthMapping, ExamPermit
+├── services/              → enrollment_service, subject_enrollment_service, payment_service, etc.
+├── views_*.py             → 12 view files (split by domain)
+├── serializers_*.py       → 5 serializer files
+└── urls.py                → 171 lines, all routes
+```
 
 ---
 
-### 2. Grade Resolution Workflow Fix (Phase 3) — � Medium Effort, Medium Risk
+# 🔧 STAGE 1: ALL BACKEND (Models → Services → Serializers → Views → URLs)
 
-**Problem**: Current flow = 3 steps (wrong). Sir Gil's = 5 steps.
+---
 
-**Current (wrong)**: Professor → Head → Registrar
-**Sir Gil's flow**: Request → Registrar Approval → Grade Input → Head Approval → Registrar Final
+## P3 — Grade Resolution Workflow Fix (Backend)
 
-**Solution**:
-- Update `GradeResolution.Status` choices:
-  - `PENDING_REGISTRAR_INITIAL` → Registrar reviews request
+**Priority**: 1st | **Effort**: Medium | **Risk**: Medium
+
+### Model Changes (`models_grading.py`)
+- [ ] Update `GradeResolution.Status` to 7 choices:
+  - `PENDING_REGISTRAR_INITIAL` → Registrar first review
   - `GRADE_INPUT_PENDING` → Professor/Dean inputs grade
-  - `PENDING_HEAD` → Head approves
+  - `PENDING_HEAD` → Head approval
   - `PENDING_REGISTRAR_FINAL` → Registrar final sign-off
   - `APPROVED` / `REJECTED` / `CANCELLED`
-- Add fields: `grade_input_by`, `grade_input_at`, `grade_input_comment`
-- Add `submitted_by_dean` flag for resigned professors
-- Each role sees only their step in the chain
-- Existing resolutions mapped to nearest new status
+- [ ] Add `grade_input_by` (FK to User)
+- [ ] Add `grade_input_at` (DateTimeField)
+- [ ] Add `grade_input_comment` (TextField)
+- [ ] Add `submitted_by_dean` (BooleanField)
+- [ ] Create migration + data migration for existing resolutions
 
-**Files affected**: `GradeResolution` model, `services_grading.py`, `views_grading.py`, `serializers_grading.py`
+### Service Changes (`services_grading.py`)
+- [ ] `submit_resolution()` — create request (prof or dean)
+- [ ] `registrar_initial_approve()` — registrar reviews, triggers grade input
+- [ ] `input_grade()` — professor/dean inputs grade + comment
+- [ ] `head_approve()` — head reviews and approves
+- [ ] `registrar_final_approve()` — registrar final sign-off, applies grade
 
-**Checklist**:
-- [ ] Update `GradeResolution.Status` to 7 choices
-- [ ] Add `grade_input_by`, `grade_input_at`, `grade_input_comment` fields
-- [ ] Add `submitted_by_dean` flag
-- [ ] Migration for existing data
-- [ ] Update service workflow logic
-- [ ] Update views per role
-- [ ] Update serializers
+### Serializer Changes (`serializers_grading.py`)
+- [ ] Update `GradeResolutionSerializer` with new fields
+- [ ] Add `GradeInputSerializer` for grade input step
+- [ ] Add status transition validation
 
----
+### View Changes (`views_grading.py`)
+- [ ] `RegistrarInitialApproveView`
+- [ ] `GradeInputView`
+- [ ] `RegistrarFinalApproveView`
 
-### 3. Promissory Notes (Phase 5) — 🟡 Medium Effort, 🟢 Low Risk
-
-**Problem**: No model, no flow — students can't request deferred payment.
-
-**Solution**:
-- New `PromissoryNote` model:
-  - `enrollment` → FK to Enrollment
-  - `month_number` → 1-6 (which month)
-  - `amount` → how much
-  - `due_date` → when to pay
-  - `status` → PENDING / APPROVED / PAID / EXPIRED
-  - `processed_by` → FK to cashier
-- New `promissory_service.py` with rules:
-  - ❌ Can't create new promissory if past month still unpaid
-  - ✅ Approved promissory = "conditionally paid" for exam permits
-  - Cashier dashboard shows pending requests
-- Student UI: "Apply for Promissory" button on payment page
-
-**Files affected**: NEW `PromissoryNote` model, NEW `promissory_service.py`, `views_payments.py`, frontend payment page
-
-**Checklist**:
-- [ ] Create `PromissoryNote` model
-- [ ] Create `promissory_service.py`
-- [ ] Student apply endpoint
-- [ ] Cashier approve/reject endpoint
-- [ ] Past-month unpaid validation rule
-- [ ] Exam permit integration (conditionally paid)
-- [ ] Frontend: Student promissory UI
-- [ ] Frontend: Cashier promissory dashboard
+### URL Changes (`urls.py`)
+- [ ] `grade-resolutions/<id>/registrar-approve/`
+- [ ] `grade-resolutions/<id>/input-grade/`
+- [ ] `grade-resolutions/<id>/registrar-final/`
 
 ---
 
-### 4. Role-Based Reports (Phase 6) — 🟡 Medium Effort, � Low Risk
+## P1 — Admission Flow Completion (Backend)
 
-**Problem**: No data visibility for management.
+**Priority**: 2nd | **Effort**: Medium | **Risk**: Low
 
-**Solution**:
-- **Admission Report**: Online enrollees vs completed (conversion rate), count per year level
-- **Payment Report**: Paid vs unpaid vs promissory breakdown, summary table + charts
-- **Generic Payment Page** (link-based, role TBD): Overview for admin visibility
-- Add aggregate query endpoints in `views_reports.py`
-- Frontend renders charts (bar/pie)
-- Defer: Head Registrar performance reports (needs Maam Angel's input)
-
-**Files affected**: `views_reports.py`, frontend report pages
-
-**Checklist**:
-- [ ] Admission stats endpoint (online vs completed, per year level)
-- [ ] Payment summary endpoint (paid/unpaid/promissory)
-- [ ] Generic payment overview page
-- [ ] Frontend: Charts and tables
-- [ ] Defer: Performance per section
-
----
-
-## Non-Critical Phases
-
-### Phase 1 — Admission Flow Completion (🟡 Medium)
-
-- [ ] Add `assigned_visit_date` to Enrollment
+### Model Changes (`models.py`)
 - [ ] Add `Enrollment.Status.PENDING_ADMISSION`
-- [ ] Admission approval endpoint (doc check → student ID gen)
-- [ ] Student ID auto-generation format
+- [ ] Add `assigned_visit_date` (DateField, null)
+- [ ] Add `admission_notes` (TextField, blank)
+- [ ] Create migration
 
-### Phase 4 — Grade Submission Date Range (🟡 Medium)
+### Service Changes (`services/enrollment_service.py`)
+- [ ] `assign_visit_date(enrollment, date)` 
+- [ ] `approve_admission(enrollment, actor)` — verify docs, gen student ID, transition status
+- [ ] `generate_student_id()` — auto-gen in school format
 
-- [ ] Enforce `grading_start_date`/`grading_end_date` in `GradeService.submit_grade()`
-- [ ] Management command `process_grading_deadline` (daily cron, auto-INC)
-- [ ] Professor deadline countdown in UI
+### Serializer Changes (`serializers.py`)
+- [ ] Update `EnrollmentSerializer` with new fields
+- [ ] Add `AdmissionApprovalSerializer`
+
+### View Changes (`views_applicants.py`)
+- [ ] `ApplicantVisitDateView` — assign visit date
+- [ ] `ApproveAdmissionView` — approve with doc check
+
+### URL Changes (`urls.py`)
+- [ ] `applicants/<id>/assign-visit-date/`
+- [ ] `applicants/<id>/approve-admission/`
 
 ---
 
-## Recommended Priority Order
+## P4 — Grade Submission Date Range (Backend)
 
-| Order | Phase | Why |
-|---|---|---|
-| 1st | Phase 3 — Grade Resolution | Existing bug, medium effort |
-| 2nd | Phase 1 — Admission Flow | Foundational, low risk |
-| 3rd | Phase 4 — Grade Submission Dates | Low risk, builds on existing |
-| 4th | Phase 5 — Promissory Notes | New feature, isolated |
-| 5th | Phase 2 — AM/PM Auto-Assign | Highest risk, needs feature flag |
-| 6th | Phase 6 — Reports | Incremental, no rush |
+**Priority**: 3rd | **Effort**: Low | **Risk**: Low
+
+### Service Changes (`services/grade_service.py`)
+- [ ] Add date validation in `submit_grade()` — reject if outside `grading_start_date`/`grading_end_date`
+- [ ] Return deadline info in grade submission response
+
+### Management Command
+- [ ] [NEW] `management/commands/process_grading_deadline.py` — daily cron
+  - Find all ENROLLED subjects with no grade after `grading_end_date`
+  - Auto-mark INC
+  - Trigger retake countdown
+
+### View Changes (`views_grading.py`)
+- [ ] `GradingDeadlineStatusView` — returns remaining time for professors
+
+### URL Changes (`urls.py`)
+- [ ] `grading/deadline-status/`
+
+---
+
+## P5 — Promissory Notes (Backend)
+
+**Priority**: 4th | **Effort**: Medium | **Risk**: Low
+
+### Model
+- [ ] [NEW] `models_promissory.py` → `PromissoryNote` model:
+  - `enrollment` (FK Enrollment)
+  - `month_number` (1-6)
+  - `amount` (DecimalField)
+  - `due_date` (DateField)
+  - `status` (PENDING / APPROVED / PAID / EXPIRED)
+  - `processed_by` (FK User — cashier)
+  - `student_signature` (BooleanField)
+- [ ] Create migration
+
+### Service
+- [ ] [NEW] `services/promissory_service.py`:
+  - `apply_promissory()` — student applies
+  - `approve_promissory()` — cashier approves
+  - `reject_promissory()` — cashier rejects
+  - `validate_past_month_rule()` — no new promissory if past month unpaid
+  - `check_conditional_payment()` — promissory counts as paid for permits
+
+### Serializer
+- [ ] [NEW] `serializers_promissory.py`:
+  - `PromissoryNoteSerializer`
+  - `PromissoryApplySerializer`
+
+### Views
+- [ ] [NEW] `views_promissory.py`:
+  - `StudentApplyPromissoryView`
+  - `StudentMyPromissoryView`
+  - `CashierPromissoryListView`
+  - `CashierApprovePromissoryView`
+  - `CashierRejectPromissoryView`
+
+### URL Changes (`urls.py`)
+- [ ] `promissory/apply/`
+- [ ] `my-promissory/`
+- [ ] `promissory/pending/`
+- [ ] `promissory/<id>/approve/`
+- [ ] `promissory/<id>/reject/`
+
+---
+
+## P2 — AM/PM Auto-Assign Block Subjects (Backend)
+
+**Priority**: 5th | **Effort**: High | **Risk**: High
+
+### Model Changes
+- [ ] Add `session` field (`AM`/`PM`) to `Section` model (`apps/academics/models.py`)
+- [ ] Add `session_preference` to `StudentProfile` (`apps/accounts/models.py`)
+- [ ] Create migration
+
+### Service Changes
+- [ ] `services/subject_enrollment_service.py` → `auto_assign_block_subjects(student, semester, session)`
+  - Get curriculum subjects for year + sem
+  - Find section with available capacity for session
+  - Bulk-create SubjectEnrollments
+- [ ] `services/section_service.py` → `get_available_sessions(year_level, semester)`, `check_session_capacity()`
+
+### Serializer Changes
+- [ ] `SessionSelectionSerializer`
+- [ ] `SessionAvailabilitySerializer`
+
+### View Changes (`views_enrollment.py`)
+- [ ] `SessionAvailabilityView`
+- [ ] `AutoEnrollRegularView`
+
+### URL Changes (`urls.py`)
+- [ ] `sessions/availability/`
+- [ ] `enrollment/auto-enroll/`
+
+---
+
+## P6 — Role-Based Reports (Backend)
+
+**Priority**: 6th | **Effort**: Medium | **Risk**: Low
+
+### Views (`views_reports.py`)
+- [ ] `AdmissionStatsView` — online vs completed enrollees, per year level
+- [ ] `PaymentSummaryView` — paid/unpaid/promissory breakdown
+- [ ] `EnrollmentConversionView` — conversion rate
+
+### Serializer
+- [ ] [NEW] `serializers_reports.py` — report response serializers
+
+### URL Changes (`urls.py`)
+- [ ] `reports/admission-stats/`
+- [ ] `reports/payment-summary/`
+- [ ] `reports/enrollment-conversion/`
+
+---
+
+# 🎨 STAGE 2: ALL FRONTEND (Pages → Components → API endpoints)
+
+> To be started after all backend APIs are complete and tested.
+
+---
+
+## P3 Frontend — Grade Resolution UI
+
+- [ ] Update `pages/professor/Resolutions.jsx` — show GRADE_INPUT_PENDING step + dean takeover
+- [ ] Update `pages/head/Resolutions.jsx` — show PENDING_HEAD step only
+- [ ] Update `pages/registrar/grades/` — split into initial + final review tabs
+- [ ] [NEW] `components/ResolutionTimeline.jsx` — 5-step progress indicator
+- [ ] Add endpoints to `api/endpoints.js`
+
+## P1 Frontend — Admission Flow UI
+
+- [ ] Update `pages/admission/index.jsx` — "Assign Visit Date" modal, "Approve Admission" button
+- [ ] Update `pages/enrollment/index.jsx` — show pending admission status + docs + visit date
+- [ ] [NEW] `components/DocumentChecklist.jsx` — reusable doc verification checklist
+- [ ] Add endpoints to `api/endpoints.js`
+
+## P4 Frontend — Grade Deadline UI
+
+- [ ] Update `pages/professor/Grades.jsx` — deadline countdown banner
+- [ ] Update `pages/registrar/grades/` — "Process Deadline" manual trigger button
+- [ ] [NEW] `components/DeadlineCountdown.jsx` — countdown timer component
+- [ ] Add endpoints to `api/endpoints.js`
+
+## P5 Frontend — Promissory Notes UI
+
+- [ ] [NEW] `pages/student/Promissory.jsx` — apply + status view
+- [ ] [NEW] `pages/cashier/Promissory.jsx` — pending list + approve/reject
+- [ ] Update `pages/student/StudentSOA.jsx` — promissory status badge per month
+- [ ] [NEW] `components/PromissoryBadge.jsx` — status badge component
+- [ ] Add endpoints to `api/endpoints.js`
+
+## P2 Frontend — AM/PM Session UI
+
+- [ ] [NEW] `pages/enrollment/SessionSelector.jsx` — AM/PM selector for regular students
+- [ ] Update `pages/enrollment/index.jsx` — route regular → SessionSelector, irregular → SubjectEnrollment
+- [ ] [NEW] `components/SessionCard.jsx` — AM/PM card with capacity indicator
+- [ ] Add endpoints to `api/endpoints.js`
+
+## P6 Frontend — Reports UI
+
+- [ ] [NEW] `pages/admission/Reports.jsx` — enrollment stats charts
+- [ ] [NEW] `pages/cashier/Reports.jsx` — payment summary charts
+- [ ] [NEW] `pages/admin/Reports.jsx` — payment overview (generic)
+- [ ] Update `pages/head/Reports.jsx` — connect to real data
+- [ ] [NEW] `components/charts/BarChart.jsx`
+- [ ] [NEW] `components/charts/PieChart.jsx`
+- [ ] [NEW] `components/StatCard.jsx`
+- [ ] Add endpoints to `api/endpoints.js`
+
+---
+
+## Summary
+
+| Stage | Phases | New Files | Modified Files |
+|---|---|---|---|
+| **Stage 1: Backend** | P3 → P1 → P4 → P5 → P2 → P6 | 11 | 14 |
+| **Stage 2: Frontend** | P3 → P1 → P4 → P5 → P2 → P6 | 14 | 9 |
+| **Total** | | **25 new files** | **23 modified files** |

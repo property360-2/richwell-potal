@@ -290,6 +290,18 @@ class Section(ArchivableMixin, BaseModelWithActiveManager):
         related_name='merged_sections',
         help_text='Parent section if this section was merged into another'
     )
+
+    class Shift(models.TextChoices):
+        AM = 'AM', 'Morning (AM)'
+        PM = 'PM', 'Afternoon (PM)'
+        FULL_DAY = 'FULL_DAY', 'Full Day'
+
+    shift = models.CharField(
+        max_length=10,
+        choices=Shift.choices,
+        default=Shift.FULL_DAY,
+        help_text='Time-of-day shift for this section (AM, PM, or Full Day)'
+    )
     
     class Meta:
         verbose_name = 'Section'
