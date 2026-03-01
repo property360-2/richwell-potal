@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { X, Search, Plus, Trash2, AlertCircle, CheckCircle, User, Briefcase, GraduationCap, Edit, Loader2 } from 'lucide-react';
+import { X, Search, Plus, Trash2, AlertCircle, CheckCircle, User, Briefcase, GraduationCap, Edit, Loader2, Lock, Eye, EyeOff } from 'lucide-react';
 import { FacultyService } from '../services/FacultyService';
 import Button from '../../../components/ui/Button';
 import { useToast } from '../../../context/ToastContext';
@@ -14,6 +14,7 @@ const FacultyFormModal = ({ isOpen, onClose, onSuccess, professor = null }) => {
         first_name: '',
         last_name: '',
         email: '',
+        password: '',
         department: '',
         specialization: '',
         max_teaching_hours: 30,
@@ -25,6 +26,7 @@ const FacultyFormModal = ({ isOpen, onClose, onSuccess, professor = null }) => {
     const [selectedSubjects, setSelectedSubjects] = useState([]); 
     const [loadingPrograms, setLoadingPrograms] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     
     // Validation State
     const [errors, setErrors] = useState({});
@@ -46,6 +48,7 @@ const FacultyFormModal = ({ isOpen, onClose, onSuccess, professor = null }) => {
                     first_name: professor.first_name || '',
                     last_name: professor.last_name || '',
                     email: professor.email || '',
+                    password: '', // Optional for edit
                     department: professor.profile?.department || '',
                     specialization: professor.profile?.specialization || '',
                     max_teaching_hours: professor.profile?.max_teaching_hours || 30,
@@ -60,6 +63,7 @@ const FacultyFormModal = ({ isOpen, onClose, onSuccess, professor = null }) => {
                     first_name: '',
                     last_name: '',
                     email: '',
+                    password: '',
                     department: '',
                     specialization: '',
                     max_teaching_hours: 30,
@@ -291,6 +295,32 @@ const FacultyFormModal = ({ isOpen, onClose, onSuccess, professor = null }) => {
                                                 {isValid.email === true && <CheckCircle className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 w-5 h-5" />}
                                             </div>
                                             {errors.email && <p className="text-[10px] font-bold text-red-500 ml-1 uppercase">{errors.email}</p>}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">
+                                                    Account Password {isEdit && <span className="text-gray-300 normal-case">(Optional - leave blank to keep current)</span>}
+                                                </label>
+                                            </div>
+                                            <div className="relative group">
+                                                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                                                <input 
+                                                    type={showPassword ? 'text' : 'password'}
+                                                    value={formData.password}
+                                                    onChange={e => setFormData({...formData, password: e.target.value})}
+                                                    required={!isEdit}
+                                                    className="w-full pl-14 pr-12 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-sm font-bold text-gray-900 focus:bg-white focus:border-indigo-100 transition-all outline-none"
+                                                    placeholder={isEdit ? "••••••••" : "Create a secure password"}
+                                                />
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                                                >
+                                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
 

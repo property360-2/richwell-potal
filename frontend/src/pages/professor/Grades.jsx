@@ -185,6 +185,7 @@ const ProfessorGrades = () => {
                         {!selectedSS && (
                             <div className="w-full md:w-64 relative group">
                                 <select 
+                                    aria-label="Select Semester"
                                     value={selectedSemesterId || ''}
                                     onChange={(e) => {
                                         setSelectedSemesterId(e.target.value);
@@ -244,6 +245,7 @@ const ProfessorGrades = () => {
                                 <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                                 <input 
                                     type="text" 
+                                    aria-label="Search Students"
                                     placeholder="Search student name or number..." 
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -260,8 +262,8 @@ const ProfessorGrades = () => {
                         </div>
 
                         {/* Students List */}
-                        <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden">
-                            <table className="w-full text-left">
+                        <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden overflow-x-auto">
+                            <table className="w-full text-left min-w-[600px]">
                                 <thead className="bg-gray-50/50">
                                     <tr>
                                         <th className="px-10 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Student Information</th>
@@ -300,6 +302,7 @@ const ProfessorGrades = () => {
                                             <td className="px-10 py-6 text-center">
                                                 <div className="w-48 mx-auto relative">
                                                     <select 
+                                                        aria-label="Grade Input"
                                                         value={student.current_grade || student.proposed_grade || ''}
                                                         disabled={processingId === student.subject_enrollment_id || !isGradingOpen}
                                                         onChange={(e) => handleGradeSubmit(student.subject_enrollment_id, e.target.value)}

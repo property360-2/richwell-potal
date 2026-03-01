@@ -27,6 +27,15 @@ const LoginPage = () => {
         }
     }, [user, navigate]);
 
+    // Load remembered email on mount
+    useEffect(() => {
+        const savedEmail = localStorage.getItem('portal_remembered_email');
+        if (savedEmail) {
+            setEmail(savedEmail);
+            setRememberMe(true);
+        }
+    }, []);
+
     useEffect(() => {
         const checkEnrollmentStatus = async () => {
             try {
@@ -79,6 +88,13 @@ const LoginPage = () => {
                 error('Your application has been rejected. Please contact the Admissions Office.');
                 setIsLoading(false);
                 return;
+            }
+
+            // Save or clear remember me email
+            if (rememberMe) {
+                localStorage.setItem('portal_remembered_email', email);
+            } else {
+                localStorage.removeItem('portal_remembered_email');
             }
 
             success('Login successful!');

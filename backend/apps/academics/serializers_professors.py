@@ -113,6 +113,10 @@ class ProfessorSerializer(serializers.ModelSerializer):
         profile_data = validated_data.pop('professor_profile', {})
         assigned_subject_ids = profile_data.pop('assigned_subject_ids', None)
 
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+
         email = validated_data.get('email')
         if email:
             validated_data['username'] = email

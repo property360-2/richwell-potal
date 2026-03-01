@@ -288,6 +288,7 @@ const SubjectEnrollmentPage = () => {
                                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
                                     <input 
                                         type="text"
+                                        aria-label="Search Subjects"
                                         placeholder="Search by Code or Title..."
                                         value={filters.search}
                                         onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
@@ -296,6 +297,7 @@ const SubjectEnrollmentPage = () => {
                                 </div>
                                 <div className="flex gap-4 w-full lg:w-auto">
                                     <select 
+                                        aria-label="Filter by Year Level"
                                         value={filters.yearLevel}
                                         onChange={(e) => setFilters(prev => ({ ...prev, yearLevel: e.target.value }))}
                                         className="flex-1 lg:w-40 px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-xs font-black uppercase tracking-widest text-gray-500 focus:bg-white focus:border-blue-100 transition-all appearance-none cursor-pointer"
@@ -304,6 +306,7 @@ const SubjectEnrollmentPage = () => {
                                         {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>Year {y}</option>)}
                                     </select>
                                     <select 
+                                        aria-label="Filter by Semester"
                                         value={filters.semester}
                                         onChange={(e) => setFilters(prev => ({ ...prev, semester: e.target.value }))}
                                         className="flex-1 lg:w-40 px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none text-xs font-black uppercase tracking-widest text-gray-500 focus:bg-white focus:border-blue-100 transition-all appearance-none cursor-pointer"
@@ -766,8 +769,8 @@ const EnrolledSubjectsView = ({ subjects }) => (
             <p className="text-gray-500 font-medium mt-2">Subjects verified and officially assigned for the current term.</p>
         </header>
         
-        <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden">
-            <table className="w-full text-left border-collapse">
+        <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-blue-500/5 overflow-hidden overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                     <tr className="bg-gray-50/50">
                         <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Academic Subject</th>

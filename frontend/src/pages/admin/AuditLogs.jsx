@@ -8,18 +8,128 @@ import {
     ChevronLeft, 
     ChevronRight, 
     Loader2, 
-    Info, 
     Clock, 
     Globe, 
-    Shield, 
     Database,
     Download
 } from 'lucide-react';
 import { AdminService } from './services/AdminService';
 import { useToast } from '../../context/ToastContext';
 import Button from '../../components/ui/Button';
-import Modal from '../../components/ui/Modal';
 import SEO from '../../components/shared/SEO';
+
+const PayloadViewer = ({ log }) => {
+    const payload = log?.payload;
+    if (!payload || Object.keys(payload).length === 0) {
+        return <span className="text-gray-400 italic text-[10px]">No telemetry payload available</span>;
+    }
+
+    const renderValue = (val) => {
+        if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+        if (typeof val === 'object' && val !== null) return JSON.stringify(val);
+        return String(val);
+    };
+
+    const buildSentence = () => {
+        // Enrollment (Subject Enrollment)
+        if (payload.subject_code && payload.section) {
+            const units = payload.units ? ` (${payload.units} units)` : '';
+            const type = payload.enrollment_type || 'regular';
+            const irregularStr = (payload.is_irregular === 'No' || payload.is_irregular === false) ? 'an irregular' : 'a regular';
+            return `Enrolled in ${payload.subject_code}${units} under section ${payload.section} as ${irregularStr} student (${type} enrollment).`;
+        }
+
+        // Enrollment Created (Term Registration)
+        if (payload.program && payload['created via']) {
+            const typeStr = payload['is transferee'] === 'Yes' ? 'transferee' : 'student';
+            const studentStr = payload['student number'] && payload['student number'] !== 'null' ? ` (${payload['student number']})` : '';
+            return `Registered ${typeStr}${studentStr} to ${payload.program} via ${payload['created via'].toLowerCase()} enrollment.`;
+        }
+
+        // Payment
+        if (payload.amount && payload.payment_mode && payload.receipt_number) {
+            const studentStr = payload.student_number ? ` from student ${payload.student_number}` : '';
+            return `Processed a ${payload.payment_mode} payment of ₱${payload.amount} (Receipt: ${payload.receipt_number})${studentStr}.`;
+        }
+        
+        // Grade Resolution / Actions
+        if (payload.action && payload.student && (payload.proposed_grade || payload['proposed grade'])) {
+            const pGrade = payload.proposed_grade || payload['proposed grade'];
+            const actionStr = payload.action.toLowerCase().replace(/_/g, ' ');
+            const subjectStr = payload.subject ? ` in subject ${payload.subject}` : '';
+            return `Grade resolution was ${actionStr} for student ${payload.student}${subjectStr} (Proposed Grade: ${pGrade}).`;
+        }
+
+        // User Account Creation
+        if (payload.role && payload.email) {
+            const roleStr = payload.role.replace(/_/g, ' ');
+            return `Registered new user account for ${payload.email} with role: ${roleStr}.`;
+        }
+
+        // Action-based generic fallbacks
+        if (log.action === 'LOGIN' || log.action === 'LOGOUT') {
+            return `User ${log.action.toLowerCase()} successful.`;
+        }
+        
+        if (log.action === 'DELETED') {
+            return `Deleted node from ${log.target_model}.`;
+        }
+
+        return null;
+    };
+
+    const sentence = buildSentence();
+
+    return (
+        <div className="flex flex-col gap-3">
+            {sentence && (
+                <div className="text-[11px] font-bold text-gray-800 leading-relaxed">
+                    {sentence}
+                </div>
+            )}
+
+            {Object.entries(payload).map(([key, value]) => {
+                // Always highlight nested "changes" or "details" explicitly
+                if ((key === 'changes' || key === 'details') && typeof value === 'object' && value !== null) {
+                    return (
+                        <div key={key} className="space-y-1 mt-1">
+                            <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded-md inline-block">Manipulated Data</span>
+                            <div className="flex flex-col gap-2 mt-1 border-l-2 border-blue-100 pl-3 py-1">
+                                {Object.entries(value).map(([cKey, cVal]) => {
+                                    const isUpdate = typeof cVal === 'object' && cVal !== null && cVal.hasOwnProperty('old') && cVal.hasOwnProperty('new');
+                                    return (
+                                        <div key={cKey} className="flex flex-col">
+                                            <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest">{cKey.replace(/_/g, ' ')}</span>
+                                            {isUpdate ? (
+                                                <span className="text-[10px] text-gray-900 font-bold break-words">
+                                                    <span className="line-through text-gray-400">{renderValue(cVal.old)}</span> &rarr; <span className="text-blue-600">{renderValue(cVal.new)}</span>
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] text-gray-900 font-bold break-words">{renderValue(cVal)}</span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                }
+                
+                // If we didn't generate a sentence, show the raw fields
+                if (!sentence && key !== 'allocations') {
+                    return (
+                        <div key={key} className="flex flex-col">
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{key.replace(/_/g, ' ')}</span>
+                            <span className="text-[10px] font-bold text-gray-900 break-words">{renderValue(value)}</span>
+                        </div>
+                    );
+                }
+                
+                return null;
+            })}
+        </div>
+    );
+};
 
 const AdminAuditLogs = () => {
     const { error } = useToast();
@@ -42,7 +152,6 @@ const AdminAuditLogs = () => {
         next: false,
         previous: false
     });
-    const [selectedLog, setSelectedLog] = useState(null);
 
     useEffect(() => {
         fetchMetadata();
@@ -201,11 +310,11 @@ const AdminAuditLogs = () => {
                     <table className="w-full">
                         <thead>
                             <tr className="bg-gray-50/50">
-                                <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Temporal Node</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Actor</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Action Vector</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Schema Path</th>
-                                <th className="px-8 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Telemetry</th>
+                                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Temporal Node</th>
+                                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Actor</th>
+                                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Action</th>
+                                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Target</th>
+                                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Data Payload</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -218,47 +327,44 @@ const AdminAuditLogs = () => {
                                 </tr>
                             ) : logs.map((log) => (
                                 <tr key={log.id} className="group hover:bg-gray-50/50 transition-colors">
-                                    <td className="px-8 py-6">
+                                    <td className="px-6 py-6 align-top">
                                         <div className="flex flex-col">
                                             <span className="text-sm font-black text-gray-900">{new Date(log.timestamp).toLocaleDateString()}</span>
-                                            <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
+                                            <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1 mt-1">
                                                 <Clock className="w-3 h-3" /> {new Date(log.timestamp).toLocaleTimeString()}
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="px-8 py-6">
+                                    <td className="px-6 py-6 align-top">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-black text-xs">
+                                            <div className="w-8 h-8 flex-shrink-0 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-black text-xs">
                                                 {(log.actor_name || 'SYS')[0]}
                                             </div>
-                                            <div className="flex flex-col">
+                                            <div className="flex flex-col min-w-[120px]">
                                                 <span className="text-sm font-black text-gray-800 tracking-tight">{log.actor_name || 'SYSTEM'}</span>
-                                                <span className="text-[10px] font-bold text-gray-400">{log.actor_email || 'CORE'}</span>
+                                                <span className="text-[10px] font-bold text-gray-400 truncate max-w-[150px]">{log.actor_email || 'CORE'}</span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-8 py-6">
-                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${getActionColor(log.action)}`}>
+                                    <td className="px-6 py-6 align-top">
+                                        <span className={`px-4 py-1.5 inline-block rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${getActionColor(log.action)}`}>
                                             {log.action_display}
                                         </span>
                                     </td>
-                                    <td className="px-8 py-6">
+                                    <td className="px-6 py-6 align-top">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-2">
                                                 <Database className="w-3 h-3 text-gray-300" /> {log.target_model}
                                             </span>
-                                            <span className="text-[9px] font-mono text-gray-400 mt-1 truncate max-w-[150px]">
+                                            <span className="text-[9px] font-mono text-gray-400 mt-1 truncate max-w-[120px]">
                                                 {log.target_id || '---'}
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="px-8 py-6 text-right">
-                                        <button 
-                                            onClick={() => setSelectedLog(log)}
-                                            className="p-3 bg-gray-50 rounded-xl text-gray-400 group-hover:bg-blue-600 group-hover:text-white group-hover:shadow-lg transition-all"
-                                        >
-                                            <Info className="w-5 h-5" />
-                                        </button>
+                                    <td className="px-6 py-6 align-top min-w-[200px] max-w-md">
+                                        <div className="bg-gray-50/50 hover:bg-white border border-transparent hover:border-gray-100 rounded-2xl p-4 transition-all w-full shadow-sm hover:shadow-md h-full">
+                                            <PayloadViewer log={log} />
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -302,57 +408,6 @@ const AdminAuditLogs = () => {
                 </div>
             </div>
 
-            {/* Detail Modal */}
-            <Modal
-                isOpen={!!selectedLog}
-                onClose={() => setSelectedLog(null)}
-                title="Event Telemetry Details"
-                maxWidth="max-w-2xl"
-            >
-                {selectedLog && (
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-6 bg-gray-50 rounded-3xl p-6 border border-gray-100">
-                            <div className="space-y-1">
-                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Temporal Stamp</p>
-                                <p className="text-sm font-black text-gray-900">{new Date(selectedLog.timestamp).toLocaleString()}</p>
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">IP Address Node</p>
-                                <p className="text-sm font-black text-gray-900 flex items-center gap-2">
-                                    <Globe className="w-4 h-4 text-blue-600" /> {selectedLog.ip_address || 'INTRA-SYSTEM'}
-                                </p>
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Security Action</p>
-                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest inline-block mt-1 ${getActionColor(selectedLog.action)}`}>
-                                    {selectedLog.action_display}
-                                </span>
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Actor Level</p>
-                                <p className="text-sm font-black text-gray-900 flex items-center gap-2">
-                                    <Shield className="w-4 h-4 text-indigo-600" /> {selectedLog.actor_name || 'SYSTEM'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div>
-                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2">Data Payload Details</p>
-                            <div className="bg-gray-900 rounded-[32px] p-8 shadow-2xl relative overflow-hidden group/payload">
-                                <pre className="text-xs font-mono text-blue-400 overflow-x-auto whitespace-pre-wrap leading-relaxed h-[300px] custom-scrollbar">
-                                    {JSON.stringify(selectedLog.payload, null, 2)}
-                                </pre>
-                            </div>
-                        </div>
-
-                        <div className="pt-4">
-                            <Button variant="secondary" className="w-full py-4 rounded-2xl" onClick={() => setSelectedLog(null)}>
-                                DISMISS TELEMETRY
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </Modal>
         </div>
     );
 };

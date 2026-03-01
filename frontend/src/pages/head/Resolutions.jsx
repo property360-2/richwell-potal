@@ -20,7 +20,9 @@ import {
     Users,
     GraduationCap,
     Building,
-    Filter
+    Filter,
+    CheckSquare,
+    Square
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -46,9 +48,14 @@ const Resolutions = ({ hideTabs = false }) => {
     const [processing, setProcessing] = useState(false);
     const [notes, setNotes] = useState('');
     
-    // Students State
+    // Students State (Now serves as Student Directory)
     const [students, setStudents] = useState([]);
     const [programs, setPrograms] = useState([]);
+
+    // Enrollments State (Subject Approvals)
+    const [enrollments, setEnrollments] = useState([]);
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [selectedStudent, setSelectedStudent] = useState(null);
 
     useEffect(() => {
         initData();
@@ -57,14 +64,38 @@ const Resolutions = ({ hideTabs = false }) => {
     const initData = async () => {
         try {
             setLoading(true);
-            const [resData, programData, studentData] = await Promise.all([
+            const [resData, programData, studentData, enrollmentData] = await Promise.all([
                 HeadService.getPendingResolutions(),
                 HeadService.getPrograms(),
-                HeadService.getStudents()
+                HeadService.getStudents(),
+                HeadService.getPendingEnrollments()
             ]);
             setResolutions(resData);
             setPrograms(programData);
             setStudents(studentData);
+            
+            // Format enrollments as they were in Students.jsx
+            const grouped = {};
+            enrollmentData.forEach(se => {
+                const key = se.student_id;
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        id: se.student_id,
+                        name: se.student_name,
+                        number: se.student_number,
+                        program: se.program_code,
+                        year_level: se.year_level,
+                        is_irregular: se.is_irregular,
+                        subjects: [],
+                        totalUnits: 0,
+                        isPaid: se.is_month1_paid
+                    };
+                }
+                grouped[key].subjects.push(se);
+                grouped[key].totalUnits += se.subject_units;
+            });
+            setEnrollments(Object.values(grouped));
+            
         } catch (err) {
             console.error('Data init failed:', err);
             error('Failed to sync administrative data');
@@ -115,6 +146,86 @@ const Resolutions = ({ hideTabs = false }) => {
             error('Transaction was not finalized');
         } finally {
             setProcessing(false);
+        }
+    };
+
+    const fetchEnrollments = async () => {
+        try {
+            const data = await HeadService.getPendingEnrollments();
+            const grouped = {};
+            data.forEach(se => {
+                const key = se.student_id;
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        id: se.student_id,
+                        name: se.student_name,
+                        number: se.student_number,
+                        program: se.program_code,
+                        year_level: se.year_level,
+                        is_irregular: se.is_irregular,
+                        subjects: [],
+                        totalUnits: 0,
+                        isPaid: se.is_month1_paid
+                    };
+                }
+                grouped[key].subjects.push(se);
+                grouped[key].totalUnits += se.subject_units;
+            });
+            setEnrollments(Object.values(grouped));
+        } catch (err) {
+            error('Failed to sync pending enrollments');
+        }
+    };
+
+    const handleApproveAll = async (student) => {
+        try {
+            setProcessing(true);
+            const ids = student.subjects.map(s => s.id);
+            await HeadService.bulkApprove(ids);
+            success(`Enrollment for ${student.name} approved`);
+            setSelectedStudent(null);
+            fetchEnrollments();
+        } catch (err) {
+            error('Approval failed');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleBulkApprove = async () => {
+        if (selectedIds.length === 0) return;
+        
+        try {
+            setProcessing(true);
+            const subjectIds = [];
+            enrollments
+                .filter(e => selectedIds.includes(e.id))
+                .forEach(e => {
+                    e.subjects.forEach(s => subjectIds.push(s.id));
+                });
+            
+            const res = await HeadService.bulkApprove(subjectIds);
+            success(`Approved enrollment for ${res.approved_count} subjects`);
+            setSelectedIds([]);
+            fetchEnrollments();
+        } catch (err) {
+            error('Bulk approval failed');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const toggleSelect = (id) => {
+        setSelectedIds(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = (filteredItems) => {
+        if (selectedIds.length === filteredItems.length && filteredItems.length > 0) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredItems.map(e => e.id));
         }
     };
 
@@ -173,7 +284,17 @@ const Resolutions = ({ hideTabs = false }) => {
         return matchesSearch && student?.program_code === selectedProgram;
     });
 
+    const filteredEnrollments = enrollments.filter(e => {
+        const matchesSearch = e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            e.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            e.program.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        if (selectedProgram === 'ALL') return matchesSearch;
+        return matchesSearch && e.program === selectedProgram;
+    });
+
     const resolutionCount = filteredResolutions.length;
+    const enrollmentCount = filteredEnrollments.length;
 
     return (
         <div className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in duration-700">
@@ -198,6 +319,7 @@ const Resolutions = ({ hideTabs = false }) => {
                         <div className="relative group w-full md:w-64">
                             <Filter className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
                             <select 
+                                aria-label="Filter by Program"
                                 value={selectedProgram}
                                 onChange={(e) => setSelectedProgram(e.target.value)}
                                 className="w-full pl-12 pr-6 py-4 bg-white border border-gray-100 rounded-[24px] text-[11px] font-black uppercase tracking-widest focus:outline-none focus:border-indigo-200 shadow-xl shadow-indigo-500/5 transition-all appearance-none cursor-pointer"
@@ -216,6 +338,7 @@ const Resolutions = ({ hideTabs = false }) => {
                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
                         <input 
                             type="text" 
+                            aria-label="Search Context"
                             placeholder={activeTab === 'resolutions' ? "Search for a record..." : "Search students..."}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -241,24 +364,24 @@ const Resolutions = ({ hideTabs = false }) => {
                         {resolutionCount > 0 && <span className="ml-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
                     </button>
                     <button 
-                        onClick={() => setActiveTab('students')}
+                        onClick={() => setActiveTab('approvals')}
                         className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                            activeTab === 'students' 
+                            activeTab === 'approvals' 
                                 ? 'bg-white text-indigo-600 shadow-lg shadow-gray-200' 
                                 : 'text-gray-400 hover:text-gray-600'
                         }`}
                     >
-                        <Users className="w-4 h-4" />
-                        Student Directory
-                        <span className="ml-1 px-2 py-0.5 bg-gray-100 rounded-md text-[8px] text-gray-500">{students.length}</span>
+                        <Shield className="w-4 h-4" />
+                        Subject Approvals
+                        <span className="ml-1 px-2 py-0.5 bg-gray-100 rounded-md text-[8px] text-gray-500">{enrollmentCount}</span>
                     </button>
                 </div>
             )}
 
             {/* Content Area */}
             {activeTab === 'resolutions' ? (
-                <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-indigo-500/5 overflow-hidden">
-                    <table className="w-full text-left">
+                <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-indigo-500/5 overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left min-w-[700px]">
                         <thead className="bg-gray-50/50">
                             <tr>
                                 <th className="px-10 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Student Associate</th>
@@ -335,8 +458,8 @@ const Resolutions = ({ hideTabs = false }) => {
                     </table>
                 </div>
             ) : (
-                <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-indigo-500/5 overflow-hidden">
-                    <table className="w-full text-left">
+                <div className="bg-white rounded-[40px] border border-gray-100 shadow-2xl shadow-indigo-500/5 overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left min-w-[700px]">
                         <thead className="bg-gray-50/50">
                             <tr>
                                 <th className="px-10 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Student Profile</th>
@@ -493,8 +616,10 @@ const Resolutions = ({ hideTabs = false }) => {
                                 )}
 
                                 <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Action Disposition Notes</label>
+                                    <label htmlFor="actionNotes" className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Action Disposition Notes</label>
                                     <textarea 
+                                        id="actionNotes"
+                                        aria-label="Action Disposition Notes"
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
                                         placeholder={selectedRes.status === 'PENDING_HEAD' ? "Provide feedback for the Registrar's final review..." : "Formalize your final decision for the academic record..."}
@@ -629,6 +754,237 @@ const Resolutions = ({ hideTabs = false }) => {
                     </div>
                 </div>
             )}
+
+            {/* Approvals Content Area */}
+            {activeTab === 'approvals' && (
+                <div className="grid grid-cols-1 gap-4 pb-32">
+                    {/* Controls Bar for Approvals */}
+                    <div className="bg-white p-4 rounded-[32px] border border-gray-100 shadow-2xl shadow-indigo-500/5 mb-8 flex flex-col md:flex-row items-center gap-4">
+                        {/* Bulk Select Trigger */}
+                        <button 
+                            onClick={() => toggleSelectAll(filteredEnrollments)}
+                            className="flex items-center gap-3 px-6 py-3 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-all w-full md:w-auto"
+                        >
+                            {selectedIds.length === filteredEnrollments.length && filteredEnrollments.length > 0 ? (
+                                <CheckSquare className="w-4 h-4 text-indigo-600" />
+                            ) : (
+                                <Square className="w-4 h-4 text-gray-300" />
+                            )}
+                            <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Select All</span>
+                        </button>
+                    </div>
+
+                    {filteredEnrollments.length === 0 ? (
+                        <div className="bg-white p-20 rounded-[40px] border border-dashed border-gray-200 text-center opacity-40 mt-10">
+                            <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                            <p className="text-[11px] font-black uppercase tracking-widest text-gray-400">No pending enrollments</p>
+                        </div>
+                    ) : filteredEnrollments.map((e) => (
+                        <StudentCard 
+                            key={e.id} 
+                            student={e} 
+                            isSelected={selectedIds.includes(e.id)}
+                            onSelect={() => toggleSelect(e.id)}
+                            onReview={() => setSelectedStudent(e)}
+                            onApprove={() => handleApproveAll(e)}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* Floating Action Bar for Bulk Approvals */}
+            {activeTab === 'approvals' && selectedIds.length > 0 && (
+                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[5000] animate-in slide-in-from-bottom-10 duration-500">
+                    <div className="bg-gray-900 border border-white/10 text-white rounded-[32px] px-8 py-5 shadow-2xl flex items-center gap-10 backdrop-blur-xl bg-opacity-95">
+                        <div className="flex items-center gap-4 border-r border-white/10 pr-10">
+                            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black shadow-lg shadow-indigo-600/20">
+                                {selectedIds.length}
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-white/40 leading-none">Students Selected</p>
+                                <p className="text-xs font-bold text-white mt-1">Ready for bulk approval</p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                            <button 
+                                onClick={() => setSelectedIds([])}
+                                className="text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <Button 
+                                variant="primary" 
+                                className="!bg-white !text-gray-900 px-8 py-4 !rounded-2xl"
+                                icon={CheckCircle2}
+                                onClick={handleBulkApprove}
+                                disabled={processing}
+                            >
+                                {processing ? 'PROCESSING...' : 'APPROVE ALL SELECTED'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Review Drawer for Approvals */}
+            {activeTab === 'approvals' && selectedStudent && (
+                <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setSelectedStudent(null)} />
+                    <div className="relative w-full max-w-3xl bg-white rounded-[40px] shadow-2xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
+                        {/* Drawer Header */}
+                        <div className="p-10 border-b border-gray-50 flex justify-between items-start">
+                            <div className="flex items-center gap-6">
+                                <div className="w-20 h-20 bg-indigo-600 rounded-[32px] flex items-center justify-center text-white text-2xl font-black shadow-2xl shadow-indigo-200">
+                                    {selectedStudent.name.charAt(0)}
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Detailed Enrollment Review</p>
+                                    <h2 className="text-3xl font-black text-gray-900 tracking-tighter leading-tight">{selectedStudent.name}</h2>
+                                    <p className="text-gray-400 font-bold uppercase tracking-widest text-[9px] mt-1">
+                                        {selectedStudent.number} • {selectedStudent.program} • YEAR {selectedStudent.year_level}
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedStudent(null)} className="p-4 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors">
+                                <XCircle className="w-5 h-5 text-gray-400" />
+                            </button>
+                        </div>
+
+                        {/* Drawer Content */}
+                        <div className="flex-grow overflow-y-auto p-10">
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Subject Breakdown</h3>
+                                {selectedStudent.subjects.map((s) => (
+                                    <div key={s.id} className="flex items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100/50 group">
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm font-black border border-gray-100 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                {s.subject_code}
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-black text-gray-900 uppercase tracking-tight">{s.subject_name}</p>
+                                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{s.section_name} • {s.subject_units} Units</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                            onClick={() => {
+                                                const reason = window.prompt("Reason for rejection:");
+                                                if (reason) {
+                                                    HeadService.rejectSubject(s.id, reason).then(() => {
+                                                        success("Subject rejected");
+                                                        fetchEnrollments();
+                                                        setSelectedStudent(null);
+                                                    });
+                                                }
+                                            }}
+                                        >
+                                            <XCircle className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Drawer Footer */}
+                        <div className="p-10 border-t border-gray-50 bg-gray-50/30 flex gap-4">
+                            <Button 
+                                variant="secondary" 
+                                className="flex-1 py-5 !rounded-2xl !bg-white border border-gray-100" 
+                                onClick={() => setSelectedStudent(null)}
+                            >
+                                CLOSE
+                            </Button>
+                            <Button 
+                                variant="primary" 
+                                className="flex-3 py-5 !rounded-2xl" 
+                                icon={CheckCircle2}
+                                onClick={() => handleApproveAll(selectedStudent)}
+                                disabled={processing}
+                            >
+                                {processing ? 'PROCESSING...' : 'APPROVE ALL SUBJECTS'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Component for Student Approvals List
+const StudentCard = ({ student, isSelected, onSelect, onReview, onApprove }) => {
+    return (
+        <div className={`bg-white p-6 rounded-[32px] border transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:border-indigo-200 shadow-xl shadow-indigo-500/5 ${isSelected ? 'border-indigo-500 ring-4 ring-indigo-500/5' : 'border-gray-100'}`}>
+            <div className="flex items-center gap-6">
+                {/* Selection Checkbox */}
+                <button onClick={onSelect} className="shrink-0 transition-transform active:scale-95">
+                    {isSelected ? (
+                        <CheckSquare className="w-6 h-6 text-indigo-600" />
+                    ) : (
+                        <Square className="w-6 h-6 text-gray-200" />
+                    )}
+                </button>
+
+                {/* Avatar */}
+                <div className="relative">
+                    <div className="w-16 h-16 bg-gray-50 rounded-3xl flex items-center justify-center text-gray-400 text-lg font-black border border-gray-100 group-hover:bg-indigo-600 transition-all">
+                        {student.name.charAt(0)}
+                    </div>
+                    {student.is_irregular && (
+                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white border-4 border-white shadow-lg" title="Irregular Student">
+                            <AlertCircle className="w-3 h-3" />
+                        </div>
+                    )}
+                </div>
+
+                {/* Name & Metadata */}
+                <div>
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-black text-gray-900 tracking-tight leading-none">{student.name}</h3>
+                        {!student.isPaid && (
+                           <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-[8px] font-black uppercase tracking-widest border border-amber-100">
+                               <Clock className="w-2.5 h-2.5" /> Pending Payment
+                           </span>
+                        )}
+                    </div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1.5 flex items-center gap-2">
+                        {student.number} 
+                        <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                        {student.program}
+                        <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                        Year {student.year_level}
+                    </p>
+                    
+                    <div className="flex items-center gap-4 mt-3">
+                        <div className="flex items-center gap-1.5">
+                            <BookOpen className="w-3 h-3 text-indigo-400" />
+                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{student.subjects.length} Subjects</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <TrendingUp className="w-3 h-3 text-blue-400" />
+                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{student.totalUnits} Units</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 pt-4 lg:pt-0 border-t lg:border-none border-gray-50">
+                <button 
+                    onClick={onReview}
+                    className="flex-1 lg:flex-none px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all"
+                >
+                    REVIEW DETAILS
+                </button>
+                <Button 
+                    variant="primary" 
+                    className="flex-1 lg:flex-none px-8 py-4 !rounded-2xl shadow-lg shadow-indigo-100" 
+                    icon={CheckCircle2}
+                    onClick={onApprove}
+                >
+                    APPROVE
+                </Button>
+            </div>
         </div>
     );
 };

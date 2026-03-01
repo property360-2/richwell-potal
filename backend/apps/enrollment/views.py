@@ -170,7 +170,6 @@ from .views_enrollment import (
     MyScheduleView,
     AutoAssignEnrollmentView, EnrollSubjectView, BulkEnrollSubjectView,
     RegistrarOverrideEnrollmentView,
-    DropSubjectView, EditSubjectEnrollmentView
 )
 
 # --- Payment views ---
