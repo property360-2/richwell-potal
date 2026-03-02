@@ -49,6 +49,7 @@ class EnrollmentDetailView(APIView):
                 } if enrollment.semester else None,
                 "created_at": enrollment.created_at,
                 "monthly_commitment": enrollment.monthly_commitment,
+                "verified_documents": list(enrollment.documents.filter(is_verified=True).values_list('document_type', flat=True)),
                 "student_profile": {
                     "student_number": request.user.student_number,
                     "section_name": request.user.student_profile.home_section.name if request.user.student_profile.home_section else "N/A",

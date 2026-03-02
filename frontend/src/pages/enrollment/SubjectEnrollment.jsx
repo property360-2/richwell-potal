@@ -202,8 +202,6 @@ const SubjectEnrollmentPage = () => {
     if (hasEnrolled) return <EnrolledSubjectsView subjects={data.enrolledSubjects} />;
     if (enrollmentExpired) return <EnrollmentEndedView semester={data.activeSemester?.name} />;
 
-    const isRegular = data.studentProfile && data.studentProfile.is_irregular === False;
-    // Wait, is_irregular in python bool translates to true/false in JS. Let's use strict boolean check.
     const isRegularStudent = data.studentProfile && data.studentProfile.is_irregular === false;
 
     return (
@@ -669,7 +667,7 @@ const SubjectTableRow = ({ subject, onAdd, inList }) => {
                             
                             <div className="space-y-1">
                                 <div className="text-[9px] font-bold text-gray-400 truncate flex items-center gap-1">
-                                    <span className="text-blue-400">👤</span> {sec.professor || 'Wala pa'}
+                                    <span className="text-blue-400">👤</span> {sec.professor || 'No Section'}
                                 </div>
                                 {sec.schedule && sec.schedule.length > 0 ? (
                                     <div className="text-[8px] font-bold text-gray-400 flex flex-col gap-0.5">

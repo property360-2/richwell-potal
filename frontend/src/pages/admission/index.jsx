@@ -35,7 +35,7 @@ const AdmissionDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [applicants, setApplicants] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('PENDING');
+    const [statusFilter, setStatusFilter] = useState('PENDING_ADMISSION');
     
     // UI State
     const [selectedApplicant, setSelectedApplicant] = useState(null);
@@ -56,11 +56,7 @@ const AdmissionDashboard = () => {
     const requireAllDocuments = Object.values(documentChecks).every(Boolean);
 
     
-    // Visit Schedule State
-    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-    const [visitDate, setVisitDate] = useState('');
-    const [visitNotes, setVisitNotes] = useState('');
-    const [isScheduling, setIsScheduling] = useState(false);
+
 
     useEffect(() => {
         fetchApplicants();
@@ -95,7 +91,7 @@ const AdmissionDashboard = () => {
         if (idStatus.available === false) return error('ID is already taken');
 
         try {
-            const res = await AdmissionService.admitApplicant(selectedApplicant.id, proposedId);
+            const res = await AdmissionService.admitApplicant(selectedApplicant.id, proposedId, documentChecks);
             if (res) {
                 success(res.message || 'Applicant admitted and ID assigned');
                 setIsIdModalOpen(false);
@@ -107,24 +103,7 @@ const AdmissionDashboard = () => {
         }
     };
 
-    const handleScheduleVisit = async () => {
-        if (!visitDate) return error('Please select a visit date');
-        
-        try {
-            setIsScheduling(true);
-            const res = await AdmissionService.assignVisitDate(selectedApplicant.id, visitDate, visitNotes);
-            if (res) {
-                success('Visit scheduled successfully');
-                setIsScheduleModalOpen(false);
-                setSelectedApplicant(null);
-                fetchApplicants();
-            }
-        } catch (err) {
-            error('Failed to schedule visit');
-        } finally {
-            setIsScheduling(false);
-        }
-    };
+
 
     const handleReject = async () => {
         try {
@@ -159,7 +138,7 @@ const AdmissionDashboard = () => {
     };
 
     const stats = {
-        pending: applicants.filter(a => a.status === 'PENDING').length,
+        pending: applicants.filter(a => ['PENDING', 'PENDING_ADMISSION'].includes(a.status)).length,
         approvedToday: applicants.filter(a => a.status === 'APPROVED' && isToday(a.updated_at || a.created_at)).length,
         totalRejected: applicants.filter(a => a.status === 'REJECTED').length,
         totalApplicants: applicants.length
@@ -404,20 +383,7 @@ const AdmissionDashboard = () => {
                                     REJECT
                                 </Button>
 
-                                {selectedApplicant.status === 'PENDING_ADMISSION' && (
-                                    <Button 
-                                        className="flex-1 py-4 text-[10px]" 
-                                        variant="secondary" 
-                                        icon={Clock}
-                                        onClick={() => {
-                                            setVisitDate('');
-                                            setVisitNotes('');
-                                            setIsScheduleModalOpen(true);
-                                        }}
-                                    >
-                                        SCHEDULE VISIT
-                                    </Button>
-                                )}
+
                                 
                                 <Button 
                                     className="flex-1 py-4 text-[10px]" 
@@ -460,18 +426,18 @@ const AdmissionDashboard = () => {
             {isIdModalOpen && (
                 <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setIsIdModalOpen(false)} />
-                    <div className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
-                        <div className="text-center mb-8">
-                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-4">
-                                <CheckCircle2 className="w-8 h-8" />
+                    <div className="relative w-full max-w-sm bg-white rounded-[32px] shadow-2xl p-6 animate-in zoom-in duration-300">
+                        <div className="text-center mb-4">
+                            <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-2">
+                                <CheckCircle2 className="w-6 h-6" />
                             </div>
-                            <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Assign Student Number</h3>
-                            <p className="text-gray-500 font-bold text-xs mt-1">Institutional Identity Generation</p>
+                            <h3 className="text-lg font-black text-gray-900 tracking-tighter leading-none">Assign Student Number</h3>
+                            <p className="text-gray-500 font-bold text-[9px] mt-1.5">Institutional Identity Generation</p>
                         </div>
 
-                        <div className="space-y-6">
-                            <div className="p-6 bg-gray-50 rounded-[28px] border border-gray-100">
-                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Proposed Student ID</label>
+                        <div className="space-y-3">
+                            <div className="p-3 bg-gray-50 rounded-[20px] border border-gray-100">
+                                <label className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Proposed Student ID</label>
                                 <div className="flex gap-4">
                                     <input 
                                         type="text" 
@@ -480,36 +446,36 @@ const AdmissionDashboard = () => {
                                             setProposedId(e.target.value);
                                             handleCheckId(e.target.value);
                                         }}
-                                        className="flex-1 bg-white border border-gray-100 rounded-2xl px-6 py-3 text-xl font-black text-gray-900 tracking-[0.2em] focus:outline-none focus:border-blue-400 transition-all text-center"
+                                        className="w-full bg-white border border-gray-100 rounded-xl px-4 py-2 text-base font-black text-gray-900 tracking-[0.2em] focus:outline-none focus:border-blue-400 transition-all text-center"
                                     />
                                 </div>
-                                <div className="mt-3 flex items-center justify-center gap-2">
-                                    {idStatus.loading ? <Loader2 className="w-3 h-3 animate-spin text-gray-400" /> : 
-                                     idStatus.available === true ? <Check className="w-3 h-3 text-green-600" /> :
-                                     idStatus.available === false ? <AlertCircle className="w-3 h-3 text-red-600" /> : null}
-                                    <span className={`text-[9px] font-black uppercase tracking-widest
+                                <div className="mt-1.5 flex items-center justify-center gap-1.5">
+                                    {idStatus.loading ? <Loader2 className="w-2.5 h-2.5 animate-spin text-gray-400" /> : 
+                                     idStatus.available === true ? <Check className="w-2.5 h-2.5 text-green-600" /> :
+                                     idStatus.available === false ? <AlertCircle className="w-2.5 h-2.5 text-red-600" /> : null}
+                                    <span className={`text-[7.5px] font-black uppercase tracking-widest
                                         ${idStatus.available === true ? 'text-green-600' : 
                                           idStatus.available === false ? 'text-red-600' : 'text-gray-400'}`}>
-                                        {idStatus.loading ? 'Checking Registry...' : 
-                                         idStatus.available === true ? 'ID is available' : 
-                                         idStatus.available === false ? 'ID already registered' : 'Enter ID to verify'}
+                                        {idStatus.loading ? 'Checking...' : 
+                                         idStatus.available === true ? 'Available' : 
+                                         idStatus.available === false ? 'Registered' : 'Verify ID'}
                                     </span>
                                 </div>
                             </div>
 
-                            <div className="p-6 bg-blue-50/50 rounded-[28px] border border-blue-100">
-                                <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4" /> Document Verification
+                            <div className="p-4 bg-blue-50/50 rounded-[20px] border border-blue-100">
+                                <label className="block text-[8px] font-black text-blue-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3 h-3" /> Document Verification
                                 </label>
-                                <div className="space-y-3">
+                                <div className="space-y-1.5">
                                     {[
-                                        { id: 'diploma', label: 'High School Diploma (or proof of graduation)' },
-                                        { id: 'form137', label: 'Form 137 / Permanent Record' },
-                                        { id: 'form138', label: 'Form 138 / Report Card' },
-                                        { id: 'goodMoral', label: 'Certificate of Good Moral Character' },
-                                        { id: 'birthCertificate', label: 'Birth Certificate (PSA copy)' }
+                                        { id: 'diploma', label: 'High School Diploma' },
+                                        { id: 'form137', label: 'Form 137 (Perm. Record)' },
+                                        { id: 'form138', label: 'Form 138 (Report Card)' },
+                                        { id: 'goodMoral', label: 'Good Moral Character' },
+                                        { id: 'birthCertificate', label: 'Birth Certificate (PSA)' }
                                     ].map((doc) => (
-                                        <label key={doc.id} className="flex items-start gap-3 cursor-pointer group">
+                                        <label key={doc.id} className="flex items-start gap-2 cursor-pointer group">
                                             <div className="relative flex items-center justify-center mt-0.5">
                                                 <input 
                                                     type="checkbox" 
@@ -517,10 +483,10 @@ const AdmissionDashboard = () => {
                                                     checked={documentChecks[doc.id]}
                                                     onChange={(e) => setDocumentChecks(prev => ({ ...prev, [doc.id]: e.target.checked }))}
                                                 />
-                                                <div className="w-5 h-5 rounded-md border-2 border-gray-300 bg-white peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all shadow-sm"></div>
-                                                <Check className="w-3 h-3 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity scale-50 peer-checked:scale-100" />
+                                                <div className="w-3.5 h-3.5 rounded border-2 border-gray-300 bg-white peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all shadow-sm"></div>
+                                                <Check className="w-2 h-2 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity scale-50 peer-checked:scale-100" />
                                             </div>
-                                            <span className={`text-sm font-semibold transition-colors mt-0.5 ${documentChecks[doc.id] ? 'text-gray-900' : 'text-gray-600 group-hover:text-gray-900'}`}>
+                                            <span className={`text-[11px] font-bold transition-colors mt-px ${documentChecks[doc.id] ? 'text-gray-900' : 'text-gray-600 group-hover:text-gray-900'}`}>
                                                 {doc.label}
                                             </span>
                                         </label>
@@ -528,13 +494,13 @@ const AdmissionDashboard = () => {
                                 </div>
                             </div>
 
-                            <div className="flex gap-4">
-                                <Button variant="secondary" className="flex-1" onClick={() => setIsIdModalOpen(false)}>CANCEL</Button>
+                            <div className="flex gap-4 pt-1">
+                                <Button variant="secondary" className="flex-1 py-2 text-[10px]" onClick={() => setIsIdModalOpen(false)}>CANCEL</Button>
                                 <Button 
                                     variant="primary" 
-                                    className="flex-1" 
+                                    className="flex-1 py-2 text-[10px]" 
                                     onClick={handleApprove} 
-                                    disabled={!idStatus.available || !requireAllDocuments}
+                                    disabled={!idStatus.available}
                                 >
                                     PROCEED
                                 </Button>
@@ -573,51 +539,7 @@ const AdmissionDashboard = () => {
                 </div>
             )}
 
-            {/* Schedule Visit Modal */}
-            {isScheduleModalOpen && (
-                <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setIsScheduleModalOpen(false)} />
-                    <div className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
-                        <div className="text-center mb-8">
-                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-4">
-                                <Clock className="w-8 h-8" />
-                            </div>
-                            <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Schedule Campus Visit</h3>
-                            <p className="text-gray-500 font-bold text-xs mt-1">Assign a date for document submission</p>
-                        </div>
 
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Visit Date</label>
-                                <input 
-                                    type="date" 
-                                    value={visitDate}
-                                    min={new Date().toISOString().split('T')[0]}
-                                    onChange={(e) => setVisitDate(e.target.value)}
-                                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 text-sm font-bold text-gray-900 focus:outline-none focus:border-blue-400 focus:bg-white transition-all custom-calendar-icon"
-                                />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Notes / Instructions (Optional)</label>
-                                <textarea 
-                                    value={visitNotes}
-                                    onChange={(e) => setVisitNotes(e.target.value)}
-                                    placeholder="Any specific documents they must bring..."
-                                    className="w-full bg-gray-50 border border-gray-100 rounded-[28px] p-6 text-sm font-bold min-h-[100px] focus:outline-none focus:bg-white focus:border-blue-400 transition-all"
-                                />
-                            </div>
-
-                            <div className="flex gap-4 pt-4 border-t border-gray-50">
-                                <Button variant="secondary" className="flex-1 py-4" onClick={() => setIsScheduleModalOpen(false)}>CANCEL</Button>
-                                <Button variant="primary" className="flex-1 py-4" onClick={handleScheduleVisit} disabled={!visitDate || isScheduling}>
-                                    {isScheduling ? 'SCHEDULING...' : 'CONFIRM VISIT'}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
     User,
-    Book,
+    BookOpen,
     CreditCard,
     CheckCircle, // Used in StatCard
     AlertCircle,
@@ -36,6 +36,7 @@ const StudentDashboard = () => {
         currentSection: 'Loading...',
         stats: {},
         paymentBuckets: [],
+        verifiedDocuments: [],
         gpa: null,
         enrollmentDates: null
     });
@@ -53,6 +54,7 @@ const StudentDashboard = () => {
             try {
                 const enrollData = await api.get(endpoints.myEnrollment);
                 newData.enrollmentStatus = enrollData?.status || 'N/A';
+                newData.verifiedDocuments = enrollData?.verified_documents || [];
                 newData.enrollmentDates = enrollData?.semester || null;
             } catch (e) { console.error("Enrollment fetch failed", e); }
 
@@ -88,9 +90,18 @@ const StudentDashboard = () => {
         return <DashboardSkeleton />;
     }
 
-    const { enrollmentStatus, enrolledUnits, currentSection, paymentBuckets, gpa, enrollmentDates } = dashboardData;
+    const { enrollmentStatus, enrolledUnits, currentSection, paymentBuckets, gpa, enrollmentDates, verifiedDocuments } = dashboardData;
     const profile = user?.student_profile;
     const studentType = profile?.is_irregular ? 'Irregular' : 'Regular';
+
+    const requiredDocsList = [
+        { id: 'OTHER', label: 'High School Diploma' },
+        { id: 'TOR', label: 'Form 137 (Permanent Record)' },
+        { id: 'FORM_138', label: 'Form 138 (Report Card)' },
+        { id: 'GOOD_MORAL', label: 'Certificate of Good Moral' },
+        { id: 'BIRTH_CERTIFICATE', label: 'Birth Certificate (PSA Copy)' }
+    ];
+    const missingDocs = requiredDocsList.filter(doc => !verifiedDocuments.includes(doc.id));
 
     // Payment Calculations
     const totalPaid = paymentBuckets.reduce((sum, b) => sum + b.paid, 0);
@@ -111,7 +122,7 @@ const StudentDashboard = () => {
                             </span>
                         ) : (
                             <span className="bg-amber-100 text-amber-600 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-200">
-                                wala pa
+                                AWAITING ADMISSION
                             </span>
                         )}
                     </div>
@@ -128,7 +139,7 @@ const StudentDashboard = () => {
                     {user?.student_number && enrollmentStatus !== 'ENROLLED' && (
                         <Button 
                             variant="primary" 
-                            icon={Book} 
+                            icon={BookOpen} 
                             className="flex-1 md:flex-none shadow-xl shadow-blue-200"
                             onClick={() => navigate('/enrollment/subjects')}
                         >
@@ -154,9 +165,30 @@ const StudentDashboard = () => {
                             <Clock className="w-6 h-6" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">wala pa (waiting for approval)</h3>
+                            <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">PENDING ADMISSION (AWAITING CAMPUS VISIT)</h3>
                             <p className="text-xs font-bold text-amber-700/80 mt-1 leading-relaxed">
-                                Your application is currently being evaluated by the Admissions Office. You will be notified once your Student ID is issued.
+                                Your application is currently being evaluated. Please visit the Admissions Office for document verification to receive your Student ID and proceed with enrollment.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {user?.student_number && missingDocs.length > 0 && (
+                    <div className="bg-rose-50 border-2 border-rose-100 p-6 rounded-[32px] flex items-start gap-4 animate-in slide-in-from-top-4">
+                        <div className="p-3 bg-rose-100 text-rose-600 rounded-2xl">
+                            <AlertCircle className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-rose-900 uppercase tracking-tight">Pending Admission Requirements</h3>
+                            <p className="text-xs font-bold text-rose-700/80 mt-1 leading-relaxed">
+                                Please submit the following physical documents to the Admission Office to complete your records:
+                                <span className="block mt-2 flex flex-wrap gap-2">
+                                    {missingDocs.map(doc => (
+                                        <span key={doc.id} className="bg-white/50 border border-rose-200 px-3 py-1 rounded-lg text-[10px] font-black uppercase text-rose-600">
+                                            {doc.label}
+                                        </span>
+                                    ))}
+                                </span>
                             </p>
                         </div>
                     </div>
@@ -187,7 +219,7 @@ const StudentDashboard = () => {
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
                 <StatCard label="Enrollment Status" value={enrollmentStatus} icon={ShieldCheck} color="blue" />
-                <StatCard label="Enrolled Units" value={enrolledUnits > 0 ? enrolledUnits : 'No subjects'} icon={Book} color="indigo" />
+                <StatCard label="Enrolled Units" value={enrolledUnits > 0 ? enrolledUnits : 'No subjects'} icon={BookOpen} color="indigo" />
                 <StatCard label="Student Type" value={studentType} icon={User} color="purple" />
             </div>
 

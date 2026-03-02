@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django.db import transaction
+from django.utils import timezone
 
 from .models import Enrollment, Semester
 
@@ -389,24 +390,56 @@ class ApplicantUpdateView(APIView):
             if User.objects.filter(student_number=student_number).exclude(pk=enrollment.student.pk).exists():
                 return Response({"error": "Student ID already exists"}, status=400)
             
+            document_checks = request.data.get('document_checks', {})
+            
             try:
                 with transaction.atomic():
+                    # Update User
                     student = enrollment.student
                     student.student_number = student_number
                     student.save()
                     
+                    # Update Enrollment
                     enrollment.status = 'ADMITTED'
                     enrollment.save()
                     
+                    # Process Document Checks (EPIC 1)
+                    # Mapping frontend IDs to DocumentType choices
+                    doc_mapping = {
+                        'diploma': 'OTHER',
+                        'form137': 'TOR',
+                        'form138': 'FORM_138',
+                        'goodMoral': 'GOOD_MORAL',
+                        'birthCertificate': 'BIRTH_CERTIFICATE'
+                    }
+                    
+                    from .models import EnrollmentDocument
+                    for doc_id, is_checked in document_checks.items():
+                        if is_checked and doc_id in doc_mapping:
+                            doc_type = doc_mapping[doc_id]
+                            # Create placeholder record for physical document
+                            EnrollmentDocument.objects.update_or_create(
+                                enrollment=enrollment,
+                                document_type=doc_type,
+                                defaults={
+                                    'is_verified': True,
+                                    'verified_by': request.user,
+                                    'verified_at': timezone.now(),
+                                    'notes': f'Physical copy received and verified during admission visit.'
+                                }
+                            )
+                    
                     return Response({
                         "success": True,
-                        "message": f"Student {student_number} marked as Admitted (paid but no subject enrollment)",
+                        "message": f"Student {student_number} marked as Admitted. Documents recorded.",
                         "data": {
                             "status": "ADMITTED",
                             "student_number": student_number
                         }
                     })
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 return Response({"error": str(e)}, status=500)
             
         elif action == 'assign_visit_date':

@@ -8,6 +8,12 @@ python manage.py seed_complete
 ```
 Documents
 ---
+test2@gmail.com
+
+Initial Password
+
+RW@2004
+
 
 ## 🛡️ Admin & Staff Accounts
 

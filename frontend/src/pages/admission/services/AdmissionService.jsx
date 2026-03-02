@@ -36,10 +36,11 @@ const AdmissionService = {
         });
     },
 
-    admitApplicant: async (applicantId, studentId) => {
+    admitApplicant: async (applicantId, studentId, documentChecks = {}) => {
         return await api.patch(endpoints.applicantUpdate(applicantId), { 
             action: 'admit', 
-            student_number: studentId 
+            student_number: studentId,
+            document_checks: documentChecks
         });
     },
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Info, MapPin, Mail, Phone, Calendar, GraduationCap } from 'lucide-react';
 
-const ReviewStep = ({ data, documents, programs }) => {
+const ReviewStep = ({ data, documents = [], programs }) => {
     const [agreed, setAgreed] = useState(false);
     const selectedProgram = programs.find(p => p.id === data.program_id);
 
@@ -52,15 +52,15 @@ const ReviewStep = ({ data, documents, programs }) => {
                 </div>
             </div>
 
-            <div className="bg-gray-50 rounded-3xl p-6 border border-gray-100">
-                <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Uploaded Documents ({documents.length})</h4>
-                <div className="flex flex-wrap gap-2">
-                    {documents.map((doc, i) => (
-                        <span key={i} className="px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 truncate max-w-[150px]">
-                            {doc.name}
-                        </span>
-                    ))}
-                    {documents.length === 0 && <p className="text-xs font-bold text-red-400 uppercase">No documents uploaded</p>}
+            <div className="bg-blue-50/50 rounded-3xl p-6 border border-blue-100 flex items-start gap-4">
+                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-2xl">
+                    <Info className="w-5 h-5" />
+                </div>
+                <div>
+                    <h4 className="text-xs font-black text-blue-900 uppercase tracking-widest mb-1">Documents Submission</h4>
+                    <p className="text-xs font-bold text-blue-700 leading-relaxed uppercase tracking-tight">
+                        You will be required to submit official documents (PSA, Card, etc.) for verification once your application is reviewed and approved by the registrar office.
+                    </p>
                 </div>
             </div>
 
