@@ -48,5 +48,4 @@ Since we are handling sensitive documents (TOR, Birth Certificates), security is
 
 ---
 
-## 📌 Bro's Recommended Path:
-"For the best balance of security and speed, go with **Vercel** for the Frontend, **Railway.app** for the Backend/Database, and **AWS S3** for the documents."
+
