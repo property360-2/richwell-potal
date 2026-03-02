@@ -56,3 +56,4 @@ Since we are handling sensitive documents (TOR, Birth Certificates), security is
 | PostgreSQL (Neon free tier/ pythonanywhere sqlite) |                  |
 | S3 Storage                  |               |
 | **Total**                   |  |
+
