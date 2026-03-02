@@ -6,10 +6,10 @@ This document outlines the recommended infrastructure for deploying the **Richwe
 
 | Component | **Option A: The "Pro-Enterprise" Choice** | **Option B: The "Modern & Fast" Hybrid** |
 | :--- | :--- | :--- |
-| **Frontend** | AWS Amplify / DigitalOcean App Platform | **Vercel** / **Netlify** |
+| **Frontend** | AWS Amplify / DigitalOcean App Platform | **React (Vite)** / **Vercel** / **Netlify** |
 | **Backend (Django)** | AWS App Runner / DigitalOcean App Platform | **Railway.app** / **Render.com** |
 | **Database (PostgreSQL)** | AWS RDS / DigitalOcean Managed DB | **Neon.tech** / **Railway DB** |
-| **Cloud Storage** | **AWS S3** | **Cloudinary** |
+<!-- | **Cloud Storage** | **AWS S3** | **Cloudinary** | wag muna, aalisin ko muna for the first deployment yung file upload -->
 | **Suitability** | Large academic institutions with high traffic. | Rapid iteration, ease of use, lower cost. |
 
 ---
@@ -48,5 +48,11 @@ Since we are handling sensitive documents (TOR, Birth Certificates), security is
 
 ---
 
-## 📌 Bro's Recommended Path:
-"For the best balance of security and speed, go with **Vercel** for the Frontend, **Railway.app** for the Backend/Database, and **AWS S3** for the documents."
+
+| Service                     |                |
+| --------------------------- | ------------------ |
+| Frontend (Vercel)           |                |
+| Backend (Render/Railway/pythonanywhere)   |              |
+| PostgreSQL (Neon free tier/ pythonanywhere sqlite) |                  |
+| S3 Storage                  |               |
+| **Total**                   |  |

@@ -40,7 +40,6 @@ const Header = () => {
 
     const navigation = [
         { name: 'Dashboard', href: getDashboardUrl(), icon: LayoutDashboard, roles: ['STUDENT', 'REGISTRAR', 'ADMIN', 'ADMISSION_STAFF', 'CASHIER', 'PROFESSOR', 'DEPARTMENT_HEAD'] },
-        { name: 'Enrollment', href: '/enrollment', icon: BookOpen, roles: ['ADMISSION_STAFF'] },
         { name: 'Grades', href: '/student/grades', icon: CheckCircle, roles: ['STUDENT'] },
         { name: 'SOA', href: '/student/soa', icon: CreditCard, roles: ['STUDENT'] },
         { name: 'Schedule', href: '/student/schedule', icon: Calendar, roles: ['STUDENT'] },

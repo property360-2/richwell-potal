@@ -6,7 +6,7 @@ To reset all data, run:
 ```bash
 python manage.py seed_complete
 ```
-
+Documents
 ---
 
 ## 🛡️ Admin & Staff Accounts
@@ -16,7 +16,7 @@ python manage.py seed_complete
 | **System Admin** | `admin@richwell.edu` | Full system access |
 | **Registrar** | `registrar@richwell.edu` | Manage enrollments & grade resolutions |
 | **Cashier** | `cashier@richwell.edu` | Manage payments & fees |
-| **Admission** | `admission@richwell.edu` | Manage applicants & new students |
+| **Admission** | `test-admission@gmail.com` | Manage applicants & new students |
 | **Department Head** | `head@richwell.edu` | Approve grade resolutions |
 
 ---

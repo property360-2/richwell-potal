@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle2, ArrowRight, Mail, Calendar, HelpCircle } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Mail, Calendar, HelpCircle, FileText, Check } from 'lucide-react';
 import Button from '../../components/ui/Button';
 
 const EnrollmentSuccess = () => {
@@ -31,27 +31,64 @@ const EnrollmentSuccess = () => {
                         Your enrollment application has been submitted. We've created your portal profile and the Admissions Office is now verifying your documents.
                     </p>
 
-                    <div className="text-left bg-gray-50/50 border border-gray-100 rounded-[32px] p-8 md:p-10 mb-12">
-                        <h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-8 ml-1">What Happens Next?</h4>
-                        <div className="space-y-8">
-                            <StepItem 
-                                icon={ShieldCheck} 
-                                title="Registrar Verification" 
-                                description="Our team will review your uploaded documents and personal details within 1-3 working days." 
-                                color="blue"
-                            />
-                            <StepItem 
-                                icon={Mail} 
-                                title="Admission Approval" 
-                                description="You will receive a notification once your student ID is officially activated." 
-                                color="green"
-                            />
-                            <StepItem 
-                                icon={ArrowRight} 
-                                title="Portal Exploration" 
-                                description="Once approved, you can log in with the credentials we provided to manage your subjects and grades." 
-                                color="gray"
-                            />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 text-left">
+                        {/* Requirements List */}
+                        <div className="bg-blue-50/50 border border-blue-100 rounded-[32px] p-8">
+                            <h4 className="flex items-center gap-3 text-xs font-black text-blue-600 uppercase tracking-[0.2em] mb-6">
+                                <FileText className="w-4 h-4" /> Required Documents
+                            </h4>
+                            <p className="text-sm font-medium text-gray-600 mb-6 leading-relaxed">
+                                Please bring the <strong>original copies</strong> of the following documents to the Admissions Office on your scheduled visit:
+                            </p>
+                            <ul className="space-y-4">
+                                {[
+                                    'High School Diploma (or proof of graduation)',
+                                    'Form 137 / Permanent Record',
+                                    'Form 138 / Report Card',
+                                    'Certificate of Good Moral Character',
+                                    'Birth Certificate (PSA copy)'
+                                ].map((item, idx) => (
+                                    <li key={idx} className="flex gap-3">
+                                        <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+                                            <Check className="w-3 h-3 text-blue-600" />
+                                        </div>
+                                        <span className="text-sm font-bold text-gray-800">{item}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* What Happens Next Steps */}
+                        <div className="bg-gray-50/50 border border-gray-100 rounded-[32px] p-8">
+                            <h4 className="flex items-center gap-3 text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6">
+                                <span className="w-4 h-4 flex items-center justify-center">?</span> What Happens Next?
+                            </h4>
+                            <div className="space-y-8">
+                                <StepItem 
+                                    icon={Calendar} 
+                                    title="Campus Visit" 
+                                    description="Wait for an email from the Admissions Office with your scheduled date for document verification." 
+                                    color="blue"
+                                />
+                                <StepItem 
+                                    icon={ShieldCheck} 
+                                    title="Document Verification" 
+                                    description="Present your requirements personally at the campus on your scheduled date." 
+                                    color="amber"
+                                />
+                                <StepItem 
+                                    icon={Mail} 
+                                    title="Admission Approval" 
+                                    description="Once verified, you will receive an email for your official Student ID activation." 
+                                    color="green"
+                                />
+                                <StepItem 
+                                    icon={ArrowRight} 
+                                    title="Portal Exploration" 
+                                    description="Log in with your provided credentials to manage your subjects and grades." 
+                                    color="gray"
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -81,6 +118,7 @@ const StepItem = ({ icon: Icon, title, description, color }) => {
         blue: 'bg-blue-100 text-blue-600',
         green: 'bg-green-100 text-green-600',
         gray: 'bg-gray-100 text-gray-600',
+        amber: 'bg-amber-100 text-amber-600',
     };
 
     return (

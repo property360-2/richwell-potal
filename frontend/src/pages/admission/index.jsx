@@ -44,6 +44,17 @@ const AdmissionDashboard = () => {
     const [idStatus, setIdStatus] = useState({ loading: false, available: null });
     const [rejectReason, setRejectReason] = useState('');
     const [isRejecting, setIsRejecting] = useState(false);
+
+    // Document Verification State
+    const [documentChecks, setDocumentChecks] = useState({
+        diploma: false,
+        form137: false,
+        form138: false,
+        goodMoral: false,
+        birthCertificate: false
+    });
+    const requireAllDocuments = Object.values(documentChecks).every(Boolean);
+
     
     // Visit Schedule State
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -277,128 +288,125 @@ const AdmissionDashboard = () => {
                 <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in fade-in duration-300">
                     <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setSelectedApplicant(null)} />
                     <div className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl max-h-[90vh] flex flex-col animate-in zoom-in duration-500 overflow-hidden">
-                        <div className="p-10 border-b border-gray-50 shrink-0">
-                            <div className="flex justify-between items-start mb-6">
-                                <div className="flex items-center gap-6">
-                                    <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center text-white text-2xl font-black">
+                        <div className="px-8 py-6 border-b border-gray-50 shrink-0 bg-white">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-5">
+                                    <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white text-xl font-black shadow-lg shadow-blue-200">
                                         {selectedApplicant.first_name[0]}{selectedApplicant.last_name[0]}
                                     </div>
                                     <div>
-                                        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{selectedApplicant.first_name} {selectedApplicant.last_name}</h2>
-                                        <p className="text-gray-400 font-bold uppercase tracking-widest text-[9px] mt-1">Applicant ID: {selectedApplicant.id.split('-')[0]}</p>
+                                        <div className="flex items-center gap-3">
+                                            <h2 className="text-xl font-black text-gray-900 tracking-tight leading-none">{selectedApplicant.first_name} {selectedApplicant.last_name}</h2>
+                                            <StatusPill status={selectedApplicant.status} />
+                                        </div>
+                                        <p className="text-gray-400 font-bold uppercase tracking-[0.15em] text-[9px] mt-1.5 flex items-center gap-2">
+                                            Applicant ID: <span className="text-blue-600 font-black">{selectedApplicant.id.split('-')[0]}</span>
+                                        </p>
                                     </div>
                                 </div>
-                                <button onClick={() => setSelectedApplicant(null)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors">
-                                    <XCircle className="w-5 h-5 text-gray-400" />
+                                <button onClick={() => setSelectedApplicant(null)} className="p-2.5 bg-gray-50 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all group">
+                                    <XCircle className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-colors" />
                                 </button>
-                            </div>
-                            <div className="flex gap-4">
-                                <StatusPill status={selectedApplicant.status} large />
                             </div>
                         </div>
 
-                        <div className="flex-grow overflow-y-auto p-10 space-y-12">
-                            {/* Personal Info */}
-                            <section>
-                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-3">
-                                    <Users className="w-4 h-4" /> Personal Information
-                                </h4>
-                                <div className="grid grid-cols-2 gap-8">
-                                    <DetailItem label="Full Legal Name" value={`${selectedApplicant.first_name} ${selectedApplicant.middle_name || ''} ${selectedApplicant.last_name}`} />
-                                    <DetailItem label="Suffix" value={selectedApplicant.suffix} />
-                                    <DetailItem label="Gender" value={selectedApplicant.gender} />
-                                    <DetailItem label="Civil Status" value={selectedApplicant.civil_status} />
-                                    <DetailItem label="Date of Birth" value={selectedApplicant.birthdate} />
-                                </div>
-                            </section>
-
-                            <section>
-                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-3">
-                                    <Mail className="w-4 h-4" /> Contact & Residence
-                                </h4>
-                                <div className="grid grid-cols-2 gap-8">
-                                    <DetailItem label="Email Address" value={selectedApplicant.email} />
-                                    <DetailItem label="Mobile Number" value={selectedApplicant.contact_number} />
-                                    <div className="col-span-2">
-                                        <DetailItem label="Primary Address" value={selectedApplicant.address} />
+                        <div className="flex-grow overflow-y-auto p-8 space-y-6 bg-gray-50/30">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Personal Info */}
+                                <section className="bg-white p-6 rounded-[24px] border border-gray-100 shadow-sm">
+                                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+                                        <Users className="w-3.5 h-3.5 text-blue-500" /> Personal Details
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                                        <DetailItem label="Full Name" value={`${selectedApplicant.first_name} ${selectedApplicant.middle_name || ''} ${selectedApplicant.last_name}`} />
+                                        <DetailItem label="Suffix" value={selectedApplicant.suffix} />
+                                        <DetailItem label="Gender" value={selectedApplicant.gender} />
+                                        <DetailItem label="Status" value={selectedApplicant.civil_status} />
+                                        <div className="col-span-2">
+                                            <DetailItem label="Date of Birth" value={selectedApplicant.birthdate} />
+                                        </div>
                                     </div>
-                                </div>
-                            </section>
+                                </section>
 
-                            <section>
-                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-3">
-                                    <GraduationCap className="w-4 h-4" /> Academic Intent
-                                </h4>
-                                <div className="p-6 bg-blue-50/50 rounded-[32px] border border-blue-100/50">
-                                    <div className="flex items-start gap-4">
-                                        <div className="p-3 bg-white rounded-2xl shadow-sm"><GraduationCap className="w-6 h-6 text-blue-600" /></div>
-                                        <div className="flex-1">
-                                            <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Proposed Academic Program</p>
-                                            <p className="text-base font-bold text-blue-900 leading-tight">{selectedApplicant.program_name}</p>
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-extrabold uppercase">{selectedApplicant.program_code || '---'}</span>
-                                                <span className="text-[10px] font-bold text-blue-600/60 uppercase tracking-widest">Year {selectedApplicant.year_level} Admission</span>
-                                            </div>
-                                            
-                                            {/* Assigned Section (NEW) */}
-                                            <div className="mt-4 pt-4 border-t border-blue-100/30">
-                                                <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Assigned Section</p>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`px-2 py-1 rounded text-[10px] font-black uppercase
-                                                        ${selectedApplicant.section_name === 'Awaiting Assignment' 
-                                                            ? 'bg-amber-50 text-amber-600 border border-amber-100' 
-                                                            : 'bg-green-50 text-green-600 border border-green-100'}`}>
-                                                        {selectedApplicant.section_name}
-                                                    </span>
-                                                    {selectedApplicant.section_name !== 'Awaiting Assignment' && (
-                                                        <span className="text-[10px] font-bold text-gray-400">Class Block Verified</span>
-                                                    )}
-                                                </div>
+                                {/* Contact & Residence */}
+                                <section className="bg-white p-6 rounded-[24px] border border-gray-100 shadow-sm">
+                                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+                                        <Mail className="w-3.5 h-3.5 text-blue-500" /> Contact Info
+                                    </h4>
+                                    <div className="space-y-4">
+                                        <DetailItem label="Email Address" value={selectedApplicant.email} />
+                                        <DetailItem label="Mobile Number" value={selectedApplicant.contact_number} />
+                                        <DetailItem label="Address" value={selectedApplicant.address} />
+                                    </div>
+                                </section>
+
+                                {/* Academic Intent */}
+                                <section className="bg-white p-6 rounded-[24px] border border-gray-100 shadow-sm">
+                                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+                                        <GraduationCap className="w-3.5 h-3.5 text-blue-500" /> Academic Intent
+                                    </h4>
+                                    <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50">
+                                        <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Proposed Program</p>
+                                        <p className="text-sm font-bold text-blue-900 leading-tight mb-2">{selectedApplicant.program_name}</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-extrabold uppercase">{selectedApplicant.program_code || '---'}</span>
+                                            <span className="text-[9px] font-bold text-blue-600/60 uppercase tracking-widest">Year {selectedApplicant.year_level}</span>
+                                        </div>
+                                        
+                                        <div className="mt-3 pt-3 border-t border-blue-100/30">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-2 py-1 rounded text-[9px] font-black uppercase
+                                                    ${selectedApplicant.section_name === 'Awaiting Assignment' 
+                                                        ? 'bg-amber-50 text-amber-600 border border-amber-100' 
+                                                        : 'bg-green-50 text-green-600 border border-green-100'}`}>
+                                                    {selectedApplicant.section_name}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </section>
+                                </section>
 
-                            <section>
-                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
-                                    <ShieldCheck className="w-4 h-4" /> Financial Standing
-                                </h4>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="p-5 bg-white border border-gray-100 rounded-3xl shadow-sm">
-                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Initial Required</p>
-                                        <p className="text-lg font-bold text-gray-900">₱{selectedApplicant.total_required?.toLocaleString()}</p>
+                                {/* Financial Standing */}
+                                <section className="bg-white p-6 rounded-[24px] border border-gray-100 shadow-sm">
+                                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+                                        <ShieldCheck className="w-3.5 h-3.5 text-blue-500" /> Finance
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                            <p className="text-[8px] font-black text-gray-400 uppercase mb-1">Required</p>
+                                            <p className="text-sm font-black text-gray-900">₱{selectedApplicant.total_required?.toLocaleString()}</p>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                            <p className="text-[8px] font-black text-gray-400 uppercase mb-1">Paid</p>
+                                            <p className={`text-sm font-black ${selectedApplicant.total_paid > 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                                                ₱{selectedApplicant.total_paid?.toLocaleString()}
+                                            </p>
+                                        </div>
+                                        <div className="col-span-2 p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
+                                            <p className="text-[8px] font-black text-gray-400 uppercase">Status</p>
+                                            <p className={`text-[10px] font-black uppercase tracking-widest ${selectedApplicant.first_month_paid ? 'text-green-600' : 'text-orange-500'}`}>
+                                                {selectedApplicant.first_month_paid ? 'First Month Paid' : 'Awaiting Payment'}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="p-5 bg-white border border-gray-100 rounded-3xl shadow-sm">
-                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Paid</p>
-                                        <p className={`text-lg font-bold ${selectedApplicant.total_paid > 0 ? 'text-green-600' : 'text-gray-900'}`}>
-                                            ₱{selectedApplicant.total_paid?.toLocaleString()}
-                                        </p>
-                                    </div>
-                                    <div className="p-5 bg-white border border-gray-100 rounded-3xl shadow-sm">
-                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Status</p>
-                                        <p className={`text-base font-bold ${selectedApplicant.first_month_paid ? 'text-green-600' : 'text-orange-500'}`}>
-                                            {selectedApplicant.first_month_paid ? 'First Month Paid' : 'Awaiting Payment'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </section>
+                                </section>
+                            </div>
                         </div>
 
                         {(selectedApplicant.status === 'PENDING' || selectedApplicant.status === 'PENDING_ADMISSION') && (
-                            <div className="p-10 border-t border-gray-50 flex gap-4 shrink-0 bg-gray-50/50">
+                            <div className="px-8 py-5 border-t border-gray-50 flex gap-4 shrink-0 bg-white">
                                 <Button 
-                                    className="flex-1 py-5 shadow-sm" 
+                                    className="flex-1 py-4 text-[10px]" 
                                     variant="danger" 
                                     icon={XCircle}
                                     onClick={() => setIsRejecting(true)}
                                 >
-                                    REJECT APPLICANT
+                                    REJECT
                                 </Button>
 
                                 {selectedApplicant.status === 'PENDING_ADMISSION' && (
                                     <Button 
-                                        className="flex-1 py-5 shadow-md shadow-blue-500/20" 
+                                        className="flex-1 py-4 text-[10px]" 
                                         variant="secondary" 
                                         icon={Clock}
                                         onClick={() => {
@@ -412,12 +420,19 @@ const AdmissionDashboard = () => {
                                 )}
                                 
                                 <Button 
-                                    className="flex-1 py-5 shadow-md shadow-blue-500/20" 
+                                    className="flex-1 py-4 text-[10px]" 
                                     variant="primary" 
                                     icon={CheckCircle2}
                                     onClick={async () => {
                                         setIsIdModalOpen(true);
                                         setIdStatus({ loading: true, available: null });
+                                        setDocumentChecks({
+                                            diploma: false,
+                                            form137: false,
+                                            form138: false,
+                                            goodMoral: false,
+                                            birthCertificate: false
+                                        });
                                         
                                         const res = await AdmissionService.generateStudentId();
                                         let newId = '';
@@ -482,9 +497,47 @@ const AdmissionDashboard = () => {
                                 </div>
                             </div>
 
+                            <div className="p-6 bg-blue-50/50 rounded-[28px] border border-blue-100">
+                                <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4" /> Document Verification
+                                </label>
+                                <div className="space-y-3">
+                                    {[
+                                        { id: 'diploma', label: 'High School Diploma (or proof of graduation)' },
+                                        { id: 'form137', label: 'Form 137 / Permanent Record' },
+                                        { id: 'form138', label: 'Form 138 / Report Card' },
+                                        { id: 'goodMoral', label: 'Certificate of Good Moral Character' },
+                                        { id: 'birthCertificate', label: 'Birth Certificate (PSA copy)' }
+                                    ].map((doc) => (
+                                        <label key={doc.id} className="flex items-start gap-3 cursor-pointer group">
+                                            <div className="relative flex items-center justify-center mt-0.5">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="peer sr-only"
+                                                    checked={documentChecks[doc.id]}
+                                                    onChange={(e) => setDocumentChecks(prev => ({ ...prev, [doc.id]: e.target.checked }))}
+                                                />
+                                                <div className="w-5 h-5 rounded-md border-2 border-gray-300 bg-white peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all shadow-sm"></div>
+                                                <Check className="w-3 h-3 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity scale-50 peer-checked:scale-100" />
+                                            </div>
+                                            <span className={`text-sm font-semibold transition-colors mt-0.5 ${documentChecks[doc.id] ? 'text-gray-900' : 'text-gray-600 group-hover:text-gray-900'}`}>
+                                                {doc.label}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="flex gap-4">
                                 <Button variant="secondary" className="flex-1" onClick={() => setIsIdModalOpen(false)}>CANCEL</Button>
-                                <Button variant="primary" className="flex-1" onClick={handleApprove} disabled={!idStatus.available}>PROCEED</Button>
+                                <Button 
+                                    variant="primary" 
+                                    className="flex-1" 
+                                    onClick={handleApprove} 
+                                    disabled={!idStatus.available || !requireAllDocuments}
+                                >
+                                    PROCEED
+                                </Button>
                             </div>
                         </div>
                     </div>

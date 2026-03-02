@@ -10,21 +10,22 @@
 
 ## 2. Technology Stack
 
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| **Frontend Framework** | React | 18.x |
-| **Build Tool** | Vite | 5.x |
-| **Styling** | Tailwind CSS | 3.x |
-| **State / Data Fetching** | TanStack Query (React Query) | 5.x |
-| **Routing** | React Router | 6.x |
-| **Icons** | Lucide React | — |
-| **Animations** | Framer Motion | — |
-| **Backend Framework** | Django | 5.x |
-| **API Layer** | Django REST Framework (DRF) | 3.15+ |
-| **Authentication** | JWT (SimpleJWT) | — |
-| **Database** | PostgreSQL | 15+ |
-| **API Documentation** | drf-spectacular (OpenAPI 3) | — |
-| **PDF Generation** | html2pdf.js (client), WeasyPrint concepts (server) | — |
+The Richwell Portal uses a modern, high-performance stack designed for stability and scalability.
+
+| Layer | Technology | Role |
+|-------|-----------|------|
+| **Frontend** | React (Vite) | The **"Face"** - Handles user interaction and UI components. |
+| **Backend** | Python / Django | The **"Brain"** - Processes logic, security, and API endpoints. |
+| **Database** | PostgreSQL | The **"Memory"** - Securely stores student, grade, and payment data. |
+| **API Layer** | Django REST Framework | The **"Bridge"** - Connects the Frontend to the Backend. |
+| **Background Tasks** | Celery / Redis | The **"Worker"** - Handles periodic tasks like midnight INC checks. |
+| **Styling** | Tailwind CSS | The **"Uniform"** - Ensures a consistent and modern design system. |
+| **PDF Generation** | WeasyPrint | The **"Printer"** - Generates official certificates and reports. |
+
+### Why this stack?
+- **Security:** Django's "secure-by-default" approach protects student records.
+- **Reliability:** PostgreSQL ensures data integrity for grades and financial transactions.
+- **Professional:** These are industry-standard tools used by major platforms like Instagram and Spotify.
 
 ---
 

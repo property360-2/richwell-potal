@@ -8,7 +8,6 @@ import { User, BookOpen, FileText, CreditCard, CheckCircle, ArrowLeft, ArrowRigh
 // Steps
 import PersonalInfoStep from './steps/PersonalInfoStep';
 import ProgramStep from './steps/ProgramStep';
-import DocumentStep from './steps/DocumentStep';
 import PaymentStep from './steps/PaymentStep';
 import ReviewStep from './steps/ReviewStep';
 
@@ -37,7 +36,6 @@ const EnrollmentPage = () => {
         monthly_commitment: 5000
     });
 
-    const [documents, setDocuments] = useState([]);
     const { success, error, warning } = useToast();
     const navigate = useNavigate();
 
@@ -92,9 +90,6 @@ const EnrollmentPage = () => {
             case 2:
                 return !!formData.program_id;
             case 3:
-                // Documents are optional for initial application but recommended
-                return true;
-            case 4:
                 // Payment commitment must be > 0
                 return formData.monthly_commitment > 0;
             default:
@@ -107,7 +102,7 @@ const EnrollmentPage = () => {
             warning('Please fill in all required fields to proceed.');
             return;
         }
-        setCurrentStep(prev => Math.min(prev + 1, 5));
+        setCurrentStep(prev => Math.min(prev + 1, 4));
     };
 
     const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
@@ -131,11 +126,6 @@ const EnrollmentPage = () => {
                 } else if (!['province', 'city', 'barangay', 'street'].includes(key)) {
                     finalData.append(key, formData[key]);
                 }
-            });
-
-            // Append documents
-            documents.forEach((file, index) => {
-                finalData.append(`document_${index}`, file);
             });
 
             const response = await fetch('/api/v1/admissions/enroll/', {
@@ -188,9 +178,8 @@ const EnrollmentPage = () => {
     const steps = [
         { id: 1, name: 'Personal', icon: User },
         { id: 2, name: 'Program', icon: BookOpen },
-        { id: 3, name: 'Documents', icon: FileText },
-        { id: 4, name: 'Payment', icon: CreditCard },
-        { id: 5, name: 'Review', icon: CheckCircle },
+        { id: 3, name: 'Payment', icon: CreditCard },
+        { id: 4, name: 'Review', icon: CheckCircle },
     ];
 
     return (
@@ -244,9 +233,8 @@ const EnrollmentPage = () => {
                     >
                         {currentStep === 1 && <PersonalInfoStep data={formData} onChange={handleFormChange} />}
                         {currentStep === 2 && <ProgramStep data={formData} programs={programs} onChange={handleFormChange} />}
-                        {currentStep === 3 && <DocumentStep documents={documents} setDocuments={setDocuments} />}
-                        {currentStep === 4 && <PaymentStep data={formData} onChange={handleFormChange} />}
-                        {currentStep === 5 && <ReviewStep data={formData} documents={documents} programs={programs} />}
+                        {currentStep === 3 && <PaymentStep data={formData} onChange={handleFormChange} />}
+                        {currentStep === 4 && <ReviewStep data={formData} programs={programs} />}
                     </motion.div>
                 </AnimatePresence>
 
@@ -265,7 +253,7 @@ const EnrollmentPage = () => {
                         PREVIOUS
                     </button>
 
-                    {currentStep < 5 ? (
+                    {currentStep < 4 ? (
                         <button
                             onClick={nextStep}
                             className="flex items-center gap-2 px-10 py-4 bg-gray-900 text-white rounded-2xl font-black hover:bg-gray-800 transition-all shadow-xl shadow-gray-200"
