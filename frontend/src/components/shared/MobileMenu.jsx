@@ -51,7 +51,7 @@ const MobileMenu = ({ isOpen, onClose, user, navigation, onLogout }) => {
                 <nav className="flex-1 overflow-y-auto py-8 px-4 space-y-2">
                     {navigation.map((item) => (
                         <Link
-                            key={item.name}
+                            key={item.href}
                             to={item.href}
                             onClick={onClose}
                             className={`flex items-center gap-4 px-6 py-4 rounded-[20px] transition-all group ${

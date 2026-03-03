@@ -106,11 +106,19 @@ const TermModal = ({ isOpen, onClose, semester, onSuccess }) => {
 
         try {
             setSubmitting(true);
+            const payload = { ...formData };
+            // Convert empty date strings to null to avoid 400 Bad Request
+            ['start_date', 'end_date', 'enrollment_start_date', 'enrollment_end_date', 'grading_start_date', 'grading_end_date'].forEach(field => {
+                if (payload[field] === '') {
+                    payload[field] = null;
+                }
+            });
+
             if (semester) {
-                await AdminService.updateSemester(semester.id, formData);
+                await AdminService.updateSemester(semester.id, payload);
                 success('Term configuration synchronized');
             } else {
-                await AdminService.createSemester(formData);
+                await AdminService.createSemester(payload);
                 success('Academic term initialized');
             }
             onSuccess();

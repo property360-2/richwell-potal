@@ -1,301 +1,312 @@
 # Todo — Richwell Portal
 
-## ✅ Completed: Split subject_enrollment_service.py (2,932L → 955L)
+## Enrollment → Sectioning → Scheduling Automation
 
-- [x] Created `payment_service.py` (PaymentService + ExamPermitService)
-- [x] Created `grade_service.py` (GradeService + INCAutomationService)
-- [x] Created `document_release_service.py` (DocumentReleaseService)
-- [x] Trimmed `subject_enrollment_service.py` to SubjectEnrollmentService only
-- [x] Updated `__init__.py` re-exports
-- [x] Verified `python manage.py check` — zero import errors
-
----
-
-## Current Structure Map
-
-### Frontend (Vite + React)
+### Semester Lifecycle (Date-Driven Auto-Transitions)
 
 ```
-src/pages/
-├── admission/        → index.jsx (applicant dashboard)
-├── cashier/          → index.jsx (payment), PaymentHistory.jsx
-├── enrollment/       → index.jsx, SubjectEnrollment.jsx, steps/
-├── head/             → index.jsx, Resolutions.jsx, Students.jsx, Reports.jsx
-├── professor/        → Grades.jsx, Resolutions.jsx, Sections.jsx, Schedule.jsx
-├── registrar/        → grades/, sections/, students/, documents/, enrollment/
-├── student/          → index.jsx, Grades.jsx, ExamPermits.jsx, Schedule.jsx, StudentSOA.jsx
-├── admin/            → AuditLogs.jsx, UserManagement.jsx, TermManagement.jsx
-
-src/api/
-├── endpoints.js      → 200+ endpoint definitions (centralized)
-├── client.js         → Axios client with interceptors
+SETUP → ENROLLMENT_OPEN → ENROLLMENT_CLOSED → SECTIONING_OPEN → CLASSES_ACTIVE → GRADING_OPEN → ARCHIVED
+              ↓                    ↓                   ↓                ↓
+        Students enroll     Auto-generate        Students pick    Professors
+        (freshmen auto-     sections from        AM/PM → Finalize get schedules
+         enrolled on        enrollment count     → Even distribute assigned
+         admission)                              → Backfill sections by Dean
 ```
 
-### Backend (Django REST)
+**Transitions are automatic based on dates.** Registrar sets all dates once during SETUP:
 
-```
-apps/enrollment/
-├── models.py              → Semester, Enrollment, SubjectEnrollment, MonthlyPaymentBucket
-├── models_grading.py      → GradeHistory, SemesterGPA, GradeResolution
-├── models_payments.py     → PaymentTransaction, ExamMonthMapping, ExamPermit
-├── services/              → enrollment_service, subject_enrollment_service, payment_service, etc.
-├── views_*.py             → 12 view files (split by domain)
-├── serializers_*.py       → 5 serializer files
-└── urls.py                → 171 lines, all routes
-```
+| Date Range | Auto-Triggers |
+|---|---|
+| `enrollment_start_date` reached | → `ENROLLMENT_OPEN` |
+| `enrollment_end_date` passed | → `ENROLLMENT_CLOSED` + auto-generate sections |
+| `sectioning_start_date` reached | → `SECTIONING_OPEN` (students pick AM/PM) |
+| `sectioning_end_date` passed | → auto-finalize + `CLASSES_ACTIVE` |
+| `grading_start_date` reached | → `GRADING_OPEN` |
+| `grading_end_date` passed | → `GRADING_CLOSED` |
 
----
+Manual override buttons available as fallback for each transition.
 
-# 🔧 STAGE 1: ALL BACKEND (Models → Services → Serializers → Views → URLs)
+### Rules
 
----
-
-## P3 — Grade Resolution Workflow Fix (Backend)
-
-**Priority**: 1st | **Effort**: Medium | **Risk**: Medium
-
-### Model Changes (`models_grading.py`)
-- [ ] Update `GradeResolution.Status` to 7 choices:
-  - `PENDING_REGISTRAR_INITIAL` → Registrar first review
-  - `GRADE_INPUT_PENDING` → Professor/Dean inputs grade
-  - `PENDING_HEAD` → Head approval
-  - `PENDING_REGISTRAR_FINAL` → Registrar final sign-off
-  - `APPROVED` / `REJECTED` / `CANCELLED`
-- [ ] Add `grade_input_by` (FK to User)
-- [ ] Add `grade_input_at` (DateTimeField)
-- [ ] Add `grade_input_comment` (TextField)
-- [ ] Add `submitted_by_dean` (BooleanField)
-- [ ] Create migration + data migration for existing resolutions
-
-### Service Changes (`services_grading.py`)
-- [ ] `submit_resolution()` — create request (prof or dean)
-- [ ] `registrar_initial_approve()` — registrar reviews, triggers grade input
-- [ ] `input_grade()` — professor/dean inputs grade + comment
-- [ ] `head_approve()` — head reviews and approves
-- [ ] `registrar_final_approve()` — registrar final sign-off, applies grade
-
-### Serializer Changes (`serializers_grading.py`)
-- [ ] Update `GradeResolutionSerializer` with new fields
-- [ ] Add `GradeInputSerializer` for grade input step
-- [ ] Add status transition validation
-
-### View Changes (`views_grading.py`)
-- [ ] `RegistrarInitialApproveView`
-- [ ] `GradeInputView`
-- [ ] `RegistrarFinalApproveView`
-
-### URL Changes (`urls.py`)
-- [ ] `grade-resolutions/<id>/registrar-approve/`
-- [ ] `grade-resolutions/<id>/input-grade/`
-- [ ] `grade-resolutions/<id>/registrar-final/`
+- **Section naming**: `{PROGRAM_CODE} {YEAR}-{NUMBER}` → e.g., `BSIS 1-1`, `BSIS 1-2`, `BSIS 1-3`
+- **Max capacity**: 40 students per section (matches room max)
+- **Overflow tolerance**: 1–5 extra → squeeze into existing sections. 6+ extra → spawn new section.
+- **Scheduling window**: Dean can schedule professors from `ENROLLMENT_CLOSED` onward (sections exist).
+- **Summer semesters**: Sectioning only runs for year/semester combos that have subjects in the curriculum. If a program has no summer subjects, no sections are generated for it.
 
 ---
 
-## P1 — Admission Flow Completion (Backend)
+## Phase 0: Date-Driven Semester Status Engine
 
-**Priority**: 2nd | **Effort**: Medium | **Risk**: Low
+> **What**: System auto-transitions semester status based on today's date. No manual clicks needed.
 
-### Model Changes (`models.py`)
-- [ ] Add `Enrollment.Status.PENDING_ADMISSION`
-- [ ] Add `assigned_visit_date` (DateField, null)
-- [ ] Add `admission_notes` (TextField, blank)
-- [ ] Create migration
-
-### Service Changes (`services/enrollment_service.py`)
-- [ ] `assign_visit_date(enrollment, date)` 
-- [ ] `approve_admission(enrollment, actor)` — verify docs, gen student ID, transition status
-- [ ] `generate_student_id()` — auto-gen in school format
-
-### Serializer Changes (`serializers.py`)
-- [ ] Update `EnrollmentSerializer` with new fields
-- [ ] Add `AdmissionApprovalSerializer`
-
-### View Changes (`views_applicants.py`)
-- [ ] `ApplicantVisitDateView` — assign visit date
-- [ ] `ApproveAdmissionView` — approve with doc check
-
-### URL Changes (`urls.py`)
-- [ ] `applicants/<id>/assign-visit-date/`
-- [ ] `applicants/<id>/approve-admission/`
-
----
-
-## P4 — Grade Submission Date Range (Backend)
-
-**Priority**: 3rd | **Effort**: Low | **Risk**: Low
-
-### Service Changes (`services/grade_service.py`)
-- [ ] Add date validation in `submit_grade()` — reject if outside `grading_start_date`/`grading_end_date`
-- [ ] Return deadline info in grade submission response
-
-### Management Command
-- [ ] [NEW] `management/commands/process_grading_deadline.py` — daily cron
-  - Find all ENROLLED subjects with no grade after `grading_end_date`
-  - Auto-mark INC
-  - Trigger retake countdown
-
-### View Changes (`views_grading.py`)
-- [ ] `GradingDeadlineStatusView` — returns remaining time for professors
-
-### URL Changes (`urls.py`)
-- [ ] `grading/deadline-status/`
+- [ ] **[MODIFY]** `backend/apps/enrollment/models.py`
+  - Add `semester_number` (1=First, 2=Second, 3=Summer) to `Semester` model — maps to `CurriculumSubject.semester_number`
+  - Add `sectioning_start_date` and `sectioning_end_date` to `Semester` model
+  - Add `sections_generated` (BooleanField, default=False) — prevents re-running generation
+  - Add `sectioning_finalized` (BooleanField, default=False) — prevents re-running finalization
+  - Add `CLASSES_ACTIVE` and `SECTIONING_OPEN` to `TermStatus`
+  - Add property `computed_status` that returns the correct status based on today's date:
+    ```
+    if today < enrollment_start → SETUP
+    if enrollment_start <= today <= enrollment_end → ENROLLMENT_OPEN
+    if enrollment_end < today < sectioning_start → ENROLLMENT_CLOSED
+    if sectioning_start <= today <= sectioning_end → SECTIONING_OPEN
+    if sectioning_end < today < grading_start → CLASSES_ACTIVE
+    if grading_start <= today <= grading_end → GRADING_OPEN
+    if today > grading_end → ARCHIVED
+    ```
+  - **Null-safety**: if a date field is null, skip that status transition and stay in the previous state. Registrar must fill all dates for the pipeline to work.
+  - Add `sync_status()` method — compares `computed_status` vs stored `status`, triggers side-effects on transitions:
+    - On `ENROLLMENT_CLOSED`: if `sections_generated == False` → run generation, set flag `True`
+    - On `SECTIONING_OPEN` end: if `sectioning_finalized == False` → run finalization, set flag `True`
+  - **Remove** old `auto_assign_current_students()` call (line 142-150)
+- [ ] **[MODIFY]** `backend/apps/enrollment/serializers.py`
+  - Add `sectioning_start_date`, `sectioning_end_date`, `sections_generated`, `sectioning_finalized` to `SemesterSerializer`
+- [ ] **[NEW]** Management command `manage.py sync_semester_status`
+  - **Hybrid approach**: runs daily via cron + called on key API endpoints (student dashboard, admin term management, enrollment views)
+  - Calls `semester.sync_status()` for the current semester
+  - Idempotent — checks `sections_generated` / `sectioning_finalized` flags before triggering
+  - Safe to call on every relevant page load (~1-2 queries only)
+- [ ] **[MODIFY]** `frontend/src/pages/admin/modals/TermModal.jsx`
+  - Add `sectioning_start_date` and `sectioning_end_date` fields to the form
+  - Show all 3 date pairs: Enrollment, Sectioning, Grading
+  - Add manual override buttons for each status transition as fallback
 
 ---
 
-## P5 — Promissory Notes (Backend)
+## Phase 1: Auto-Enroll Freshman Subjects on Admission
 
-**Priority**: 4th | **Effort**: Medium | **Risk**: Low
+> **Trigger**: Admission staff clicks "Accept" on a freshman applicant.
 
-### Model
-- [ ] [NEW] `models_promissory.py` → `PromissoryNote` model:
-  - `enrollment` (FK Enrollment)
-  - `month_number` (1-6)
-  - `amount` (DecimalField)
-  - `due_date` (DateField)
-  - `status` (PENDING / APPROVED / PAID / EXPIRED)
-  - `processed_by` (FK User — cashier)
-  - `student_signature` (BooleanField)
-- [ ] Create migration
-
-### Service
-- [ ] [NEW] `services/promissory_service.py`:
-  - `apply_promissory()` — student applies
-  - `approve_promissory()` — cashier approves
-  - `reject_promissory()` — cashier rejects
-  - `validate_past_month_rule()` — no new promissory if past month unpaid
-  - `check_conditional_payment()` — promissory counts as paid for permits
-
-### Serializer
-- [ ] [NEW] `serializers_promissory.py`:
-  - `PromissoryNoteSerializer`
-  - `PromissoryApplySerializer`
-
-### Views
-- [ ] [NEW] `views_promissory.py`:
-  - `StudentApplyPromissoryView`
-  - `StudentMyPromissoryView`
-  - `CashierPromissoryListView`
-  - `CashierApprovePromissoryView`
-  - `CashierRejectPromissoryView`
-
-### URL Changes (`urls.py`)
-- [ ] `promissory/apply/`
-- [ ] `my-promissory/`
-- [ ] `promissory/pending/`
-- [ ] `promissory/<id>/approve/`
-- [ ] `promissory/<id>/reject/`
+- [ ] **[NEW]** `backend/apps/enrollment/services/auto_enrollment_service.py`
+  - `auto_enroll_freshman_subjects(enrollment)` — fetch Y1/S1 curriculum subjects
+  - Bulk-create `SubjectEnrollment` with `section=NULL`, `payment_approved=True`, `head_approved=True`
+  - Skip already-existing subjects (credited transferees)
+  - Only for freshmen (year_level == 1)
+- [ ] **[MODIFY]** `backend/apps/enrollment/views_applicants.py`
+  - In `accept` action: call `auto_enroll_freshman_subjects()` instead of `auto_assign_new_student()`
+  - Section assignment deferred to Phase 3
 
 ---
 
-## P2 — AM/PM Auto-Assign Block Subjects (Backend)
+## Phase 2: Auto-Generate Sections on Enrollment Close
 
-**Priority**: 5th | **Effort**: High | **Risk**: High
+> **Trigger**: Auto — `enrollment_end_date` passed (or manual override button).
+> Side-effect of `sync_status()` detecting `ENROLLMENT_CLOSED`.
 
-### Model Changes
-- [ ] Add `session` field (`AM`/`PM`) to `Section` model (`apps/academics/models.py`)
-- [ ] Add `session_preference` to `StudentProfile` (`apps/accounts/models.py`)
-- [ ] Create migration
-
-### Service Changes
-- [ ] `services/subject_enrollment_service.py` → `auto_assign_block_subjects(student, semester, session)`
-  - Get curriculum subjects for year + sem
-  - Find section with available capacity for session
-  - Bulk-create SubjectEnrollments
-- [ ] `services/section_service.py` → `get_available_sessions(year_level, semester)`, `check_session_capacity()`
-
-### Serializer Changes
-- [ ] `SessionSelectionSerializer`
-- [ ] `SessionAvailabilitySerializer`
-
-### View Changes (`views_enrollment.py`)
-- [ ] `SessionAvailabilityView`
-- [ ] `AutoEnrollRegularView`
-
-### URL Changes (`urls.py`)
-- [ ] `sessions/availability/`
-- [ ] `enrollment/auto-enroll/`
+- [ ] **[NEW]** `backend/apps/academics/services_section_generation.py`
+  - `generate_sections_for_semester(semester)`:
+    1. For each active Program × year_level: count enrolled students
+    2. Calculate: `sections_needed = ceil(count / 40)`
+    3. Generate names: `BSIS 1-1`, `BSIS 1-2`, etc. — **skip existing names** (handles collision with manually created sections)
+    4. Create sections as `shift=FULL_DAY` (shift assigned later)
+    5. **Curriculum selection**: use the program's active curriculum (`Curriculum.objects.filter(program=program, is_active=True).first()`). Each section's `curriculum` FK is set to this. Subjects are pulled from `CurriculumSubject` for the matching year/semester.
+    6. Auto-link `CurriculumSubject` → `SectionSubject` records (subjects TBA)
+    7. **Wrap entire operation in `@transaction.atomic`**
 
 ---
 
-## P6 — Role-Based Reports (Backend)
+## Phase 2.5: Student Notification on Sectioning Open
 
-**Priority**: 6th | **Effort**: Medium | **Risk**: Low
+> **Trigger**: Semester transitions to `SECTIONING_OPEN`.
 
-### Views (`views_reports.py`)
-- [ ] `AdmissionStatsView` — online vs completed enrollees, per year level
-- [ ] `PaymentSummaryView` — paid/unpaid/promissory breakdown
-- [ ] `EnrollmentConversionView` — conversion rate
-
-### Serializer
-- [ ] [NEW] `serializers_reports.py` — report response serializers
-
-### URL Changes (`urls.py`)
-- [ ] `reports/admission-stats/`
-- [ ] `reports/payment-summary/`
-- [ ] `reports/enrollment-conversion/`
+- [ ] Send in-app notification to all enrolled students: "Pick your AM/PM session before [sectioning_end_date]"
+- [ ] Show a banner/countdown on the student dashboard with days remaining
+- [ ] (Future) Optional email notification via Django `send_mail`
 
 ---
 
-# 🎨 STAGE 2: ALL FRONTEND (Pages → Components → API endpoints)
+## Phase 3: Student AM/PM Selection + Even Distribution
 
-> To be started after all backend APIs are complete and tested.
+> **Trigger**: Semester is in `SECTIONING_OPEN` status.
+
+### 3A — Student Self-Selection
+
+- [ ] **[MODIFY]** `backend/apps/enrollment/views_enrollment.py`
+  - Repurpose `AutoAssignEnrollmentView`: save `preferred_shift` only, no immediate section assignment
+  - Skip section capacity checks during `ENROLLMENT_OPEN` in `SubjectEnrollmentService`
+  - **30-min grace period**: if enrollment closed within last 30 min, still allow submission
+- [ ] **[MODIFY]** `frontend/src/pages/enrollment/SubjectEnrollment.jsx`
+  - Show AM/PM picker when semester is `SECTIONING_OPEN` and student hasn't picked
+
+### 3A.1 — Irregular Student AM/PM Selection
+
+- [ ] Irregular students pick from 3 options: **AM**, **PM**, or **BOTH** (mixed schedule)
+- [ ] They get placed in a section matching their `year_level` + chosen shift (for homeroom)
+- [ ] **Validation (HARD BLOCK)**:
+  - Check if ALL their enrolled subjects have offerings in sections matching their chosen shift
+  - If they pick AM but a subject only exists in PM → **block**: "Cannot select AM only. Subject CS201 is only available in PM. Select PM or BOTH."
+  - If they pick BOTH → allow (mixed AM/PM schedule), homeroom assigned to AM section by default
+  - Must pass validation before preference is saved
+
+### 3B — Finalize Distribution
+
+- [ ] **[NEW]** `finalize_sectioning(semester)` in `services_section_generation.py`
+  1. Group students by `program × year × preferred_shift`
+  2. Count per shift → calculate sections needed per shift
+  3. Assign shifts to generated sections (BSIS 1-1 → AM, BSIS 1-2 → PM, etc.)
+  4. Spawn new sections if needed, dissolve excess empty sections
+  5. Round-robin distribute students evenly, apply overflow tolerance
+  6. Use `StudentProfile.home_section` count (not `SubjectEnrollment.section`) for capacity tracking during distribution
+  7. Set `StudentProfile.home_section` for each student
+  8. **Backfill** all `SubjectEnrollment` (section=NULL) → set section to match home_section
+  9. Auto-transition semester to `CLASSES_ACTIVE`
+  10. **Wrap entire operation in `@transaction.atomic`**
+- [ ] **[MODIFY]** `backend/apps/academics/views_sections.py`
+  - Add `@action finalize_sectioning` endpoint
+- [ ] **[MODIFY]** `backend/apps/academics/urls.py`
+  - Register `finalize_sectioning` action route
+
+### 3C — Backfill SubjectEnrollments to Sections
+
+- [ ] `_backfill_subject_sections(semester)` — last step inside `finalize_sectioning()`
+  - For each student with a `home_section`:
+    - Find their `SubjectEnrollment` records where `section=NULL`
+    - Set `section = home_section` (only if matching `SectionSubject` exists)
+  - This connects returning students' subject picks to their assigned section
+
+### Edge Cases
+
+| Scenario | Solution |
+|---|---|
+| Student doesn't pick AM/PM | Auto-assign to shift with more available slots after deadline |
+| Late enrollee after finalization | Slot into section with most remaining capacity; new section only if 6+ overflow |
+| Only 1 extra student | Squeeze into existing section (41/40), do NOT spawn new section |
+| Irregular student | Excluded from auto-distribution; placed in any section with space |
+| Excess empty sections | Dissolved during finalization |
+| Returning students enroll without sections | `SubjectEnrollment.section=NULL` during enrollment, backfilled after finalization |
+| Null dates in semester | Skip that status transition, stay in previous state |
+| Multiple curricula per program | Use the active curriculum (`is_active=True`) for section generation |
 
 ---
 
-## P3 Frontend — Grade Resolution UI
+## Phase 4: Head & Registrar Bulk Approval
 
-- [ ] Update `pages/professor/Resolutions.jsx` — show GRADE_INPUT_PENDING step + dean takeover
-- [ ] Update `pages/head/Resolutions.jsx` — show PENDING_HEAD step only
-- [ ] Update `pages/registrar/grades/` — split into initial + final review tabs
-- [ ] [NEW] `components/ResolutionTimeline.jsx` — 5-step progress indicator
-- [ ] Add endpoints to `api/endpoints.js`
+> **Trigger**: After sectioning is finalized (semester = `CLASSES_ACTIVE`).
 
-## P1 Frontend — Admission Flow UI
-
-- [ ] Update `pages/admission/index.jsx` — "Assign Visit Date" modal, "Approve Admission" button
-- [ ] Update `pages/enrollment/index.jsx` — show pending admission status + docs + visit date
-- [ ] [NEW] `components/DocumentChecklist.jsx` — reusable doc verification checklist
-- [ ] Add endpoints to `api/endpoints.js`
-
-## P4 Frontend — Grade Deadline UI
-
-- [ ] Update `pages/professor/Grades.jsx` — deadline countdown banner
-- [ ] Update `pages/registrar/grades/` — "Process Deadline" manual trigger button
-- [ ] [NEW] `components/DeadlineCountdown.jsx` — countdown timer component
-- [ ] Add endpoints to `api/endpoints.js`
-
-## P5 Frontend — Promissory Notes UI
-
-- [ ] [NEW] `pages/student/Promissory.jsx` — apply + status view
-- [ ] [NEW] `pages/cashier/Promissory.jsx` — pending list + approve/reject
-- [ ] Update `pages/student/StudentSOA.jsx` — promissory status badge per month
-- [ ] [NEW] `components/PromissoryBadge.jsx` — status badge component
-- [ ] Add endpoints to `api/endpoints.js`
-
-## P2 Frontend — AM/PM Session UI
-
-- [ ] [NEW] `pages/enrollment/SessionSelector.jsx` — AM/PM selector for regular students
-- [ ] Update `pages/enrollment/index.jsx` — route regular → SessionSelector, irregular → SubjectEnrollment
-- [ ] [NEW] `components/SessionCard.jsx` — AM/PM card with capacity indicator
-- [ ] Add endpoints to `api/endpoints.js`
-
-## P6 Frontend — Reports UI
-
-- [ ] [NEW] `pages/admission/Reports.jsx` — enrollment stats charts
-- [ ] [NEW] `pages/cashier/Reports.jsx` — payment summary charts
-- [ ] [NEW] `pages/admin/Reports.jsx` — payment overview (generic)
-- [ ] Update `pages/head/Reports.jsx` — connect to real data
-- [ ] [NEW] `components/charts/BarChart.jsx`
-- [ ] [NEW] `components/charts/PieChart.jsx`
-- [ ] [NEW] `components/StatCard.jsx`
-- [ ] Add endpoints to `api/endpoints.js`
+- [ ] **[NEW]** `backend/apps/enrollment/views_bulk_approval.py`
+  - **Head bulk approval only**: `POST /api/v1/enrollment/bulk-approve/head/`
+    - Sets `head_approved=True` for all regular students' `SubjectEnrollment` records
+    - Auto-excludes `is_irregular=True` → flagged for manual review
+  - **Payment is ALWAYS manual, per-student** (cashier verifies one by one, both regular and irregular)
+  - Accepts: `{ semester_id, program_id?, year_level? }`
+  - Returns: approved count + skipped irregulars list
+- [ ] **[MODIFY]** `backend/apps/enrollment/urls.py`
+  - Register `bulk-approve/` endpoint
 
 ---
 
-## Summary
+## Phase 4.5: Year Level Auto-Advancement
 
-| Stage | Phases | New Files | Modified Files |
-|---|---|---|---|
-| **Stage 1: Backend** | P3 → P1 → P4 → P5 → P2 → P6 | 11 | 14 |
-| **Stage 2: Frontend** | P3 → P1 → P4 → P5 → P2 → P6 | 14 | 9 |
-| **Total** | | **25 new files** | **23 modified files** |
+> **Trigger**: New academic year starts (new "1st Semester" with different `academic_year`).
+
+- [ ] Detect academic year change during `sync_status()` or semester creation
+- [ ] Auto-increment `StudentProfile.year_level` for all active students (cap at program's `duration_years`)
+- [ ] Students who should graduate (year_level exceeds program duration) get flagged, NOT auto-incremented
+- [ ] Skip students on LOA or WITHDRAWN status
+
+---
+
+## Phase 5: Professor Scheduling Guard
+
+> **Trigger**: From `ENROLLMENT_CLOSED` onward (sections + subjects exist).
+
+- [ ] **[MODIFY]** `backend/apps/academics/views_scheduling.py`
+  - Guard: block `ScheduleSlot` creation if semester is `SETUP` or `ENROLLMENT_OPEN`
+  - Existing conflict detection (professor, room, section) unchanged
+
+---
+
+## Phase 6: Frontend Semester-Status Routing
+
+> **What**: Student dashboard shows different UI based on semester status.
+
+- [ ] **[MODIFY]** Student dashboard API to include `semester.status` in response
+- [ ] **[MODIFY]** Frontend student pages:
+  - `ENROLLMENT_OPEN` → show subject enrollment page
+  - `SECTIONING_OPEN` → show AM/PM picker
+  - `CLASSES_ACTIVE` → show schedule and section info
+
+---
+
+## Phase 7: Admin Safety Nets
+
+> **What**: Registrar tools for fixing mistakes and handling post-finalization edge cases.
+
+### 7A — Post-Finalization Late Admits
+- [ ] When a student is admitted after `CLASSES_ACTIVE`, immediately:
+  - Find the section with most remaining capacity for their program/year/shift
+  - Set `StudentProfile.home_section`
+  - Backfill their `SubjectEnrollment.section` records right away
+  - No need to wait for finalization (it already ran)
+
+### 7B — Rollback / Reset Sections
+- [ ] Add "Reset & Re-generate" button for Registrar:
+  - Sets `sections_generated = False` and `sectioning_finalized = False`
+  - Deletes all auto-generated sections for the semester
+  - Clears `StudentProfile.home_section` for affected students
+  - Resets `SubjectEnrollment.section = NULL` for affected records
+  - Allows re-running the entire Phase 2 → Phase 3 pipeline
+
+### 7C — Manual Section Transfer
+- [ ] Registrar can move a student from one section to another post-finalization:
+  - Update `StudentProfile.home_section`
+  - Re-backfill their `SubjectEnrollment.section` records
+  - Validate capacity of target section before transfer
+
+---
+
+## Files Summary
+
+### New Files (4)
+
+| File | Purpose |
+|---|---|
+| `backend/.../enrollment/services/auto_enrollment_service.py` | Auto-enroll Y1S1 subjects for freshmen |
+| `backend/.../academics/services_section_generation.py` | Generate + finalize sections + backfill |
+| `backend/.../enrollment/views_bulk_approval.py` | Bulk head/payment approval endpoint |
+| `backend/.../enrollment/management/commands/sync_semester_status.py` | Cron job for date-driven status transitions |
+
+### Modified Files (9)
+
+| File | Change |
+|---|---|
+| `backend/.../enrollment/models.py` | Add sectioning dates, prevention flags, new statuses, `sync_status()`, remove old auto-assign |
+| `backend/.../enrollment/serializers.py` | Add sectioning date fields to `SemesterSerializer` |
+| `backend/.../enrollment/views_applicants.py` | Freshman auto-enroll on admission |
+| `backend/.../enrollment/views_enrollment.py` | AM/PM saves preference only, skip section checks |
+| `backend/.../enrollment/urls.py` | Register `bulk-approve/` endpoint |
+| `backend/.../academics/views_sections.py` | Add `finalize_sectioning` action |
+| `backend/.../academics/urls.py` | Register `finalize_sectioning` route |
+| `backend/.../academics/views_scheduling.py` | Semester status guard |
+| `frontend/.../SubjectEnrollment.jsx` | AM/PM picker + semester-status routing |
+| `frontend/.../admin/modals/TermModal.jsx` | Add sectioning date fields + manual override buttons |
+
+---
+
+## Verification Checklist
+
+1. [ ] Approve freshman → verify Y1S1 subjects auto-enrolled with `section=NULL`
+2. [ ] Close enrollment → verify sections generated (`BSIS 1-1`, `BSIS 1-2`, etc.)
+3. [ ] Verify sections use correct active curriculum
+4. [ ] Verify section names skip existing manually-created sections
+5. [ ] Student picks AM → verify preference saved (no section yet)
+6. [ ] Irregular student picks AM but has PM-only subject → verify **hard block**
+7. [ ] Irregular student picks BOTH → verify allowed, homeroom = AM section
+7. [ ] Finalize → verify even distribution + shift assignment + section backfill
+8. [ ] Verify finalization uses `StudentProfile.home_section` count, not `SubjectEnrollment.section`
+9. [ ] Test 41 students / 40 cap → verify squeeze, no new section
+10. [ ] Test 46 students / 40 cap → verify new section spawned
+11. [ ] Verify `SubjectEnrollment.section` backfilled for all students
+12. [ ] Head bulk approve → regulars approved, irregulars skipped
+13. [ ] Verify payment_approved stays separate (cashier only)
+14. [ ] Professor scheduling → conflict checks work
+15. [ ] Frontend routes correctly per semester status
+16. [ ] Late admit after CLASSES_ACTIVE → verify immediate section + backfill
+17. [ ] Reset & Re-generate → verify clean slate
+18. [ ] Manual section transfer → verify capacity check + re-backfill
+19. [ ] Test with null sectioning dates → verify system stays in previous status
+20. [ ] Test 30-min grace period after enrollment close
+21. [ ] Year level auto-advancement on new academic year
+22. [ ] Verify `sync_status()` works via daily cron + on key API endpoints
