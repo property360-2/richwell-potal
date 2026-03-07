@@ -1,0 +1,148 @@
+/* Global Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Colors - Core */
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-primary-light: #EFF6FF;
+  --color-secondary: #64748B;
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-text: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
+  --color-border: #E2E8F0;
+  --color-border-focus: #2563EB;
+
+  /* Colors - Status */
+  --color-success: #16A34A;
+  --color-success-light: #F0FDF4;
+  --color-warning: #D97706;
+  --color-warning-light: #FFFBEB;
+  --color-error: #DC2626;
+  --color-error-light: #FEF2F2;
+  --color-info: #0284C7;
+  --color-info-light: #F0F9FF;
+
+  /* Colors - Role */
+  --color-role-admin: #7C3AED;
+  --color-role-registrar: #2563EB;
+  --color-role-head-registrar: #1E40AF;
+  --color-role-admission: #0891B2;
+  --color-role-cashier: #059669;
+  --color-role-dean: #4338CA;
+  --color-role-programhead: #6D28D9;
+  --color-role-professor: #0369A1;
+  --color-role-student: #2563EB;
+
+  /* Typography */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 0.875rem; /* 14px — compact for data-heavy UI */
+  --font-size-lg: 1rem;       /* 16px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+
+  /* Spacing (8px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Border Radius */
+  --radius-sm: 4px;   /* badges */
+  --radius-md: 6px;   /* buttons, inputs */
+  --radius-lg: 8px;   /* cards */
+  --radius-xl: 12px;  /* modals */
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08); /* default card */
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.1); /* elevated */
+  --shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.15); /* modals */
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 64px;
+  --header-height: 56px;
+  --content-max-width: 1280px;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text);
+  margin: 0;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 32px;
+}
+
+h2 {
+  font-size: var(--font-size-xl);
+  letter-spacing: -0.02em;
+  line-height: 28px;
+}
+
+h3 {
+  font-size: var(--font-size-lg);
+  letter-spacing: -0.01em;
+  line-height: 24px;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Base utility classes for typography */
+.text-caption {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
