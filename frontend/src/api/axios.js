@@ -26,14 +26,14 @@ api.interceptors.response.use(
         const originalRequest = error.config;
 
         // Wait, let's avoid infinite loops. If the refresh endpoint fails, we log out.
-        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('auth/refresh')) {
+        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('accounts/auth/refresh')) {
             originalRequest._retry = true;
             const refreshToken = localStorage.getItem('refresh_token');
 
             if (refreshToken) {
                 try {
                     const res = await axios.post(
-                        `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/'}auth/refresh/`,
+                        `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/'}accounts/auth/refresh/`,
                         { refresh: refreshToken }
                     );
 

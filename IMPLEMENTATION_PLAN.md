@@ -216,12 +216,12 @@ FRONTEND_URL=http://localhost:5173
 10. Setup `useIdleTimer` hook: 30-min no activity → warning toast → logout
 
 **Manual Verification:**
-- [ ] `npm run dev` starts
-- [ ] Design tokens render correctly (colors, fonts)
-- [ ] Layout: sidebar + header + content area
-- [ ] Sidebar shows role-specific menu items
-- [ ] 404 page for unknown routes
-- [ ] Loading spinner appears during API calls
+- [x] `npm run dev` starts
+- [x] Design tokens render correctly (colors, fonts)
+- [x] Layout: sidebar + header + content area
+- [x] Sidebar shows role-specific menu items
+- [x] 404 page for unknown routes
+- [x] Loading spinner appears during API calls
 
 ---
 
@@ -233,14 +233,14 @@ FRONTEND_URL=http://localhost:5173
 
 **Steps:**
 1. Create `accounts` app
-2. Custom User model (per schema.md, includes `must_change_password` field)
-3. Serializers: `LoginSerializer`, `UserSerializer`, `TokenRefreshSerializer`, `ChangePasswordSerializer`, `StaffCreateSerializer`
-4. Views: `LoginView`, `LogoutView`, `TokenRefreshView`, `MeView`, `ChangePasswordView`, `StaffManagementViewSet`
+2. Custom User model (per schema.md)
+3. Serializers: `LoginSerializer`, `UserSerializer`, `TokenRefreshSerializer`, `StaffCreateSerializer`
+4. Views: `LoginView`, `LogoutView`, `TokenRefreshView`, `MeView`, `StaffManagementViewSet`
 5. Permission classes in `core/permissions.py`:
    - Individual: `IsAdmin`, `IsRegistrar`, `IsHeadRegistrar`, `IsAdmission`, `IsCashier`, `IsDean`, `IsProgramHead`, `IsProfessor`, `IsStudent`
    - Composite: `IsAdminOrRegistrar`, `IsStaff` (any non-student)
 6. SimpleJWT: 30-min access, 7-day refresh (from env vars)
-7. **Initial password policy:** `{IDN or employee_id}{birthdate_MMDD}` → force change on first login via `must_change_password=True`
+7. **Initial password policy:** `{IDN or employee_id}{birthdate_MMDD}` (Permanent)
 8. **Staff account management:** Admin can create/edit/deactivate users for all staff roles (Registrar, Admission, Cashier, Dean, ProgramHead)
 9. Management command: `create_admin` with ADMIN role
 10. Tests: login, refresh, permissions, password change, staff CRUD
@@ -250,7 +250,7 @@ FRONTEND_URL=http://localhost:5173
 - MeView returns user + role + must_change_password ✓
 - Role permissions enforce correctly ✓
 - Token refresh works ✓
-- Change password works + sets must_change_password=False ✓
+- ~~Change password works + sets must_change_password=False ✓~~ (Removed)
 - Staff CRUD (Admin only) ✓
 
 ---
@@ -262,9 +262,9 @@ FRONTEND_URL=http://localhost:5173
 **Steps:**
 1. Login page: email + password form (react-hook-form)
 2. Connect to login API, store tokens
-3. **If `must_change_password=true`** → redirect to Change Password page (blocks all other navigation)
-4. Change Password page: current password + new password + confirm
-5. AuthContext: `user`, `role`, `login()`, `logout()`, `isAuthenticated`, `mustChangePassword`
+3. ~~**If `must_change_password=true`** → redirect to Change Password page~~ (Removed)
+4. ~~Change Password page~~ (Removed)
+5. AuthContext: `user`, `role`, `login()`, `logout()`, `isAuthenticated`
 6. ProtectedRoute: auth + role check, redirects to login or 403
 7. Role → dashboard redirect mapping:
    - ADMIN → `/admin` | REGISTRAR → `/registrar` | ADMISSION → `/admission`
@@ -281,8 +281,8 @@ FRONTEND_URL=http://localhost:5173
 **Manual Verification:**
 - [ ] Login form renders
 - [ ] Valid login → correct dashboard per role
-- [ ] First login → forced to change password page
-- [ ] After password change → redirects to dashboard
+- ~~[ ] First login → forced to change password page~~ (Removed)
+- ~~[ ] After password change → redirects to dashboard~~ (Removed)
 - [ ] Invalid → error message
 - [ ] Logout works
 - [ ] Protected routes guard correctly

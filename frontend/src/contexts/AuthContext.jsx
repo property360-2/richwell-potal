@@ -37,12 +37,10 @@ export const AuthProvider = ({ children }) => {
     const decoded = parseJwt(token);
     
     if (decoded && decoded.exp * 1000 > Date.now()) {
-      // Assuming our custom JWT payload includes role, username, etc in Phase 2
       setUser({
         id: decoded.user_id,
         username: decoded.username || '',
-        email: decoded.email || '',
-        mustChangePassword: decoded.must_change_password || false
+        email: decoded.email || ''
       });
       setRole(decoded.role || null);
     } else {
@@ -67,7 +65,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      const response = await api.post('auth/login/', credentials);
+      const response = await api.post('accounts/auth/login/', credentials);
       const { access, refresh } = response.data;
       
       localStorage.setItem('access_token', access);
