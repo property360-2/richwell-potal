@@ -46,6 +46,7 @@ Custom Django user model. All system actors share a single user table with role 
 | `first_name` | CharField(100) | Required | |
 | `last_name` | CharField(100) | Required | |
 | `role` | CharField(20) | Required | See choices below |
+| `must_change_password` | BooleanField | Default: True | Force password change on first login |
 | `is_active` | BooleanField | Default: True | |
 | `created_at` | DateTimeField | Auto | |
 | `updated_at` | DateTimeField | Auto | |
@@ -234,6 +235,7 @@ Per-term enrollment record. Also holds advising approval status and monthly comm
 | `advising_approved_by` | ForeignKey(User) | Nullable, SET_NULL | Program Head |
 | `advising_approved_at` | DateTimeField | Nullable | |
 | `is_regular` | BooleanField | Default: True | Regular or irregular for this term |
+| `year_level` | PositiveIntegerField | Nullable | Cached computed year level for this term |
 | `monthly_commitment` | DecimalField(10,2) | Nullable | Payment commitment per month |
 | `enrolled_by` | ForeignKey(User) | Nullable, SET_NULL | Admission staff |
 | `enrollment_date` | DateTimeField | Auto | |
@@ -254,13 +256,21 @@ Auto-generated sections per program, year level, and term.
 | `term` | ForeignKey(Term) | CASCADE | |
 | `program` | ForeignKey(Program) | CASCADE | |
 | `year_level` | PositiveIntegerField | Required | 1–4 |
-| `section_number` | PositiveIntegerField | Required | 1, 2, 3... |
+| `section_number` | PositiveIntegerField | Required | Incremental: 1, 2, 3... (AM and PM get separate numbers) |
 | `name` | CharField(30) | Required | e.g., `BSIS 1-1` |
-| `session` | CharField(5) | Nullable | `AM`, `PM` |
+| `session` | CharField(5) | Required | `AM` or `PM` |
+| `target_students` | PositiveIntegerField | Default: 35 | Optimal section size |
 | `max_students` | PositiveIntegerField | Default: 40 | Hard cap |
 | `created_at` | DateTimeField | Auto | |
 
 **Unique:** `(term, program, year_level, section_number)`
+
+**Naming convention:** 70 students in BSIS Year 1 → `ceil(70/35) = 2` → 1 AM + 1 PM:
+- BSIS 1-1 (AM, section_number=1)
+- BSIS 1-2 (PM, section_number=2)
+
+For 140 students → 4 sections (2 AM + 2 PM):
+- BSIS 1-1 (AM), BSIS 1-2 (AM), BSIS 1-3 (PM), BSIS 1-4 (PM)
 
 ### `SectionStudent`
 
@@ -282,7 +292,7 @@ Student assignment to a section.
 
 ### `Schedule`
 
-Professor → section → subject assignment with day and session.
+Professor → section → subject assignment with days. Session is inherited from the Section.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -293,15 +303,16 @@ Professor → section → subject assignment with day and session.
 | `professor` | ForeignKey(Professor) | CASCADE | |
 | `room` | ForeignKey(Room) | Nullable, SET_NULL | |
 | `days` | JSONField | Required | e.g., `["M","W","F"]` |
-| `session` | CharField(5) | Required | `AM`, `PM`, `BOTH` |
 | `created_at` | DateTimeField | Auto | |
 
 **Unique:** `(term, section, subject)`
 
+**Note:** Session (AM/PM) is determined by `Section.session`, not stored on Schedule.
+
 **Conflict checks (application-level):**
-1. Professor conflict — same professor, same day+session, different section
-2. Room conflict — same room, same day+session
-3. Section conflict — same section, same day+session, different subject
+1. Professor conflict — same professor, same day, same section.session (AM/PM), different section
+2. Room conflict — same room, same day, same session
+3. Section conflict — same section, same day, different subject
 
 ---
 
@@ -378,6 +389,7 @@ Which subjects a professor is qualified to teach.
 ```
 Normal:   ADVISING → ENROLLED → SUBMITTED → PASSED / INC / NO_GRADE / RETAKE → RESOLVED
 Credited: ADVISING → PASSED (is_credited=True, skips enrollment/grading)
+Dropped:  ENROLLED → DROPPED (Registrar processes subject drop)
 ```
 
 | Value | Description |
@@ -390,6 +402,7 @@ Credited: ADVISING → PASSED (is_credited=True, skips enrollment/grading)
 | `NO_GRADE` | No grade submitted — auto-retake after deadline |
 | `RETAKE` | Must retake the subject |
 | `RESOLVED` | INC was resolved |
+| `DROPPED` | Subject dropped after enrollment (Registrar processed) |
 
 **Valid Grade Values:** `1.0`, `1.25`, `1.5`, `1.75`, `2.0`, `2.25`, `2.5`, `2.75`, `3.0`, `INC`, `NG`
 
@@ -407,7 +420,7 @@ PENDING_REGISTRAR → REGISTRAR_APPROVED → GRADE_SUBMITTED → PENDING_HEAD
 
 ### `Payment`
 
-Monthly payment records processed by the Cashier.
+Monthly payment records processed by the Cashier. **Append-only** — no edits or deletes. Corrections use negative adjustments.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -415,15 +428,17 @@ Monthly payment records processed by the Cashier.
 | `student` | ForeignKey(Student) | CASCADE | |
 | `term` | ForeignKey(Term) | CASCADE | |
 | `month_number` | PositiveIntegerField | Required | 1–6 |
-| `amount_paid` | DecimalField(10,2) | Required | |
+| `amount_paid` | DecimalField(10,2) | Required | Negative for corrections |
 | `is_promissory` | BooleanField | Default: False | |
+| `is_adjustment` | BooleanField | Default: False | True = correction entry |
 | `payment_date` | DateTimeField | Auto | |
 | `processed_by` | ForeignKey(User) | Nullable, SET_NULL | Cashier |
 | `created_at` | DateTimeField | Auto | |
 
-**Unique:** `(student, term, month_number)`
+**Note:** No unique constraint on `(student, term, month_number)` — multiple entries allowed for adjustments.
 
 **Permit logic (derived from queries — no Permit table):**
+- Sum of `amount_paid` per month determines payment status
 - Month 1–2 paid → Subject Enrollment Permit ✓
 - Month 3–4 paid → Midterm Exam Permit ✓
 - Month 5–6 paid → Final Exam Permit ✓
