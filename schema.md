@@ -1,7 +1,7 @@
 # Richwell Portal — Database Schema
 
 > **Tech Stack:** Django + Django REST Framework + PostgreSQL
-> **Models:** 19 total
+> **Models:** 18 total
 > **Last Updated:** 2026-03-07
 
 ---
@@ -18,7 +18,6 @@ erDiagram
     Student }o--|| Program : "enrolled_in"
     Student }o--|| CurriculumVersion : "follows"
     Student ||--o{ StudentEnrollment : "per_term"
-    Student ||--o{ SubjectCredit : "credited"
     Term ||--o{ StudentEnrollment : "for"
     Term ||--o{ Section : "for"
     Section ||--o{ SectionStudent : "has"
@@ -243,28 +242,7 @@ Per-term enrollment record. Also holds advising approval status and monthly comm
 
 ---
 
-## 5. Subject Crediting (Transferees)
-
-### `SubjectCredit`
-
-Subjects credited for transferee students.
-
-| Column | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | BigAutoField | PK | |
-| `student` | ForeignKey(Student) | CASCADE | |
-| `subject` | ForeignKey(Subject) | CASCADE | |
-| `credited_by` | ForeignKey(User) | Nullable, SET_NULL | Registrar |
-| `status` | CharField(15) | Default: `PENDING` | `PENDING`, `APPROVED`, `REJECTED` |
-| `approved_by` | ForeignKey(User) | Nullable, SET_NULL | Program Head |
-| `approved_at` | DateTimeField | Nullable | |
-| `created_at` | DateTimeField | Auto | |
-
-**Unique:** `(student, subject)`
-
----
-
-## 6. Sectioning
+## 5. Sectioning
 
 ### `Section`
 
@@ -300,7 +278,7 @@ Student assignment to a section.
 
 ---
 
-## 7. Scheduling
+## 6. Scheduling
 
 ### `Schedule`
 
@@ -327,7 +305,7 @@ Professor → section → subject assignment with day and session.
 
 ---
 
-## 8. Faculty
+## 7. Faculty
 
 ### `Professor`
 
@@ -359,11 +337,11 @@ Which subjects a professor is qualified to teach.
 
 ---
 
-## 9. Grades
+## 8. Grades
 
 ### `Grade`
 
-**Serves triple duty:** advising record → grade record → resolution record.
+**Serves quadruple duty:** advising record → grade record → credit record → resolution record.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -373,6 +351,7 @@ Which subjects a professor is qualified to teach.
 | `term` | ForeignKey(Term) | CASCADE | |
 | `section` | ForeignKey(Section) | Nullable, SET_NULL | Null during advising, set after sectioning |
 | `is_retake` | BooleanField | Default: False | Student is retaking this subject |
+| `is_credited` | BooleanField | Default: False | Transferee: credited from previous school |
 | `midterm_grade` | CharField(10) | Nullable | Informational only |
 | `final_grade` | CharField(10) | Nullable | Grade of record |
 | `grade_status` | CharField(15) | Default: `ADVISING` | See choices below |
@@ -397,7 +376,8 @@ Which subjects a professor is qualified to teach.
 **Grade Status Choices — lifecycle of a Grade record:**
 
 ```
-ADVISING → ENROLLED → SUBMITTED → PASSED / INC / NO_GRADE / RETAKE → RESOLVED
+Normal:   ADVISING → ENROLLED → SUBMITTED → PASSED / INC / NO_GRADE / RETAKE → RESOLVED
+Credited: ADVISING → PASSED (is_credited=True, skips enrollment/grading)
 ```
 
 | Value | Description |
@@ -423,7 +403,7 @@ PENDING_REGISTRAR → REGISTRAR_APPROVED → GRADE_SUBMITTED → PENDING_HEAD
 
 ---
 
-## 10. Payments
+## 9. Payments
 
 ### `Payment`
 
@@ -452,7 +432,7 @@ Monthly payment records processed by the Cashier.
 
 ---
 
-## 11. Facilities
+## 10. Facilities
 
 ### `Room`
 
@@ -469,7 +449,7 @@ Physical rooms managed by Admin.
 
 ---
 
-## 12. Notifications
+## 11. Notifications
 
 ### `Notification`
 
@@ -492,7 +472,7 @@ In-system notifications (bell icon).
 
 ---
 
-## 13. Audit Trail
+## 12. Audit Trail
 
 ### `AuditLog`
 
@@ -528,16 +508,15 @@ Field-level audit log for all critical operations.
 | 6 | `Term` | Per semester | Standalone |
 | 7 | `Student` | Hundreds | → User, Program, CurriculumVersion |
 | 8 | `StudentEnrollment` | Per student per term | → Student, Term |
-| 9 | `SubjectCredit` | Per transferee subject | → Student, Subject |
-| 10 | `Section` | Per program per year per term | → Term, Program |
-| 11 | `SectionStudent` | Per student per section | → Section, Student |
-| 12 | `Schedule` | Per section per subject | → Term, Section, Subject, Professor, Room |
-| 13 | `Professor` | ~20 | → User |
-| 14 | `ProfessorSubject` | Per professor per subject | → Professor, Subject |
-| 15 | `Grade` | Per student per subject per term | → Student, Subject, Term, Section |
-| 16 | `Payment` | Per student per month per term | → Student, Term |
-| 17 | `Room` | ~10-20 | Standalone |
-| 18 | `Notification` | Many | → User |
-| 19 | `AuditLog` | Many | → User |
+| 9 | `Section` | Per program per year per term | → Term, Program |
+| 10 | `SectionStudent` | Per student per section | → Section, Student |
+| 11 | `Schedule` | Per section per subject | → Term, Section, Subject, Professor, Room |
+| 12 | `Professor` | ~20 | → User |
+| 13 | `ProfessorSubject` | Per professor per subject | → Professor, Subject |
+| 14 | `Grade` | Per student per subject per term | → Student, Subject, Term, Section |
+| 15 | `Payment` | Per student per month per term | → Student, Term |
+| 16 | `Room` | ~10-20 | Standalone |
+| 17 | `Notification` | Many | → User |
+| 18 | `AuditLog` | Many | → User |
 
-**Total: 19 models**
+**Total: 18 models**
