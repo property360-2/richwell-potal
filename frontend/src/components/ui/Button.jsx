@@ -27,7 +27,9 @@ const Button = ({
       {loading ? (
         <Loader2 className="btn-icon animate-spin" size={size === 'sm' ? 14 : 16} />
       ) : Icon ? (
-        <Icon className="btn-icon" size={size === 'sm' ? 14 : 16} />
+        <span className="btn-icon">
+          {React.isValidElement(Icon) ? Icon : <Icon size={size === 'sm' ? 14 : 16} />}
+        </span>
       ) : null}
       
       {children}

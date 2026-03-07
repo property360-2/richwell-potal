@@ -39,3 +39,21 @@
 - Update AuthContext with login logic and token decoding
 - Update ProtectedRoute redirect logic (role -> dashboard)
 - Create Staff Management page for Admins (List, Create, Edit, Reset Password)
+
+## Phase 3.1 — Academic Models + API (Backend)
+- Create `academics` app and models (Program, CurriculumVersion, Subject, SubjectPrerequisite)
+- Implement Serializers with nested relationships
+- Implement ViewSets (`ProgramViewSet`, `CurriculumVersionViewSet`, `SubjectViewSet`)
+- Create CSV upload endpoint (parse `curriculum.csv` -> bulk create subjects)
+- Add filters (by curriculum, year_level, semester)
+- Create Bulacan location endpoint (serve JSON)
+- Write backend tests
+
+## Phase 3.2 — Admin: Academic Dashboard & UI Refinements (Frontend)
+- Build Academic Management dashboard with tabbed UI
+- Build Program management table with CRUD modals (removed `effective_year`)
+- Build Subject management with asynchronous **Year Level** filter
+- Improved dashboard layout spacing and margins ("magkakadikit" fix)
+- Build CSV bulk subject upload with prerequisite support and 415 error fix
+- Build Subject edit/create forms with prerequisite management UI
+- Implement automated curriculum parsing logic (improved)

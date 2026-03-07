@@ -28,8 +28,8 @@ const getNavItems = (role) => {
   ];
 
   if (['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(role)) {
-    items.push({ path: '/users', label: 'User Management', icon: Users });
-    items.push({ path: '/academics', label: 'Academics', icon: BookOpen });
+    items.push({ path: '/admin/staff', label: 'User Management', icon: Users });
+    items.push({ path: '/admin/academics', label: 'Academics', icon: BookOpen });
     items.push({ path: '/terms', label: 'Terms', icon: Calendar });
     items.push({ path: '/students', label: 'Students', icon: GraduationCap });
     items.push({ path: '/sections', label: 'Sections', icon: Users });

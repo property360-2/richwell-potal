@@ -17,6 +17,7 @@ import UIDemo from '../pages/demo/UIDemo';
 
 // Admin Pages
 import StaffManagement from '../pages/admin/StaffManagement';
+import AcademicManagement from '../pages/admin/AcademicManagement';
 
 // Placeholder Phase 2+ Pages
 const AdminDashboard = () => <div className="p-8">Admin Dashboard</div>;
@@ -65,12 +66,19 @@ const AppRoutes = () => {
 
       {/* Admin Routes */}
       <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-        <Route element={<PageWrapper title="Admin Dashboard" />}>
-          <Route path="/admin" element={<AdminDashboard />} />
-        </Route>
         <Route element={<PageWrapper title="Staff Management" />}>
           <Route path="/admin/staff" element={<StaffManagement />} />
         </Route>
+        <Route element={<PageWrapper title="Academic Management" />}>
+          <Route path="/admin/academics" element={<AcademicManagement />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
+      </Route>
+
+      {/* Redirect /academics to /admin/academics for admins */}
+      <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR']} />}>
+         <Route path="/academics" element={<Navigate to="/admin/academics" replace />} />
+         <Route path="/users" element={<Navigate to="/admin/staff" replace />} />
       </Route>
 
       {/* Other Role Routes... */}

@@ -23,7 +23,11 @@ const Input = forwardRef(({
       )}
       
       <div className="input-wrapper">
-        {Icon && <Icon className="input-icon-left" size={16} />}
+        {Icon && (
+          <span className="input-icon-left">
+            {React.isValidElement(Icon) ? Icon : <Icon size={16} />}
+          </span>
+        )}
         
         <input
           id={inputId}

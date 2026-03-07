@@ -3,7 +3,7 @@ Role-based permission classes for the Richwell Portal.
 Each class checks the user's role field for authorization.
 """
 
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
 class IsAdmin(BasePermission):
@@ -86,3 +86,15 @@ class IsStaff(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in self.STAFF_ROLES
+
+
+class IsAdminOrReadOnly(BasePermission):
+    """
+    The request is authenticated as an admin, or is a read-only request.
+    Use for objects that anyone can view but only admins can modify.
+    """
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return request.user.is_authenticated and request.user.role == 'ADMIN'

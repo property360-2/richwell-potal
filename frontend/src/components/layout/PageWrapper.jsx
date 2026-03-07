@@ -1,9 +1,10 @@
 import React from 'react';
+import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import './PageWrapper.css';
 
-const PageWrapper = ({ children, title }) => {
+const PageWrapper = ({ title }) => {
   return (
     <div className="page-wrapper">
       <Sidebar />
@@ -11,7 +12,7 @@ const PageWrapper = ({ children, title }) => {
         <Header title={title} />
         <main className="content-area">
           <div className="content-container">
-            {children}
+            <Outlet />
           </div>
         </main>
       </div>
