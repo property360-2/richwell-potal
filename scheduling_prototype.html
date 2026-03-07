@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dean Scheduling — Richwell Portal Prototype</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f1117;
+            --bg-secondary: #1a1d27;
+            --bg-card: #21242f;
+            --bg-hover: #282c3a;
+            --bg-modal: #1e2130;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --success: #22c55e;
+            --success-glow: rgba(34, 197, 94, 0.12);
+            --warning: #f59e0b;
+            --warning-glow: rgba(245, 158, 11, 0.12);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.12);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #2d3348;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; }
+
+        /* Header */
+        .header { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; }
+        .header-left { display: flex; align-items: center; gap: 14px; }
+        .header-logo { width: 38px; height: 38px; background: linear-gradient(135deg, var(--accent), #a78bfa); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; color: #fff; }
+        .header-title { font-size: 17px; font-weight: 600; }
+        .header-sub { font-size: 12px; color: var(--text-muted); }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .header-term { background: var(--accent-glow); border: 1px solid rgba(99,102,241,0.3); padding: 5px 12px; border-radius: 18px; font-size: 12px; color: var(--accent-hover); font-weight: 500; }
+        .header-avatar { width: 30px; height: 30px; background: linear-gradient(135deg, var(--accent), #a78bfa); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+        .header-user { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+
+        /* Main */
+        .main { padding: 24px 32px; max-width: 1200px; margin: 0 auto; }
+        .proto-banner { background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(239,68,68,0.08)); border: 1px solid rgba(245,158,11,0.25); border-radius: var(--radius); padding: 10px 18px; margin-bottom: 20px; font-size: 12px; color: var(--warning); display: flex; align-items: center; gap: 8px; }
+        .page-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+        .page-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+
+        /* Search */
+        .search-bar { margin-bottom: 16px; position: relative; }
+        .search-bar input { width: 100%; padding: 11px 16px 11px 40px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s; }
+        .search-bar input:focus { border-color: var(--accent); }
+        .search-bar .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 14px; pointer-events: none; }
+
+        /* Professor List */
+        .prof-list { display: flex; flex-direction: column; gap: 8px; }
+        .prof-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; transition: border-color 0.2s, background 0.2s; }
+        .prof-card:hover { border-color: rgba(99,102,241,0.3); background: var(--bg-hover); }
+        .prof-card-left { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+        .prof-avatar { width: 42px; height: 42px; background: linear-gradient(135deg, var(--accent), #a78bfa); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0; }
+        .prof-name { font-weight: 600; font-size: 15px; }
+        .prof-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .prof-subjects-tag { font-size: 12px; margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+        .subj-tag { padding: 2px 8px; border-radius: 5px; font-size: 11px; white-space: nowrap; border: 1px solid var(--border); background: var(--bg-secondary); }
+        .subj-tag.done { border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.08); color: var(--success); }
+        .subj-tag.pending { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.08); color: var(--warning); }
+        .prof-card-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+        /* Badge */
+        .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 16px; font-size: 11px; font-weight: 600; }
+        .badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .badge-scheduled { background: var(--success-glow); color: var(--success); }
+        .badge-scheduled .badge-dot { background: var(--success); }
+        .badge-partial { background: var(--warning-glow); color: var(--warning); }
+        .badge-partial .badge-dot { background: var(--warning); }
+        .badge-none { background: var(--danger-glow); color: var(--danger); }
+        .badge-none .badge-dot { background: var(--danger); }
+
+        /* Buttons */
+        .btn { border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 12px; padding: 7px 14px; border-radius: var(--radius-sm); transition: all 0.2s; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
+        .btn-outline { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+        .btn-outline:hover { border-color: var(--accent); color: var(--accent-hover); }
+        .btn-danger-sm { background: transparent; color: var(--danger); border: 1px solid rgba(239,68,68,0.3); padding: 4px 8px; font-size: 11px; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 600; transition: all 0.2s; }
+        .btn-danger-sm:hover { background: rgba(239,68,68,0.1); }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--bg-modal); border: 1px solid var(--border); border-radius: 16px; width: 720px; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: modalIn 0.2s ease; }
+        @keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 14px; border-bottom: 1px solid var(--border); }
+        .modal-title { font-size: 16px; font-weight: 700; }
+        .modal-close { width: 28px; height: 28px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+        .modal-close:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+        .modal-body { padding: 20px 24px; }
+        .modal-footer { padding: 14px 24px 20px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); }
+
+        /* Modal Prof Info */
+        .modal-prof-info { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+        .modal-prof-avatar { width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent), #a78bfa); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; }
+        .modal-prof-name { font-weight: 700; font-size: 15px; }
+        .modal-prof-meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+
+        /* Schedule Row — each subject-section combo */
+        .sched-row { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; transition: border-color 0.2s; }
+        .sched-row:hover { border-color: rgba(99,102,241,0.2); }
+        .sched-row.saved { border-color: rgba(34,197,94,0.3); }
+        .sched-row-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .sched-row-subject { font-weight: 700; font-size: 14px; }
+        .sched-row-section { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .sched-row-units { font-size: 11px; color: var(--text-muted); background: var(--bg-secondary); padding: 3px 8px; border-radius: 5px; }
+        .sched-row-status { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 10px; }
+        .sched-row-status.pending { background: var(--warning-glow); color: var(--warning); }
+        .sched-row-status.done { background: var(--success-glow); color: var(--success); }
+
+        /* Inline day + session picker */
+        .sched-row-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+        /* Mini day checkboxes */
+        .mini-days { display: flex; gap: 4px; }
+        .mini-day { position: relative; }
+        .mini-day input { display: none; }
+        .mini-day label {
+            width: 36px; height: 36px; border-radius: 8px;
+            background: var(--bg-secondary); border: 2px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; cursor: pointer;
+            transition: all 0.15s; color: var(--text-muted);
+        }
+        .mini-day label:hover { border-color: rgba(99,102,241,0.4); color: var(--text-primary); }
+        .mini-day input:checked + label { border-color: var(--accent); background: var(--accent-glow); color: var(--accent-hover); }
+
+        /* Mini session buttons */
+        .mini-sessions { display: flex; gap: 4px; }
+        .mini-session {
+            padding: 8px 14px; border-radius: 8px;
+            background: var(--bg-secondary); border: 2px solid var(--border);
+            font-size: 12px; font-weight: 700; cursor: pointer;
+            transition: all 0.15s; color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+        }
+        .mini-session:hover { border-color: rgba(99,102,241,0.4); color: var(--text-primary); }
+        .mini-session.active { border-color: var(--accent); background: var(--accent-glow); color: var(--accent-hover); }
+
+        /* Conflict inline */
+        .row-conflict { font-size: 11px; color: var(--danger); margin-top: 8px; display: none; }
+        .row-conflict.show { display: block; }
+
+        /* Divider */
+        .section-divider { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+        /* Summary */
+        .modal-summary { font-size: 13px; color: var(--text-secondary); }
+        .modal-summary strong { color: var(--text-primary); }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--bg-card); border: 1px solid rgba(34,197,94,0.4); border-radius: var(--radius); padding: 14px 20px; font-size: 13px; color: var(--success); display: none; z-index: 200; animation: toastIn 0.3s ease; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+        .toast.show { display: flex; align-items: center; gap: 8px; }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-left">
+        <div class="header-logo">R</div>
+        <div><div class="header-title">Richwell Portal</div><div class="header-sub">Dean Dashboard</div></div>
+    </div>
+    <div class="header-right">
+        <div class="header-term">📅 Term 2027-1</div>
+        <div class="header-user"><div class="header-avatar">DG</div> Dean Garcia</div>
+    </div>
+</div>
+
+<div class="main">
+    <div class="proto-banner">⚠️ <strong>UI Prototype</strong> — Click any professor → system auto-lists all section-subject pairs. Dean only picks days & session.</div>
+    <div class="page-title">Professor Scheduling</div>
+    <div class="page-desc">Click a professor to see all sections that need scheduling. Just pick days and session — no dropdowns needed.</div>
+
+    <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text" placeholder="Search professor name or ID..." id="searchInput" oninput="filterProfs()">
+    </div>
+
+    <div class="prof-list" id="profList"></div>
+</div>
+
+<!-- SCHEDULING MODAL -->
+<div class="modal-overlay" id="schedModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">📅 Assign Schedule</div>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-prof-info">
+                <div class="modal-prof-avatar" id="modalAvatar">MS</div>
+                <div><div class="modal-prof-name" id="modalName">—</div><div class="modal-prof-meta" id="modalMeta">—</div></div>
+            </div>
+            <div id="schedRows"></div>
+        </div>
+        <div class="modal-footer">
+            <div class="modal-summary" id="modalSummary"></div>
+            <div style="display:flex; gap:8px;">
+                <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveAll()">💾 Save All</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== DATA ====================
+const subjectInfo = {
+    'CC113A': { name: 'Introduction to Computing', units: 3, hrs: 5 },
+    'CC113B': { name: 'Computer Programming 1', units: 3, hrs: 5 },
+    'Math113': { name: 'Math in the Modern World', units: 3, hrs: 3 },
+    'IS213A': { name: 'Professional Issues in IS', units: 3, hrs: 3 },
+    'IS213B': { name: 'IT Infrastructure & Network', units: 3, hrs: 3 },
+    'CC213': { name: 'Data Structures & Algorithms', units: 3, hrs: 5 },
+    'IS313A': { name: 'IS Project Management 1', units: 3, hrs: 5 },
+    'IS313B': { name: 'Usability Engineering', units: 3, hrs: 3 },
+    'IS313C': { name: 'Advanced OOP', units: 3, hrs: 5 },
+    'Eng123': { name: 'Purposive Communication', units: 3, hrs: 3 },
+    'Hum123': { name: 'Art Appreciation', units: 3, hrs: 3 },
+};
+
+const sections = [
+    { id: 'BSIS 1-1', students: 35, year: 1, subjects: ['CC113A','CC113B','Math113','Eng123','Hum123'] },
+    { id: 'BSIS 1-2', students: 33, year: 1, subjects: ['CC113A','CC113B','Math113','Eng123','Hum123'] },
+    { id: 'BSIS 2-1', students: 38, year: 2, subjects: ['IS213A','IS213B','CC213'] },
+    { id: 'BSIS 2-2', students: 34, year: 2, subjects: ['IS213A','IS213B','CC213'] },
+    { id: 'BSIS 3-1', students: 30, year: 3, subjects: ['IS313A','IS313B','IS313C'] },
+];
+
+const professors = [
+    {
+        id: 'EMP-001', name: 'Prof. Maria Santos', initials: 'MS',
+        assignedSubjects: ['CC113A', 'CC113B'],
+        schedules: [
+            { subject: 'CC113A', section: 'BSIS 1-1', days: ['M','W','F'], session: 'AM' },
+        ]
+    },
+    {
+        id: 'EMP-002', name: 'Prof. Juan Reyes', initials: 'JR',
+        assignedSubjects: ['IS213A', 'IS313A'],
+        schedules: []
+    },
+    {
+        id: 'EMP-003', name: 'Prof. Ana Cruz', initials: 'AC',
+        assignedSubjects: ['Math113'],
+        schedules: []
+    },
+    {
+        id: 'EMP-004', name: 'Prof. Rico Dela Cruz', initials: 'RD',
+        assignedSubjects: ['Eng123', 'Hum123'],
+        schedules: [
+            { subject: 'Eng123', section: 'BSIS 1-1', days: ['M','W','F'], session: 'PM' },
+            { subject: 'Hum123', section: 'BSIS 1-2', days: ['T','T'], session: 'PM' },
+        ]
+    },
+    {
+        id: 'EMP-005', name: 'Prof. Lisa Mendoza', initials: 'LM',
+        assignedSubjects: ['IS213B', 'IS313B'],
+        schedules: []
+    },
+    {
+        id: 'EMP-006', name: 'Prof. Carlos Garcia', initials: 'CG',
+        assignedSubjects: ['CC213', 'IS313C'],
+        schedules: [
+            { subject: 'CC213', section: 'BSIS 2-1', days: ['M','W','F'], session: 'AM' },
+        ]
+    },
+];
+
+let currentProfId = null;
+
+// ==================== RENDER PROF LIST ====================
+function renderProfList(filter = '') {
+    const container = document.getElementById('profList');
+    const filtered = professors.filter(p =>
+        p.name.toLowerCase().includes(filter.toLowerCase()) ||
+        p.id.toLowerCase().includes(filter.toLowerCase())
+    );
+
+    container.innerHTML = filtered.map(prof => {
+        const pairs = getPairs(prof);
+        const scheduled = pairs.filter(p => p.schedule);
+        const pending = pairs.filter(p => !p.schedule);
+
+        let badgeClass, badgeText;
+        if (pending.length === 0 && scheduled.length > 0) { badgeClass = 'badge-scheduled'; badgeText = 'All Scheduled'; }
+        else if (scheduled.length > 0) { badgeClass = 'badge-partial'; badgeText = `${scheduled.length}/${pairs.length} Done`; }
+        else { badgeClass = 'badge-none'; badgeText = `${pairs.length} Pending`; }
+
+        const subjTags = prof.assignedSubjects.map(code => {
+            const hasSched = prof.schedules.some(s => s.subject === code);
+            return `<span class="subj-tag ${hasSched ? 'done' : 'pending'}">${code}</span>`;
+        }).join('');
+
+        return `
+            <div class="prof-card">
+                <div class="prof-card-left">
+                    <div class="prof-avatar">${prof.initials}</div>
+                    <div>
+                        <div class="prof-name">${prof.name}</div>
+                        <div class="prof-meta">${prof.id} • ${pairs.length} section-subject pair(s)</div>
+                        <div class="prof-subjects-tag">${subjTags}</div>
+                    </div>
+                </div>
+                <div class="prof-card-right">
+                    <span class="badge ${badgeClass}"><span class="badge-dot"></span>${badgeText}</span>
+                    <button class="btn btn-primary" onclick="openModal('${prof.id}')">
+                        ${pending.length > 0 ? '📅 Assign Schedule' : '✏️ View / Edit'}
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Get all subject-section pairs for a professor
+function getPairs(prof) {
+    const pairs = [];
+    prof.assignedSubjects.forEach(subCode => {
+        sections.forEach(sec => {
+            if (sec.subjects.includes(subCode)) {
+                const existingSched = prof.schedules.find(s => s.subject === subCode && s.section === sec.id);
+                pairs.push({
+                    subject: subCode,
+                    section: sec.id,
+                    students: sec.students,
+                    year: sec.year,
+                    schedule: existingSched || null
+                });
+            }
+        });
+    });
+    return pairs;
+}
+
+function filterProfs() { renderProfList(document.getElementById('searchInput').value); }
+
+// ==================== MODAL ====================
+function openModal(profId) {
+    const prof = professors.find(p => p.id === profId);
+    if (!prof) return;
+    currentProfId = profId;
+
+    document.getElementById('modalAvatar').textContent = prof.initials;
+    document.getElementById('modalName').textContent = prof.name;
+    document.getElementById('modalMeta').textContent = `${prof.id} • ${prof.assignedSubjects.length} assigned subject(s)`;
+
+    const pairs = getPairs(prof);
+    const container = document.getElementById('schedRows');
+
+    // Group by subject
+    const grouped = {};
+    pairs.forEach(p => {
+        if (!grouped[p.subject]) grouped[p.subject] = [];
+        grouped[p.subject].push(p);
+    });
+
+    let html = '';
+    const dayKeys = ['M','T','W','Th','F','S'];
+    const dayLabels = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    Object.keys(grouped).forEach(subCode => {
+        const info = subjectInfo[subCode];
+        const subLabel = info ? `${subCode} — ${info.name}` : subCode;
+        html += `<div class="section-divider">${subLabel} (${info ? info.units + ' units, ' + info.hrs + ' hrs/wk' : ''})</div>`;
+
+        grouped[subCode].forEach((pair, pairIdx) => {
+            const rowId = `row-${subCode}-${pair.section.replace(/\s/g,'')}`;
+            const isDone = !!pair.schedule;
+
+            html += `
+                <div class="sched-row ${isDone ? 'saved' : ''}" id="${rowId}">
+                    <div class="sched-row-header">
+                        <div>
+                            <div class="sched-row-section">📍 <strong>${pair.section}</strong> — ${pair.students} students (Year ${pair.year})</div>
+                        </div>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <span class="sched-row-status ${isDone ? 'done' : 'pending'}">${isDone ? '✓ Scheduled' : '○ Pending'}</span>
+                            ${isDone ? `<button class="btn-danger-sm" onclick="clearRow('${subCode}','${pair.section}')">✕ Clear</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="sched-row-controls">
+                        <div class="mini-days">
+                            ${dayKeys.map((d, i) => {
+                                const checked = isDone && pair.schedule.days.includes(d) ? 'checked' : '';
+                                return `<div class="mini-day">
+                                    <input type="checkbox" id="${rowId}-${d}" data-row="${rowId}" ${checked}>
+                                    <label for="${rowId}-${d}" title="${dayLabels[i]}">${d}</label>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                        <div class="mini-sessions" data-row="${rowId}">
+                            <button class="mini-session ${isDone && pair.schedule.session === 'AM' ? 'active' : ''}" onclick="pickSession(this)" data-session="AM">☀️ AM</button>
+                            <button class="mini-session ${isDone && pair.schedule.session === 'PM' ? 'active' : ''}" onclick="pickSession(this)" data-session="PM">🌙 PM</button>
+                            <button class="mini-session ${isDone && pair.schedule.session === 'Both' ? 'active' : ''}" onclick="pickSession(this)" data-session="Both">🔄 Both</button>
+                        </div>
+                    </div>
+                    <div class="row-conflict" id="${rowId}-conflict"></div>
+                </div>
+            `;
+        });
+    });
+
+    container.innerHTML = html;
+    updateSummary();
+    document.getElementById('schedModal').classList.add('active');
+}
+
+function pickSession(btn) {
+    const parent = btn.parentElement;
+    parent.querySelectorAll('.mini-session').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateSummary();
+}
+
+function clearRow(subCode, sectionId) {
+    const prof = professors.find(p => p.id === currentProfId);
+    if (!prof) return;
+    const idx = prof.schedules.findIndex(s => s.subject === subCode && s.section === sectionId);
+    if (idx !== -1) {
+        prof.schedules.splice(idx, 1);
+        openModal(currentProfId); // re-render
+        renderProfList(document.getElementById('searchInput').value);
+        showToast('✕ Schedule cleared');
+    }
+}
+
+function updateSummary() {
+    const rows = document.querySelectorAll('.sched-row');
+    let filled = 0;
+    rows.forEach(row => {
+        const days = row.querySelectorAll('.mini-day input:checked');
+        const session = row.querySelector('.mini-session.active');
+        if (days.length > 0 && session) filled++;
+    });
+    document.getElementById('modalSummary').innerHTML = `<strong>${filled}</strong> of <strong>${rows.length}</strong> section-subject pairs configured`;
+}
+
+function saveAll() {
+    const prof = professors.find(p => p.id === currentProfId);
+    if (!prof) return;
+
+    const rows = document.querySelectorAll('.sched-row');
+    let saved = 0;
+    const dayKeys = ['M','T','W','Th','F','S'];
+
+    rows.forEach(row => {
+        const rowId = row.id;
+        const days = [];
+        dayKeys.forEach(d => {
+            const cb = document.getElementById(`${rowId}-${d}`);
+            if (cb && cb.checked) days.push(d);
+        });
+        const sessionBtn = row.querySelector('.mini-session.active');
+        const session = sessionBtn ? sessionBtn.dataset.session : null;
+
+        if (days.length > 0 && session) {
+            // Parse subject and section from rowId: "row-CC113A-BSIS1-1"
+            const parts = rowId.replace('row-', '').split('-');
+            const subject = parts[0];
+            // Reconstruct section: remaining parts
+            const sectionRaw = parts.slice(1).join('-');
+            // Find matching section
+            const matchedSection = sections.find(s => s.id.replace(/\s/g, '') === sectionRaw);
+            const sectionId = matchedSection ? matchedSection.id : sectionRaw;
+
+            // Remove existing schedule for this pair
+            const existIdx = prof.schedules.findIndex(s => s.subject === subject && s.section === sectionId);
+            if (existIdx !== -1) prof.schedules.splice(existIdx, 1);
+
+            prof.schedules.push({ subject, section: sectionId, days, session });
+            saved++;
+        }
+    });
+
+    if (saved === 0) {
+        alert('Please configure at least one row (select days + session).');
+        return;
+    }
+
+    closeModal();
+    renderProfList(document.getElementById('searchInput').value);
+    showToast(`✅ ${saved} schedule(s) saved successfully!`);
+}
+
+function closeModal() { document.getElementById('schedModal').classList.remove('active'); }
+
+// ==================== TOAST ====================
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ==================== EVENTS ====================
+document.getElementById('schedModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+
+// Init
+renderProfList();
+</script>
+</body>
+</html>
