@@ -10,6 +10,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/accounts/', include('apps.accounts.urls')),
     path('api/academics/', include('apps.academics.urls')),
+    path('api/terms/', include('apps.terms.urls')),
+    path('api/facilities/', include('apps.facilities.urls')),
+    path('api/students/', include('apps.students.urls')),
     
     # Public endpoints
     path('api/locations/', BulacanLocationView.as_view(), name='bulacan-locations'),

@@ -57,3 +57,22 @@
 - Build CSV bulk subject upload with prerequisite support and 415 error fix
 - Build Subject edit/create forms with prerequisite management UI
 - Implement automated curriculum parsing logic (improved)
+
+## Phase 4 — Term & Facility Management
+- Create `terms` app: Term model with comprehensive date ranges (Enrollment, Advising, Grades, etc.)
+- Create `facilities` app: Room model with capacity and type (LECTURE/LAB)
+- Implement `activate_term` logic: automatically deactivates other terms
+- Build Admin UI for Term Management (list, create, edit, activate)
+- Build Admin UI for Room Management (list, create, edit)
+
+## Phase 5 — Student Enrollment Lifecycle
+- Build Public Application Form (`/apply`) with auto-curriculum and Bulacan location integration
+- Enhanced Admission Approval:
+    - Auto-generation of **Student ID (IDN)** using `{YY}{sequential_4_digit}`
+    - Auto-generation of **User Account** and default password `{IDN}{birthdate_MMDD}`
+    - Added **Monthly Payment Commitment** recording (mandatory for approval)
+    - Success screen displaying credentials for immediate handover to student
+- Registrar Verification:
+    - Second layer of document verification for officially enrolled status
+    - Visibility of monthly commitment amount recorded by Admission
+- Backend: Auto-enrollment of approved students into the **Active Term**

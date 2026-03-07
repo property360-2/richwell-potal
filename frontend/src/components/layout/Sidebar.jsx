@@ -30,11 +30,19 @@ const getNavItems = (role) => {
   if (['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(role)) {
     items.push({ path: '/admin/staff', label: 'User Management', icon: Users });
     items.push({ path: '/admin/academics', label: 'Academics', icon: BookOpen });
-    items.push({ path: '/terms', label: 'Terms', icon: Calendar });
+    items.push({ path: '/admin/terms', label: 'Terms', icon: Calendar });
     items.push({ path: '/students', label: 'Students', icon: GraduationCap });
     items.push({ path: '/sections', label: 'Sections', icon: Users });
     items.push({ path: '/scheduling', label: 'Scheduling', icon: Clock });
     items.push({ path: '/grades', label: 'Grades', icon: ClipboardList });
+  }
+
+  if (['ADMISSION', 'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(role)) {
+    items.push({ path: '/admission/applicants', label: 'Applicants', icon: Users });
+  }
+
+  if (['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN'].includes(role)) {
+    items.push({ path: '/registrar/verification', label: 'Verify Docs', icon: ClipboardList });
   }
 
   if (['CASHIER', 'ADMIN'].includes(role)) {
@@ -42,7 +50,7 @@ const getNavItems = (role) => {
   }
 
   if (['ADMIN'].includes(role)) {
-    items.push({ path: '/facilities', label: 'Facilities', icon: Building });
+    items.push({ path: '/admin/rooms', label: 'Rooms', icon: Building });
     items.push({ path: '/auditing', label: 'Audit Logs', icon: Settings });
   }
 

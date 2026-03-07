@@ -18,6 +18,11 @@ import UIDemo from '../pages/demo/UIDemo';
 // Admin Pages
 import StaffManagement from '../pages/admin/StaffManagement';
 import AcademicManagement from '../pages/admin/AcademicManagement';
+import TermManagement from '../pages/admin/TermManagement';
+import RoomManagement from '../pages/admin/RoomManagement';
+import PublicApplication from '../pages/PublicApplication';
+import ApplicantManagement from '../pages/admission/ApplicantManagement';
+import DocumentVerification from '../pages/registrar/DocumentVerification';
 
 // Placeholder Phase 2+ Pages
 const AdminDashboard = () => <div className="p-8">Admin Dashboard</div>;
@@ -52,6 +57,7 @@ const AppRoutes = () => {
     <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
+      <Route path="/apply" element={<PublicApplication />} />
       <Route path="/demo" element={<UIDemo />} />
 
 
@@ -73,6 +79,12 @@ const AppRoutes = () => {
           <Route path="/admin/academics" element={<AcademicManagement />} />
           <Route path="/admin" element={<AdminDashboard />} />
         </Route>
+        <Route element={<PageWrapper title="Term Management" />}>
+          <Route path="/admin/terms" element={<TermManagement />} />
+        </Route>
+        <Route element={<PageWrapper title="Room Management" />}>
+          <Route path="/admin/rooms" element={<RoomManagement />} />
+        </Route>
       </Route>
 
       {/* Redirect /academics to /admin/academics for admins */}
@@ -82,16 +94,18 @@ const AppRoutes = () => {
       </Route>
 
       {/* Other Role Routes... */}
-      <Route element={<ProtectedRoute allowedRoles={['REGISTRAR', 'HEAD_REGISTRAR']} />}>
+      <Route element={<ProtectedRoute allowedRoles={['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN']} />}>
         <Route element={<PageWrapper title="Registrar Dashboard" />}>
           <Route path="/registrar" element={<RegistrarDashboard />} />
           <Route path="/head-registrar" element={<RegistrarDashboard />} />
+          <Route path="/registrar/verification" element={<DocumentVerification />} />
         </Route>
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={['ADMISSION']} />}>
+      <Route element={<ProtectedRoute allowedRoles={['ADMISSION', 'ADMIN']} />}>
         <Route element={<PageWrapper title="Admission Dashboard" />}>
           <Route path="/admission" element={<AdmissionDashboard />} />
+          <Route path="/admission/applicants" element={<ApplicantManagement />} />
         </Route>
       </Route>
 

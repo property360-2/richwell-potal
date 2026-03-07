@@ -1,0 +1,151 @@
+{
+  "province": "Bulacan",
+  "region": "Region III",
+  "localities": [
+    {
+      "name": "Angat",
+      "type": "Municipality",
+      "zip_code": "3012",
+      "barangays": ["Banaban", "Baybay", "Binagbag", "Donacion", "Encanto", "Marungko", "Niugan", "Paltok", "Poblacion", "San Roque", "Santa Cruz", "Santa Lucia", "Sto. Niño", "Sulucan", "Taboc", "Ubihan"]
+    },
+    {
+      "name": "Balagtas",
+      "type": "Municipality",
+      "zip_code": "3016",
+      "barangays": ["Borol 1st", "Borol 2nd", "Dalig", "Longos", "Panginay", "Pulong Gubat", "San Juan", "Santol", "Wawa"]
+    },
+    {
+      "name": "Baliuag",
+      "type": "City",
+      "zip_code": "3006",
+      "barangays": ["Bagong Nayon", "Barangca", "Calantipay", "Catulinan", "Concepcion", "Hinukay", "Makinabang", "Matangtubig", "Pagala", "Paitan", "Piel", "Poblacion", "Sabang", "San Roque", "Santa Barbara", "Subic", "Sulivan", "Tangos", "Tarcan", "Tiaong", "Tibag", "Tilapayong"]
+    },
+    {
+      "name": "Bocaue",
+      "type": "Municipality",
+      "zip_code": "3018",
+      "barangays": ["Anti-polo", "Bagumbayan", "Bambang", "Batia", "Binang 1st", "Binang 2nd", "Bolacan", "Bundukan", "Caingin", "Duhat", "Igulot", "Lolomboy", "Poblacion", "Sulucan", "Taal", "Tambubong", "Turo", "Wakas"]
+    },
+    {
+      "name": "Bulakan",
+      "type": "Municipality",
+      "zip_code": "3017",
+      "barangays": ["Bagumbayan", "Balubad", "Bambang", "Matungao", "Maysantol", "Paltok", "Panginay", "Poblacion", "San Francisco", "San Jose", "San Nicolas", "Santa Ana", "Santa Ines", "Taliptip", "Tibig"]
+    },
+    {
+      "name": "Bustos",
+      "type": "Municipality",
+      "zip_code": "3007",
+      "barangays": ["Bonga Mayor", "Bonga Menor", "Cambio", "Catmon", "Liciada", "Malamig", "Malawak", "Poblacion", "San Pedro", "Talampas", "Tanawan", "Tibagan"]
+    },
+    {
+      "name": "Calumpit",
+      "type": "Municipality",
+      "zip_code": "3003",
+      "barangays": ["Balite", "Balungao", "Buguion", "Bulusan", "Calizon", "Caniogan", "Corazon", "Frances", "Gatbuca", "Gugo", "Iba Este", "Iba O'Este", "Meysulao", "Pakat", "Paluwis", "Pungo", "San Jose", "San Marcos", "San Miguel", "Santa Lucia", "Sto. Niño", "Sucol"]
+    },
+    {
+      "name": "Doña Remedios Trinidad",
+      "type": "Municipality",
+      "zip_code": "3009",
+      "barangays": ["Bayabas", "Kabayunan", "Camachin", "Camachile", "Kabayunan", "Kalawakan", "Pulong Sampalok", "Sapang Bulak", "Talbak"]
+    },
+    {
+      "name": "Guiguinto",
+      "type": "Municipality",
+      "zip_code": "3015",
+      "barangays": ["Cutcut", "Daungan", "Ilang-Ilang", "Malis", "Panginay", "Poblacion", "Pritil", "Pulong Gubat", "Santa Cruz", "Santa Rita", "Tabang", "Tabe", "Tuktukan"]
+    },
+    {
+      "name": "Hagonoy",
+      "type": "Municipality",
+      "zip_code": "3002",
+      "barangays": ["Abulalas", "Iba", "Iba-Ibayo", "Mercado", "Palapat", "Pugad", "Sagrada Familia", "San Agustin", "San Isidro", "San Jose", "San Juan", "San Miguel", "San Nicolas", "San Pascual", "San Roque", "San Sebastian", "Santa Cruz", "Santa Elena", "Santa Monica", "Santo Niño", "Santo Rosario", "Tampok"]
+    },
+    {
+      "name": "Malolos",
+      "type": "City",
+      "is_capital": true,
+      "zip_code": "3000",
+      "barangays": ["Anilao", "Atlag", "Babatnin", "Bagna", "Bagong Bayan", "Balayong", "Balite", "Barihan", "Bulihan", "Calero", "Caliligawan", "Canalate", "Caniogan", "Catmon", "Cofradia", "Dakila", "Guinhawa", "Ligas", "Liang", "Longos", "Look 1st", "Look 2nd", "Mabolo", "Mambog", "Masile", "Matimbo", "Mojon", "Namayan", "Niugan", "Pamarawan", "Panasahan", "Piela", "Pinagbakahan", "San Agustin", "San Gabriel", "San Juan", "San Pablo", "San Vicente", "Santa Isabel", "Santisima Trinidad", "Sto. Cristo", "Sto. Niño", "Sto. Rosario", "Santol", "Sumapang Matanda", "Sumapang Bata", "Taal", "Tikay"]
+    },
+    {
+      "name": "Marilao",
+      "type": "Municipality",
+      "zip_code": "3019",
+      "barangays": ["Abangan Norte", "Abangan Sur", "Ibayo", "Lambakin", "Lias", "Loma de Gato", "Nagbalon", "Patubig", "Poblacion 1st", "Poblacion 2nd", "Prenza 1st", "Prenza 2nd", "Saog", "Santa Rosa 1st", "Santa Rosa 2nd", "Tabing Ilog"]
+    },
+    {
+      "name": "Meycauayan",
+      "type": "City",
+      "zip_code": "3020",
+      "barangays": ["Bagong Nayon", "Bahay Pare", "Bancal", "Banga", "Bayugo", "Caingin", "Calvario", "Camalig", "Hulo", "Iba", "Langkap", "Lawa", "Libtong", "Malhacan", "Pajo", "Pandayan", "Pantoc", "Perez", "Poblacion", "Saluysoy", "Saint Francis Gasak", "Ubihan", "Vicente", "Zamora"]
+    },
+    {
+      "name": "Norzagaray",
+      "type": "Municipality",
+      "zip_code": "3013",
+      "barangays": ["Bangkal", "Baraka", "Bigte", "Bitungol", "Matictic", "Minuyan", "Friendship Village Resources", "Poblacion", "San Mateo", "San Jose", "San Roque"]
+    },
+    {
+      "name": "Obando",
+      "type": "Municipality",
+      "zip_code": "3021",
+      "barangays": ["Binuangan", "Catanghalan", "Hulo", "Lawa", "Paco", "Pag-asa", "Paliwas", "Panghulo", "San Pascual", "Tawiran"]
+    },
+    {
+      "name": "Pandi",
+      "type": "Municipality",
+      "zip_code": "3014",
+      "barangays": ["Bagong Barrio", "Bagong-Pook", "Baka-bakahan", "Bunsuran 1st", "Bunsuran 2nd", "Bunsuran 3rd", "Cacarong Bata", "Cacarong Matanda", "Cupang", "Malabon", "Masagana", "Masuso", "Pinagkuartelan", "Poblacion", "Real de Cacarong", "San Roque", "Siling Bata", "Siling Matanda"]
+    },
+    {
+      "name": "Paombong",
+      "type": "Municipality",
+      "zip_code": "3001",
+      "barangays": ["Binakayan", "Kapitangan", "Malumot", "Masukol", "Pinalagdan", "Poblacion", "San Isidro 1st", "San Isidro 2nd", "San Jose", "San Roque", "San Vicente", "Santa Cruz", "Sto. Niño", "Sto. Rosario"]
+    },
+    {
+      "name": "Plaridel",
+      "type": "Municipality",
+      "zip_code": "3004",
+      "barangays": ["Agnaya", "Bagong Silang", "Banga 1st", "Banga 2nd", "Bintog", "Bulihan", "Culianin", "Dampol", "Lagundi", "Loma de Gato", "Lumang Bayan", "Parulan", "Poblacion", "Rueda", "San Jose", "Santa Ines", "Sto. Niño", "Tabang"]
+    },
+    {
+      "name": "Pulilan",
+      "type": "Municipality",
+      "zip_code": "3005",
+      "barangays": ["Balatong A", "Balatong B", "Cutcot", "Dampol 1st", "Dampol 2nd-A", "Dampol 2nd-B", "Inaon", "Lumbac", "Paltao", "Penabatan", "Poblacion", "Santa Peregrina", "Sto. Cristo", "Taal", "Tabon", "Tibag"]
+    },
+    {
+      "name": "San Ildefonso",
+      "type": "Municipality",
+      "zip_code": "3010",
+      "barangays": ["Akle", "Alagao", "Anyatam", "Bagong Barrio", "Basuit", "Bubulong Munti", "Bubulong Malaki", "Buhol na Mangga", "Calasag", "Calawitan", "Casalat", "Lapnit", "Maasim", "Makapilapil", "Malipampang", "Matimbubong", "Nabaong Garlang", "Pala-pala", "Pinaod", "Poblacion", "Pulong Tamo", "San Juan", "Santa Catalina Matanda", "Santa Catalina Bata", "Sapang Dayap", "Sumandig", "Telapatio", "Upig"]
+    },
+    {
+      "name": "San Jose del Monte",
+      "type": "City",
+      "zip_code": "3023",
+      "barangays": ["Assumption", "Bagong Buhay", "Citrus", "Gaya-gaya", "Gumaoc", "Kaybanban", "Kaypian", "Lawang Pare", "Minuyan", "Muzon", "Paradise III", "Poblacion", "San Manuel", "San Martin", "San Rafael", "San Roque", "Sapang Palay", "Sto. Cristo", "Sto. Niño", "Tungkong Mangga"]
+    },
+    {
+      "name": "San Miguel",
+      "type": "Municipality",
+      "zip_code": "3011",
+      "barangays": ["Bagong Pag-asa", "Balite", "Bantog", "Bardias", "Batasan Bata", "Batasan Matanda", "Biak-na-Bato", "Biclat", "Buga", "Buliran", "Camias", "Ilog-Bulo", "King Kabayo", "Labne", "Magmarale", "Malibay", "Mandile", "Masalipit", "Pacalag", "Paliwasan", "Partida", "Pinambaran", "Poblacion", "Pulong Bayabas", "Salacot", "Salangan", "San Agustin", "San Jose", "San Vicente", "Santa Ines", "Santa Lucia", "Santa Rita Matanda", "Santa Rita Bata", "Sapang", "Sibul", "Tartaro", "Tibagan"]
+    },
+    {
+      "name": "San Rafael",
+      "type": "Municipality",
+      "zip_code": "3008",
+      "barangays": ["Baka-bakahan", "Caingin", "Coral na Bato", "Cruz na Daan", "Dagat-dagatan", "Diliman 1st", "Diliman 2nd", "Maasim", "Mabalas-balas", "Maguinao", "Maronquillo", "Paco", "Pantubig", "Pasong Bangkal", "Pasong Intsik", "Pinacpinacan", "Poblacion", "Pulo", "Pulong Bayabas", "Salapungan", "Sampaloc", "San Agustin", "San Roque", "Talisay", "Tambubong", "Tukod", "Ulingao"]
+    },
+    {
+      "name": "Santa Maria",
+      "type": "Municipality",
+      "zip_code": "3022",
+      "barangays": ["Bagbaguin", "Balasing", "Buenavista", "Camangyanan", "Catmon", "Cay Pombo", "Caysio", "Guyong", "Lalakhan", "Mag-asawang Sapa", "Manggahan", "Parada", "Poblacion", "Pulong Buhangin", "San Gabriel", "San Jose Patag", "San Vicente", "Santa Clara", "Santa Cruz", "Silangan", "Tabing Bakod", "Tumana"]
+    }
+  ]
+}
