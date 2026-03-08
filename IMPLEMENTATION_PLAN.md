@@ -414,7 +414,7 @@ FRONTEND_URL=http://localhost:5173
 
 ---
 
-## Phase 6: Student Enrollment
+## Phase 6: Student Enrollment 3/8/2026 
 
 ### 6.1 — Student + Enrollment API (Backend)
 

@@ -30,9 +30,11 @@ class StudentSerializer(serializers.ModelSerializer):
         if enrollment:
             return {
                 'id': enrollment.id,
+                'term': enrollment.term.id,
                 'term_code': enrollment.term.code,
                 'monthly_commitment': enrollment.monthly_commitment,
-                'year_level': enrollment.year_level
+                'year_level': enrollment.year_level,
+                'advising_status': enrollment.advising_status
             }
         return None
 

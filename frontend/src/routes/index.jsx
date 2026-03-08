@@ -24,6 +24,7 @@ import PublicApplication from '../pages/PublicApplication';
 import ApplicantManagement from '../pages/admission/ApplicantManagement';
 import DocumentVerification from '../pages/registrar/DocumentVerification';
 import FacultyManagement from '../pages/admin/FacultyManagement';
+import StudentManagement from '../pages/admin/StudentManagement';
 
 // Placeholder Phase 2+ Pages
 const AdminDashboard = () => <div className="p-8">Admin Dashboard</div>;
@@ -33,7 +34,9 @@ const CashierDashboard = () => <div className="p-8">Cashier Dashboard</div>;
 const DeanDashboard = () => <div className="p-8">Dean Dashboard</div>;
 const ProgramHeadDashboard = () => <div className="p-8">Program Head Dashboard</div>;
 const ProfessorDashboard = () => <div className="p-8">Professor Dashboard</div>;
-const StudentDashboard = () => <div className="p-8">Student Dashboard</div>;
+
+// Student Pages
+import StudentDashboard from '../pages/student/StudentDashboard';
 
 // Component to handle root redirect based on role
 const RootRedirect = () => {
@@ -88,6 +91,12 @@ const AppRoutes = () => {
         </Route>
         <Route element={<PageWrapper title="Faculty Management" />}>
           <Route path="/admin/faculty" element={<FacultyManagement />} />
+        </Route>
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMISSION']} />}>
+        <Route element={<PageWrapper title="Student Management" />}>
+          <Route path="/students" element={<StudentManagement />} />
         </Route>
       </Route>
 

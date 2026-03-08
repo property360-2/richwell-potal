@@ -28,10 +28,10 @@ class IsRegistrar(BasePermission):
 
 
 class IsAdmission(BasePermission):
-    """Allow access only to users with ADMISSION role."""
+    """Allow access to users with ADMISSION or ADMIN role."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'ADMISSION'
+        return request.user.is_authenticated and request.user.role in ('ADMISSION', 'ADMIN')
 
 
 class IsCashier(BasePermission):

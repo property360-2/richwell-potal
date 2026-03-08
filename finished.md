@@ -86,11 +86,22 @@
 - Build specific UI Subject Assignment modal fetching from Curriculum
 
 ## Phase 7 — Advanced Student Enrollment
-- Implement Atomic IDN Generation: `SystemSequence` model with `select_for_update()` for race-condition safe sequential IDs (e.g., `270001`)
+- Implement Robust Sequential IDN Generation: `SystemSequence` model for safe and unique IDs (e.g., `270001`)
 - Build Advising Service: `AdvisingService` for automated Year Level computation for Freshmen and Returning students
 - Create Returning Student API: Dedicated endpoint for one-click enrollment with payment commitment recording
-- Enhanced Account Security: Initial password `{IDN}{birthdate_MMDD}` with mandatory `must_change_password` flag
+- Enhanced Account Security: Initial password `{IDN}{birthdate_MMDD}`
 - Frontend Refinements:
     - SEO Optimization: Meta titles and descriptions for public application form
     - Bulacan-specific Cascading Address: Municipality-based Barangay filtering
     - Strict Validation: Philippine mobile number and email format verification
+## Phase 8 — Registrar Verification & Student Self-Enrollment
+- Build Registrar Document Verification UI:
+    - Created `RegistrarVerificationModal.jsx` for verifying submitted documents
+    - Logic: Only "Submitted" documents can be "Verified" with progress tracking (e.g., "3/10")
+    - Permissions: Restricted updates to ADMIN, REGISTRAR, or the owner STUDENT
+- Build Student Re-Enrollment Dashboard:
+    - Replaced placeholder with functional `StudentDashboard.jsx`
+    - Dynamic "New Term Available" banner for unenrolled students in active terms
+    - One-click enrollment with monthly payment commitment recording
+    - Post-enrollment "Quick Actions" for Subject Advising and Schedule Picking
+- Backend Security

@@ -33,7 +33,6 @@ const getNavItems = (role) => {
     items.push({ path: '/admin/academics', label: 'Academics', icon: BookOpen });
     items.push({ path: '/admin/terms', label: 'Terms', icon: Calendar });
     items.push({ path: '/admin/faculty', label: 'Faculty', icon: Briefcase });
-    items.push({ path: '/students', label: 'Students', icon: GraduationCap });
     items.push({ path: '/sections', label: 'Sections', icon: Users });
     items.push({ path: '/scheduling', label: 'Scheduling', icon: Clock });
     items.push({ path: '/grades', label: 'Grades', icon: ClipboardList });
@@ -41,6 +40,7 @@ const getNavItems = (role) => {
 
   if (['ADMISSION', 'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(role)) {
     items.push({ path: '/admission/applicants', label: 'Applicants', icon: Users });
+    items.push({ path: '/students', label: 'Students', icon: GraduationCap });
   }
 
   if (['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN'].includes(role)) {

@@ -32,7 +32,7 @@ class AdvisingService:
         if last_enrollment.year_level:
             # Basic logic: increment if the term is a new year 
             # (e.g., transitioning from 2nd sem/summer to 1st sem)
-            if term.semester == '1' and last_enrollment.term.semester in ['2', 'S']:
+            if term.semester_type == '1' and last_enrollment.term.semester_type in ['2', 'S']:
                 return min(last_enrollment.year_level + 1, 4) # Max 4th year
             return last_enrollment.year_level
             

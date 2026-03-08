@@ -14,6 +14,12 @@ class StudentViewSet(viewsets.ModelViewSet):
     serializer_class = StudentSerializer
     filterset_fields = ['status', 'student_type', 'program']
     search_fields = ['user__first_name', 'user__last_name', 'user__email', 'idn']
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and user.role == 'STUDENT':
+            return Student.objects.filter(user=user)
+        return Student.objects.all()
     
     def get_permissions(self):
         if self.action == 'apply':
@@ -41,7 +47,6 @@ class StudentViewSet(viewsets.ModelViewSet):
                         role='STUDENT',
                         is_active=False
                     )
-                    user.must_change_password = True
                     user.save()
                     
                     # Create Student
@@ -100,21 +105,25 @@ class StudentViewSet(viewsets.ModelViewSet):
                 
                 # Lock the sequence row for update
                 seq_obj, _ = SystemSequence.objects.select_for_update().get_or_create(key=sequence_key)
-                seq_obj.last_value += 1
-                seq_obj.save()
                 
-                idn = f"{year_prefix}{str(seq_obj.last_value).zfill(4)}"
+                # Resilient generation: Loop until we find a non-existing username
+                # This auto-heals if the sequence and database get out of sync
+                while True:
+                    seq_obj.last_value += 1
+                    idn = f"{year_prefix}{str(seq_obj.last_value).zfill(4)}"
+                    if not User.objects.filter(username=idn).exists():
+                        break
+                
+                seq_obj.save()
                 
                 student.idn = idn
                 student.status = 'APPROVED'
                 student.user.username = idn # IDN is the username
                 student.user.is_active = True
                 
-                # Initial student password: {IDN}{birthdate_MMDD} -> must_change_password=True
                 dob_suffix = student.date_of_birth.strftime('%m%d')
                 generated_password = f"{idn}{dob_suffix}"
                 student.user.set_password(generated_password)
-                student.user.must_change_password = True
                 student.user.save()
                 
                 student.save()
@@ -142,14 +151,20 @@ class StudentViewSet(viewsets.ModelViewSet):
                 }
             })
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdmission])
+    @action(detail=True, methods=['post'])
     def returning_student(self, request, pk=None):
         """
-        Action for Admission to 'enroll' a returning (already approved) student for the active term.
+        Action for a student or Admission to 'enroll' the student for the active term.
         """
         student = self.get_object()
+        
+        # Permission check: Admission or the Student themselves
+        if not (request.user.role == 'ADMIN' or request.user.role == 'ADMISSION' or request.user == student.user):
+            return Response({'error': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
         if student.status in ['APPLICANT', 'REJECTED']:
             return Response({'error': 'Only approved students can be enrolled as returning'}, status=status.HTTP_400_BAD_REQUEST)
             
