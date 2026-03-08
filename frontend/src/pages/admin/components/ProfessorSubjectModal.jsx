@@ -105,42 +105,45 @@ const ProfessorSubjectModal = ({ isOpen, onClose, professor, onSuccess }) => {
           onChange={(e) => setSearchTerm(e.target.value)}
         />
 
-        <div className="border border-slate-200 rounded-lg overflow-hidden flex flex-col h-[400px]">
-          <div className="bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200 grid grid-cols-12 gap-2 sticky top-0 z-10">
+        <div className="border border-slate-200 rounded-xl overflow-hidden flex flex-col h-[400px] shadow-sm">
+          <div className="bg-slate-50 px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200 grid grid-cols-12 gap-2 sticky top-0 z-10">
             <div className="col-span-1 text-center">Select</div>
             <div className="col-span-3">Code</div>
             <div className="col-span-6">Description</div>
             <div className="col-span-2 text-center">Units</div>
           </div>
           
-          <div className="overflow-y-auto flex-1">
+          <div className="overflow-y-auto flex-1 bg-white">
             {loading ? (
-              <div className="p-8 text-center text-slate-500">Loading subjects...</div>
+              <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <span>Loading subjects...</span>
+              </div>
             ) : filteredSubjects.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">No subjects found matching your search.</div>
+              <div className="p-12 text-center text-slate-500 italic">No subjects found matching your search.</div>
             ) : (
               filteredSubjects.map(subject => (
                 <label 
                   key={subject.id} 
-                  className={`grid grid-cols-12 gap-2 px-4 py-3 cursor-pointer transition-colors border-b last:border-0 ${
-                    selectedIds.has(subject.id) ? 'bg-primary-50 border-slate-200' : 'hover:bg-slate-50 border-slate-100'
+                  className={`grid grid-cols-12 gap-2 px-6 py-3.5 cursor-pointer transition-colors border-b last:border-0 items-center ${
+                    selectedIds.has(subject.id) ? 'bg-blue-50/50' : 'hover:bg-slate-50'
                   }`}
                 >
                   <div className="col-span-1 flex items-center justify-center">
                     <input
                       type="checkbox"
-                      className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500"
+                      className="w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary/20 transition-all cursor-pointer"
                       checked={selectedIds.has(subject.id)}
                       onChange={() => handleToggle(subject.id)}
                     />
                   </div>
-                  <div className="col-span-3 flex items-center font-medium text-slate-800 text-sm">
+                  <div className="col-span-3 flex items-center font-semibold text-slate-900 text-sm">
                     {subject.code}
                   </div>
-                  <div className="col-span-6 flex items-center text-slate-600 text-sm">
+                  <div className="col-span-6 flex items-center text-slate-600 text-sm leading-tight">
                     {subject.description}
                   </div>
-                  <div className="col-span-2 flex items-center justify-center text-slate-500 text-sm">
+                  <div className="col-span-2 flex items-center justify-center font-medium text-slate-500 text-sm">
                     {subject.total_units}
                   </div>
                 </label>

@@ -84,3 +84,13 @@
 - Initial default password generation: `{employee_id}{birthdate_MMDD}`
 - Build Admin UI for Faculty Management (table list, edit modals)
 - Build specific UI Subject Assignment modal fetching from Curriculum
+
+## Phase 7 — Advanced Student Enrollment
+- Implement Atomic IDN Generation: `SystemSequence` model with `select_for_update()` for race-condition safe sequential IDs (e.g., `270001`)
+- Build Advising Service: `AdvisingService` for automated Year Level computation for Freshmen and Returning students
+- Create Returning Student API: Dedicated endpoint for one-click enrollment with payment commitment recording
+- Enhanced Account Security: Initial password `{IDN}{birthdate_MMDD}` with mandatory `must_change_password` flag
+- Frontend Refinements:
+    - SEO Optimization: Meta titles and descriptions for public application form
+    - Bulacan-specific Cascading Address: Municipality-based Barangay filtering
+    - Strict Validation: Philippine mobile number and email format verification

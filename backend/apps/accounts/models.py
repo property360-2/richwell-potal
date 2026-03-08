@@ -17,6 +17,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
+    must_change_password = models.BooleanField(default=False)
 
     # Added to fix related_name clashes if needed, though they don't typically clash 
     # unless you have another user model in the project. The default related names 

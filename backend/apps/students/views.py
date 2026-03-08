@@ -71,7 +71,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         # If serializer is not valid, return the specific field errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmission])
     def approve(self, request, pk=None):
         student = self.get_object()
         if student.status != 'APPLICANT':
@@ -87,52 +87,104 @@ class StudentViewSet(viewsets.ModelViewSet):
         if not active_term:
             return Response({'error': 'No active term found. Please activate a term first.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        with transaction.atomic():
-            # Generate IDN: {YY}{sequential_4_digit}
-            import datetime
-            year_prefix = str(datetime.datetime.now().year)[2:]
-            last_student = Student.objects.filter(idn__startswith=year_prefix).order_by('-idn').first()
-            
-            if last_student and last_student.idn[:2] == year_prefix:
-                # Try to parse the incrementing part
-                try:
-                    next_num = int(last_student.idn[2:]) + 1
-                except ValueError:
-                    next_num = 1
-            else:
-                next_num = 1
-                
-            idn = f"{year_prefix}{str(next_num).zfill(4)}"
-            
-            student.idn = idn
-            student.status = 'APPROVED'
-            student.user.username = idn # IDN is the username
-            student.user.is_active = True
-            
-            # Initial password: {IDN}{birthdate_MMDD}
-            dob_suffix = student.date_of_birth.strftime('%m%d')
-            generated_password = f"{idn}{dob_suffix}"
-            student.user.set_password(generated_password)
-            
-            student.user.save()
-            student.save()
+        from core.models import SystemSequence
+        from .services import AdvisingService
+        import datetime
 
-            # Create Enrollment for the active term
-            StudentEnrollment.objects.get_or_create(
+        try:
+            with transaction.atomic():
+                # Thread-safe sequential IDN generation: YY{sequential_4_digits}
+                # e.g., 2027 becomes 270001
+                year_prefix = str(datetime.datetime.now().year)[2:]
+                sequence_key = f"idn_{year_prefix}"
+                
+                # Lock the sequence row for update
+                seq_obj, _ = SystemSequence.objects.select_for_update().get_or_create(key=sequence_key)
+                seq_obj.last_value += 1
+                seq_obj.save()
+                
+                idn = f"{year_prefix}{str(seq_obj.last_value).zfill(4)}"
+                
+                student.idn = idn
+                student.status = 'APPROVED'
+                student.user.username = idn # IDN is the username
+                student.user.is_active = True
+                
+                # Initial student password: {IDN}{birthdate_MMDD} -> must_change_password=True
+                dob_suffix = student.date_of_birth.strftime('%m%d')
+                generated_password = f"{idn}{dob_suffix}"
+                student.user.set_password(generated_password)
+                student.user.must_change_password = True
+                student.user.save()
+                
+                student.save()
+
+                # Get Year Level from Service
+                year_level = AdvisingService.get_year_level(student, active_term)
+
+                # Create Enrollment for the active term
+                # If they are already enrolled for this term, update it
+                enrollment, _ = StudentEnrollment.objects.get_or_create(
+                    student=student,
+                    term=active_term,
+                    defaults={
+                        'monthly_commitment': monthly_commitment,
+                        'year_level': year_level,
+                        'enrolled_by': request.user
+                    }
+                )
+                
+            return Response({
+                'student': StudentSerializer(student).data,
+                'credentials': {
+                    'idn': idn,
+                    'password': generated_password
+                }
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmission])
+    def returning_student(self, request, pk=None):
+        """
+        Action for Admission to 'enroll' a returning (already approved) student for the active term.
+        """
+        student = self.get_object()
+        if student.status in ['APPLICANT', 'REJECTED']:
+            return Response({'error': 'Only approved students can be enrolled as returning'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        monthly_commitment = request.data.get('monthly_commitment')
+        if not monthly_commitment:
+            return Response({'error': 'Monthly commitment is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.terms.models import Term
+        active_term = Term.objects.filter(is_active=True).first()
+        if not active_term:
+            return Response({'error': 'No active term found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .services import AdvisingService
+        
+        with transaction.atomic():
+            # Tag status as Enrolled (system status logic)
+            student.status = 'ENROLLED'
+            student.save()
+            
+            # Compute/get year level
+            year_level = AdvisingService.get_year_level(student, active_term)
+            
+            enrollment, created = StudentEnrollment.objects.update_or_create(
                 student=student,
                 term=active_term,
                 defaults={
                     'monthly_commitment': monthly_commitment,
-                    'year_level': 1 # Default for new applicants, can be adjusted in advising
+                    'year_level': year_level,
+                    'enrolled_by': request.user
                 }
             )
             
         return Response({
-            'student': StudentSerializer(student).data,
-            'credentials': {
-                'idn': idn,
-                'password': generated_password
-            }
+            'message': 'Student enrolled for term successfully',
+            'enrollment': StudentEnrollmentSerializer(enrollment).data
         })
 
 class StudentEnrollmentViewSet(viewsets.ModelViewSet):

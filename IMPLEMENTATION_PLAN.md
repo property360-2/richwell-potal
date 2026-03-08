@@ -378,7 +378,7 @@ FRONTEND_URL=http://localhost:5173
 
 ---
 
-## Phase 5: Faculty Management // 3/8/2026
+## Phase 5: Faculty Management // 3/8/2026 finished
 
 ### 5.1 — Professor Models + API (Backend)
 

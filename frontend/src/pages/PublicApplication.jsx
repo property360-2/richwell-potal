@@ -27,6 +27,20 @@ const PublicApplication = () => {
     }
   });
   const { showToast } = useToast();
+
+  // SEO & Head Management
+  useEffect(() => {
+    document.title = "Apply Now: Richwell Colleges 2026 Online Enrollment | Admission";
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute("content", "Secure your future at Richwell Colleges. Apply online for Academic Year 2026-2027. Fast, easy enrollment for Freshmen & Transferees. Join us today ✓");
+    } else {
+      const meta = document.createElement('meta');
+      meta.name = "description";
+      meta.content = "Secure your future at Richwell Colleges. Apply online for Academic Year 2026-2027. Fast, easy enrollment for Freshmen & Transferees. Join us today ✓";
+      document.getElementsByTagName('head')[0].appendChild(meta);
+    }
+  }, []);
   const [programs, setPrograms] = useState([]);
   const [curriculums, setCurriculums] = useState([]);
   const [locations, setLocations] = useState(null);
@@ -127,9 +141,9 @@ const PublicApplication = () => {
           {/* Personal Information */}
           <Section title="Personal Information" icon={<User size={20} />}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Input label="First Name" {...register('first_name', { required: true })} error={errors.first_name && 'Required'} />
+              <Input label="First Name" {...register('first_name', { required: 'First name is required' })} error={errors.first_name?.message} />
               <Input label="Middle Name (Optional)" {...register('middle_name')} />
-              <Input label="Last Name" {...register('last_name', { required: true })} error={errors.last_name && 'Required'} />
+              <Input label="Last Name" {...register('last_name', { required: 'Last name is required' })} error={errors.last_name?.message} />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <Input label="Date of Birth" type="date" {...register('date_of_birth', { required: true })} error={errors.date_of_birth && 'Required'} />
@@ -156,8 +170,31 @@ const PublicApplication = () => {
           {/* Contact Details */}
           <Section title="Contact & Address" icon={<Mail size={20} />}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input label="Email Address" type="email" icon={<Mail size={16} />} {...register('email', { required: true })} error={errors.email && 'Required'} />
-              <Input label="Contact Number" icon={<Phone size={16} />} {...register('contact_number', { required: true })} error={errors.contact_number && 'Required'} />
+              <Input 
+                label="Email Address" 
+                type="email" 
+                icon={<Mail size={16} />} 
+                {...register('email', { 
+                  required: 'Email is required',
+                  pattern: {
+                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                    message: "Invalid email address"
+                  }
+                })} 
+                error={errors.email?.message} 
+              />
+              <Input 
+                label="Contact Number" 
+                icon={<Phone size={16} />} 
+                {...register('contact_number', { 
+                  required: 'Contact number is required',
+                  pattern: {
+                    value: /^(09|\+639)\d{9}$/,
+                    message: "Enter a valid PH mobile number"
+                  }
+                })} 
+                error={errors.contact_number?.message} 
+              />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <Select 
