@@ -23,6 +23,7 @@ import RoomManagement from '../pages/admin/RoomManagement';
 import PublicApplication from '../pages/PublicApplication';
 import ApplicantManagement from '../pages/admission/ApplicantManagement';
 import DocumentVerification from '../pages/registrar/DocumentVerification';
+import FacultyManagement from '../pages/admin/FacultyManagement';
 
 // Placeholder Phase 2+ Pages
 const AdminDashboard = () => <div className="p-8">Admin Dashboard</div>;
@@ -84,6 +85,9 @@ const AppRoutes = () => {
         </Route>
         <Route element={<PageWrapper title="Room Management" />}>
           <Route path="/admin/rooms" element={<RoomManagement />} />
+        </Route>
+        <Route element={<PageWrapper title="Faculty Management" />}>
+          <Route path="/admin/faculty" element={<FacultyManagement />} />
         </Route>
       </Route>
 

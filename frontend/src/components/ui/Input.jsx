@@ -9,6 +9,7 @@ const Input = forwardRef(({
   disabled = false, 
   type = 'text',
   icon: Icon,
+  helperText,
   ...props 
 }, ref) => {
   const inputId = id || `input-${Math.random().toString(36).substring(2, 9)}`;
@@ -40,6 +41,12 @@ const Input = forwardRef(({
           {...props}
         />
       </div>
+      
+      {helperText && !hasError && (
+        <p className="input-helper-text">
+          {helperText}
+        </p>
+      )}
       
       {hasError && (
         <span id={`${inputId}-error`} className="input-error-text" role="alert">

@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/terms/', include('apps.terms.urls')),
     path('api/facilities/', include('apps.facilities.urls')),
     path('api/students/', include('apps.students.urls')),
+    path('api/faculty/', include('apps.faculty.urls')),
     
     # Public endpoints
     path('api/locations/', BulacanLocationView.as_view(), name='bulacan-locations'),

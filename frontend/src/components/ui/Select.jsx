@@ -10,6 +10,7 @@ const Select = forwardRef(({
   className = '', 
   disabled = false, 
   placeholder,
+  icon: Icon,
   ...props 
 }, ref) => {
   const selectId = id || `select-${Math.random().toString(36).substring(2, 9)}`;
@@ -24,11 +25,16 @@ const Select = forwardRef(({
       )}
       
       <div className="select-wrapper">
+        {Icon && (
+          <span className="select-icon-left">
+            {React.isValidElement(Icon) ? Icon : <Icon size={16} />}
+          </span>
+        )}
         <select
           id={selectId}
           ref={ref}
           disabled={disabled}
-          className={`select-field ${hasError ? 'select-error' : ''} ${(placeholder && !props.value) ? 'select-unselected' : ''}`}
+          className={`select-field ${hasError ? 'select-error' : ''} ${(placeholder && !props.value) ? 'select-unselected' : ''} ${Icon ? 'has-icon-left' : ''}`}
           aria-invalid={hasError}
           aria-describedby={hasError ? `${selectId}-error` : undefined}
           {...props}

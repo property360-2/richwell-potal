@@ -3,7 +3,8 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, BookOpen, Calendar, 
   GraduationCap, ClipboardList, Clock, CreditCard, 
-  Building, Bell, Settings, LogOut, Menu, ChevronLeft
+  Building, Bell, Settings, LogOut, Menu, ChevronLeft,
+  Briefcase
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import './Sidebar.css';
@@ -31,6 +32,7 @@ const getNavItems = (role) => {
     items.push({ path: '/admin/staff', label: 'User Management', icon: Users });
     items.push({ path: '/admin/academics', label: 'Academics', icon: BookOpen });
     items.push({ path: '/admin/terms', label: 'Terms', icon: Calendar });
+    items.push({ path: '/admin/faculty', label: 'Faculty', icon: Briefcase });
     items.push({ path: '/students', label: 'Students', icon: GraduationCap });
     items.push({ path: '/sections', label: 'Sections', icon: Users });
     items.push({ path: '/scheduling', label: 'Scheduling', icon: Clock });

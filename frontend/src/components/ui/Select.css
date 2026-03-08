@@ -27,6 +27,16 @@
     align-items: center;
 }
 
+.select-icon-left {
+    position: absolute;
+    left: 12px;
+    color: var(--color-text-muted);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    z-index: 10;
+}
+
 .select-field {
     width: 100%;
     height: 36px;
@@ -42,6 +52,10 @@
     appearance: none;
     /* remove default arrow */
     cursor: pointer;
+}
+
+.select-field.has-icon-left {
+    padding-left: 36px;
 }
 
 .select-unselected {

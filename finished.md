@@ -76,3 +76,11 @@
     - Second layer of document verification for officially enrolled status
     - Visibility of monthly commitment amount recorded by Admission
 - Backend: Auto-enrollment of approved students into the **Active Term**
+
+## Phase 6 — Faculty Management
+- Create `faculty` app: Professor and ProfessorSubject models
+- Implemented Professor CRUD endpoints with subject assignment
+- Auto-generation of Employee ID (`EMP-{YY}{seq}`) and User Account
+- Initial default password generation: `{employee_id}{birthdate_MMDD}`
+- Build Admin UI for Faculty Management (table list, edit modals)
+- Build specific UI Subject Assignment modal fetching from Curriculum
