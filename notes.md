@@ -8,3 +8,6 @@ The following student account has been generated. Please provide these credentia
 
 Student ID (IDN)260003
 Default Password2600030421
+
+Student ID (IDN)260005
+Default Password2600050421

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import Badge from '../../../components/ui/Badge';
+
 import { useToast } from '../../components/ui/Toast';
 import { studentsApi } from '../../api/students';
 import { termsApi } from '../../api/terms';

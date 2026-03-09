@@ -65,15 +65,48 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
+      // Clear old tokens first to ensure a clean session
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      
       const response = await api.post('accounts/auth/login/', credentials);
-      const { access, refresh } = response.data;
+      const { access, refresh, user: userData } = response.data;
       
       localStorage.setItem('access_token', access);
       localStorage.setItem('refresh_token', refresh);
       
-      loadUserFromToken();
-      return { success: true };
+      // Update state directly from response for immediate availability
+      if (userData) {
+        const newUser = {
+          id: userData.id,
+          username: userData.username,
+          email: userData.email
+        };
+        const newRole = userData.role;
+        
+        // We set these together. React will batch these updates.
+        setUser(newUser);
+        setRole(newRole);
+        setIsLoading(false);
+        
+        return { success: true, user: userData };
+      } else {
+        // Fallback to token parsing if user data isn't in response
+        const token = localStorage.getItem('access_token');
+        const decoded = parseJwt(token);
+        if (decoded) {
+          setUser({
+            id: decoded.user_id,
+            username: decoded.username || '',
+            email: decoded.email || ''
+          });
+          setRole(decoded.role || null);
+        }
+        setIsLoading(false);
+        return { success: true };
+      }
     } catch (error) {
+      setIsLoading(false);
       return { 
         success: false, 
         message: error.response?.data?.message || 'Login failed' 

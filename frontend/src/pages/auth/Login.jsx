@@ -14,15 +14,48 @@ const Login = () => {
   
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm();
 
+  const getDashboardPath = (role) => {
+    switch (role) {
+      case 'ADMIN': return '/admin';
+      case 'REGISTRAR': return '/registrar';
+      case 'HEAD_REGISTRAR': return '/head-registrar';
+      case 'ADMISSION': return '/admission';
+      case 'CASHIER': return '/cashier';
+      case 'DEAN': return '/dean';
+      case 'PROGRAM_HEAD': return '/program-head';
+      case 'PROFESSOR': return '/professor';
+      case 'STUDENT': return '/student';
+      default: return '/';
+    }
+  };
+
   const onSubmit = async (data) => {
     setErrorMsg('');
     const result = await login(data);
     
     if (result.success) {
-      // The ProtectedRoute will handle redirecting to the change password page
-      // if mustChangePassword is true, otherwise it drops them at their dashboard
-      const from = location.state?.from?.pathname || '/';
-      navigate(from, { replace: true });
+      const role = result.user?.role;
+      const from = location.state?.from?.pathname;
+      
+      // Determine the best target path
+      let targetPath = getDashboardPath(role);
+      
+      // Only use the 'from' path if it's role-appropriate
+      if (from && from !== '/' && from !== '/login') {
+        const isAdminPath = from.startsWith('/admin') || from.startsWith('/registrar') || from.startsWith('/admission');
+        const isStudentPath = from.startsWith('/student');
+        
+        if (role === 'STUDENT' && isStudentPath) {
+          targetPath = from;
+        } else if (role !== 'STUDENT' && isAdminPath) {
+          targetPath = from;
+        } else if (!isAdminPath && !isStudentPath) {
+          // If it's a generic path, allowed
+          targetPath = from;
+        }
+      }
+      
+      navigate(targetPath, { replace: true });
     } else {
       setErrorMsg(result.message || 'Invalid credentials');
     }

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, BookOpen, Calendar, 
   GraduationCap, ClipboardList, Clock, CreditCard, 
   Building, Bell, Settings, LogOut, Menu, ChevronLeft,
-  Briefcase
+  Briefcase, CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import './Sidebar.css';
@@ -23,12 +23,16 @@ const roleColors = {
 };
 
 const getNavItems = (role) => {
-  // Common items for everyone (placeholder logic)
+  // No role? No items.
+  if (!role) return [];
+
   const items = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   ];
 
-  if (['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(role)) {
+  const normalizedRole = role.toUpperCase();
+
+  if (['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
     items.push({ path: '/admin/staff', label: 'User Management', icon: Users });
     items.push({ path: '/admin/academics', label: 'Academics', icon: BookOpen });
     items.push({ path: '/admin/terms', label: 'Terms', icon: Calendar });
@@ -38,22 +42,38 @@ const getNavItems = (role) => {
     items.push({ path: '/grades', label: 'Grades', icon: ClipboardList });
   }
 
-  if (['ADMISSION', 'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(role)) {
+  if (['ADMISSION', 'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
     items.push({ path: '/admission/applicants', label: 'Applicants', icon: Users });
     items.push({ path: '/students', label: 'Students', icon: GraduationCap });
   }
 
-  if (['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN'].includes(role)) {
+  if (['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN'].includes(normalizedRole)) {
     items.push({ path: '/registrar/verification', label: 'Verify Docs', icon: ClipboardList });
+    items.push({ path: '/registrar/crediting', label: 'Subject Crediting', icon: BookOpen });
   }
 
-  if (['CASHIER', 'ADMIN'].includes(role)) {
+  if (['PROGRAM_HEAD', 'DEAN', 'ADMIN'].includes(normalizedRole)) {
+     items.push({ path: '/faculty/load', label: 'Faculty Load', icon: Briefcase });
+     if (normalizedRole === 'PROGRAM_HEAD' || normalizedRole === 'ADMIN') {
+        items.push({ path: '/program-head/advising', label: 'Advising Approval', icon: CheckCircle });
+     }
+  }
+
+  if (['CASHIER', 'ADMIN'].includes(normalizedRole)) {
     items.push({ path: '/finance', label: 'Finance', icon: CreditCard });
   }
 
-  if (['ADMIN'].includes(role)) {
+  if (['ADMIN'].includes(normalizedRole)) {
     items.push({ path: '/admin/rooms', label: 'Rooms', icon: Building });
     items.push({ path: '/auditing', label: 'Audit Logs', icon: Settings });
+  }
+
+  if (normalizedRole === 'STUDENT') {
+    items[0].path = '/student'; // Point Dashboard directly to student page
+    items.push({ path: '/student/advising', label: 'Subject Advising', icon: ClipboardList });
+    items.push({ path: '/student/grades', label: 'My Grades', icon: ClipboardList });
+    items.push({ path: '/student/schedule', label: 'My Schedule', icon: Clock });
+    items.push({ path: '/student/payments', label: 'Payments', icon: CreditCard });
   }
 
   return items;
@@ -63,8 +83,8 @@ const Sidebar = () => {
   const { role, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   
-  const navItems = getNavItems(role || 'ADMIN'); // fallback for demo
-  const themeColor = roleColors[role] || 'var(--color-primary)';
+  const navItems = getNavItems(role); 
+  const themeColor = roleColors[role?.toUpperCase()] || 'var(--color-primary)';
 
   return (
     <>

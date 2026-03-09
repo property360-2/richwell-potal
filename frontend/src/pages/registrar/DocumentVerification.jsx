@@ -71,7 +71,21 @@ const DocumentVerification = () => {
         return (
           <div className="text-xs font-medium">
             <span className={submittedCount === totalCount ? 'text-green-600' : 'text-slate-500'}>
-              {submittedCount}/{totalCount} items
+              {submittedCount}/{totalCount} submitted
+            </span>
+          </div>
+        );
+      }
+    },
+    { 
+      header: 'Docs Verified', 
+      render: (row) => {
+        const verifiedCount = Object.values(row.document_checklist || {}).filter(d => d.verified).length;
+        const totalCount = Object.keys(row.document_checklist || {}).length;
+        return (
+          <div className="text-xs font-medium">
+            <span className={verifiedCount === totalCount ? 'text-blue-600' : 'text-slate-500'}>
+              {verifiedCount}/{totalCount} verified
             </span>
           </div>
         );

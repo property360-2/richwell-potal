@@ -1,14 +1,14 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from core.permissions import IsAdmin
+from core.permissions import IsAdmin, IsAdminOrReadOnly
 from .models import Term
 from .serializers import TermSerializer
 
 class TermViewSet(viewsets.ModelViewSet):
     queryset = Term.objects.all()
     serializer_class = TermSerializer
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminOrReadOnly]
     filterset_fields = ['is_active', 'semester_type', 'academic_year']
     search_fields = ['code', 'academic_year']
 

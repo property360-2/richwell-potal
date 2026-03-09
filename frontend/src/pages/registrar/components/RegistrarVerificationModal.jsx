@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { FileCheck, ShieldAlert, CheckCircle2, AlertCircle } from 'lucide-react';
-import Modal from '../../../../components/ui/Modal';
-import Button from '../../../../components/ui/Button';
-import Badge from '../../../../components/ui/Badge';
-import { useToast } from '../../../../components/ui/Toast';
-import { studentsApi } from '../../../../api/students';
+import Modal from '../../../components/ui/Modal';
+import Button from '../../../components/ui/Button';
+import Badge from '../../../components/ui/Badge';
+import { useToast } from '../../../components/ui/Toast';
+import { studentsApi } from '../../../api/students';
 
 const RegistrarVerificationModal = ({ isOpen, onClose, onSuccess, student }) => {
   const [checklist, setChecklist] = useState({});

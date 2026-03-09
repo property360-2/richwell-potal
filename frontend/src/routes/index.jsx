@@ -23,7 +23,9 @@ import RoomManagement from '../pages/admin/RoomManagement';
 import PublicApplication from '../pages/PublicApplication';
 import ApplicantManagement from '../pages/admission/ApplicantManagement';
 import DocumentVerification from '../pages/registrar/DocumentVerification';
+import SubjectCrediting from '../pages/registrar/SubjectCrediting';
 import FacultyManagement from '../pages/admin/FacultyManagement';
+import AdvisingApproval from '../pages/program-head/AdvisingApproval';
 import StudentManagement from '../pages/admin/StudentManagement';
 
 // Placeholder Phase 2+ Pages
@@ -37,12 +39,25 @@ const ProfessorDashboard = () => <div className="p-8">Professor Dashboard</div>;
 
 // Student Pages
 import StudentDashboard from '../pages/student/StudentDashboard';
+import StudentAdvising from '../pages/student/StudentAdvising';
 
 // Component to handle root redirect based on role
 const RootRedirect = () => {
-  const { role } = useAuth();
+  const { role, isLoading, isAuthenticated } = useAuth();
   
-  switch (role) {
+  if (isLoading || (isAuthenticated && !role)) {
+    return (
+      <div className="flex bg-slate-50 min-h-screen items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  const normalizedRole = role?.toUpperCase();
+  
+  switch (normalizedRole) {
     case 'ADMIN': return <Navigate to="/admin" replace />;
     case 'REGISTRAR': return <Navigate to="/registrar" replace />;
     case 'HEAD_REGISTRAR': return <Navigate to="/head-registrar" replace />;
@@ -111,7 +126,12 @@ const AppRoutes = () => {
         <Route element={<PageWrapper title="Registrar Dashboard" />}>
           <Route path="/registrar" element={<RegistrarDashboard />} />
           <Route path="/head-registrar" element={<RegistrarDashboard />} />
-          <Route path="/registrar/verification" element={<DocumentVerification />} />
+        </Route>
+        <Route element={<PageWrapper title="Document Verification" />}>
+           <Route path="/registrar/verification" element={<DocumentVerification />} />
+        </Route>
+        <Route element={<PageWrapper title="Subject Crediting" />}>
+           <Route path="/registrar/crediting" element={<SubjectCrediting />} />
         </Route>
       </Route>
 
@@ -128,9 +148,12 @@ const AppRoutes = () => {
         </Route>
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={['PROGRAM_HEAD']} />}>
-        <Route element={<PageWrapper title="Program Head Dashboard" />}>
-          <Route path="/program-head" element={<ProgramHeadDashboard />} />
+      <Route element={<ProtectedRoute allowedRoles={['PROGRAM_HEAD', 'DEAN', 'ADMIN']} />}>
+        <Route element={<PageWrapper title="Faculty Teaching Load" />}>
+           <Route path="/faculty/load" element={<div className="p-8">Teaching Load Report (Coming Soon)</div>} />
+        </Route>
+        <Route element={<PageWrapper title="Advising Approval" />}>
+           <Route path="/program-head/advising" element={<AdvisingApproval />} />
         </Route>
       </Route>
 
@@ -149,6 +172,9 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>
         <Route element={<PageWrapper title="Student Dashboard" />}>
           <Route path="/student" element={<StudentDashboard />} />
+        </Route>
+        <Route element={<PageWrapper title="Subject Advising" />}>
+          <Route path="/student/advising" element={<StudentAdvising />} />
         </Route>
       </Route>
 

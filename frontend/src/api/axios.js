@@ -8,8 +8,10 @@ const api = axios.create({
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('access_token');
-        if (token) {
+        if (token && !config.url.includes('accounts/auth/login') && !config.url.includes('accounts/auth/refresh')) {
             config.headers.Authorization = `Bearer ${token}`;
+        } else {
+            delete config.headers.Authorization;
         }
         return config;
     },
