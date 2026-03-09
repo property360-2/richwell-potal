@@ -8,6 +8,62 @@ from apps.students.models import StudentEnrollment
 
 class AdvisingService:
     @staticmethod
+    def check_student_regularity(student, term):
+        """
+        Determines if a student should be Regular or Irregular.
+        Regular means they have passed all subjects in their curriculum 
+        prior to their current year level and semester.
+        """
+        # 1. New Transferees are Irregular by default (needs crediting/selection)
+        if student.student_type == 'TRANSFEREE':
+            has_history = Grade.objects.filter(student=student).exists()
+            if not has_history:
+                return False
+
+        # 2. Check for unresolved INC, FAILED, RETAKE, DROPPED
+        # A subject is "unresolved" if the student hasn't PASSED it yet.
+        problematic_grades = Grade.objects.filter(
+            student=student,
+            grade_status__in=[Grade.STATUS_FAILED, Grade.STATUS_INC, Grade.STATUS_DROPPED, Grade.STATUS_RETAKE]
+        ).exclude(
+            subject__in=Grade.objects.filter(
+                student=student,
+                grade_status=Grade.STATUS_PASSED
+            ).values_list('subject_id', flat=True)
+        )
+        
+        if problematic_grades.exists():
+            return False
+
+        # 3. Check for Back Subjects
+        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
+        if not enrollment:
+            return True
+            
+        current_year = enrollment.year_level
+        current_sem = term.semester_type
+        
+        sem_weight = {'1': 1, '2': 2, 'S': 3}
+        curr_weight = sem_weight.get(current_sem, 0)
+        
+        # Get all curriculum subjects prior to current year/sem
+        past_subjects = Subject.objects.filter(curriculum=student.curriculum).filter(
+            Q(year_level__lt=current_year) | 
+            Q(year_level=current_year, semester__in=[k for k, v in sem_weight.items() if v < curr_weight])
+        )
+        
+        for subj in past_subjects:
+            passed = Grade.objects.filter(
+                student=student, 
+                subject=subj, 
+                grade_status=Grade.STATUS_PASSED
+            ).exists()
+            if not passed:
+                return False
+
+        return True
+
+    @staticmethod
     def get_year_level(student):
         """
         Calculates the year level of a student based on passed subjects.
@@ -24,8 +80,7 @@ class AdvisingService:
 
         # Count how many subjects from each year level the student has passed
         year_counts = Subject.objects.filter(
-            id__in=passed_subjects,
-            curriculum_version=student.curriculum_version
+            curriculum=student.curriculum
         ).values('year_level').annotate(count=Count('year_level')).order_by('-year_level')
 
         if not year_counts:
@@ -49,10 +104,10 @@ class AdvisingService:
         
         # Get subjects for the calculated year level and semester
         subjects = Subject.objects.filter(
-            curriculum_version=student.curriculum_version,
+            curriculum=student.curriculum,
             year_level=year_level,
             semester=semester
-        ).exclude(semester_type='S') # Skip summer subjects
+        ).exclude(semester='S') # Skip summer subjects
 
         # Exclude subjects already passed or credited
         passed_or_credited = Grade.objects.filter(
@@ -86,6 +141,9 @@ class AdvisingService:
                 grade.save()
             grades.append(grade)
             
+        # Update enrollment status to PENDING
+        StudentEnrollment.objects.filter(student=student, term=term).update(advising_status='PENDING')
+            
         return grades
 
     @staticmethod
@@ -95,22 +153,32 @@ class AdvisingService:
         Validates and creates grades for irregular student selections.
         """
         subjects = Subject.objects.filter(id__in=subject_ids)
-        total_units = sum(s.units for s in subjects)
+        # Calculate total units including existing ones in THIS term
+        existing_units = sum(g.subject.units for g in Grade.objects.filter(student=student, term=term))
+        new_units = sum(s.units for s in subjects)
+        total_term_units = existing_units + new_units
 
-        if total_units > 40:
-            raise ValidationError("Total units exceed maximum limit of 40.")
+        if total_term_units > 30:
+            raise ValidationError(f"Total units ({total_term_units}) exceed maximum limit of 30.")
 
         # Prerequisite check
+        from apps.students.models import StudentEnrollment
+        current_enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
+        
         for subject in subjects:
-            missing_prereqs = subject.prerequisites.exclude(
-                prerequisite__in=Grade.objects.filter(
-                    student=student, 
-                    grade_status=Grade.STATUS_PASSED
-                ).values_list('subject_id', flat=True)
-            )
-            if missing_prereqs.exists():
-                codes = ", ".join([p.prerequisite.code for p in missing_prereqs])
-                raise ValidationError(f"Missing prerequisites for {subject.code}: {codes}")
+            for prereq in subject.prerequisites.all():
+                if prereq.prerequisite_type == 'SPECIFIC':
+                    is_passed = Grade.objects.filter(
+                        student=student, 
+                        subject=prereq.prerequisite_subject,
+                        grade_status=Grade.STATUS_PASSED
+                    ).exists()
+                    if not is_passed:
+                        raise ValidationError(f"Missing prerequisite for {subject.code}: {prereq.prerequisite_subject.code}")
+                
+                elif prereq.prerequisite_type == 'YEAR_STANDING':
+                    if current_enrollment and current_enrollment.year_level < prereq.standing_year:
+                        raise ValidationError(f"{subject.code} requires Year {prereq.standing_year} standing.")
 
         grades = []
         for subject in subjects:
@@ -125,6 +193,11 @@ class AdvisingService:
             )
             grades.append(grade)
             
+        # Update enrollment status to PENDING
+        if current_enrollment:
+            current_enrollment.advising_status = 'PENDING'
+            current_enrollment.save()
+            
         return grades
 
     @staticmethod
@@ -137,14 +210,16 @@ class AdvisingService:
         
         grades = Grade.objects.filter(
             student=student_enrollment.student,
-            term=student_enrollment.term,
-            advising_status=Grade.ADVISING_PENDING
+            term=student_enrollment.term
+        ).exclude(
+            grade_status__in=[Grade.STATUS_PASSED, Grade.STATUS_FAILED, Grade.STATUS_DROPPED]
         )
         
         grades.update(
             advising_status=Grade.ADVISING_APPROVED,
             grade_status=Grade.STATUS_ENROLLED
         )
+
 
         # Cache the year level
         year_level = AdvisingService.get_year_level(student_enrollment.student)
@@ -176,7 +251,7 @@ class AdvisingService:
 
     @staticmethod
     @transaction.atomic
-    def credit_subject(student, subject, term, credited_by):
+    def credit_subject(student, subject, term, credited_by, final_grade=None):
         """
         Credits a subject for a transferee.
         """
@@ -187,7 +262,35 @@ class AdvisingService:
             defaults={
                 'grade_status': Grade.STATUS_PASSED,
                 'is_credited': True,
-                'advising_status': Grade.ADVISING_APPROVED
+                'advising_status': Grade.ADVISING_APPROVED,
+                'final_grade': final_grade
             }
         )
+        
+        # Re-check regularity
+        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
+        if enrollment:
+            enrollment.is_regular = AdvisingService.check_student_regularity(student, term)
+            enrollment.save()
+            
         return grade
+
+    @staticmethod
+    @transaction.atomic
+    def uncredit_subject(student, subject, term):
+        """
+        Removes credit (deletes Grade record) for a subject.
+        Only allows deleting if it was a credited record.
+        """
+        Grade.objects.filter(
+            student=student,
+            subject=subject,
+            term=term,
+            is_credited=True
+        ).delete()
+
+        # Re-check regularity
+        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
+        if enrollment:
+            enrollment.is_regular = AdvisingService.check_student_regularity(student, term)
+            enrollment.save()

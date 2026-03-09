@@ -7,6 +7,8 @@ export const academicsApi = {
     createProgram: (data) => api.post('academics/programs/', data),
     updateProgram: (id, data) => api.patch(`academics/programs/${id}/`, data),
     deleteProgram: (id) => api.delete(`academics/programs/${id}/`),
+    getProgramHeads: () => api.get('accounts/staff/?role=PROGRAM_HEAD'),
+
 
     // Curriculums
     getCurriculums: (params) => api.get('academics/curriculums/', { params }),

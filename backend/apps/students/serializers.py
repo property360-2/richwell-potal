@@ -20,9 +20,11 @@ class StudentSerializer(serializers.ModelSerializer):
             'address_municipality', 'address_barangay', 'address_full',
             'contact_number', 'guardian_name', 'guardian_contact',
             'program', 'program_details', 'curriculum', 'curriculum_details',
-            'student_type', 'status', 'appointment_date', 'document_checklist',
+            'student_type', 'previous_school', 'is_advising_unlocked', 'status', 'appointment_date', 'document_checklist',
             'latest_enrollment', 'created_at', 'updated_at'
         ]
+
+
         read_only_fields = ['idn', 'status', 'created_at', 'updated_at']
 
     def get_latest_enrollment(self, obj):
@@ -34,6 +36,7 @@ class StudentSerializer(serializers.ModelSerializer):
                 'term_code': enrollment.term.code,
                 'monthly_commitment': enrollment.monthly_commitment,
                 'year_level': enrollment.year_level,
+                'is_regular': enrollment.is_regular,
                 'advising_status': enrollment.advising_status
             }
         return None
@@ -53,19 +56,25 @@ class StudentApplicationSerializer(serializers.ModelSerializer):
             'date_of_birth', 'gender', 'address_municipality', 
             'address_barangay', 'address_full', 'contact_number', 
             'guardian_name', 'guardian_contact', 'program', 
-            'curriculum', 'student_type'
+            'curriculum', 'student_type', 'previous_school'
         ]
+
 
 class StudentEnrollmentSerializer(serializers.ModelSerializer):
     student_details = StudentSerializer(source='student', read_only=True)
     term_details = TermSerializer(source='term', read_only=True)
+    student_name = serializers.CharField(source='student.user.get_full_name', read_only=True)
+    student_idn = serializers.CharField(source='student.idn', read_only=True)
+    program_code = serializers.CharField(source='student.program.code', read_only=True)
 
     class Meta:
         model = StudentEnrollment
         fields = [
-            'id', 'student', 'student_details', 'term', 'term_details',
+            'id', 'student', 'student_details', 'student_name', 'student_idn', 
+            'program_code', 'term', 'term_details',
             'advising_status', 'advising_approved_by', 'advising_approved_at',
             'is_regular', 'year_level', 'monthly_commitment',
             'enrolled_by', 'enrollment_date'
         ]
         read_only_fields = ['enrollment_date']
+

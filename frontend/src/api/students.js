@@ -12,6 +12,7 @@ export const studentsApi = {
     getEnrollments: (params) => api.get('students/enrollments/', { params }),
     getEnrollment: (id) => api.get(`students/enrollments/${id}/`),
     createEnrollment: (data) => api.post('students/enrollments/', data),
+    manualAdd: (data) => api.post('students/manual_add/', data),
 };
 
 export default studentsApi;

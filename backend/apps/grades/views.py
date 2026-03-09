@@ -7,15 +7,32 @@ from apps.grades.services.advising_service import AdvisingService
 from apps.students.models import Student, StudentEnrollment
 from apps.terms.models import Term
 from apps.academics.models import Subject
+from django_filters.rest_framework import DjangoFilterBackend
 from core.permissions import IsStudent, IsProgramHead, IsRegistrar, IsAdmin
 
 
 class AdvisingViewSet(viewsets.ModelViewSet):
     serializer_class = GradeSerializer
-    permission_classes = [IsStudent]
+    permission_classes = [IsStudent | IsProgramHead | IsAdmin]
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = ['student', 'is_credited', 'term', 'advising_status']
 
     def get_queryset(self):
-        return Grade.objects.filter(student__user=self.request.user)
+        user = self.request.user
+        queryset = Grade.objects.all()
+        
+        if user.role == 'STUDENT':
+            return queryset.filter(student__user=user)
+        
+        elif user.role == 'PROGRAM_HEAD':
+            # PH only sees grades for students in their headed programs
+            return queryset.filter(student__program__program_head=user)
+            
+        elif user.role == 'ADMIN':
+            return queryset
+            
+        return queryset.none()
+
 
     @action(detail=False, methods=['post'])
     def auto_advise(self, request):
@@ -123,13 +140,34 @@ class SubjectCreditingViewSet(viewsets.ViewSet):
         """
         student_id = request.data.get('student_id')
         subject_id = request.data.get('subject_id')
+        final_grade = request.data.get('final_grade')
         
         try:
             student = Student.objects.get(pk=student_id)
             subject = Subject.objects.get(pk=subject_id)
             active_term = Term.objects.get(is_active=True)
             
-            grade = AdvisingService.credit_subject(student, subject, active_term, request.user)
+            grade = AdvisingService.credit_subject(
+                student, subject, active_term, request.user, final_grade
+            )
             return Response(GradeSerializer(grade).data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def uncredit(self, request):
+        """
+        Registrar removes a credited subject.
+        """
+        student_id = request.data.get('student_id')
+        subject_id = request.data.get('subject_id')
+        
+        try:
+            student = Student.objects.get(pk=student_id)
+            subject = Subject.objects.get(pk=subject_id)
+            active_term = Term.objects.get(is_active=True)
+            
+            AdvisingService.uncredit_subject(student, subject, active_term)
+            return Response({"status": "Credit removed"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

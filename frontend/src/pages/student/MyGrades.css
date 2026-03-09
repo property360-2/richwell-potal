@@ -1,0 +1,32 @@
+.my-grades-group {
+    margin-bottom: 2rem;
+}
+
+.term-header {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--color-slate-700);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.term-indicator {
+    width: 4px;
+    height: 24px;
+    background-color: var(--color-primary);
+    border-radius: 2px;
+}
+
+.text-success {
+    color: #10b981;
+}
+
+.text-error {
+    color: #ef4444;
+}
+
+.font-mono {
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+}

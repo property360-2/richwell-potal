@@ -57,7 +57,14 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 class StaffManagementViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdmin]
-    queryset = User.objects.exclude(role='STUDENT').order_by('id') # Admins manage staff, not students
+    
+    def get_queryset(self):
+        queryset = User.objects.exclude(role='STUDENT').order_by('id')
+        role = self.request.query_params.get('role')
+        if role:
+            queryset = queryset.filter(role=role)
+        return queryset
+
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:

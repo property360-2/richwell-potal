@@ -11,3 +11,38 @@ Default Password2600030421
 
 Student ID (IDN)260005
 Default Password2600050421
+
+
+Student ID (IDN)260006
+Default Password2600060421
+
+260007 
+2600070421
+
+Student ID (IDN) 260008
+Default Password 2600080421
+
+
+Student ID (IDN) 260009
+Default Password 2600090421
+
+260010
+260010042120
+
+
+Student ID (IDN) 260011 // irregular
+Default Password 2600110421
+
+Student ID (IDN) 260012 // regular
+Default Password 2600120421
+
+231522 // current student
+2315220421
+
+
+231001 // current student 
+2310010421
+
+
+231002 // current student 
+2310010421

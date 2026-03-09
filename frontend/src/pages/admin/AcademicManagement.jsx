@@ -61,6 +61,7 @@ const ProgramTab = () => {
   const columns = [
     { header: 'Code', accessor: 'code' },
     { header: 'Program Name', accessor: 'name' },
+    { header: 'Program Head', accessor: 'program_head_name', emptyValue: 'Not Assigned' },
     { 
       header: 'Summer',
       render: (row) => row.has_summer ? <Badge variant="info">Yes</Badge> : <Badge variant="neutral">No</Badge>
@@ -165,11 +166,13 @@ const SubjectTab = () => {
       setLoading(true);
       const params = { 
         curriculum: selectedCurriculumId,
-        search: searchQuery
+        search: searchQuery,
+        page_size: 100
       };
       if (selectedYearLevel) {
         params.year_level = selectedYearLevel;
       }
+
       const res = await academicsApi.getSubjects(params);
       setSubjects(res.data.results || res.data);
     } catch (err) {

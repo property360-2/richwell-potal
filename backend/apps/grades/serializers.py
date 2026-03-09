@@ -5,16 +5,21 @@ from apps.academics.serializers import SubjectSerializer
 
 class GradeSerializer(serializers.ModelSerializer):
     subject_details = SubjectSerializer(source='subject', read_only=True)
+    grade_status_display = serializers.CharField(source='get_grade_status_display', read_only=True)
+    advising_status_display = serializers.CharField(source='get_advising_status_display', read_only=True)
     
     class Meta:
         model = Grade
         fields = [
             'id', 'student', 'subject', 'subject_details', 'term', 'section',
-            'advising_status', 'grade_status', 'midterm_grade', 'final_grade',
+            'advising_status', 'advising_status_display',
+            'grade_status', 'grade_status_display',
+            'midterm_grade', 'final_grade',
             'is_credited', 'is_retake', 'rejection_reason', 'inc_deadline',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
 
 
 class AdvisingSubmitSerializer(serializers.Serializer):

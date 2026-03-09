@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
@@ -83,6 +84,22 @@ class Grade(models.Model):
     is_credited = models.BooleanField(default=False)
     is_retake = models.BooleanField(default=False)
     
+    submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='submitted_grades')
+    midterm_submitted_at = models.DateTimeField(null=True, blank=True)
+    final_submitted_at = models.DateTimeField(null=True, blank=True)
+    
+    finalized_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='finalized_grades')
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    
+    # Resolution fields for INC
+    resolution_status = models.CharField(max_length=30, null=True, blank=True) 
+    resolution_new_grade = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    resolution_reason = models.TextField(null=True, blank=True)
+    resolution_requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='requested_resolutions')
+    resolution_requested_at = models.DateTimeField(null=True, blank=True)
+    resolution_approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_resolutions')
+    resolution_approved_at = models.DateTimeField(null=True, blank=True)
+
     rejection_reason = models.TextField(blank=True)
     inc_deadline = models.DateField(null=True, blank=True)
 

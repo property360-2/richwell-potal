@@ -14,6 +14,8 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import './StudentAdvising.css';
+
 
 const StudentAdvising = () => {
   const { user } = useAuth();
@@ -27,6 +29,7 @@ const StudentAdvising = () => {
   // For irregular selection
   const [availableSubjects, setAvailableSubjects] = useState([]);
   const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
+  const [passedSubjectIds, setPassedSubjectIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -37,13 +40,11 @@ const StudentAdvising = () => {
     try {
       setLoading(true);
       
-      // 1. Get active term
       const termRes = await api.get('terms/?is_active=true');
       const term = termRes.data.results[0];
       setActiveTerm(term);
 
       if (term) {
-        // 2. Check enrollment for this term
         const enrollmentRes = await api.get(`students/enrollments/me/?term=${term.id}`);
         const enrollData = enrollmentRes.data;
         
@@ -52,13 +53,15 @@ const StudentAdvising = () => {
           setEnrollment(enrollData);
           setIsRegular(enrollData.is_regular);
           
-          // 3. Get existing advising grades if any
-          const gradesRes = await api.get(`grades/advising/?term=${term.id}`);
+          const gradesRes = await api.get(`grades/advising/?term=${term.id}&is_credited=false&page_size=100`);
           setGrades(gradesRes.data.results || []);
+
+          // Fetch ALL passed subjects for prerequisite checking
+          const passedRes = await api.get(`grades/advising/?grade_status=PASSED&page_size=300`);
+          setPassedSubjectIds(passedRes.data.results.map(g => g.subject) || []);
           
-          // 4. If irregular and no advising yet, fetch available subjects
           if (!enrollData.is_regular && (!gradesRes.data.results || gradesRes.data.results.length === 0)) {
-             const subjectsRes = await api.get(`academics/subjects/?semester=${term.semester_type}`);
+             const subjectsRes = await api.get(`academics/subjects/?semester=${term.semester_type}&page_size=100`);
              setAvailableSubjects(subjectsRes.data.results || []);
           }
         }
@@ -73,9 +76,7 @@ const StudentAdvising = () => {
   const handleAutoAdvise = async () => {
     try {
       setLoading(true);
-      const res = await api.post('grades/advising/auto_advise/');
-      setGrades(res.data);
-      // Re-fetch to get full details if needed
+      await api.post('grades/advising/auto_advise/');
       fetchInitialData();
     } catch (error) {
       alert(error.response?.data?.error || "Auto-advising failed");
@@ -87,10 +88,9 @@ const StudentAdvising = () => {
   const handleManualAdvise = async () => {
     try {
       setLoading(true);
-      const res = await api.post('grades/advising/manual_advise/', {
+      await api.post('grades/advising/manual_advise/', {
         subject_ids: selectedSubjectIds
       });
-      setGrades(res.data);
       fetchInitialData();
     } catch (error) {
       alert(error.response?.data?.error || "Manual advising failed");
@@ -99,25 +99,47 @@ const StudentAdvising = () => {
     }
   };
 
-  const toggleSubject = (id) => {
-    if (selectedSubjectIds.includes(id)) {
-      setSelectedSubjectIds(selectedSubjectIds.filter(sid => sid !== id));
-    } else {
-      setSelectedSubjectIds([...selectedSubjectIds, id]);
+  const toggleSubject = (subject) => {
+    const prereq = checkPrerequisites(subject);
+    if (!prereq.met && !selectedSubjectIds.includes(subject.id)) {
+      alert(`Cannot select ${subject.code}: ${prereq.reason}`);
+      return;
     }
+
+    if (selectedSubjectIds.includes(subject.id)) {
+      setSelectedSubjectIds(selectedSubjectIds.filter(sid => sid !== subject.id));
+    } else {
+      setSelectedSubjectIds([...selectedSubjectIds, subject.id]);
+    }
+  };
+
+  const checkPrerequisites = (subject) => {
+    if (!subject.prerequisites || subject.prerequisites.length === 0) return { met: true };
+
+    for (const prereq of subject.prerequisites) {
+      if (prereq.prerequisite_type === 'SPECIFIC') {
+        if (!passedSubjectIds.includes(prereq.prerequisite_subject)) {
+          return { met: false, reason: `Prerequisite ${prereq.prerequisite_subject_code} not passed.` };
+        }
+      } else if (prereq.prerequisite_type === 'YEAR_STANDING') {
+        if ((enrollment?.year_level || 1) < prereq.standing_year) {
+          return { met: false, reason: `Requires at least Year ${prereq.standing_year} standing.` };
+        }
+      }
+    }
+    return { met: true };
   };
 
   const calculateTotalUnits = () => {
-    if (grades.length > 0) {
-      return grades.reduce((sum, g) => sum + (g.subject_details?.units || 0), 0);
-    }
-    
-    // For selection phase
-    const selected = availableSubjects.filter(s => selectedSubjectIds.includes(s.id));
-    return selected.reduce((sum, s) => sum + s.units, 0);
+    // Only count subjects being actively advised/enrolled, NOT credited ones
+    const activeAdvisingGrades = grades.filter(g => !g.is_credited);
+    const existingUnits = activeAdvisingGrades.reduce((sum, g) => sum + (g.subject_details?.total_units || 0), 0);
+    const selection = availableSubjects.filter(s => selectedSubjectIds.includes(s.id));
+    const selectedUnits = selection.reduce((sum, s) => sum + (s.total_units || 0), 0);
+    return existingUnits + selectedUnits;
   };
 
-  if (loading) return <LoadingSpinner size="lg" className="mt-20" />;
+  if (loading) return <LoadingSpinner size="lg" style={{ marginTop: '80px' }} />;
 
   if (!enrolled) {
     return (
@@ -130,65 +152,64 @@ const StudentAdvising = () => {
     );
   }
 
-  const advisingStatus = enrollment?.advising_status;
-  const hasAdvising = grades.length > 0;
+  const enrollmentStatus = enrollment?.advising_status;
+  const enrollingGrades = grades.filter(g => !g.is_credited);
+  const creditedGrades = grades.filter(g => g.is_credited);
+  const hasAdvising = enrollingGrades.length > 0;
+  const hasCredits = creditedGrades.length > 0;
   const totalUnits = calculateTotalUnits();
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Subject Advising</h1>
-          <p className="text-slate-500">Pick your subjects for {activeTerm?.code} ({activeTerm?.semester_type_display})</p>
+    <div className="student-advising-container">
+      <header className="advising-header">
+        <div className="advising-header-info">
+          <h1>Subject Advising</h1>
+          <p>Pick your subjects for {activeTerm?.code} ({activeTerm?.semester_display})</p>
         </div>
         
-        {advisingStatus && (
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-500">Status:</span>
+        {enrollmentStatus && (
+          <div className="status-badge-container">
+            <span className="text-slate-500">Status:</span>
             <Badge 
               variant={
-                advisingStatus === 'APPROVED' ? 'success' : 
-                advisingStatus === 'REJECTED' ? 'error' : 'warning'
+                enrollmentStatus === 'APPROVED' ? 'success' : 
+                enrollmentStatus === 'REJECTED' ? 'error' : 
+                enrollmentStatus === 'DRAFT' ? 'info' : 'warning'
               }
             >
-              {advisingStatus}
+              {enrollmentStatus === 'DRAFT' ? 'OPEN / DRAFT' : enrollmentStatus}
             </Badge>
           </div>
         )}
-      </div>
+      </header>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Selection/List Column */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* If already submitted / approved */}
-          {hasAdvising ? (
-            <Card title="Your Advising Subjects">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+      <div className="advising-grid">
+        <div className="space-y-6">
+          {/* Table for ALREADY ADVISED / CREDITED subjects */}
+          {hasAdvising && (
+            <Card title="Advising Subjects">
+              <div className="table-container" style={{ border: 'none' }}>
+                <table className="table">
+                  <thead>
                     <tr>
-                      <th className="px-4 py-3 font-semibold text-slate-700">Code</th>
-                      <th className="px-4 py-3 font-semibold text-slate-700">Description</th>
-                      <th className="px-4 py-3 font-semibold text-slate-700">Units</th>
-                      <th className="px-4 py-3 font-semibold text-slate-700">Status</th>
+                      <th style={{ width: '120px' }}>Code</th>
+                      <th>Description</th>
+                      <th style={{ width: '80px' }}>Units</th>
+                      <th style={{ width: '120px' }}>Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {grades.map(grade => (
-                      <tr key={grade.id} className="hover:bg-slate-50/50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{grade.subject_details?.code}</td>
-                        <td className="px-4 py-3 text-slate-600">
-                          {grade.subject_details?.name}
-                          {grade.is_retake && <Badge variant="error" className="ml-2">Retake</Badge>}
+                  <tbody>
+                    {enrollingGrades.map(grade => (
+                      <tr key={grade.id}>
+                        <td className="font-bold text-slate-800">{grade.subject_details?.code}</td>
+                        <td className="text-slate-600">
+                          {grade.subject_details?.description}
+                          {grade.is_retake && <Badge variant="error" size="sm" style={{ marginLeft: '8px' }}>Retake</Badge>}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{grade.subject_details?.units}</td>
-                        <td className="px-4 py-3">
-                           <Badge variant={grade.grade_status === 'ENROLLED' ? 'info' : 'warning'}>
-                             {grade.grade_status}
+                        <td>{grade.subject_details?.total_units}</td>
+                        <td>
+                           <Badge variant={grade.grade_status === 'ENROLLED' ? 'success' : 'warning'}>
+                             {grade.grade_status_display}
                            </Badge>
                         </td>
                       </tr>
@@ -197,15 +218,16 @@ const StudentAdvising = () => {
                 </table>
               </div>
               
-              {advisingStatus === 'REJECTED' && (
-                <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-lg flex gap-3 text-red-700">
+              {enrollmentStatus === 'REJECTED' && (
+                <div className="mt-6 p-4 bg-red-50 border border-red-100 rounded-lg flex gap-3 text-red-700">
                   <AlertCircle size={20} className="shrink-0" />
                   <div>
                     <p className="font-semibold text-sm">Reason for Rejection:</p>
-                    <p className="text-sm">{grades[0]?.rejection_reason || "No specific reason provided."}</p>
+                    <p className="text-sm mt-1">{grades[0]?.rejection_reason || "No specific reason provided."}</p>
                     <Button 
                       variant="ghost" 
-                      className="mt-2 text-xs h-8"
+                      size="sm"
+                      className="mt-3 text-red-600 hover:bg-red-100"
                       onClick={() => setGrades([])}
                     >
                       Reset and Re-select
@@ -214,64 +236,88 @@ const StudentAdvising = () => {
                 </div>
               )}
             </Card>
-          ) : (
-            /* Not yet advised */
-            isRegular ? (
-              <Card className="text-center py-10">
-                <ClipboardList size={48} className="mx-auto text-blue-500 mb-4" />
-                <h3 className="text-xl font-bold text-slate-800">Ready for Auto-Advising</h3>
-                <p className="text-slate-500 mt-2 max-w-md mx-auto">
-                  As a regular student, your curriculum subjects will be automatically selected based on your current year level.
-                </p>
-                <Button 
-                  className="mt-8" 
-                  size="lg"
-                  onClick={handleAutoAdvise}
-                  isLoading={loading}
-                >
-                  Generate My Subjects
-                </Button>
-              </Card>
-            ) : (
-              /* Irregular Selection */
-              <Card title="Available Subjects">
-                 <div className="p-1 mb-4 flex gap-4">
-                    <div className="relative flex-1">
-                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                       <input 
-                         type="text" 
-                         placeholder="Search by code or name..."
-                         className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                         value={searchTerm}
-                         onChange={(e) => setSearchTerm(e.target.value)}
-                       />
+          )}
+
+          {/* LIST for picking subjects */}
+          {isRegular ? (
+            !hasAdvising && (
+              <Card>
+                <div style={{ padding: '60px 0', textAlign: 'center' }}>
+                  <ClipboardList size={64} className="mx-auto text-blue-500 mb-4 opacity-20" />
+                  <h3 className="text-xl font-bold text-slate-800">Ready for Auto-Advising</h3>
+                  
+                  {!enrollment?.student_details?.is_advising_unlocked ? (
+                    <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-lg max-w-sm mx-auto">
+                      <p className="text-amber-800 text-sm font-medium">
+                        Waiting for Registrar Approval
+                      </p>
+                      <p className="text-amber-700 text-xs mt-1">
+                        As a transferee, you need to wait for the Registrar to finish crediting your subjects before you can proceed to advising.
+                      </p>
                     </div>
+                  ) : (
+                    <p className="text-slate-500 mt-2 max-w-sm mx-auto">
+                      As a regular student, your curriculum subjects will be automatically selected based on your current year level.
+                    </p>
+                  )}
+
+                  <Button 
+                    className="mt-10" 
+                    size="lg"
+                    loading={loading}
+                    onClick={handleAutoAdvise}
+                    disabled={!enrollment?.student_details?.is_advising_unlocked}
+                  >
+                    Generate My Subjects
+                  </Button>
+                </div>
+              </Card>
+            )
+          ) : (
+            enrollmentStatus !== 'APPROVED' && (
+              <Card title="Available Subjects">
+                 <div className="search-container">
+                    <Search className="search-icon" size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="Search by code or name..."
+                      className="search-input"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
                  </div>
 
-                 <div className="max-h-[500px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                 <div className="subject-selection-list">
                     {availableSubjects
-                      .filter(s => s.code.toLowerCase().includes(searchTerm.toLowerCase()) || s.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                       .filter(s => !grades.some(g => g.subject === s.id) && !passedSubjectIds.includes(s.id)) // Filter out already selected/credited or passed
+                      .filter(s => s.code.toLowerCase().includes(searchTerm.toLowerCase()) || s.description.toLowerCase().includes(searchTerm.toLowerCase()))
                       .map(subject => {
                         const isSelected = selectedSubjectIds.includes(subject.id);
+                        const prereq = checkPrerequisites(subject);
                         return (
                           <div 
                             key={subject.id}
-                            className={`p-4 border rounded-lg cursor-pointer transition-all flex items-center justify-between ${
-                               isSelected ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
-                            }`}
-                            onClick={() => toggleSubject(subject.id)}
+                            className={`subject-selection-item ${isSelected ? 'selected' : ''} ${!prereq.met ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            onClick={() => toggleSubject(subject)}
                           >
-                            <div>
+                            <div className="flex-1">
                                <div className="flex items-center gap-2">
                                   <span className="font-bold text-slate-800">{subject.code}</span>
-                                  <Badge variant="ghost" className="text-[10px]">{subject.units} Units</Badge>
+                                  <span className="text-xs text-slate-500">• {subject.total_units} Units</span>
+                                  {!prereq.met && (
+                                    <Badge variant="error" size="sm" icon={<AlertCircle size={10}/>}>
+                                      Missing Prereq
+                                    </Badge>
+                                  )}
                                </div>
-                               <p className="text-sm text-slate-600 mt-1">{subject.name}</p>
+                               <p className="text-sm text-slate-600 mt-1">{subject.description}</p>
+                               {!prereq.met && (
+                                 <p className="text-[10px] text-red-500 font-medium mt-1">{prereq.reason}</p>
+                               )}
                             </div>
-                            <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${
-                               isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300'
-                            }`}>
+                            <div className="selection-checkbox">
                                {isSelected && <CheckCircle2 size={16} />}
+                               {!isSelected && !prereq.met && <AlertCircle size={16} className="text-slate-300" />}
                             </div>
                           </div>
                         );
@@ -282,65 +328,62 @@ const StudentAdvising = () => {
           )}
         </div>
 
-        {/* Sidebar Summary Column */}
         <div className="space-y-6">
           <Card title="Advising Summary">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">Student ID</span>
-                <span className="font-semibold text-slate-800">{enrollment?.student_idn}</span>
+            <div className="summary-card-content">
+              <div className="summary-item">
+                <span className="summary-label">Student ID</span>
+                <span className="summary-value">{enrollment?.student_details?.idn}</span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">Program</span>
-                <span className="font-semibold text-slate-800">{enrollment?.program_code}</span>
+              <div className="summary-item">
+                <span className="summary-label">Program</span>
+                <span className="summary-value">{enrollment?.student_details?.program_details?.code}</span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">Year Level</span>
-                <span className="font-semibold text-slate-800">{enrollment?.year_level || 'Calculating...'}</span>
+              <div className="summary-item">
+                <span className="summary-label">Year Level</span>
+                <span className="summary-value">{enrollment?.year_level || '1'}</span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">Study Type</span>
+              <div className="summary-item">
+                <span className="summary-label">Study Type</span>
                 <Badge variant="ghost">{isRegular ? 'Regular' : 'Irregular'}</Badge>
               </div>
               
-              <div className="pt-4 border-t border-slate-100">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-slate-900 font-bold">Total Units</span>
-                  <span className={`text-xl font-bold ${totalUnits > 40 ? 'text-red-600' : 'text-blue-600'}`}>
-                    {totalUnits}
-                  </span>
-                </div>
-                {totalUnits > 35 && totalUnits <= 40 && (
-                   <p className="text-[10px] text-amber-600 flex items-center gap-1">
-                     <AlertCircle size={12} /> High unit load (warning)
-                   </p>
-                )}
-                {totalUnits > 40 && (
-                   <p className="text-[10px] text-red-600 flex items-center gap-1">
-                     <AlertCircle size={12} /> Exceeds 40 units limit
-                   </p>
-                )}
+              <div className="summary-divider"></div>
+              
+              <div className="total-units-display">
+                <span className="summary-label">Total Units</span>
+                <span className={`total-units-value ${totalUnits > 30 ? 'text-red-600' : 'text-blue-600'}`}>
+                  {totalUnits}
+                </span>
               </div>
 
-              {!hasAdvising && !isRegular && (
+              {totalUnits > 30 && (
+                 <div className="p-3 bg-red-50 text-red-600 text-xs rounded-lg flex gap-2">
+                   <AlertCircle size={14} className="shrink-0" />
+                   Exceeds 30 units limit. Please remove some subjects.
+                 </div>
+              )}
+
+              {enrollmentStatus !== 'APPROVED' && !isRegular && (
                 <Button 
                   className="w-full mt-2" 
-                  disabled={selectedSubjectIds.length === 0 || totalUnits > 40}
+                  disabled={selectedSubjectIds.length === 0 || totalUnits > 30 || !enrollment?.student_details?.is_advising_unlocked}
                   onClick={handleManualAdvise}
-                  isLoading={loading}
+                  loading={loading}
                 >
-                  Submit for Approval
+                  {!enrollment?.student_details?.is_advising_unlocked ? 'Locked by Registrar' : 'Submit for Approval'}
                 </Button>
               )}
+
             </div>
           </Card>
 
-          <Card className="bg-blue-600 text-white border-none">
+          <Card style={{ backgroundColor: 'var(--color-primary)', color: 'white', border: 'none' }}>
              <div className="flex gap-3">
                 <Info className="shrink-0" />
                 <div>
                    <p className="text-sm font-semibold">Advising Tip</p>
-                   <p className="text-xs opacity-90 mt-1">
+                   <p className="text-xs opacity-80 mt-1">
                      Regular students get their subjects auto-filled. Irregular students must verify prerequisites before submission.
                    </p>
                 </div>
@@ -353,3 +396,5 @@ const StudentAdvising = () => {
 };
 
 export default StudentAdvising;
+
+

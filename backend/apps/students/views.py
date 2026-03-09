@@ -3,7 +3,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
 from django.contrib.auth import get_user_model
+from django.db.models import Count, Q, F
 from core.permissions import IsAdmin, IsAdmission, IsRegistrar
+
 from .models import Student, StudentEnrollment
 from .serializers import StudentSerializer, StudentApplicationSerializer, StudentEnrollmentSerializer
 
@@ -93,7 +95,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No active term found. Please activate a term first.'}, status=status.HTTP_400_BAD_REQUEST)
 
         from core.models import SystemSequence
-        from .services import AdvisingService
+        from apps.grades.services.advising_service import AdvisingService
         import datetime
 
         try:
@@ -129,7 +131,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 student.save()
 
                 # Get Year Level from Service
-                year_level = AdvisingService.get_year_level(student, active_term)
+                year_level = AdvisingService.get_year_level(student)
 
                 # Create Enrollment for the active term
                 # If they are already enrolled for this term, update it
@@ -139,7 +141,8 @@ class StudentViewSet(viewsets.ModelViewSet):
                     defaults={
                         'monthly_commitment': monthly_commitment,
                         'year_level': year_level,
-                        'enrolled_by': request.user
+                        'enrolled_by': request.user,
+                        'is_regular': AdvisingService.check_student_regularity(student, active_term)
                     }
                 )
                 
@@ -154,6 +157,31 @@ class StudentViewSet(viewsets.ModelViewSet):
             import traceback
             traceback.print_exc()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsRegistrar | IsAdmin])
+    def unlock_advising(self, request, pk=None):
+        student = self.get_object()
+        student.is_advising_unlocked = True
+        student.save()
+        return Response({'status': 'Advising process unlocked'})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsRegistrar | IsAdmin])
+    def toggle_regularity(self, request, pk=None):
+        student = self.get_object()
+        is_regular = request.data.get('is_regular', True)
+        
+        from apps.terms.models import Term
+        active_term = Term.objects.filter(is_active=True).first()
+        if not active_term:
+            return Response({'error': 'No active term'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        enrollment = StudentEnrollment.objects.filter(student=student, term=active_term).first()
+        if not enrollment:
+            return Response({'error': 'Student not enrolled for active term'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        enrollment.is_regular = is_regular
+        enrollment.save()
+        return Response({'status': 'Regularity status updated', 'is_regular': enrollment.is_regular})
 
     @action(detail=True, methods=['post'])
     def returning_student(self, request, pk=None):
@@ -177,7 +205,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         if not active_term:
             return Response({'error': 'No active term found.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        from .services import AdvisingService
+        from apps.grades.services.advising_service import AdvisingService
         
         with transaction.atomic():
             # Tag status as Enrolled (system status logic)
@@ -185,7 +213,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             student.save()
             
             # Compute/get year level
-            year_level = AdvisingService.get_year_level(student, active_term)
+            year_level = AdvisingService.get_year_level(student)
             
             enrollment, created = StudentEnrollment.objects.update_or_create(
                 student=student,
@@ -193,7 +221,8 @@ class StudentViewSet(viewsets.ModelViewSet):
                 defaults={
                     'monthly_commitment': monthly_commitment,
                     'year_level': year_level,
-                    'enrolled_by': request.user
+                    'enrolled_by': request.user,
+                    'is_regular': AdvisingService.check_student_regularity(student, active_term)
                 }
             )
             
@@ -202,7 +231,119 @@ class StudentViewSet(viewsets.ModelViewSet):
             'enrollment': StudentEnrollmentSerializer(enrollment).data
         })
 
+    @action(detail=False, methods=['post'], permission_classes=[IsRegistrar | IsAdmin])
+    def manual_add(self, request):
+        """
+        Manually add an existing student to the system.
+        """
+        data = request.data
+        idn = data.get('idn')
+        email = data.get('email')
+        
+        if not idn or not email:
+            return Response({'error': 'IDN and Email are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if User.objects.filter(Q(username=idn) | Q(email=email)).exists():
+            return Response({'error': 'Student with this IDN or Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.terms.models import Term
+        from apps.grades.services.advising_service import AdvisingService
+        
+        active_term = Term.objects.filter(is_active=True).first()
+        if not active_term:
+            return Response({'error': 'No active term found'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                # Create User
+                user = User.objects.create_user(
+                    username=idn,
+                    email=email,
+                    first_name=data.get('first_name', ''),
+                    last_name=data.get('last_name', ''),
+                    role='STUDENT'
+                )
+                
+                # Password = IDN + Birthday (MMDD)
+                import datetime
+                dob_str = data.get('date_of_birth')
+                dob = datetime.datetime.strptime(dob_str, '%Y-%m-%d').date()
+                dob_suffix = dob.strftime('%m%d')
+                user.set_password(f"{idn}{dob_suffix}")
+                user.save()
+                
+                # Create Student
+                gender_map = {'M': 'MALE', 'F': 'FEMALE'}
+                type_map = {'REGULAR': 'FRESHMAN', 'TRANSFEREE': 'TRANSFEREE', 'RETURNING': 'FRESHMAN'}
+
+                student = Student.objects.create(
+                    user=user,
+                    idn=idn,
+                    date_of_birth=dob,
+                    gender=gender_map.get(data.get('gender'), 'MALE'),
+                    program_id=data.get('program'),
+                    curriculum_id=data.get('curriculum'),
+                    student_type=type_map.get(data.get('student_type'), 'FRESHMAN'),
+                    status='ENROLLED'
+                )
+                
+                # Create Enrollment
+                is_regular = AdvisingService.check_student_regularity(student, active_term)
+                enrollment = StudentEnrollment.objects.create(
+                    student=student,
+                    term=active_term,
+                    year_level=data.get('year_level', 1),
+                    monthly_commitment=data.get('monthly_commitment', 0),
+                    is_regular=is_regular,
+                    enrolled_by=request.user
+                )
+                
+            return Response({
+                'message': 'Student added manually successfully',
+                'student': StudentSerializer(student).data,
+                'is_regular': is_regular
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 class StudentEnrollmentViewSet(viewsets.ModelViewSet):
     queryset = StudentEnrollment.objects.all()
     serializer_class = StudentEnrollmentSerializer
-    permission_classes = [permissions.IsAuthenticated] # Fine-tune later
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['advising_status', 'is_regular']
+
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = StudentEnrollment.objects.all()
+        
+        if user.role == 'STUDENT':
+            return queryset.filter(student__user=user)
+        
+        elif user.role == 'PROGRAM_HEAD':
+            # PH only sees students in their headed programs who have subjects selected for THAT term
+            return queryset.filter(
+                student__program__program_head=user
+            ).annotate(
+                subject_count=Count('student__grades', filter=Q(student__grades__term=F('term')))
+            ).filter(subject_count__gt=0).distinct()
+
+            
+        return queryset
+
+
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        term_id = request.query_params.get('term')
+        if not term_id:
+            return Response({"error": "Term ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        enrollment = self.get_queryset().filter(term_id=term_id).first()
+        if not enrollment:
+            return Response(None, status=status.HTTP_200_OK) # Return null if not found
+            
+        serializer = self.get_serializer(enrollment)
+        return Response(serializer.data)
+

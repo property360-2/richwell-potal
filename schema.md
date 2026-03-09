@@ -231,7 +231,7 @@ Per-term enrollment record. Also holds advising approval status and monthly comm
 | `id` | BigAutoField | PK | |
 | `student` | ForeignKey(Student) | CASCADE | |
 | `term` | ForeignKey(Term) | CASCADE | |
-| `advising_status` | CharField(15) | Default: `PENDING` | `PENDING`, `APPROVED`, `REJECTED` |
+| `advising_status` | CharField(15) | Default: `DRAFT` | `DRAFT`, `PENDING`, `APPROVED`, `REJECTED` |
 | `advising_approved_by` | ForeignKey(User) | Nullable, SET_NULL | Program Head |
 | `advising_approved_at` | DateTimeField | Nullable | |
 | `is_regular` | BooleanField | Default: True | Regular or irregular for this term |
@@ -396,12 +396,10 @@ Dropped:  ENROLLED → DROPPED (Registrar processes subject drop)
 |---|---|
 | `ADVISING` | Created during advising, pending approval |
 | `ENROLLED` | Advising approved, student is enrolled in this subject |
-| `SUBMITTED` | Professor submitted grade, pending finalization |
-| `PASSED` | Student passed (1.0–3.0) |
+| `PASSED` | Student passed (1.0–3.0) or Credited |
+| `FAILED` | Student failed (below 3.0) |
 | `INC` | Incomplete — countdown started |
-| `NO_GRADE` | No grade submitted — auto-retake after deadline |
 | `RETAKE` | Must retake the subject |
-| `RESOLVED` | INC was resolved |
 | `DROPPED` | Subject dropped after enrollment (Registrar processed) |
 
 **Valid Grade Values:** `1.0`, `1.25`, `1.5`, `1.75`, `2.0`, `2.25`, `2.5`, `2.75`, `3.0`, `INC`, `NG`

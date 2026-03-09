@@ -11,23 +11,45 @@ const ProgramModal = ({ isOpen, onClose, onSuccess, program = null }) => {
   const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm();
   const { showToast } = useToast();
 
+  const [programHeads, setProgramHeads] = useState([]);
+  const [loadingHeads, setLoadingHeads] = useState(false);
+
+  useEffect(() => {
+    const fetchHeads = async () => {
+      try {
+        setLoadingHeads(true);
+        const res = await academicsApi.getProgramHeads();
+        setProgramHeads(res.data.results || res.data);
+      } catch (err) {
+        console.error('Failed to load program heads', err);
+      } finally {
+        setLoadingHeads(false);
+      }
+    };
+    fetchHeads();
+  }, []);
+
   useEffect(() => {
     if (program) {
       setValue('code', program.code);
       setValue('name', program.name);
+      setValue('program_head', program.program_head || '');
       setValue('has_summer', program.has_summer ? 'true' : 'false');
       setValue('is_active', program.is_active ? 'true' : 'false');
     } else {
-      reset({ has_summer: 'false', is_active: 'true' });
+      reset({ has_summer: 'false', is_active: 'true', program_head: '' });
     }
   }, [program, isOpen, setValue, reset]);
+
 
   const onSubmit = async (data) => {
     const payload = {
       ...data,
       has_summer: data.has_summer === 'true',
       is_active: data.is_active === 'true',
+      program_head: data.program_head || null,
     };
+
 
     try {
       if (program) {
@@ -64,6 +86,21 @@ const ProgramModal = ({ isOpen, onClose, onSuccess, program = null }) => {
           error={errors.name?.message}
           {...register('name', { required: 'Name is required' })}
         />
+
+        
+        <Select
+          label="Program Head"
+          options={[
+            { value: '', label: 'No Program Head Assigned' },
+            ...programHeads.map(head => ({ 
+              value: head.id, 
+              label: `${head.first_name} ${head.last_name} (${head.username})` 
+            }))
+          ]}
+          disabled={loadingHeads}
+          {...register('program_head')}
+        />
+
 
         <div className="grid grid-cols-2 gap-4">
           <Select

@@ -25,7 +25,10 @@ api.interceptors.response.use(
         const originalRequest = error.config;
 
         // Wait, let's avoid infinite loops. If the refresh endpoint fails, we log out.
-        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('accounts/auth/refresh')) {
+        // Disable auto-refresh for login endpoint to prevent redirects on wrong credentials
+        if (error.response?.status === 401 && !originalRequest._retry &&
+            !originalRequest.url.includes('accounts/auth/login') &&
+            !originalRequest.url.includes('accounts/auth/refresh')) {
             originalRequest._retry = true;
             const refreshToken = localStorage.getItem('refresh_token');
 

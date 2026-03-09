@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   PlusCircle, 
   Search, 
@@ -6,13 +6,19 @@ import {
   CheckCircle2, 
   GraduationCap,
   History,
-  AlertCircle
+  AlertCircle,
+  RotateCcw
 } from 'lucide-react';
 import api from '../../api/axios';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import Select from '../../components/ui/Select';
+import { useToast } from '../../components/ui/Toast';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+
+import './SubjectCrediting.css';
+import Table from '../../components/ui/Table';
 
 const SubjectCrediting = () => {
   const [loading, setLoading] = useState(false);
@@ -21,7 +27,13 @@ const SubjectCrediting = () => {
   const [student, setStudent] = useState(null);
   const [curriculumSubjects, setCurriculumSubjects] = useState([]);
   const [creditedSubjectIds, setCreditedSubjectIds] = useState([]);
+  const [subjectGrades, setSubjectGrades] = useState({}); // { subjectId: "1.0" }
   const [message, setMessage] = useState(null);
+  const { showToast } = useToast();
+  
+  // Filtering states
+  const [yearFilter, setYearFilter] = useState('ALL');
+  const [semesterFilter, setSemesterFilter] = useState('ALL');
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -30,15 +42,16 @@ const SubjectCrediting = () => {
     try {
       setSearching(true);
       setStudent(null);
+      setSubjectGrades({});
       setMessage(null);
       
-      const res = await api.get(`students/students/?search=${searchTerm}`);
+      const res = await api.get(`students/?search=${searchTerm}`);
       const students = res.data.results || [];
       
       if (students.length === 0) {
         setMessage({ type: 'error', text: 'No student found with that ID or Name.' });
       } else {
-        const found = students[0]; // Take the first match
+        const found = students[0];
         setStudent(found);
         fetchCurriculumAndCredits(found);
       }
@@ -52,14 +65,22 @@ const SubjectCrediting = () => {
   const fetchCurriculumAndCredits = async (foundStudent) => {
     try {
       setLoading(true);
-      // 1. Get all subjects for student's curriculum
-      const subjectsRes = await api.get(`academics/subjects/?curriculum=${foundStudent.curriculum}`);
-      setCurriculumSubjects(subjectsRes.data.results || []);
+      const subjectsRes = await api.get(`academics/subjects/?curriculum=${foundStudent.curriculum}&page_size=100`);
+      setCurriculumSubjects(subjectsRes.data.results || subjectsRes.data || []);
       
-      // 2. Get existing credits for this student
       const creditsRes = await api.get(`grades/advising/?student=${foundStudent.id}&is_credited=true`);
-      const creditIds = (creditsRes.data.results || []).map(g => g.subject);
+      const results = creditsRes.data.results || creditsRes.data || [];
+      
+      const creditIds = results.map(g => g.subject);
       setCreditedSubjectIds(creditIds);
+
+      // Map subject ID to final grade
+      const gradesMap = {};
+      results.forEach(g => {
+        gradesMap[g.subject] = g.final_grade || "";
+      });
+      setSubjectGrades(gradesMap);
+
     } catch (err) {
       console.error("Error fetching data:", err);
     } finally {
@@ -67,137 +88,271 @@ const SubjectCrediting = () => {
     }
   };
 
-  const handleCredit = async (subjectId) => {
-    if (creditedSubjectIds.includes(subjectId)) return;
-    
+  const handleUpdateGrade = (subjectId, value) => {
+    setSubjectGrades({
+      ...subjectGrades,
+      [subjectId]: value
+    });
+  };
+
+  const handleSubmitCredit = async (subjectId) => {
+    const grade = subjectGrades[subjectId];
+    if (!grade) {
+      showToast('error', 'Please enter a grade first.');
+      return;
+    }
+
     try {
+      setLoading(true);
       await api.post('grades/crediting/credit/', {
         student_id: student.id,
-        subject_id: subjectId
+        subject_id: subjectId,
+        final_grade: grade
       });
-      setCreditedSubjectIds([...creditedSubjectIds, subjectId]);
+      
+      if (!creditedSubjectIds.includes(subjectId)) {
+        setCreditedSubjectIds([...creditedSubjectIds, subjectId]);
+      }
+      showToast('success', 'Subject credited successfully!');
     } catch (err) {
-      alert("Crediting failed: " + (err.response?.data?.error || "Unknown error"));
+      showToast('error', err.response?.data?.error || "Crediting failed");
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Subject Crediting</h1>
-          <p className="text-slate-500">Credit subjects for transferee students away from the standard term enrollment</p>
-        </div>
-      </div>
+  const handleUncredit = async (subjectId) => {
+    if (!window.confirm('Are you sure you want to remove the credit for this subject?')) return;
 
-      <Card>
+    try {
+      setLoading(true);
+      await api.post('grades/crediting/uncredit/', {
+        student_id: student.id,
+        subject_id: subjectId
+      });
+      
+      setCreditedSubjectIds(creditedSubjectIds.filter(id => id !== subjectId));
+      setSubjectGrades({
+        ...subjectGrades,
+        [subjectId]: ''
+      });
+      showToast('success', 'Credit removed successfully.');
+    } catch (err) {
+      showToast('error', err.response?.data?.error || "Removal failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const handleUnlockAdvising = async () => {
+    try {
+      setLoading(true);
+      await api.post(`students/${student.id}/unlock_advising/`);
+      setStudent({ ...student, is_advising_unlocked: true });
+      setMessage({ type: 'success', text: 'Advising process unlocked for student successfully!' });
+    } catch (err) {
+      alert("Unlock failed: " + (err.response?.data?.error || "Unknown error"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredSubjects = useMemo(() => {
+    return curriculumSubjects.filter(subject => {
+      const matchYear = yearFilter === 'ALL' || subject.year_level.toString() === yearFilter;
+      const matchSem = semesterFilter === 'ALL' || subject.semester === semesterFilter;
+      return matchYear && matchSem;
+    });
+  }, [curriculumSubjects, yearFilter, semesterFilter]);
+
+  const columns = [
+    {
+      header: 'Status',
+      width: '100px',
+      render: (row) => creditedSubjectIds.includes(row.id) ? (
+        <Badge variant="success" size="sm">Credited</Badge>
+      ) : (
+        <Badge variant="neutral" size="sm">Not Credited</Badge>
+      )
+    },
+    { header: 'Code', accessor: 'code', width: '100px' },
+    { header: 'Subject Title', accessor: 'description' },
+    { 
+      header: 'Level/Sem', 
+      width: '120px',
+      render: (row) => `Y${row.year_level} - S${row.semester}` 
+    },
+    { 
+      header: 'Grade', 
+      width: '120px',
+      render: (row) => (
+        <input 
+          type="text" 
+          placeholder="0.00"
+          className="w-full px-3 py-1 border border-slate-200 rounded text-center font-mono text-sm focus:border-primary outline-none transition-all"
+          value={subjectGrades[row.id] || ""}
+          onChange={(e) => handleUpdateGrade(row.id, e.target.value)}
+        />
+      )
+    },
+    {
+      header: 'Action',
+      width: '140px',
+      align: 'right',
+      render: (row) => (
+        <div className="flex gap-2 justify-end">
+          <Button 
+            variant={creditedSubjectIds.includes(row.id) ? "ghost" : "primary"}
+            size="sm"
+            onClick={() => handleSubmitCredit(row.id)}
+            className="text-xs"
+          >
+            {creditedSubjectIds.includes(row.id) ? 'Update' : 'Credit'}
+          </Button>
+          
+          {creditedSubjectIds.includes(row.id) && (
+            <Button 
+              variant="danger"
+              size="sm"
+              onClick={() => handleUncredit(row.id)}
+              className="px-2"
+              title="Remove Credit"
+            >
+              <RotateCcw size={14} />
+            </Button>
+          )}
+        </div>
+      )
+    }
+  ];
+
+  return (
+    <div className="subject-crediting-container">
+      <header className="crediting-header">
+        <h1>Subject Crediting</h1>
+        <p className="text-slate-500">Academic history and course equivalency management</p>
+      </header>
+
+      <section className="search-section">
         <form onSubmit={handleSearch} className="flex gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
               type="text" 
-              placeholder="Search student by IDN or Full Name..."
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter IDN or Student Name..."
+              className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Button type="submit" isLoading={searching}>Search Student</Button>
+          <Button type="submit" loading={searching} size="lg" className="px-8">
+            Find Student
+          </Button>
         </form>
         
         {message && (
-          <div className={`mt-4 p-3 rounded-md flex gap-2 ${message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-             <AlertCircle size={18} />
-             <span className="text-sm">{message.text}</span>
+          <div className={`mt-4 p-4 rounded-lg flex gap-3 animate-in fade-in slide-in-from-top-2 ${
+            message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'
+          }`}>
+             <AlertCircle size={20} className="shrink-0" />
+             <span className="text-sm font-medium">{message.text}</span>
           </div>
         )}
-      </Card>
+      </section>
 
       {student && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Student Info */}
-          <Card title="Student Information" className="h-fit">
-            <div className="space-y-4">
-               <div className="flex items-center gap-4 py-2">
-                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg text-center">
-                    {student.user_details?.first_name[0]}{student.user_details?.last_name[0]}
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-900">{student.user_details?.first_name} {student.user_details?.last_name}</p>
-                    <p className="text-sm text-slate-500">{student.idn}</p>
-                  </div>
-               </div>
-               <div className="pt-4 border-t space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Program</span>
-                    <span className="font-medium">{student.program_details?.code}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Curriculum</span>
-                    <span className="font-medium italic text-xs">{student.curriculum_details?.name}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Type</span>
-                    <Badge variant="info">{student.student_type}</Badge>
-                  </div>
-               </div>
-            </div>
-          </Card>
-
-          {/* Subject Checklist */}
-          <div className="lg:col-span-2">
-            <Card title="Curriculum Checklist">
-              {loading ? (
-                <div className="flex justify-center py-20"><LoadingSpinner /></div>
-              ) : curriculumSubjects.length === 0 ? (
-                <div className="py-20 text-center text-slate-500 italic">No subjects found for this curriculum.</div>
-              ) : (
-                <div className="max-h-[600px] overflow-y-auto pr-2 space-y-6 custom-scrollbar">
-                  {[1, 2, 3, 4].map(year => {
-                    const yearSubjects = curriculumSubjects.filter(s => s.year_level === year);
-                    if (yearSubjects.length === 0) return null;
-                    
-                    return (
-                      <div key={year} className="space-y-3">
-                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-2">Year {year}</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {yearSubjects.map(subject => {
-                            const isCredited = creditedSubjectIds.includes(subject.id);
-                            return (
-                              <div 
-                                key={subject.id}
-                                className={`p-3 border rounded-lg flex items-center justify-between transition-all ${
-                                  isCredited ? 'bg-green-50 border-green-200' : 'hover:border-slate-300'
-                                }`}
-                              >
-                                <div>
-                                   <div className="flex items-center gap-2">
-                                      <p className="font-bold text-sm text-slate-800">{subject.code}</p>
-                                      <span className="text-[10px] text-slate-400">{subject.units} u</span>
-                                   </div>
-                                   <p className="text-xs text-slate-600 truncate max-w-[150px]">{subject.name}</p>
-                                </div>
-                                {isCredited ? (
-                                  <div className="text-green-600"><CheckCircle2 size={18} /></div>
-                                ) : (
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost" 
-                                    className="h-8 text-[10px]"
-                                    onClick={() => handleCredit(subject.id)}
-                                  >
-                                    Credit
-                                  </Button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="lg:col-span-1 space-y-6">
+            <div className="student-profile-summary">
+              <div className="profile-header-minimal">
+                <div className="avatar-minimal">
+                  {student.user.first_name[0]}{student.user.last_name[0]}
                 </div>
-              )}
+                <div>
+                  <h2 className="font-bold text-slate-800">{student.user.first_name} {student.user.last_name}</h2>
+                  <p className="text-slate-500 text-xs font-mono">{student.idn}</p>
+                </div>
+              </div>
+              <div className="profile-details-minimal">
+                <div className="min-info-row">
+                  <span className="min-label">Program</span>
+                  <span className="min-value">{student.program_details?.code}</span>
+                </div>
+                <div className="min-info-row">
+                  <span className="min-label">Type</span>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant="ghost">{student.student_type}</Badge>
+                    <Badge variant={student.latest_enrollment?.is_regular ? 'info' : 'warning'} size="sm">
+                      {student.latest_enrollment?.is_regular ? 'Regular' : 'Irregular'}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="min-info-row border-none mt-2">
+                  <span className="min-label">Advising</span>
+                  <Badge variant={student.is_advising_unlocked ? 'success' : 'warning'} size="sm">
+                    {student.is_advising_unlocked ? 'Unlocked' : 'Locked'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            {student.student_type === 'TRANSFEREE' && !student.is_advising_unlocked && (
+              <div className="minimal-action-card">
+                <GraduationCap className="text-amber-500 mb-2" size={24} />
+                <h3 className="font-bold text-slate-800 text-sm">Finish Crediting?</h3>
+                <p className="text-slate-500 text-xs mt-1 mb-4">
+                  Unlock advising to allow subject selection.
+                </p>
+                <Button 
+                  variant="primary" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={handleUnlockAdvising}
+                  loading={loading}
+                >
+                  Unlock Advising
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-3">
+            <Card padding="0">
+              <div className="table-controls p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-700">Academic Curriculum Checklist</h3>
+                <div className="flex gap-3">
+                  <Select 
+                    size="sm"
+                    value={yearFilter} 
+                    onChange={(e) => setYearFilter(e.target.value)}
+                    options={[
+                      { value: 'ALL', label: 'All Years' },
+                      { value: '1', label: '1st Year' },
+                      { value: '2', label: '2nd Year' },
+                      { value: '3', label: '3rd Year' },
+                      { value: '4', label: '4th Year' },
+                    ]}
+                  />
+                  <Select 
+                    size="sm"
+                    value={semesterFilter} 
+                    onChange={(e) => setSemesterFilter(e.target.value)}
+                    options={[
+                      { value: 'ALL', label: 'All Semesters' },
+                      { value: '1', label: '1st Semester' },
+                      { value: '2', label: '2nd Semester' },
+                      { value: 'S', label: 'Summer' },
+                    ]}
+                  />
+                </div>
+              </div>
+              <Table 
+                columns={columns} 
+                data={filteredSubjects} 
+                loading={loading} 
+                rowClassName={(row) => creditedSubjectIds.includes(row.id) ? 'row-credited' : ''}
+              />
             </Card>
           </div>
         </div>
@@ -207,3 +362,6 @@ const SubjectCrediting = () => {
 };
 
 export default SubjectCrediting;
+
+
+

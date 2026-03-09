@@ -63,6 +63,30 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [loadUserFromToken]);
 
+  // Fetch full user profile if we only have basic info from token
+  const fetchMe = useCallback(async () => {
+    try {
+      const res = await api.get('accounts/auth/me/');
+      setUser(res.data);
+      setRole(res.data.role);
+    } catch (err) {
+      console.error("AuthContext: Failed to fetch full profile", err);
+      // If 401, logout
+      if (err.response?.status === 401) {
+        logout();
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    // If we have a token but user doesn't have full info (e.g. first_name or headed_programs)
+    if (token && user && !user.first_name) {
+      fetchMe();
+    }
+  }, [user, fetchMe]);
+
+
   const login = async (credentials) => {
     try {
       // Clear old tokens first to ensure a clean session

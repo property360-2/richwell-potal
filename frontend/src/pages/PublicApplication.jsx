@@ -165,7 +165,20 @@ const PublicApplication = () => {
                 ]}
               />
             </div>
+
+            {watch('student_type') === 'TRANSFEREE' && (
+              <div className="mt-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                <Input 
+                  label="Past School / University" 
+                  placeholder="e.g., Bulacan State University"
+                  icon={<GraduationCap size={16} />}
+                  {...register('previous_school', { required: 'Past school is required for transferees' })} 
+                  error={errors.previous_school?.message} 
+                />
+              </div>
+            )}
           </Section>
+
 
           {/* Contact Details */}
           <Section title="Contact & Address" icon={<Mail size={20} />}>
