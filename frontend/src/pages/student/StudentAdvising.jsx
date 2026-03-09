@@ -159,8 +159,26 @@ const StudentAdvising = () => {
   const hasCredits = creditedGrades.length > 0;
   const totalUnits = calculateTotalUnits();
 
+  const groupSubjects = (subjects) => {
+    const groups = {};
+    subjects.forEach(subject => {
+      const year = subject.year_level || 1;
+      const sem = subject.semester === '1' ? '1st Semester' : subject.semester === '2' ? '2nd Semester' : 'Summer';
+      const key = `Year ${year} - ${sem}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(subject);
+    });
+    return groups;
+  };
+
+  const categorizedSubjects = groupSubjects(
+    availableSubjects
+      .filter(s => !grades.some(g => g.subject === s.id) && !passedSubjectIds.includes(s.id))
+      .filter(s => s.code.toLowerCase().includes(searchTerm.toLowerCase()) || s.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
-    <div className="student-advising-container">
+    <div className="student-advising-container" style={{ paddingBottom: '100px' }}>
       <header className="advising-header">
         <div className="advising-header-info">
           <h1>Subject Advising</h1>
@@ -169,13 +187,14 @@ const StudentAdvising = () => {
         
         {enrollmentStatus && (
           <div className="status-badge-container">
-            <span className="text-slate-500">Status:</span>
+            <span className="text-slate-500 font-medium">Status:</span>
             <Badge 
               variant={
                 enrollmentStatus === 'APPROVED' ? 'success' : 
                 enrollmentStatus === 'REJECTED' ? 'error' : 
                 enrollmentStatus === 'DRAFT' ? 'info' : 'warning'
               }
+              style={{ padding: '8px 16px', fontSize: '14px' }}
             >
               {enrollmentStatus === 'DRAFT' ? 'OPEN / DRAFT' : enrollmentStatus}
             </Badge>
@@ -187,15 +206,15 @@ const StudentAdvising = () => {
         <div className="space-y-6">
           {/* Table for ALREADY ADVISED / CREDITED subjects */}
           {hasAdvising && (
-            <Card title="Advising Subjects">
+            <Card title="Your Selected Subjects" icon={<CheckCircle2 size={18} className="text-success" />}>
               <div className="table-container" style={{ border: 'none' }}>
                 <table className="table">
                   <thead>
                     <tr>
                       <th style={{ width: '120px' }}>Code</th>
                       <th>Description</th>
-                      <th style={{ width: '80px' }}>Units</th>
-                      <th style={{ width: '120px' }}>Status</th>
+                      <th style={{ width: '80px', textAlign: 'center' }}>Units</th>
+                      <th style={{ width: '120px', textAlign: 'center' }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -206,8 +225,8 @@ const StudentAdvising = () => {
                           {grade.subject_details?.description}
                           {grade.is_retake && <Badge variant="error" size="sm" style={{ marginLeft: '8px' }}>Retake</Badge>}
                         </td>
-                        <td>{grade.subject_details?.total_units}</td>
-                        <td>
+                        <td style={{ textAlign: 'center' }}>{grade.subject_details?.total_units}</td>
+                        <td style={{ textAlign: 'center' }}>
                            <Badge variant={grade.grade_status === 'ENROLLED' ? 'success' : 'warning'}>
                              {grade.grade_status_display}
                            </Badge>
@@ -223,14 +242,14 @@ const StudentAdvising = () => {
                   <AlertCircle size={20} className="shrink-0" />
                   <div>
                     <p className="font-semibold text-sm">Reason for Rejection:</p>
-                    <p className="text-sm mt-1">{grades[0]?.rejection_reason || "No specific reason provided."}</p>
+                    <p className="text-sm mt-1">{enrollingGrades[0]?.rejection_reason || "No specific reason provided."}</p>
                     <Button 
                       variant="ghost" 
                       size="sm"
                       className="mt-3 text-red-600 hover:bg-red-100"
                       onClick={() => setGrades([])}
                     >
-                      Reset and Re-select
+                      Reset Selection
                     </Button>
                   </div>
                 </div>
@@ -246,13 +265,13 @@ const StudentAdvising = () => {
                   <ClipboardList size={64} className="mx-auto text-blue-500 mb-4 opacity-20" />
                   <h3 className="text-xl font-bold text-slate-800">Ready for Auto-Advising</h3>
                   
-                  {!enrollment?.student_details?.is_advising_unlocked ? (
+                  {!enrollment?.is_advising_unlocked ? (
                     <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-lg max-w-sm mx-auto">
                       <p className="text-amber-800 text-sm font-medium">
                         Waiting for Registrar Approval
                       </p>
                       <p className="text-amber-700 text-xs mt-1">
-                        As a transferee, you need to wait for the Registrar to finish crediting your subjects before you can proceed to advising.
+                        Please wait for the Registrar to finish crediting your subjects or verifying your documents before you can proceed.
                       </p>
                     </div>
                   ) : (
@@ -266,21 +285,21 @@ const StudentAdvising = () => {
                     size="lg"
                     loading={loading}
                     onClick={handleAutoAdvise}
-                    disabled={!enrollment?.student_details?.is_advising_unlocked}
+                    disabled={!enrollment?.is_advising_unlocked}
                   >
-                    Generate My Subjects
+                    Generate Enrollment Slip
                   </Button>
                 </div>
               </Card>
             )
           ) : (
             enrollmentStatus !== 'APPROVED' && (
-              <Card title="Available Subjects">
+              <Card title="Selection of Subjects" icon={<Filter size={18} className="text-primary" />}>
                  <div className="search-container">
                     <Search className="search-icon" size={18} />
                     <input 
                       type="text" 
-                      placeholder="Search by code or name..."
+                      placeholder="Filter by code or description..."
                       className="search-input"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -288,40 +307,50 @@ const StudentAdvising = () => {
                  </div>
 
                  <div className="subject-selection-list">
-                    {availableSubjects
-                       .filter(s => !grades.some(g => g.subject === s.id) && !passedSubjectIds.includes(s.id)) // Filter out already selected/credited or passed
-                      .filter(s => s.code.toLowerCase().includes(searchTerm.toLowerCase()) || s.description.toLowerCase().includes(searchTerm.toLowerCase()))
-                      .map(subject => {
-                        const isSelected = selectedSubjectIds.includes(subject.id);
-                        const prereq = checkPrerequisites(subject);
-                        return (
-                          <div 
-                            key={subject.id}
-                            className={`subject-selection-item ${isSelected ? 'selected' : ''} ${!prereq.met ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            onClick={() => toggleSubject(subject)}
-                          >
-                            <div className="flex-1">
-                               <div className="flex items-center gap-2">
-                                  <span className="font-bold text-slate-800">{subject.code}</span>
-                                  <span className="text-xs text-slate-500">• {subject.total_units} Units</span>
-                                  {!prereq.met && (
-                                    <Badge variant="error" size="sm" icon={<AlertCircle size={10}/>}>
-                                      Missing Prereq
-                                    </Badge>
-                                  )}
-                               </div>
-                               <p className="text-sm text-slate-600 mt-1">{subject.description}</p>
-                               {!prereq.met && (
-                                 <p className="text-[10px] text-red-500 font-medium mt-1">{prereq.reason}</p>
-                               )}
-                            </div>
-                            <div className="selection-checkbox">
-                               {isSelected && <CheckCircle2 size={16} />}
-                               {!isSelected && !prereq.met && <AlertCircle size={16} className="text-slate-300" />}
-                            </div>
-                          </div>
-                        );
-                      })}
+                    {Object.keys(categorizedSubjects).length > 0 ? (
+                      Object.entries(categorizedSubjects).map(([group, subjects]) => (
+                        <div key={group} className="subject-group">
+                           <div className="subject-group-header">
+                             {group}
+                           </div>
+                           {subjects.map(subject => {
+                              const isSelected = selectedSubjectIds.includes(subject.id);
+                              const prereq = checkPrerequisites(subject);
+                              return (
+                                <div 
+                                  key={subject.id}
+                                  className={`subject-selection-item ${isSelected ? 'selected' : ''} ${!prereq.met ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  onClick={() => toggleSubject(subject)}
+                                >
+                                  <div className="flex-1">
+                                     <div className="flex items-center gap-2">
+                                        <span className="font-bold text-slate-800">{subject.code}</span>
+                                        <span className="text-xs text-slate-500">• {subject.total_units} Units</span>
+                                        {!prereq.met && (
+                                          <Badge variant="error" size="sm" icon={<AlertCircle size={10}/>}>
+                                            Missing Prereq
+                                          </Badge>
+                                        )}
+                                     </div>
+                                     <p className="text-sm text-slate-600 mt-1">{subject.description}</p>
+                                     {!prereq.met && (
+                                       <p className="text-[10px] text-red-500 font-medium mt-1">{prereq.reason}</p>
+                                     )}
+                                  </div>
+                                  <div className="selection-checkbox">
+                                     {isSelected && <CheckCircle2 size={16} />}
+                                     {!isSelected && !prereq.met && <AlertCircle size={16} className="text-slate-300" />}
+                                  </div>
+                                </div>
+                              );
+                           })}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-10 text-slate-400">
+                        No subjects found matching your curriculum and semester.
+                      </div>
+                    )}
                  </div>
               </Card>
             )

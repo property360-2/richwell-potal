@@ -506,7 +506,7 @@ FRONTEND_URL=http://localhost:5173
 
 ---
 
-## Phase 7: Subject Advising 3/9/2026
+## Phase 7: Subject Advising // partially done 3/9/2026
 
 ### 7.1 — Advising + Crediting API (Backend)
 
@@ -589,7 +589,7 @@ FRONTEND_URL=http://localhost:5173
 
 ---
 
-## Phase 8: Sectioning
+## Phase 8: Sectioning 
 
 ### 8.1 — Sectioning Algorithm (Backend)
 

@@ -137,3 +137,33 @@
     border-color: var(--color-primary);
     color: white;
 }
+
+.subject-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+}
+
+.subject-group-header {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    padding: var(--space-2) var(--space-1);
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.subject-group-header::before {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 12px;
+    background-color: var(--color-primary);
+    border-radius: var(--radius-full);
+}

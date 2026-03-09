@@ -243,28 +243,39 @@ const AdvisingApproval = () => {
                                 Selected Subjects
                               </h4>
                               {enrollment.grades ? (
-                                <table className="inner-table">
-                                   <thead>
-                                      <tr>
-                                         <th>Code</th>
-                                         <th>Name</th>
-                                         <th>Units</th>
-                                         <th>Is Retake</th>
-                                      </tr>
-                                   </thead>
-                                    <tbody>
-                                       {enrollment.grades.filter(g => !g.is_credited).map(grade => (
-                                          <tr key={grade.id}>
-                                             <td className="font-medium">{grade.subject_details.code}</td>
-                                             <td className="text-slate-600">{grade.subject_details.description || grade.subject_details.name}</td>
-                                             <td>{grade.subject_details.total_units || grade.subject_details.units}</td>
-                                             <td>
-                                                {grade.is_retake ? <Badge variant="error" size="sm">Yes</Badge> : 'No'}
-                                             </td>
-                                          </tr>
-                                       ))}
-                                    </tbody>
-                                </table>
+                                <>
+                                  <table className="inner-table">
+                                     <thead>
+                                        <tr>
+                                           <th>Code</th>
+                                           <th>Name</th>
+                                           <th>Units</th>
+                                           <th>Is Retake</th>
+                                        </tr>
+                                     </thead>
+                                      <tbody>
+                                         {enrollment.grades.filter(g => !g.is_credited).map(grade => (
+                                            <tr key={grade.id}>
+                                               <td className="font-medium">{grade.subject_details?.code || grade.subject_code}</td>
+                                               <td className="text-slate-600">{grade.subject_details?.description || grade.subject_details?.name}</td>
+                                               <td>{grade.subject_details?.total_units || grade.subject_details?.units}</td>
+                                               <td>
+                                                  {grade.is_retake ? <Badge variant="error" size="sm">Yes</Badge> : 'No'}
+                                               </td>
+                                            </tr>
+                                         ))}
+                                      </tbody>
+                                  </table>
+                                  <div className="mt-4 p-4 bg-white border border-slate-200 rounded-lg flex justify-between items-center shadow-sm">
+                                     <span className="text-sm font-medium text-slate-600">Total Units for this Term:</span>
+                                     <span className={`text-lg font-bold ${
+                                       enrollment.grades.filter(g => !g.is_credited).reduce((sum, g) => sum + (g.subject_details?.total_units || 0), 0) > 30 
+                                       ? 'text-red-600' : 'text-blue-600'
+                                     }`}>
+                                       {enrollment.grades.filter(g => !g.is_credited).reduce((sum, g) => sum + (g.subject_details?.total_units || 0), 0)}
+                                     </span>
+                                  </div>
+                                </>
                               ) : (
                                 <div style={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
                                   <LoadingSpinner size="sm" />

@@ -274,7 +274,12 @@ class StudentViewSet(viewsets.ModelViewSet):
                 
                 # Create Student
                 gender_map = {'M': 'MALE', 'F': 'FEMALE'}
-                type_map = {'REGULAR': 'FRESHMAN', 'TRANSFEREE': 'TRANSFEREE', 'RETURNING': 'FRESHMAN'}
+                type_map = {
+                    'REGULAR': 'FRESHMAN', 
+                    'TRANSFEREE': 'TRANSFEREE', 
+                    'CURRENT': 'CURRENT',
+                    'RETURNING': 'FRESHMAN'
+                }
 
                 student = Student.objects.create(
                     user=user,

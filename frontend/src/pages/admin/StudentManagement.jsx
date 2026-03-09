@@ -207,7 +207,8 @@ const StudentManagement = () => {
               options={[
                 { value: 'REGULAR', label: 'Regular Freshman' }, 
                 { value: 'TRANSFEREE', label: 'Transferee' },
-                { value: 'RETURNING', label: 'Returning' }
+                { value: 'CURRENT', label: 'Current Student' },
+                { value: 'RETURNING', label: 'Returning Student' }
               ]} 
               {...register('student_type', { required: 'Required' })} 
             />

@@ -13,6 +13,7 @@ class Student(models.Model):
     STUDENT_TYPE_CHOICES = [
         ('FRESHMAN', 'Freshman'),
         ('TRANSFEREE', 'Transferee'),
+        ('CURRENT', 'Current Student'),
     ]
 
     STATUS_CHOICES = [

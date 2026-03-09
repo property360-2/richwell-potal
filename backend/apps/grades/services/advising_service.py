@@ -267,10 +267,11 @@ class AdvisingService:
             }
         )
         
-        # Re-check regularity
+        # Re-check regularity and Year Level
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if enrollment:
             enrollment.is_regular = AdvisingService.check_student_regularity(student, term)
+            enrollment.year_level = AdvisingService.get_year_level(student)
             enrollment.save()
             
         return grade
@@ -289,8 +290,9 @@ class AdvisingService:
             is_credited=True
         ).delete()
 
-        # Re-check regularity
+        # Re-check regularity and Year Level
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if enrollment:
             enrollment.is_regular = AdvisingService.check_student_regularity(student, term)
+            enrollment.year_level = AdvisingService.get_year_level(student)
             enrollment.save()
