@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from apps.accounts.serializers import UserSerializer
-from .models import Professor, ProfessorSubject
+from .models import Professor, ProfessorSubject, ProfessorAvailability
 
 User = get_user_model()
 
@@ -21,16 +21,22 @@ class ProfessorSubjectSerializer(serializers.ModelSerializer):
             'curriculum': obj.subject.curriculum.version_name if obj.subject.curriculum else None
         }
 
+class ProfessorAvailabilitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProfessorAvailability
+        fields = ['id', 'day', 'session']
+
 class ProfessorSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     assigned_subjects = ProfessorSubjectSerializer(many=True, read_only=True)
+    availability = ProfessorAvailabilitySerializer(many=True, read_only=True)
 
     class Meta:
         model = Professor
         fields = [
             'id', 'user', 'employee_id', 'department', 
             'employment_status', 'date_of_birth', 'is_active', 
-            'assigned_subjects', 'created_at', 'updated_at'
+            'assigned_subjects', 'availability', 'created_at', 'updated_at'
         ]
 
 class ProfessorCreateUpdateSerializer(serializers.ModelSerializer):

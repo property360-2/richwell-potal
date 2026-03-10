@@ -3,18 +3,18 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
 from django.contrib.auth import get_user_model
-from core.permissions import IsAdminOrReadOnly
+from core.permissions import IsStaff
 import datetime
 
-from .models import Professor, ProfessorSubject
-from .serializers import ProfessorSerializer, ProfessorCreateUpdateSerializer, ProfessorSubjectSerializer
+from .models import Professor, ProfessorSubject, ProfessorAvailability
+from .serializers import ProfessorSerializer, ProfessorCreateUpdateSerializer, ProfessorSubjectSerializer, ProfessorAvailabilitySerializer
 from apps.academics.models import Subject
 
 User = get_user_model()
 
 class ProfessorViewSet(viewsets.ModelViewSet):
     queryset = Professor.objects.all()
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsStaff]
     search_fields = ['employee_id', 'user__first_name', 'user__last_name', 'department']
     filterset_fields = ['department', 'employment_status', 'is_active']
 
@@ -128,3 +128,34 @@ class ProfessorViewSet(viewsets.ModelViewSet):
                     pass
                     
         return Response({'status': 'Subjects successfully updated'})
+
+    @action(detail=True, methods=['get', 'post'])
+    def availability(self, request, pk=None):
+        professor = self.get_object()
+        
+        if request.method == 'GET':
+            availabilities = ProfessorAvailability.objects.filter(professor=professor)
+            serializer = ProfessorAvailabilitySerializer(availabilities, many=True)
+            return Response(serializer.data)
+            
+        elif request.method == 'POST':
+            # Expecting a list of availability objects: [{day: 'M', session: 'AM'}, ...]
+            availability_data = request.data.get('availabilities', [])
+            
+            with transaction.atomic():
+                # For this simple implementation, we fully replace the availability
+                ProfessorAvailability.objects.filter(professor=professor).delete()
+                
+                created_count = 0
+                for item in availability_data:
+                    day = item.get('day')
+                    session = item.get('session')
+                    if day and session:
+                        ProfessorAvailability.objects.create(
+                            professor=professor,
+                            day=day,
+                            session=session
+                        )
+                        created_count += 1
+                        
+                return Response({'status': f'Updated {created_count} availability slots'})

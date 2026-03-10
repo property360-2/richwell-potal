@@ -8,6 +8,7 @@ class ScheduleSerializer(serializers.ModelSerializer):
     room_name = serializers.CharField(source='room.name', read_only=True)
     section_name = serializers.CharField(source='section.name', read_only=True)
     section_session = serializers.CharField(source='section.session', read_only=True)
+    subject_units = serializers.IntegerField(source='subject.units', read_only=True)
     
     class Meta:
         model = Schedule

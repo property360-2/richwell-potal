@@ -395,6 +395,7 @@ FRONTEND_URL=http://localhost:5173
 **Backend Test:**
 - Professor CRUD ✓ | User created ✓
 - Subject assignment works ✓ | Employee ID unique ✓
+- [NEW] ProfessorAvailability CRUD works (Days M-S, Sessions AM/PM)
 
 ---
 
@@ -650,7 +651,7 @@ FRONTEND_URL=http://localhost:5173
 
 ---
 
-## Phase 9: Scheduling + Student Schedule Picking
+## Phase 9: Scheduling + Student Schedule Picking // done
 
 ### 9.1 — Scheduling + Picking API (Backend)
 
@@ -683,17 +684,25 @@ FRONTEND_URL=http://localhost:5173
 
 ---
 
-### 9.2 — Dean: Scheduling Page (Frontend)
+### 9.2 — Dean: Scheduling Page (Frontend Refinement)
+
+**Task:** Rebuild Scheduling interface for high visual clarity and availability tracking.
+
+**Visual Grid Logic:**
+- **Grid Structure**: 6 Columns (Mon-Sat) × 2 Rows (AM/PM).
+- **Cell States**:
+    - `Available`: Prof can be scheduled. Blue/Green background. Toggled by click.
+    - `Occupied`: Prof has active class. Red/Badge. Shows Subject/Section. Non-toglable until schedule removed.
+    - `Inactive`: Not available. Gray/Dimmed.
+- **Conflict Awareness**: Real-time checking against Section sessions and other loads.
 
 **Steps:**
-1. Professor list with badges (All Scheduled / Partial / Pending)
-2. Click professor → modal with section-subject pairs (grouped by section, showing AM/PM badge from Section.session)
-3. Per row: day checkboxes (M–S) only (session is inherited from section, no session toggle needed)
-4. Inline conflict warnings
-5. Room auto-shown per row
-6. Save All button
-7. "Publish Schedule" button (enables student picking)
-8. Edit/delete after publish (with confirmation)
+1. Professor list with Load Summary (Active Units / Max target).
+2. Central **Availability Grid** for selected professor.
+3. "Quick Toggle" for full AM or full PM availability.
+4. Assigned Loads Table: Detailed setup for subject-section pairs (Inheriting AM/PM from Section).
+5. Room assignment integrated into the load detail view.
+6. Publish button with validation summary.
 
 **Manual Verification:**
 - [ ] Professor list with badges

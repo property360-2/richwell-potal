@@ -137,3 +137,31 @@ class ScheduleViewSet(viewsets.ModelViewSet):
                 "is_full": s.current_students >= s.max_students
             } for s in sections
         ])
+    @action(detail=False, methods=['GET'])
+    def available_slots(self, request):
+        """
+        Returns unassigned schedule slots matching a professor's assigned subjects.
+        """
+        term_id = request.query_params.get('term_id')
+        professor_id = request.query_params.get('professor_id')
+        
+        if not all([term_id, professor_id]):
+            return Response({"error": "term_id and professor_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            professor = Professor.objects.get(id=professor_id)
+            # Find subject IDs assigned to this professor
+            assigned_subject_ids = professor.assigned_subjects.values_list('subject_id', flat=True)
+            
+            # Find schedule slots for these subjects in this term where professor is null
+            slots = Schedule.objects.filter(
+                term_id=term_id,
+                subject_id__in=assigned_subject_ids,
+                professor__isnull=True
+            ).select_related('section', 'subject').order_by('section__name', 'component_type')
+            
+            return Response(self.get_serializer(slots, many=True).data)
+        except Professor.DoesNotExist:
+            return Response({"error": "Professor not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

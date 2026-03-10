@@ -20,5 +20,9 @@ export const facultyApi = {
     getSubjects: (id) => api.get(`/faculty/professors/${id}/subjects/`),
 
     // Assign subjects to a professor
-    assignSubjects: (id, subject_ids) => api.post(`/faculty/professors/${id}/assign_subjects/`, { subject_ids })
+    assignSubjects: (id, subject_ids) => api.post(`/faculty/professors/${id}/assign_subjects/`, { subject_ids }),
+
+    // Professor Availability
+    getAvailability: (id) => api.get(`/faculty/professors/${id}/availability/`),
+    updateAvailability: (id, availabilities) => api.post(`/faculty/professors/${id}/availability/`, { availabilities })
 };

@@ -55,3 +55,35 @@ class ProfessorSubject(models.Model):
 
     def __str__(self):
         return f"{self.professor.employee_id} - {self.subject.code}"
+
+class ProfessorAvailability(models.Model):
+    DAY_CHOICES = [
+        ('M', 'Monday'),
+        ('T', 'Tuesday'),
+        ('W', 'Wednesday'),
+        ('TH', 'Thursday'),
+        ('F', 'Friday'),
+        ('S', 'Saturday'),
+    ]
+    SESSION_CHOICES = [
+        ('AM', 'Morning'),
+        ('PM', 'Afternoon'),
+    ]
+    
+    professor = models.ForeignKey(
+        'faculty.Professor', 
+        on_delete=models.CASCADE, 
+        related_name='availability'
+    )
+    day = models.CharField(max_length=2, choices=DAY_CHOICES)
+    session = models.CharField(max_length=2, choices=SESSION_CHOICES)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('professor', 'day', 'session')
+        verbose_name = "Professor Availability"
+        verbose_name_plural = "Professor Availabilities"
+
+    def __str__(self):
+        return f"{self.professor.employee_id}: {self.get_day_display()} - {self.session}"

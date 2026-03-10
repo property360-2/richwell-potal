@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Users, BookOpen, Calendar, MapPin, AlertTriangle, CheckCircle2, Search, Edit2, RefreshCw } from 'lucide-react';
+import { Clock, Users, BookOpen, Calendar, MapPin, AlertTriangle, CheckCircle2, Search, Edit2, RefreshCw, ChevronRight, Info } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -12,21 +12,27 @@ import { termsApi } from '../../api/terms';
 import { facilitiesApi } from '../../api/facilities';
 import Modal from '../../components/ui/Modal';
 import Select from '../../components/ui/Select';
-import Checkbox from '../../components/ui/Checkbox';
+
+import './SchedulingPage.css';
 
 const SchedulingPage = () => {
+    const [view, setView] = useState('LIST'); // 'LIST' or 'MANAGE'
     const [professors, setProfessors] = useState([]);
     const [selectedProf, setSelectedProf] = useState(null);
     const [profSchedules, setProfSchedules] = useState([]);
+    const [profAvailability, setProfAvailability] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTerm, setActiveTerm] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [rooms, setRooms] = useState([]);
+    const [availableSlots, setAvailableSlots] = useState([]);
     
-    // Modal State
+    // UI State
+    const [isSavingAvailability, setIsSavingAvailability] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isAddLoadModalOpen, setIsAddLoadModalOpen] = useState(false);
     const [selectedSchedule, setSelectedSchedule] = useState(null);
-    const [isSaving, setIsSaving] = useState(false);
+    const [isSavingSchedule, setIsSavingSchedule] = useState(false);
     const [formData, setFormData] = useState({
         days: [],
         start_time: '',
@@ -35,6 +41,17 @@ const SchedulingPage = () => {
     });
 
     const { showToast } = useToast();
+
+    // Days & Sessions Definition
+    const DAYS = [
+        { key: 'M', label: 'Monday' },
+        { key: 'T', label: 'Tuesday' },
+        { key: 'W', label: 'Wednesday' },
+        { key: 'TH', label: 'Thursday' },
+        { key: 'F', label: 'Friday' },
+        { key: 'S', label: 'Saturday' },
+    ];
+    const SESSIONS = ['AM', 'PM'];
 
     const fetchData = async () => {
         try {
@@ -59,21 +76,83 @@ const SchedulingPage = () => {
         fetchData();
     }, []);
 
-    const fetchProfSchedules = async (profId) => {
+    const fetchProfDetails = async (profId) => {
         if (!activeTerm) return;
         try {
-            const res = await schedulingApi.getSchedules({ professor_id: profId, term_id: activeTerm.id });
-            setProfSchedules(res.data.results || res.data);
+             const [schedRes, availRes, slotsRes] = await Promise.all([
+                schedulingApi.getSchedules({ professor_id: profId, term_id: activeTerm.id }),
+                facultyApi.getAvailability(profId),
+                schedulingApi.getAvailableSlots({ professor_id: profId, term_id: activeTerm.id })
+            ]);
+            setProfSchedules(schedRes.data.results || schedRes.data);
+            setProfAvailability(availRes.data);
+            setAvailableSlots(slotsRes.data);
         } catch (err) {
-            showToast('error', 'Failed to load professor schedules');
+            showToast('error', 'Failed to load professor details');
         }
     };
 
-    useEffect(() => {
-        if (selectedProf) {
-            fetchProfSchedules(selectedProf.id);
+    const handleManageLoad = (prof) => {
+        setSelectedProf(prof);
+        fetchProfDetails(prof.id);
+        setView('MANAGE');
+    };
+
+    const handleBackToList = () => {
+        setView('LIST');
+        setSelectedProf(null);
+        fetchData(); // Refresh list to update status
+    };
+
+    // Availability Toggle
+    const handleToggleAvailability = async (day, session) => {
+        if (!selectedProf) return;
+        const isCurrentlyAvailable = profAvailability.some(a => a.day === day && a.session === session);
+        
+        if (isCurrentlyAvailable) {
+            const hasSchedule = profSchedules.find(s => s.days.includes(day) && s.section_session === session);
+            if (hasSchedule) {
+                return showToast('warning', `Slot occupied by ${hasSchedule.subject_code} (${hasSchedule.section_name})`);
+            }
         }
-    }, [selectedProf, activeTerm]);
+
+        let newAvailabilities;
+        if (isCurrentlyAvailable) {
+            newAvailabilities = profAvailability.filter(a => !(a.day === day && a.session === session))
+                .map(a => ({ day: a.day, session: a.session }));
+        } else {
+            newAvailabilities = [
+                ...profAvailability.map(a => ({ day: a.day, session: a.session })),
+                { day: day, session: session }
+            ];
+        }
+
+        try {
+            setIsSavingAvailability(true);
+            await facultyApi.updateAvailability(selectedProf.id, newAvailabilities);
+            setProfAvailability(newAvailabilities);
+            showToast('success', 'Availability updated');
+        } catch (err) {
+            showToast('error', 'Failed to update availability');
+        } finally {
+            setIsSavingAvailability(false);
+        }
+    };
+
+    const handleQuickAvailability = async (sessionType) => {
+        if (!selectedProf) return;
+        const newAvail = DAYS.map(d => ({ day: d.key, session: sessionType }));
+        try {
+            setIsSavingAvailability(true);
+            await facultyApi.updateAvailability(selectedProf.id, newAvail);
+            setProfAvailability(newAvail);
+            showToast('success', `All days set to ${sessionType}`);
+        } catch (err) {
+            showToast('error', 'Failed to update availability');
+        } finally {
+            setIsSavingAvailability(false);
+        }
+    };
 
     const handleOpenSetup = (sched) => {
         setSelectedSchedule(sched);
@@ -91,9 +170,18 @@ const SchedulingPage = () => {
             return showToast('error', 'Please fill in all required fields');
         }
 
+        const unavailableDays = formData.days.filter(day => 
+            !profAvailability.some(a => a.day === day && a.session === selectedSchedule.section_session)
+        );
+
+        if (unavailableDays.length > 0) {
+            return showToast('error', `Professor is NOT available at ${selectedSchedule.section_session} on ${unavailableDays.join(', ')}`);
+        }
+
         try {
-            setIsSaving(true);
+            setIsSavingSchedule(true);
             await schedulingApi.assign({
+                id: selectedSchedule.id,
                 term_id: activeTerm.id,
                 section_id: selectedSchedule.section,
                 subject_id: selectedSchedule.subject,
@@ -105,199 +193,275 @@ const SchedulingPage = () => {
             });
             showToast('success', 'Schedule updated successfully');
             setIsModalOpen(false);
-            fetchProfSchedules(selectedProf.id);
+            fetchProfDetails(selectedProf.id);
         } catch (err) {
-            showToast('error', err.response?.data?.error || 'Conflict detected or failed to save');
+            showToast('error', err.response?.data?.error || 'Conflict detected');
         } finally {
-            setIsSaving(false);
+            setIsSavingSchedule(false);
         }
     };
 
-    const toggleDay = (day) => {
-        setFormData(prev => ({
-            ...prev,
-            days: prev.days.includes(day) 
-                ? prev.days.filter(d => d !== day) 
-                : [...prev.days, day]
-        }));
-    };
+    const filteredProfs = professors.filter(p => {
+        const name = `${p.user?.first_name} ${p.user?.last_name}`;
+        return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+               p.employee_id?.toLowerCase().includes(searchQuery.toLowerCase());
+    });
 
-    const filteredProfs = professors.filter(p => 
-        p.user?.get_full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.employee_id?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const calculateTotalUnits = () => {
+        return profSchedules.reduce((acc, curr) => acc + (curr.subject_units || 0), 0);
+    };
 
     if (loading && !activeTerm) return <div className="p-8 h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
 
-    return (
-        <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-10 min-h-[calc(100vh-100px)] animate-in fade-in duration-500">
-            {/* Professor Sidebar */}
-            <div className="lg:col-span-4 space-y-6 flex flex-col">
-                <div className="flex flex-col gap-4">
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Faculty Timetable</h2>
-                    <Input 
-                        placeholder="Search professor or ID..." 
-                        icon={<Search size={18} />} 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="bg-white border-slate-200 shadow-sm"
-                    />
-                </div>
+    if (view === 'LIST') {
+        return (
+            <div className="p-8">
+                <Card className="mb-8">
+                    <div className="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 className="text-2xl font-bold text-slate-800">Professor Scheduling Matrix</h2>
+                            <p className="text-sm text-slate-500 font-medium">Manage faculty teaching loads and timetable assignments for {activeTerm?.code}</p>
+                        </div>
+                        <div className="flex gap-4">
+                            <Input 
+                                placeholder="Search faculty..." 
+                                icon={<Search size={16} />} 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-64"
+                            />
+                            <Button variant="ghost" icon={<RefreshCw size={16} />} onClick={fetchData}>Sync</Button>
+                        </div>
+                    </div>
 
-                <div className="overflow-y-auto flex-1 space-y-3 pr-2 scrollbar-thin max-h-[70vh]">
-                    {filteredProfs.map(prof => (
-                        <div 
-                            key={prof.id}
-                            className={`p-4 rounded-2xl cursor-pointer transition-all border-2 flex items-center gap-4 ${
-                                selectedProf?.id === prof.id 
-                                ? 'border-blue-600 bg-blue-50/40 shadow-blue-100 shadow-md ring-1 ring-blue-600/10' 
-                                : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm'
-                            }`}
-                            onClick={() => setSelectedProf(prof)}
-                        >
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xs ${
-                                selectedProf?.id === prof.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'
-                            }`}>
-                                {prof.user?.first_name?.[0]}{prof.user?.last_name?.[0]}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="font-bold text-slate-800 uppercase tracking-tight truncate">
-                                    {prof.user?.first_name} {prof.user?.last_name}
-                                </div>
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
-                                    {prof.employee_id} • {prof.department}
-                                </div>
-                            </div>
-                            <ChevronRight size={16} className={`${selectedProf?.id === prof.id ? 'text-blue-600' : 'text-slate-300'}`} />
-                        </div>
-                    ))}
-                    
-                    {filteredProfs.length === 0 && !loading && (
-                        <div className="text-center py-10 text-slate-400 font-bold uppercase text-xs tracking-widest">
-                            No faculty found
-                        </div>
-                    )}
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 text-[10px] uppercase tracking-wider font-extrabold text-slate-400 border-b border-slate-100">
+                                    <th className="px-6 py-4">Faculty Member</th>
+                                    <th className="px-6 py-4">Employee ID</th>
+                                    <th className="px-6 py-4">Department</th>
+                                    <th className="px-6 py-4">Units Assigned</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredProfs.map(prof => (
+                                    <tr key={prof.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs uppercase">
+                                                    {prof.user?.last_name?.[0]}
+                                                </div>
+                                                <div className="font-bold text-slate-700">{prof.user?.first_name} {prof.user?.last_name}</div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 font-bold text-xs text-slate-400">{prof.employee_id}</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-slate-500">{prof.department}</td>
+                                        <td className="px-6 py-4">
+                                            {/* Note: In a real scenario, this would be total units across all schedules. 
+                                                For now we show assigned subjects count as a proxy or we'd need a backend aggregation */}
+                                            <Badge variant="neutral">{prof.assigned_subjects?.length} Subjects</Badge>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {prof.assigned_subjects?.length > 0 ? (
+                                                <Badge variant="success" icon={<CheckCircle2 size={10} />}>Scheduled</Badge>
+                                            ) : (
+                                                <Badge variant="warning" icon={<AlertTriangle size={10} />}>Unscheduled</Badge>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <Button 
+                                                variant="primary" 
+                                                size="xs" 
+                                                style={{ fontWeight: 800 }} 
+                                                icon={<Edit2 size={12}/>}
+                                                onClick={() => handleManageLoad(prof)}
+                                            >
+                                                MODIFY SCHEDULE
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
+
+    return (
+        <div className="scheduling-container-manage p-8 max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Header with Back button */}
+            <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                    <Button variant="outline" size="sm" onClick={handleBackToList}>Back to Matrix</Button>
+                    <div>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Manage Teaching Timetable</h2>
+                        <p className="text-sm text-slate-500 font-bold">Faculty: {selectedProf?.user?.first_name} {selectedProf?.user?.last_name} • {selectedProf?.employee_id}</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 bg-blue-50 px-6 py-4 rounded-xl border border-blue-100">
+                    <div className="text-right">
+                        <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none mb-1">Total Current Load</div>
+                        <div className="text-2xl font-black text-blue-700 leading-none">{calculateTotalUnits()} <span className="text-sm font-medium opacity-50">/ 30 UNITS</span></div>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                        <BookOpen size={20} />
+                    </div>
                 </div>
             </div>
 
-            {/* Main Scheduling Area */}
-            <div className="lg:col-span-8 h-full flex flex-col">
-                {selectedProf ? (
-                    <div className="space-y-6 flex flex-col h-full animate-in slide-in-from-right duration-500">
-                        <div className="flex justify-between items-end pb-4 border-b border-slate-100">
-                            <div>
-                                <Badge variant="primary" className="mb-2 uppercase text-[10px] font-black tracking-widest px-3 py-1">
-                                    {activeTerm?.code} Schedule
-                                </Badge>
-                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
-                                    {selectedProf.user?.get_full_name}'s Loading
-                                </h3>
-                                <p className="text-slate-500 text-sm font-medium">Configure subject time slots and room assignments</p>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Availability Grid */}
+                <div className="lg:col-span-8 space-y-8">
+                    <Card title="Fixed Weekly Availability Grid" className="shadow-sm border-slate-100 overflow-hidden">
+                        <div className="flex justify-between items-center mb-6">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Click cells to toggle professor availability across days and sessions.</p>
+                            <div className="flex gap-2">
+                                <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('AM')}>Fill AM</Button>
+                                <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('PM')}>Fill PM</Button>
                             </div>
-                            <Button variant="ghost" className="bg-slate-50" icon={<RefreshCw size={18} />} onClick={() => fetchProfSchedules(selectedProf.id)}>
-                                Sync
+                        </div>
+
+                        <div className="availability-grid">
+                            <div className="grid-corner"></div>
+                            {DAYS.map(d => (
+                                <div key={d.key} className="grid-header-day">{d.key}</div>
+                            ))}
+                            
+                            {SESSIONS.map(session => (
+                                <React.Fragment key={session}>
+                                    <div className="grid-label-session">{session}</div>
+                                    {DAYS.map(day => {
+                                        const isAvailable = profAvailability.some(a => a.day === day.key && a.session === session);
+                                        const schedule = profSchedules.find(s => s.days.includes(day.key) && s.section_session === session);
+                                        
+                                        return (
+                                            <div 
+                                                key={`${day.key}-${session}`}
+                                                className={`grid-cell ${isAvailable ? 'available' : ''} ${schedule ? 'occupied' : ''} ${isSavingAvailability ? 'opacity-50 pointer-events-none' : ''}`}
+                                                onClick={() => !schedule && handleToggleAvailability(day.key, session)}
+                                            >
+                                                {schedule ? (
+                                                    <div className="occupied-badge">
+                                                        <span className="text-[9px] block whitespace-nowrap overflow-hidden text-ellipsis px-1">{schedule.subject_code}</span>
+                                                        <span className="text-[8px] opacity-70 block">{schedule.section_name}</span>
+                                                    </div>
+                                                ) : isAvailable ? (
+                                                    <CheckCircle2 size={16} className="text-blue-500" />
+                                                ) : null}
+                                            </div>
+                                        );
+                                    })}
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </Card>
+
+                     <div className="flex justify-between items-center px-2">
+                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Teaching Load Summary</h3>
+                        <div className="flex items-center gap-3">
+                            <Badge variant="primary" className="text-[10px] font-black">{profSchedules.length} Active Slots</Badge>
+                            <Button variant="primary" size="xs" icon={<BookOpen size={12}/>} style={{ fontWeight: 800 }} onClick={() => setIsAddLoadModalOpen(true)}>
+                                ADD SUBJECT LOAD
                             </Button>
                         </div>
+                    </div>
 
-                        <div className="flex-1 space-y-4 pt-4 overflow-y-auto pr-2 scrollbar-thin">
-                            {profSchedules.length > 0 ? (
-                                profSchedules.map(sched => (
-                                    <div key={sched.id} className="bg-white border-2 border-slate-100 rounded-3xl p-6 hover:border-blue-200 transition-all group shadow-sm">
-                                        <div className="flex flex-col md:flex-row gap-8">
-                                            {/* Subject Info */}
-                                            <div className="md:w-5/12">
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <Badge variant="neutral" className="bg-slate-900 text-white border-none text-[9px] font-black uppercase rounded-lg px-3">
-                                                        {sched.section_name}
-                                                    </Badge>
-                                                    <Badge variant="outline" className="border-slate-200 text-slate-500 text-[9px] font-black uppercase px-2">
-                                                        {sched.component_type === 'LEC' ? 'LEC' : 'LAB'}
-                                                    </Badge>
-                                                </div>
-                                                <h4 className="font-black text-xl text-slate-800 leading-tight uppercase group-hover:text-blue-600 transition-colors">
-                                                    {sched.subject_code}
-                                                </h4>
-                                                <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed italic">{sched.subject_description}</p>
-                                            </div>
-
-                                            {/* Schedule Details Dashboard */}
-                                            <div className="md:w-7/12 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex items-center gap-3 transition-colors hover:bg-white group-hover:border-blue-100">
-                                                    <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-blue-600">
-                                                        <Calendar size={20} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Days</div>
-                                                        <div className="text-sm font-black text-slate-700">
-                                                            {sched.days.length > 0 ? sched.days.join(', ') : 'Not Set'}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex items-center gap-3 transition-colors hover:bg-white group-hover:border-blue-100">
-                                                    <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-blue-600">
-                                                        <Clock size={20} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Time Slot</div>
-                                                        <div className="text-sm font-black text-slate-700">
-                                                            {sched.start_time ? `${sched.start_time.substring(0, 5)} - ${sched.end_time.substring(0, 5)}` : 'TBA'}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex items-center gap-3 col-span-1 sm:col-span-2 transition-colors hover:bg-white group-hover:border-blue-100">
-                                                    <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-blue-600">
-                                                        <MapPin size={20} />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Room Resource</div>
-                                                        <div className="text-sm font-black text-slate-700">{sched.room_name || 'TO BE ASSIGNED'}</div>
-                                                    </div>
-                                                    <Button 
-                                                        variant="ghost" 
-                                                        size="xs" 
-                                                        className="text-blue-600 h-8 font-black uppercase text-[10px]" 
-                                                        icon={<Edit2 size={12}/>}
-                                                        onClick={() => handleOpenSetup(sched)}
-                                                    >
-                                                        Modify
-                                                    </Button>
-                                                </div>
-                                            </div>
+                    <div className="space-y-4">
+                        {profSchedules.map(sched => (
+                            <div key={sched.id} className="assignment-row shadow-sm hover:shadow-md border-slate-100">
+                                <div className="flex items-center gap-4 flex-1">
+                                    <div className="load-icon border border-slate-100"><BookOpen size={20} className="text-slate-400" /></div>
+                                    <div className="flex-1">
+                                        <div className="flex gap-2 mb-1">
+                                            <Badge variant="neutral" className="text-[9px] font-black">{sched.section_name}</Badge>
+                                            <Badge variant={sched.section_session === 'AM' ? 'info' : 'warning'} className="text-[9px] font-black">{sched.section_session}</Badge>
                                         </div>
+                                        <h4 className="font-bold text-slate-800 leading-tight">{sched.subject_code}</h4>
+                                        <p className="text-[11px] text-slate-400 font-bold uppercase">{sched.subject_description}</p>
                                     </div>
-                                ))
-                            ) : (
-                                <div className="py-24 flex flex-col items-center text-center bg-slate-50/30 rounded-[40px] border-4 border-dashed border-slate-100 m-4">
-                                    <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mb-6 text-slate-300">
-                                        <BookOpen size={40} />
-                                    </div>
-                                    <h4 className="font-black text-slate-300 uppercase tracking-[0.2em] text-lg">No Faculty Loads</h4>
-                                    <p className="text-sm text-slate-400 max-w-[240px] mt-2 font-medium">This professor has not been assigned any subject loads for the current term.</p>
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="h-full flex flex-col items-center justify-center p-12 text-center bg-white/50 rounded-[48px] border-2 border-slate-100 shadow-inner overflow-hidden relative">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl -mr-32 -mt-32"></div>
-                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-slate-50 rounded-full blur-3xl -ml-32 -mb-32"></div>
-                        
-                        <div className="relative z-10">
-                            <div className="w-24 h-24 bg-white rounded-[32px] shadow-2xl flex items-center justify-center mx-auto mb-8 border border-slate-50">
-                                <Users size={40} className="text-blue-500" />
+
+                                <div className="flex flex-col gap-1 items-center px-8 border-l border-slate-100 min-w-[200px]">
+                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Schedule Configuration</div>
+                                    <div className="text-xs font-black text-slate-700 flex items-center gap-2">
+                                        <Calendar size={12} className="text-blue-500" />
+                                        {sched.days.length > 0 ? `${sched.days.join(', ')} • ${sched.start_time?.substring(0, 5)} - ${sched.end_time?.substring(0, 5)}` : <span className="text-red-400">UNCONFIGURED</span>}
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-1 items-center px-8 border-l border-slate-100 min-w-[150px]">
+                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Facility</div>
+                                    <div className="text-xs font-black text-slate-700 flex items-center gap-2">
+                                        <MapPin size={12} className="text-slate-400" />
+                                        {sched.room_name || 'TBA'}
+                                    </div>
+                                </div>
+
+                                <div className="pl-6 border-l border-slate-100">
+                                    <Button variant="outline" size="sm" icon={<Edit2 size={12}/>} style={{ fontWeight: 800 }} onClick={() => handleOpenSetup(sched)}>
+                                        SETUP
+                                    </Button>
+                                </div>
                             </div>
-                            <h3 className="text-2xl font-black uppercase tracking-widest text-slate-800">Select Faculty</h3>
-                            <p className="max-w-[280px] mt-4 text-sm font-bold text-slate-400 uppercase tracking-tighter leading-relaxed">
-                                Choose a professor from the roster to manage their teaching timetable and room assignments.
-                            </p>
-                        </div>
+                        ))}
+                        {profSchedules.length === 0 && (
+                            <div className="text-center py-20 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
+                                <BookOpen size={48} className="mx-auto text-slate-200 mb-4" />
+                                <h4 className="text-slate-400 font-black tracking-widest uppercase text-sm">No Loads Assigned For This Professor</h4>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
+
+                {/* Right Column: Assigned Subjects & Stats */}
+                <div className="lg:col-span-4 space-y-6">
+                    <Card title="Expertise & Assignments" className="bg-slate-900 border-slate-800 text-white">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Confirmed subjects this professor is authorized to teach.</p>
+                        <div className="space-y-3">
+                            {selectedProf?.assigned_subjects?.map(ps => (
+                                <div key={ps.id} className="p-3 rounded-lg bg-slate-800 border border-slate-700 group hover:border-blue-500 transition-colors">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className="text-xs font-black text-blue-400 tracking-tight">{ps.subject_details?.code}</span>
+                                        <span className="text-[10px] font-black text-slate-500">{ps.subject_details?.units} UNITS</span>
+                                    </div>
+                                    <div className="text-xs font-bold text-slate-200 line-clamp-1">{ps.subject_details?.name}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+
+                    <Card title="Load Statistics" className="bg-white border-slate-100">
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center py-3 border-b border-slate-50">
+                                <span className="text-xs font-bold text-slate-400 uppercase">Employment</span>
+                                <span className="text-sm font-black text-slate-700">{selectedProf?.employment_status}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-3 border-b border-slate-50">
+                                <span className="text-xs font-bold text-slate-400 uppercase">Active Sections</span>
+                                <span className="text-sm font-black text-slate-700">{new Set(profSchedules.map(s => s.section)).size}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-3 border-b border-slate-50">
+                                <span className="text-xs font-bold text-slate-400 uppercase">Days Utilized</span>
+                                <span className="text-sm font-black text-slate-700">{new Set(profSchedules.flatMap(s => s.days)).size}</span>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-xl mt-4">
+                                <div className="flex items-center gap-3 text-blue-600 mb-2">
+                                    <Clock size={16} />
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Time Complexity</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 leading-relaxed font-bold">Professor teaching window is validated against Section overlaps and general availability to ensure a conflict-free semester.</p>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
             </div>
 
-            {/* Setup Modal */}
+             {/* Modal for Setup remains essentially same but matches new design */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
@@ -305,69 +469,107 @@ const SchedulingPage = () => {
                 size="md"
             >
                 <div className="space-y-6">
-                    <div className="p-4 bg-slate-900 text-white rounded-2xl flex justify-between items-center">
+                    <div className="bg-slate-900 p-4 rounded-lg text-white flex justify-between items-center">
                         <div>
-                            <div className="text-[10px] font-black uppercase tracking-widest opacity-60">Subject & Section</div>
-                            <div className="font-black text-lg">{selectedSchedule?.subject_code} — {selectedSchedule?.section_name}</div>
+                            <div className="text-[10px] uppercase font-bold opacity-50 mb-1">Subject & Section ({selectedSchedule?.section_session})</div>
+                            <div className="text-lg font-bold">{selectedSchedule?.subject_code} — {selectedSchedule?.section_name}</div>
                         </div>
-                        <Badge variant="info" className="bg-blue-600 border-none font-black">{selectedSchedule?.component_type}</Badge>
+                        <Badge variant="info">{selectedSchedule?.component_type}</Badge>
                     </div>
 
                     <div className="space-y-4">
-                        <label className="text-sm font-black text-slate-700 uppercase tracking-tight">Select Days</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Teaching Days</label>
                         <div className="flex flex-wrap gap-2">
-                            {['M', 'T', 'W', 'TH', 'F', 'S'].map(day => (
-                                <button
-                                    key={day}
-                                    onClick={() => toggleDay(day)}
-                                    className={`px-4 py-2 rounded-xl font-black text-xs transition-all border-2 ${
-                                        formData.days.includes(day)
-                                        ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200'
-                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                                    }`}
-                                >
-                                    {day}
-                                </button>
-                            ))}
+                            {['M', 'T', 'W', 'TH', 'F', 'S'].map(day => {
+                                const isAvailable = profAvailability.some(a => a.day === day && a.session === selectedSchedule?.section_session);
+                                return (
+                                    <button
+                                        key={day}
+                                        disabled={!isAvailable}
+                                        onClick={() => setFormData(prev => ({
+                                            ...prev,
+                                            days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day]
+                                        }))}
+                                        className={`w-12 h-12 rounded-lg font-bold text-sm border flex items-center justify-center transition-all ${
+                                            formData.days.includes(day)
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-105'
+                                            : isAvailable
+                                                ? 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
+                                                : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-50'
+                                        }`}
+                                    >
+                                        {day}
+                                        {!isAvailable && <span className="absolute top-0 right-0 w-2 h-2 bg-red-400 rounded-full"></span>}
+                                    </button>
+                                );
+                            })}
                         </div>
+                        <p className="text-[10px] text-slate-400 font-bold italic">* RED DOT INDICATES PROFESSOR UNAVAILABLE AT THIS SESSION ({selectedSchedule?.section_session})</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <Input 
-                            label="Start Time"
-                            type="time"
-                            value={formData.start_time}
-                            onChange={(e) => setFormData({...formData, start_time: e.target.value})}
-                        />
-                        <Input 
-                            label="End Time"
-                            type="time"
-                            value={formData.end_time}
-                            onChange={(e) => setFormData({...formData, end_time: e.target.value})}
-                        />
+                        <Input label="Start Time" type="time" value={formData.start_time} onChange={(e) => setFormData({...formData, start_time: e.target.value})} />
+                        <Input label="End Time" type="time" value={formData.end_time} onChange={(e) => setFormData({...formData, end_time: e.target.value})} />
                     </div>
 
                     <Select 
-                        label="Room Assignment (Optional)"
+                        label="Room Assignment"
                         placeholder="Automatic / TBA"
                         value={formData.room}
                         onChange={(e) => setFormData({...formData, room: e.target.value})}
                         options={rooms.map(r => ({
                             value: r.id,
-                            label: `${r.name} (${r.room_type} — Cap: ${r.capacity})`
+                            label: `${r.name} (${r.room_type} — Max: ${r.capacity})`
                         }))}
                     />
 
-                    <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex gap-3">
-                        <Info size={18} className="text-blue-600 shrink-0" />
-                        <p className="text-[10px] font-bold text-blue-700 leading-relaxed uppercase">
-                            The system will automatically validate conflicts for the professor, section, and room upon saving.
-                        </p>
+                    <div className="flex gap-3 justify-end pt-4">
+                        <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button variant="primary" loading={isSavingSchedule} onClick={handleSaveSchedule}>Publish Load</Button>
                     </div>
+                </div>
+             </Modal>
 
-                    <div className="flex gap-3 justify-end mt-8">
-                        <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button variant="primary" loading={isSaving} onClick={handleSaveSchedule}>Publish Schedule</Button>
+            {/* Modal for Adding New Load */}
+            <Modal
+                isOpen={isAddLoadModalOpen}
+                onClose={() => setIsAddLoadModalOpen(false)}
+                title="Available Unassigned Sections"
+                size="lg"
+            >
+                <div className="space-y-4">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest bg-slate-50 p-3 rounded-lg border border-slate-100 italic">
+                        The following sections are for subjects assigned to this professor but currently have no assigned faculty.
+                    </p>
+                    <div className="max-h-[500px] overflow-y-auto pr-2 space-y-3">
+                        {availableSlots.map(slot => (
+                            <div key={slot.id} className="p-4 rounded-xl border border-slate-100 hover:border-blue-400 hover:bg-blue-50/30 transition-all flex justify-between items-center group">
+                                <div>
+                                    <div className="flex gap-2 mb-1">
+                                        <Badge variant="neutral" className="text-[9px] font-black">{slot.section_name}</Badge>
+                                        <Badge variant={slot.section_session === 'AM' ? 'info' : 'warning'} className="text-[9px] font-black">{slot.section_session}</Badge>
+                                    </div>
+                                    <div className="text-sm font-black text-slate-800">{slot.subject_code} — {slot.subject_description}</div>
+                                </div>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    icon={<ChevronRight size={14} />} 
+                                    onClick={() => {
+                                        setIsAddLoadModalOpen(false);
+                                        handleOpenSetup(slot);
+                                    }}
+                                >
+                                    ASSIGN
+                                </Button>
+                            </div>
+                        ))}
+                        {availableSlots.length === 0 && (
+                            <div className="text-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                                <BookOpen size={48} className="mx-auto text-slate-200 mb-4" />
+                                <h4 className="text-slate-400 font-black tracking-widest uppercase text-sm">No Unassigned Sections Found</h4>
+                            </div>
+                        )}
                     </div>
                 </div>
             </Modal>
