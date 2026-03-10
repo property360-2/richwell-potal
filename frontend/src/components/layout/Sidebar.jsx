@@ -37,8 +37,6 @@ const getNavItems = (role) => {
     items.push({ path: '/admin/academics', label: 'Academics', icon: BookOpen });
     items.push({ path: '/admin/terms', label: 'Terms', icon: Calendar });
     items.push({ path: '/admin/faculty', label: 'Faculty', icon: Briefcase });
-    items.push({ path: '/sections', label: 'Sections', icon: Users });
-    items.push({ path: '/scheduling', label: 'Scheduling', icon: Clock });
     items.push({ path: '/grades', label: 'Grades', icon: ClipboardList });
   }
 
@@ -50,10 +48,14 @@ const getNavItems = (role) => {
   if (['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN'].includes(normalizedRole)) {
     items.push({ path: '/registrar/verification', label: 'Verify Docs', icon: ClipboardList });
     items.push({ path: '/registrar/crediting', label: 'Subject Crediting', icon: BookOpen });
+    items.push({ path: '/registrar/sectioning', label: 'Sectioning', icon: Users });
   }
 
   if (['PROGRAM_HEAD', 'DEAN', 'ADMIN'].includes(normalizedRole)) {
      items.push({ path: '/faculty/load', label: 'Faculty Load', icon: Briefcase });
+     if (normalizedRole === 'DEAN' || normalizedRole === 'ADMIN') {
+        items.push({ path: '/dean/scheduling', label: 'Scheduling', icon: Clock });
+     }
      if (normalizedRole === 'PROGRAM_HEAD' || normalizedRole === 'ADMIN') {
         items.push({ path: '/program-head/advising', label: 'Advising Approval', icon: CheckCircle });
      }
@@ -72,6 +74,7 @@ const getNavItems = (role) => {
     items[0].path = '/student'; // Point Dashboard directly to student page
     items.push({ path: '/student/advising', label: 'Subject Advising', icon: ClipboardList });
     items.push({ path: '/student/grades', label: 'My Grades', icon: ClipboardList });
+    items.push({ path: '/student/picking', label: 'Schedule Picking', icon: Clock });
     items.push({ path: '/student/schedule', label: 'My Schedule', icon: Clock });
     items.push({ path: '/student/payments', label: 'Payments', icon: CreditCard });
   }

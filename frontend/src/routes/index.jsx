@@ -32,9 +32,12 @@ import PublicApplication from '../pages/PublicApplication';
 import ApplicantManagement from '../pages/admission/ApplicantManagement';
 import DocumentVerification from '../pages/registrar/DocumentVerification';
 import SubjectCrediting from '../pages/registrar/SubjectCrediting';
+import SectioningDashboard from '../pages/registrar/SectioningDashboard';
 import FacultyManagement from '../pages/admin/FacultyManagement';
 import AdvisingApproval from '../pages/program-head/AdvisingApproval';
 import StudentManagement from '../pages/admin/StudentManagement';
+import SchedulingPage from '../pages/dean/SchedulingPage';
+import SchedulePicking from '../pages/student/SchedulePicking';
 
 // Placeholder Phase 2+ Pages
 const AdminDashboard = () => <div className="p-8">Admin Dashboard</div>;
@@ -221,6 +224,9 @@ const AppRoutes = () => {
         <Route element={<PageWrapper title="Subject Crediting" />}>
            <Route path="/registrar/crediting" element={<SubjectCrediting />} />
         </Route>
+        <Route element={<PageWrapper title="Sectioning" />}>
+           <Route path="/registrar/sectioning" element={<SectioningDashboard />} />
+        </Route>
       </Route>
 
       <Route element={<ProtectedRoute allowedRoles={['ADMISSION', 'ADMIN']} />}>
@@ -233,6 +239,9 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={['DEAN']} />}>
         <Route element={<PageWrapper title="Dean Dashboard" />}>
           <Route path="/dean" element={<DeanDashboard />} />
+        </Route>
+        <Route element={<PageWrapper title="Scheduling" />}>
+           <Route path="/dean/scheduling" element={<SchedulingPage />} />
         </Route>
       </Route>
 
@@ -265,6 +274,9 @@ const AppRoutes = () => {
         </Route>
         <Route element={<PageWrapper title="Subject Advising" />}>
           <Route path="/student/advising" element={<StudentAdvising />} />
+        </Route>
+        <Route element={<PageWrapper title="Schedule Picking" />}>
+          <Route path="/student/picking" element={<SchedulePicking />} />
         </Route>
         <Route element={<PageWrapper title="My Grades" />}>
           <Route path="/student/grades" element={<MyGrades />} />

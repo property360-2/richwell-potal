@@ -61,7 +61,8 @@ const StudentAdvising = () => {
           setPassedSubjectIds(passedRes.data.results.map(g => g.subject) || []);
           
           if (!enrollData.is_regular && (!gradesRes.data.results || gradesRes.data.results.length === 0)) {
-             const subjectsRes = await api.get(`academics/subjects/?semester=${term.semester_type}&page_size=100`);
+             // Fetch ALL subjects for the student's CURRICULUM (excluding semester filter)
+             const subjectsRes = await api.get(`academics/subjects/?curriculum=${enrollData.student_details?.curriculum}&page_size=200`);
              setAvailableSubjects(subjectsRes.data.results || []);
           }
         }
@@ -99,7 +100,17 @@ const StudentAdvising = () => {
     }
   };
 
+  const isOfferedThisTerm = (subject) => {
+    if (!activeTerm) return false;
+    return subject.semester === activeTerm.semester_type;
+  };
+
   const toggleSubject = (subject) => {
+    if (!isOfferedThisTerm(subject)) {
+      alert(`Cannot select ${subject.code}: This subject is not offered in the current semester (${activeTerm?.semester_display}).`);
+      return;
+    }
+
     const prereq = checkPrerequisites(subject);
     if (!prereq.met && !selectedSubjectIds.includes(subject.id)) {
       alert(`Cannot select ${subject.code}: ${prereq.reason}`);
@@ -265,7 +276,7 @@ const StudentAdvising = () => {
                   <ClipboardList size={64} className="mx-auto text-blue-500 mb-4 opacity-20" />
                   <h3 className="text-xl font-bold text-slate-800">Ready for Auto-Advising</h3>
                   
-                  {!enrollment?.is_advising_unlocked ? (
+                  {!enrollment?.student_details?.is_advising_unlocked ? (
                     <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-lg max-w-sm mx-auto">
                       <p className="text-amber-800 text-sm font-medium">
                         Waiting for Registrar Approval
@@ -285,7 +296,7 @@ const StudentAdvising = () => {
                     size="lg"
                     loading={loading}
                     onClick={handleAutoAdvise}
-                    disabled={!enrollment?.is_advising_unlocked}
+                    disabled={!enrollment?.student_details?.is_advising_unlocked}
                   >
                     Generate Enrollment Slip
                   </Button>
@@ -316,16 +327,24 @@ const StudentAdvising = () => {
                            {subjects.map(subject => {
                               const isSelected = selectedSubjectIds.includes(subject.id);
                               const prereq = checkPrerequisites(subject);
+                              const isOffered = isOfferedThisTerm(subject);
+                              
                               return (
                                 <div 
                                   key={subject.id}
-                                  className={`subject-selection-item ${isSelected ? 'selected' : ''} ${!prereq.met ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  className={`subject-selection-item ${isSelected ? 'selected' : ''} ${(!prereq.met || !isOffered) ? 'opacity-50' : ''}`}
+                                  style={{ cursor: (!prereq.met || !isOffered) ? 'not-allowed' : 'pointer' }}
                                   onClick={() => toggleSubject(subject)}
                                 >
                                   <div className="flex-1">
-                                     <div className="flex items-center gap-2">
+                                     <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-bold text-slate-800">{subject.code}</span>
                                         <span className="text-xs text-slate-500">• {subject.total_units} Units</span>
+                                        {!isOffered && (
+                                          <Badge variant="ghost" size="sm" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>
+                                            Not Offered This Term
+                                          </Badge>
+                                        )}
                                         {!prereq.met && (
                                           <Badge variant="error" size="sm" icon={<AlertCircle size={10}/>}>
                                             Missing Prereq
@@ -339,7 +358,7 @@ const StudentAdvising = () => {
                                   </div>
                                   <div className="selection-checkbox">
                                      {isSelected && <CheckCircle2 size={16} />}
-                                     {!isSelected && !prereq.met && <AlertCircle size={16} className="text-slate-300" />}
+                                     {!isSelected && (!prereq.met || !isOffered) && <AlertCircle size={16} className="text-slate-300" />}
                                   </div>
                                 </div>
                               );

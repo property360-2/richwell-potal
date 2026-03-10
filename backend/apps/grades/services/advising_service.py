@@ -11,55 +11,59 @@ class AdvisingService:
     def check_student_regularity(student, term):
         """
         Determines if a student should be Regular or Irregular.
-        Regular means they have passed all subjects in their curriculum 
-        prior to their current year level and semester.
+        Irregular if:
+        1. Has unresolved INC.
+        2. Failed a subject that is a prerequisite for another subject.
+        3. Missing "Back Subjects" (prior units in the curriculum sequence).
         """
-        # 1. New Transferees are Irregular by default (needs crediting/selection)
+        # 0. New Transferees are Irregular by default (needs crediting/selection)
         if student.student_type == 'TRANSFEREE':
-            has_history = Grade.objects.filter(student=student).exists()
+            has_history = Grade.objects.filter(student=student, grade_status=Grade.STATUS_PASSED).exists()
             if not has_history:
                 return False
 
-        # 2. Check for unresolved INC, FAILED, RETAKE, DROPPED
-        # A subject is "unresolved" if the student hasn't PASSED it yet.
-        problematic_grades = Grade.objects.filter(
-            student=student,
-            grade_status__in=[Grade.STATUS_FAILED, Grade.STATUS_INC, Grade.STATUS_DROPPED, Grade.STATUS_RETAKE]
-        ).exclude(
-            subject__in=Grade.objects.filter(
-                student=student,
-                grade_status=Grade.STATUS_PASSED
-            ).values_list('subject_id', flat=True)
-        )
+        # 1. Check for INC
+        if Grade.objects.filter(student=student, grade_status=Grade.STATUS_INC).exists():
+            return False
+
+        # 2. Check for Failed Prerequisites
+        from apps.academics.models import SubjectPrerequisite
+        failed_subject_ids = Grade.objects.filter(
+            student=student, 
+            grade_status=Grade.STATUS_FAILED
+        ).values_list('subject_id', flat=True)
         
-        if problematic_grades.exists():
+        if SubjectPrerequisite.objects.filter(
+            prerequisite_subject_id__in=failed_subject_ids,
+            prerequisite_type='SPECIFIC'
+        ).exists():
             return False
 
         # 3. Check for Back Subjects
+        # Determine standing (Year/Sem)
+        # If already enrolled for this term, use that year level. 
+        # Otherwise, use the calculated year level.
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        if not enrollment:
-            return True
-            
-        current_year = enrollment.year_level
+        current_year = enrollment.year_level if enrollment else AdvisingService.get_year_level(student)
         current_sem = term.semester_type
         
         sem_weight = {'1': 1, '2': 2, 'S': 3}
         curr_weight = sem_weight.get(current_sem, 0)
-        
-        # Get all curriculum subjects prior to current year/sem
-        past_subjects = Subject.objects.filter(curriculum=student.curriculum).filter(
+
+        # Subjects from previous years OR previous semesters of current year
+        back_subjects = Subject.objects.filter(curriculum=student.curriculum).filter(
             Q(year_level__lt=current_year) | 
             Q(year_level=current_year, semester__in=[k for k, v in sem_weight.items() if v < curr_weight])
         )
-        
-        for subj in past_subjects:
-            passed = Grade.objects.filter(
-                student=student, 
-                subject=subj, 
-                grade_status=Grade.STATUS_PASSED
-            ).exists()
-            if not passed:
-                return False
+
+        # If any of these "should have been passed" subjects are missing PASSED grade
+        passed_subjects = Grade.objects.filter(
+            student=student, 
+            grade_status=Grade.STATUS_PASSED
+        ).values_list('subject_id', flat=True)
+
+        if back_subjects.exclude(id__in=passed_subjects).exists():
+            return False
 
         return True
 
@@ -67,8 +71,7 @@ class AdvisingService:
     def get_year_level(student):
         """
         Calculates the year level of a student based on passed subjects.
-        Returns the year level with the highst number of passed subjects 
-        relative to the curriculum.
+        Returns the HIGHEST year level where the student has passed at least one subject.
         """
         passed_subjects = Grade.objects.filter(
             student=student, 
@@ -78,18 +81,14 @@ class AdvisingService:
         if not passed_subjects:
             return 1
 
-        # Count how many subjects from each year level the student has passed
-        year_counts = Subject.objects.filter(
-            curriculum=student.curriculum
-        ).values('year_level').annotate(count=Count('year_level')).order_by('-year_level')
+        # Find the highest year_level among passed subjects
+        from django.db.models import Max
+        highest_year = Subject.objects.filter(
+            curriculum=student.curriculum,
+            id__in=passed_subjects
+        ).aggregate(max_year=Max('year_level'))['max_year']
 
-        if not year_counts:
-            return 1
-            
-        # Strategy: Find the highest year level where the student has completed 
-        # a significant portion of subjects, or just return the max year found.
-        # For now, we'll return the highest year level where they have passed at least one subject.
-        return year_counts[0]['year_level']
+        return highest_year or 1
 
     @staticmethod
     @transaction.atomic
