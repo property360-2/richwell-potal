@@ -1,9 +1,39 @@
 import math
+from datetime import time
 from django.db import transaction, models
 from apps.sections.models import Section
 from apps.scheduling.models import Schedule
 from apps.students.models import StudentEnrollment
 from apps.academics.models import Subject
+
+# AM: 7am start, up to 12 hours (7am-6pm). PM: 1pm start, up to 8 hours (1pm-8pm)
+AM_START = 7
+AM_HOURS = list(range(7, 19))
+PM_START = 13
+PM_HOURS = list(range(13, 21))
+DAYS_ORDER = ['M', 'T', 'W', 'TH', 'F', 'S']
+
+
+def _allocate_slots(used_slots, session, num_hours):
+    """
+    Block scheduling: allocates num_hours as one contiguous block on one day.
+    AM starts 7:00, PM starts 13:00. Returns (days, start_time, end_time) or None.
+    """
+    hours = AM_HOURS if session == 'AM' else PM_HOURS
+    if num_hours <= 0 or num_hours > len(hours):
+        return None
+
+    for day in DAYS_ORDER:
+        for start_idx in range(len(hours) - num_hours + 1):
+            block = [(day, hours[start_idx + i]) for i in range(num_hours)]
+            if all(slot not in used_slots for slot in block):
+                for slot in block:
+                    used_slots.add(slot)
+                start_hour = hours[start_idx]
+                end_hour = start_hour + num_hours
+                return ([day], time(start_hour, 0), time(end_hour, 0))
+    return None
+
 
 class SectioningService:
     @staticmethod
@@ -51,19 +81,19 @@ class SectioningService:
         
         created_sections = []
         
-        # 4. Fetch subjects for this program/year/semester
-        # We fetch from the curriculum version that is active and belonging to the program.
+        # 4. Fetch subjects for this program/year/semester (exclude practicum)
         subjects = Subject.objects.filter(
             curriculum__program=program,
             curriculum__is_active=True,
             year_level=year_level,
-            semester=term.semester_type
-        )
-        
+            semester=term.semester_type,
+            is_practicum=False
+        ).order_by('code')
+
         for i in range(1, num_sections + 1):
             session = 'AM' if i <= num_am else 'PM'
-            section_name = f"{program.code} {year_level}-{i}" # BSIS 1-1, 1-2...
-            
+            section_name = f"{program.code} {year_level}-{i}"
+
             section, created = Section.objects.get_or_create(
                 term=term,
                 program=program,
@@ -77,26 +107,34 @@ class SectioningService:
                 }
             )
             created_sections.append(section)
-            
-            # Attach subjects via empty Schedule slots (both LEC and LAB if applicable)
+
+            used_slots = set()
             for subject in subjects:
-                # Add Lecture component
                 if subject.lec_units > 0:
+                    allocation = _allocate_slots(used_slots, session, subject.lec_units)
+                    defaults = {'days': [], 'start_time': None, 'end_time': None}
+                    if allocation:
+                        days, start_t, end_t = allocation
+                        defaults = {'days': days, 'start_time': start_t, 'end_time': end_t}
                     Schedule.objects.get_or_create(
                         term=term,
                         section=section,
                         subject=subject,
                         component_type='LEC',
-                        defaults={'days': []}
+                        defaults=defaults
                     )
-                # Add Lab component
                 if subject.lab_units > 0:
+                    allocation = _allocate_slots(used_slots, session, subject.lab_units)
+                    defaults = {'days': [], 'start_time': None, 'end_time': None}
+                    if allocation:
+                        days, start_t, end_t = allocation
+                        defaults = {'days': days, 'start_time': start_t, 'end_time': end_t}
                     Schedule.objects.get_or_create(
                         term=term,
                         section=section,
                         subject=subject,
                         component_type='LAB',
-                        defaults={'days': []}
+                        defaults=defaults
                     )
         
         return created_sections

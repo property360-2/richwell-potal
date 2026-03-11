@@ -1,15 +1,33 @@
 from django.db import transaction, models
+from django.utils import timezone
 from apps.sections.models import Section, SectionStudent
 from apps.grades.models import Grade
 from apps.students.models import StudentEnrollment
 
 class PickingService:
+    @staticmethod
+    def validate_picking_period(term):
+        """
+        Validates that schedule picking is allowed for this term.
+        Raises ValueError if schedule not published or outside picking period.
+        """
+        if not term.schedule_published:
+            raise ValueError("Schedule has not been published yet. Please wait for the Dean to publish the schedule.")
+        today = timezone.localdate()
+        if term.schedule_picking_start and today < term.schedule_picking_start:
+            raise ValueError(f"Schedule picking opens on {term.schedule_picking_start.strftime('%Y-%m-%d')}.")
+        if term.schedule_picking_end and today > term.schedule_picking_end:
+            raise ValueError(f"Schedule picking has ended ({term.schedule_picking_end.strftime('%Y-%m-%d')}).")
+
     @transaction.atomic
     def pick_schedule_regular(self, student, term, preferred_session):
         """
         Assigns a regular student to a section matching their preferred session (AM/PM).
         If preferred session is full, assigns to an alternative session and notifies the student.
         """
+        # 0. Validate picking period
+        self.validate_picking_period(term)
+
         # 1. Get student's enrollment info
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if not enrollment:
@@ -69,6 +87,8 @@ class PickingService:
         Handles per-subject schedule picking for irregular students.
         selections: list of {'subject_id': id, 'section_id': id}
         """
+        self.validate_picking_period(term)
+
         for item in selections:
             subject_id = item.get('subject_id')
             section_id = item.get('section_id')

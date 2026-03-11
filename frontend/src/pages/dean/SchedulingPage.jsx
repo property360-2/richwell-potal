@@ -33,6 +33,7 @@ const SchedulingPage = () => {
     const [isAddLoadModalOpen, setIsAddLoadModalOpen] = useState(false);
     const [selectedSchedule, setSelectedSchedule] = useState(null);
     const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
     const [formData, setFormData] = useState({
         days: [],
         start_time: '',
@@ -102,6 +103,21 @@ const SchedulingPage = () => {
         setView('LIST');
         setSelectedProf(null);
         fetchData(); // Refresh list to update status
+    };
+
+    const handlePublishSchedule = async () => {
+        if (!activeTerm) return;
+        if (!window.confirm('Publish the schedule? Students will be notified and can start picking their sections.')) return;
+        try {
+            setIsPublishing(true);
+            await schedulingApi.publish({ term_id: activeTerm.id });
+            showToast('success', 'Schedule published successfully. Students may now pick their schedules.');
+            fetchData();
+        } catch (err) {
+            showToast('error', err.response?.data?.error || 'Failed to publish schedule');
+        } finally {
+            setIsPublishing(false);
+        }
     };
 
     // Availability Toggle
@@ -223,6 +239,9 @@ const SchedulingPage = () => {
                             <p className="text-sm text-slate-500 font-medium">Manage faculty teaching loads and timetable assignments for {activeTerm?.code}</p>
                         </div>
                         <div className="flex gap-4">
+                            {activeTerm?.schedule_published && (
+                                <Badge variant="success" className="self-center">Schedule Published</Badge>
+                            )}
                             <Input 
                                 placeholder="Search faculty..." 
                                 icon={<Search size={16} />} 
@@ -230,6 +249,15 @@ const SchedulingPage = () => {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-64"
                             />
+                            <Button 
+                                variant={activeTerm?.schedule_published ? "outline" : "primary"} 
+                                icon={<CheckCircle2 size={16} />} 
+                                loading={isPublishing}
+                                onClick={handlePublishSchedule}
+                                disabled={activeTerm?.schedule_published}
+                            >
+                                {activeTerm?.schedule_published ? 'Published' : 'Publish Schedule'}
+                            </Button>
                             <Button variant="ghost" icon={<RefreshCw size={16} />} onClick={fetchData}>Sync</Button>
                         </div>
                     </div>

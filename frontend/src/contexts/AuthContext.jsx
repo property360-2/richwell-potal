@@ -80,8 +80,8 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    // If we have a token but user doesn't have full info (e.g. first_name or headed_programs)
-    if (token && user && !user.first_name) {
+    // If we have a token but user doesn't have full info (e.g. first_name field is missing)
+    if (token && user && !Object.prototype.hasOwnProperty.call(user, 'first_name')) {
       fetchMe();
     }
   }, [user, fetchMe]);

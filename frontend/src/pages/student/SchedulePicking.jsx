@@ -130,6 +130,36 @@ const SchedulePicking = () => {
     );
   }
 
+  const today = new Date().toISOString().slice(0, 10);
+  const pickingNotPublished = activeTerm && !activeTerm.schedule_published;
+  const pickingNotStarted = activeTerm?.schedule_picking_start && today < activeTerm.schedule_picking_start;
+  const pickingEnded = activeTerm?.schedule_picking_end && today > activeTerm.schedule_picking_end;
+  const pickingBlocked = pickingNotPublished || pickingNotStarted || pickingEnded;
+
+  if (pickingBlocked && activeTerm) {
+    let title = 'Schedule Picking Unavailable';
+    let message = 'You cannot pick your schedule at this time.';
+    if (pickingNotPublished) {
+      title = 'Schedule Not Published Yet';
+      message = 'The Dean has not published the schedule for this term. Please check back later.';
+    } else if (pickingNotStarted) {
+      title = 'Picking Period Not Started';
+      message = `Schedule picking opens on ${activeTerm.schedule_picking_start}.`;
+    } else if (pickingEnded) {
+      title = 'Picking Period Ended';
+      message = `Schedule picking ended on ${activeTerm.schedule_picking_end}. Please contact the Registrar.`;
+    }
+    return (
+      <div className="picking-container" style={{ alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
+        <div style={{ maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Calendar size={64} style={{ color: 'var(--color-border)', marginBottom: 'var(--space-6)' }} />
+            <h2 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>{title}</h2>
+            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-6)' }}>{message}</p>
+        </div>
+      </div>
+    );
+  }
+
   const isRegular = enrollment.is_regular;
 
   return (

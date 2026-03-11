@@ -8,6 +8,7 @@ from apps.scheduling.services.picking_service import PickingService
 from apps.sections.models import Section
 from apps.faculty.models import Professor
 from apps.facilities.models import Room
+from apps.terms.models import Term
 from django.db import models
 
 class ScheduleViewSet(viewsets.ModelViewSet):
@@ -137,6 +138,24 @@ class ScheduleViewSet(viewsets.ModelViewSet):
                 "is_full": s.current_students >= s.max_students
             } for s in sections
         ])
+    @action(detail=False, methods=['POST'])
+    def publish(self, request):
+        """
+        Dean publishes the schedule for a term, opening student picking.
+        Notifies all students with approved advising.
+        """
+        term_id = request.data.get('term_id')
+        if not term_id:
+            return Response({"error": "term_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            term = Term.objects.get(id=term_id)
+            SchedulingService.publish_schedule(term)
+            return Response({"message": f"Schedule for {term.code} has been published. Students may now pick their schedules."})
+        except Term.DoesNotExist:
+            return Response({"error": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=False, methods=['GET'])
     def available_slots(self, request):
         """

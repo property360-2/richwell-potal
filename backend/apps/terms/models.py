@@ -23,6 +23,7 @@ class Term(models.Model):
     
     schedule_picking_start = models.DateField(null=True, blank=True)
     schedule_picking_end = models.DateField(null=True, blank=True)
+    schedule_published = models.BooleanField(default=False, help_text="Dean publishes schedule to open student picking")
     
     midterm_grade_start = models.DateField(null=True, blank=True)
     midterm_grade_end = models.DateField(null=True, blank=True)

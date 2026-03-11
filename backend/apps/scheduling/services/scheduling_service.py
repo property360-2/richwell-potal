@@ -1,10 +1,42 @@
 from django.db import transaction, models
+from django.conf import settings
 from apps.scheduling.models import Schedule
 from apps.facilities.models import Room
 from apps.faculty.models import Professor
 from apps.sections.models import Section
 
 class SchedulingService:
+    @staticmethod
+    @transaction.atomic
+    def publish_schedule(term):
+        """
+        Marks the schedule as published, opening student picking.
+        Notifies all students with approved advising for this term.
+        """
+        term.schedule_published = True
+        term.save(update_fields=['schedule_published'])
+
+        # Notify students with approved advising
+        from apps.students.models import StudentEnrollment
+        from apps.notifications.models import Notification
+
+        enrollments = StudentEnrollment.objects.filter(
+            term=term,
+            advising_status='APPROVED'
+        ).select_related('student__user')
+
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        link_url = f"{frontend_url}/student/schedule-picking"
+
+        for enrollment in enrollments:
+            if enrollment.student.user_id:
+                Notification.objects.create(
+                    recipient=enrollment.student.user,
+                    title="Schedule Published",
+                    message=f"Class schedules for {term.code} are now available. You may pick your section/schedule.",
+                    notification_type="SCHEDULE_PUBLISHED",
+                    link_url=link_url
+                )
     @transaction.atomic
     def create_or_update_schedule(self, term, section, subject, component_type, professor=None, room=None, days=None, start_time=None, end_time=None, exclude_id=None):
         """

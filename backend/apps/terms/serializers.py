@@ -9,8 +9,8 @@ class TermSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'code', 'academic_year', 'semester_type', 'semester_display',
             'start_date', 'end_date', 'enrollment_start', 'enrollment_end',
-            'advising_start', 'advising_end', 'schedule_picking_start',
-            'schedule_picking_end', 'midterm_grade_start', 'midterm_grade_end',
+            'advising_start', 'advising_end',             'schedule_picking_start',
+            'schedule_picking_end', 'schedule_published', 'midterm_grade_start', 'midterm_grade_end',
             'final_grade_start', 'final_grade_end', 'is_active',
             'created_at', 'updated_at'
         ]

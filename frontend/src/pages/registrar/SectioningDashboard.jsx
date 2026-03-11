@@ -115,9 +115,9 @@ const SectioningDashboard = () => {
     
     try {
       setIsTransferring(true);
-      await sectionsApi.transferStudent(selectedSection.id, {
+      await sectionsApi.transferStudent(targetSectionId, {
         student_id: studentToTransfer.student_id,
-        target_section_id: targetSectionId
+        term_id: activeTerm.id
       });
       showToast('success', 'Student transferred successfully');
       setIsTransferOpen(false);
@@ -173,10 +173,10 @@ const SectioningDashboard = () => {
     },
     { 
         header: 'Schedule', 
-        render: (row) => row.days.length > 0 ? (
+        render: (row) => row.days?.length > 0 && row.start_time && row.end_time ? (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontWeight: 700 }}>{row.days.join('')}</span>
-                <span style={{ fontSize: '10px' }}>{row.start_time.substring(0,5)} - {row.end_time.substring(0,5)}</span>
+                <span style={{ fontSize: '10px' }}>{String(row.start_time).substring(0,5)} - {String(row.end_time).substring(0,5)}</span>
             </div>
         ) : 'TBA'
     },

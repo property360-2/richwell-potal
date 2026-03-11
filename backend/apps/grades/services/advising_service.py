@@ -153,8 +153,8 @@ class AdvisingService:
         """
         subjects = Subject.objects.filter(id__in=subject_ids)
         # Calculate total units including existing ones in THIS term
-        existing_units = sum(g.subject.units for g in Grade.objects.filter(student=student, term=term))
-        new_units = sum(s.units for s in subjects)
+        existing_units = sum(g.subject.total_units for g in Grade.objects.filter(student=student, term=term))
+        new_units = sum(s.total_units for s in subjects)
         total_term_units = existing_units + new_units
 
         if total_term_units > 30:

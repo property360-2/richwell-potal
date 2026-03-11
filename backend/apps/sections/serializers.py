@@ -2,8 +2,11 @@ from rest_framework import serializers
 from apps.sections.models import Section, SectionStudent
 
 class SectionSerializer(serializers.ModelSerializer):
-    student_count = serializers.IntegerField(source='student_assignments.count', read_only=True)
+    student_count = serializers.SerializerMethodField()
     program_code = serializers.CharField(source='program.code', read_only=True)
+
+    def get_student_count(self, obj):
+        return obj.student_assignments.count()
     
     class Meta:
         model = Section

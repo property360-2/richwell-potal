@@ -6,6 +6,7 @@ User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     headed_programs = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -18,13 +19,18 @@ class UserSerializer(serializers.ModelSerializer):
             for p in obj.headed_programs.all()
         ]
 
-
+    def get_role(self, obj):
+        # Default superusers without a specific role to ADMIN
+        if not obj.role and obj.is_superuser:
+            return 'ADMIN'
+        return obj.role
 
 class LoginSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        token['role'] = user.role
+        # Default superusers without a specific role to ADMIN
+        token['role'] = user.role if user.role or not user.is_superuser else 'ADMIN'
         token['username'] = user.username
         return token
 
