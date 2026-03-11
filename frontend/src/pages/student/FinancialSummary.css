@@ -1,0 +1,48 @@
+.financial-summary-container {
+    min-height: calc(100vh - 100px);
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.financial-summary-container .animate-in {
+    animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.text-danger {
+    color: #ef4444;
+}
+
+.text-emerald-600 {
+    color: #059669;
+}
+
+.text-emerald-500 {
+    color: #10b981;
+}
+
+.border-t-emerald-500 {
+    border-top-color: #10b981;
+}
+
+.border-t-amber-500 {
+    border-top-color: #f59e0b;
+}
+
+.border-primary\/10 {
+    border-color: rgba(37, 99, 235, 0.1);
+}
+
+.hover\:bg-primary\/5:hover {
+    background-color: rgba(37, 99, 235, 0.05);
+}

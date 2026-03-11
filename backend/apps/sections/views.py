@@ -13,6 +13,12 @@ class SectionViewSet(viewsets.ModelViewSet):
     serializer_class = SectionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'generate', 'transfer']:
+            from core.permissions import IsRegistrar
+            return [IsRegistrar()]
+        return super().get_permissions()
+
     service = SectioningService()
 
     def get_queryset(self):
@@ -33,7 +39,7 @@ class SectionViewSet(viewsets.ModelViewSet):
             
         return queryset
 
-    @action(detail=False, methods=['GET'])
+    @action(detail=False, methods=['GET'], url_path='stats')
     def stats(self, request):
         """
         Returns enrollment stats for the Registrar's matrix.
@@ -49,7 +55,7 @@ class SectionViewSet(viewsets.ModelViewSet):
         except Term.DoesNotExist:
             return Response({"error": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    @action(detail=False, methods=['POST'])
+    @action(detail=False, methods=['POST'], url_path='generate')
     def generate(self, request):
         """
         Auto-generates sections for a specific program and year level.
@@ -65,14 +71,15 @@ class SectionViewSet(viewsets.ModelViewSet):
         try:
             term = Term.objects.get(id=term_id)
             program = Program.objects.get(id=program_id)
+            auto_schedule = request.data.get('auto_schedule', False)
             
-            sections = self.service.generate_sections(term, program, int(year_level))
+            sections = self.service.generate_sections(term, program, int(year_level), auto_schedule=auto_schedule)
             serializer = self.get_serializer(sections, many=True)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=['POST'], url_path='transfer')
     def transfer(self, request, pk=None):
         """
         Manually transfers a student to this section.
@@ -106,3 +113,45 @@ class SectionViewSet(viewsets.ModelViewSet):
         assignments = SectionStudent.objects.filter(section=section)
         serializer = SectionStudentSerializer(assignments, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['GET'], url_path='my-sections')
+    def my_sections(self, request):
+        """
+        Returns sections and subjects assigned to the logged-in professor.
+        """
+        if not hasattr(request.user, 'professor_profile'):
+            return Response({"error": "User does not have a professor profile."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        professor = request.user.professor_profile
+        active_term = Term.objects.filter(is_active=True).first()
+        
+        if not active_term:
+            return Response({"error": "No active term found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.scheduling.models import Schedule
+        # Get unique (section, subject) pairs from schedules assigned to this professor
+        schedules = Schedule.objects.filter(
+            professor=professor,
+            term=active_term
+        ).select_related('section', 'subject')
+
+        results = []
+        seen_pairs = set()
+        
+        for sched in schedules:
+            pair = (sched.section_id, sched.subject_id)
+            if pair not in seen_pairs:
+                results.append({
+                    "section": {
+                        "id": sched.section.id,
+                        "name": sched.section.name,
+                    },
+                    "subject": {
+                        "id": sched.subject.id,
+                        "code": sched.subject.code,
+                        "name": sched.subject.name,
+                    }
+                })
+                seen_pairs.add(pair)
+                
+        return Response(results)

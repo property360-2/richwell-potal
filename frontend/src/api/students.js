@@ -6,13 +6,14 @@ export const studentsApi = {
     updateStudent: (id, data) => api.patch(`students/${id}/`, data),
     apply: (data) => api.post('students/apply/', data),
     approve: (id, data) => api.post(`students/${id}/approve/`, data),
-    returningStudent: (id, data) => api.post(`students/${id}/returning_student/`, data),
+    returningStudent: (id, data) => api.post(`students/${id}/returning-student/`, data),
 
     // Enrollments
     getEnrollments: (params) => api.get('students/enrollments/', { params }),
     getEnrollment: (id) => api.get(`students/enrollments/${id}/`),
     createEnrollment: (data) => api.post('students/enrollments/', data),
-    manualAdd: (data) => api.post('students/manual_add/', data),
+    manualAdd: (data) => api.post('students/manual-add/', data),
+    getSchedule: (term_id) => api.get('students/enrollments/schedule/', { params: { term: term_id } }),
 };
 
 export default studentsApi;

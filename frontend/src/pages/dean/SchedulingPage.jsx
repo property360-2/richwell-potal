@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Users, BookOpen, Calendar, MapPin, AlertTriangle, CheckCircle2, Search, Edit2, RefreshCw, ChevronRight, Info } from 'lucide-react';
+import { Clock, BookOpen, Calendar, MapPin, AlertTriangle, CheckCircle2, Search, Edit2, RefreshCw, ChevronRight } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -8,6 +8,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useToast } from '../../components/ui/Toast';
 import { schedulingApi } from '../../api/scheduling';
 import { facultyApi } from '../../api/faculty';
+import { sectionsApi } from '../../api/sections';
 import { termsApi } from '../../api/terms';
 import { facilitiesApi } from '../../api/facilities';
 import Modal from '../../components/ui/Modal';
@@ -17,14 +18,21 @@ import './SchedulingPage.css';
 
 const SchedulingPage = () => {
     const [view, setView] = useState('LIST'); // 'LIST' or 'MANAGE'
-    const [professors, setProfessors] = useState([]);
-    const [selectedProf, setSelectedProf] = useState(null);
-    const [profSchedules, setProfSchedules] = useState([]);
-    const [profAvailability, setProfAvailability] = useState([]);
+    const [activeTab, setActiveTab] = useState('professors'); // 'professors' or 'sections'
     const [loading, setLoading] = useState(true);
     const [activeTerm, setActiveTerm] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+    
+    // Data Lists
+    const [professors, setProfessors] = useState([]);
+    const [sections, setSections] = useState([]);
     const [rooms, setRooms] = useState([]);
+    
+    // Selected Context
+    const [selectedProf, setSelectedProf] = useState(null);
+    const [selectedSection, setSelectedSection] = useState(null);
+    const [profSchedules, setProfSchedules] = useState([]);
+    const [profAvailability, setProfAvailability] = useState([]);
     const [availableSlots, setAvailableSlots] = useState([]);
     
     // UI State
@@ -34,7 +42,9 @@ const SchedulingPage = () => {
     const [selectedSchedule, setSelectedSchedule] = useState(null);
     const [isSavingSchedule, setIsSavingSchedule] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+    
     const [formData, setFormData] = useState({
+        professor: '',
         days: [],
         start_time: '',
         end_time: '',
@@ -43,7 +53,6 @@ const SchedulingPage = () => {
 
     const { showToast } = useToast();
 
-    // Days & Sessions Definition
     const DAYS = [
         { key: 'M', label: 'Monday' },
         { key: 'T', label: 'Tuesday' },
@@ -61,11 +70,16 @@ const SchedulingPage = () => {
             const term = termRes.data.results?.[0] || termRes.data[0];
             setActiveTerm(term);
 
-            const profRes = await facultyApi.getAll();
-            setProfessors(profRes.data.results || profRes.data);
-
-            const roomRes = await facilitiesApi.getRooms();
-            setRooms(roomRes.data.results || roomRes.data);
+            if (term) {
+                const [profRes, sectionRes, roomRes] = await Promise.all([
+                    facultyApi.getAll(),
+                    sectionsApi.getSections({ term_id: term.id }),
+                    facilitiesApi.getRooms()
+                ]);
+                setProfessors(profRes.data.results || profRes.data);
+                setSections(sectionRes.data.results || sectionRes.data);
+                setRooms(roomRes.data.results || roomRes.data);
+            }
         } catch (err) {
             showToast('error', 'Failed to load initial data');
         } finally {
@@ -93,34 +107,38 @@ const SchedulingPage = () => {
         }
     };
 
+    const fetchSectionDetails = async (sectionId) => {
+        if (!activeTerm) return;
+        try {
+            setProfAvailability([]); 
+            const schedRes = await schedulingApi.getSchedules({ section_id: sectionId, term_id: activeTerm.id });
+            setProfSchedules(schedRes.data.results || schedRes.data);
+        } catch (err) {
+            showToast('error', 'Failed to load section details');
+        }
+    };
+
     const handleManageLoad = (prof) => {
         setSelectedProf(prof);
+        setSelectedSection(null);
         fetchProfDetails(prof.id);
+        setView('MANAGE');
+    };
+
+    const handleManageSection = (section) => {
+        setSelectedSection(section);
+        setSelectedProf(null);
+        fetchSectionDetails(section.id);
         setView('MANAGE');
     };
 
     const handleBackToList = () => {
         setView('LIST');
         setSelectedProf(null);
-        fetchData(); // Refresh list to update status
+        setSelectedSection(null);
+        fetchData(); 
     };
 
-    const handlePublishSchedule = async () => {
-        if (!activeTerm) return;
-        if (!window.confirm('Publish the schedule? Students will be notified and can start picking their sections.')) return;
-        try {
-            setIsPublishing(true);
-            await schedulingApi.publish({ term_id: activeTerm.id });
-            showToast('success', 'Schedule published successfully. Students may now pick their schedules.');
-            fetchData();
-        } catch (err) {
-            showToast('error', err.response?.data?.error || 'Failed to publish schedule');
-        } finally {
-            setIsPublishing(false);
-        }
-    };
-
-    // Availability Toggle
     const handleToggleAvailability = async (day, session) => {
         if (!selectedProf) return;
         const isCurrentlyAvailable = profAvailability.some(a => a.day === day && a.session === session);
@@ -173,25 +191,33 @@ const SchedulingPage = () => {
     const handleOpenSetup = (sched) => {
         setSelectedSchedule(sched);
         setFormData({
+            professor: sched.professor || '',
             days: sched.days || [],
             start_time: sched.start_time ? sched.start_time.substring(0, 5) : '',
             end_time: sched.end_time ? sched.end_time.substring(0, 5) : '',
             room: sched.room || ''
         });
+        
+        if (sched.professor) {
+            facultyApi.getAvailability(sched.professor).then(res => setProfAvailability(res.data));
+        }
+
         setIsModalOpen(true);
     };
 
     const handleSaveSchedule = async () => {
-        if (!formData.start_time || !formData.end_time || formData.days.length === 0) {
-            return showToast('error', 'Please fill in all required fields');
+        const profId = selectedProf?.id || formData.professor;
+        if (!formData.start_time || !formData.end_time || formData.days.length === 0 || !profId) {
+            return showToast('error', 'Please fill in all required fields including Professor');
         }
 
-        const unavailableDays = formData.days.filter(day => 
-            !profAvailability.some(a => a.day === day && a.session === selectedSchedule.section_session)
-        );
-
-        if (unavailableDays.length > 0) {
-            return showToast('error', `Professor is NOT available at ${selectedSchedule.section_session} on ${unavailableDays.join(', ')}`);
+        if (profAvailability.length > 0) {
+             const unavailableDays = formData.days.filter(day => 
+                !profAvailability.some(a => a.day === day && a.session === selectedSchedule.section_session)
+            );
+            if (unavailableDays.length > 0) {
+                return showToast('error', `Professor is NOT available at ${selectedSchedule.section_session} on ${unavailableDays.join(', ')}`);
+            }
         }
 
         try {
@@ -201,7 +227,7 @@ const SchedulingPage = () => {
                 term_id: activeTerm.id,
                 section_id: selectedSchedule.section,
                 subject_id: selectedSchedule.subject,
-                professor_id: selectedProf.id,
+                professor_id: profId,
                 room_id: formData.room || null,
                 days: formData.days,
                 start_time: formData.start_time,
@@ -209,12 +235,32 @@ const SchedulingPage = () => {
             });
             showToast('success', 'Schedule updated successfully');
             setIsModalOpen(false);
-            fetchProfDetails(selectedProf.id);
+            if (selectedProf) fetchProfDetails(selectedProf.id);
+            else if (selectedSection) fetchSectionDetails(selectedSection.id);
         } catch (err) {
             showToast('error', err.response?.data?.error || 'Conflict detected');
         } finally {
             setIsSavingSchedule(false);
         }
+    };
+
+    const handlePublishSchedule = async () => {
+        if (!activeTerm) return;
+        if (!window.confirm('Publish the schedule? Students will be notified and can start picking their sections.')) return;
+        try {
+            setIsPublishing(true);
+            await schedulingApi.publish({ term_id: activeTerm.id });
+            showToast('success', 'Schedule published successfully.');
+            fetchData();
+        } catch (err) {
+            showToast('error', err.response?.data?.error || 'Failed to publish');
+        } finally {
+            setIsPublishing(false);
+        }
+    };
+
+    const calculateTotalUnits = () => {
+        return profSchedules.reduce((acc, curr) => acc + (curr.subject_units || 0), 0);
     };
 
     const filteredProfs = professors.filter(p => {
@@ -223,27 +269,28 @@ const SchedulingPage = () => {
                p.employee_id?.toLowerCase().includes(searchQuery.toLowerCase());
     });
 
-    const calculateTotalUnits = () => {
-        return profSchedules.reduce((acc, curr) => acc + (curr.subject_units || 0), 0);
-    };
+    const filteredSections = sections.filter(s => {
+        return s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+               s.program_code?.toLowerCase().includes(searchQuery.toLowerCase());
+    });
 
     if (loading && !activeTerm) return <div className="p-8 h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
 
     if (view === 'LIST') {
         return (
-            <div className="p-8">
-                <Card className="mb-8">
+            <div className="scheduling-container-list">
+                <Card className="dashboard-header">
                     <div className="flex justify-between items-center mb-6">
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-800">Professor Scheduling Matrix</h2>
-                            <p className="text-sm text-slate-500 font-medium">Manage faculty teaching loads and timetable assignments for {activeTerm?.code}</p>
+                        <div className="header-title-section">
+                            <h2>Scheduling Dashboard</h2>
+                            <p>Manage faculty assignments and section timetables for {activeTerm?.code}</p>
                         </div>
                         <div className="flex gap-4">
                             {activeTerm?.schedule_published && (
-                                <Badge variant="success" className="self-center">Schedule Published</Badge>
+                                <Badge variant="success" className="self-center">Published</Badge>
                             )}
                             <Input 
-                                placeholder="Search faculty..." 
+                                placeholder="Search..." 
                                 icon={<Search size={16} />} 
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -262,58 +309,120 @@ const SchedulingPage = () => {
                         </div>
                     </div>
 
+                    <div className="scheduling-tabs">
+                        <button 
+                            className={`tab-button ${activeTab === 'professors' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('professors')}
+                        >
+                            Faculty Matrix
+                        </button>
+                        <button 
+                            className={`tab-button ${activeTab === 'sections' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('sections')}
+                        >
+                            Section Blocks
+                        </button>
+                    </div>
+
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 text-[10px] uppercase tracking-wider font-extrabold text-slate-400 border-b border-slate-100">
-                                    <th className="px-6 py-4">Faculty Member</th>
-                                    <th className="px-6 py-4">Employee ID</th>
-                                    <th className="px-6 py-4">Department</th>
-                                    <th className="px-6 py-4">Units Assigned</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredProfs.map(prof => (
-                                    <tr key={prof.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs uppercase">
-                                                    {prof.user?.last_name?.[0]}
-                                                </div>
-                                                <div className="font-bold text-slate-700">{prof.user?.first_name} {prof.user?.last_name}</div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 font-bold text-xs text-slate-400">{prof.employee_id}</td>
-                                        <td className="px-6 py-4 text-sm font-medium text-slate-500">{prof.department}</td>
-                                        <td className="px-6 py-4">
-                                            {/* Note: In a real scenario, this would be total units across all schedules. 
-                                                For now we show assigned subjects count as a proxy or we'd need a backend aggregation */}
-                                            <Badge variant="neutral">{prof.assigned_subjects?.length} Subjects</Badge>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {prof.assigned_subjects?.length > 0 ? (
-                                                <Badge variant="success" icon={<CheckCircle2 size={10} />}>Scheduled</Badge>
-                                            ) : (
-                                                <Badge variant="warning" icon={<AlertTriangle size={10} />}>Unscheduled</Badge>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <Button 
-                                                variant="primary" 
-                                                size="xs" 
-                                                style={{ fontWeight: 800 }} 
-                                                icon={<Edit2 size={12}/>}
-                                                onClick={() => handleManageLoad(prof)}
-                                            >
-                                                MODIFY SCHEDULE
-                                            </Button>
-                                        </td>
+                        {activeTab === 'professors' ? (
+                            <table className="matrix-table">
+                                <thead>
+                                    <tr>
+                                        <th>Faculty Member</th>
+                                        <th>Employee ID</th>
+                                        <th>Department</th>
+                                        <th>Units Loaded</th>
+                                        <th>Status</th>
+                                        <th className="text-center">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {filteredProfs.map(prof => (
+                                        <tr key={prof.id}>
+                                            <td>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="prof-avatar-small">
+                                                        {prof.user?.last_name?.[0]}
+                                                    </div>
+                                                    <div className="font-bold text-slate-700">{prof.user?.first_name} {prof.user?.last_name}</div>
+                                                </div>
+                                            </td>
+                                            <td className="font-bold text-xs text-slate-400">{prof.employee_id}</td>
+                                            <td className="text-sm font-medium text-slate-500">{prof.department}</td>
+                                            <td>
+                                                <Badge variant="neutral">{prof.assignment_count} Active Slots</Badge>
+                                            </td>
+                                            <td>
+                                                {prof.assignment_count > 0 ? (
+                                                    <Badge variant="success" icon={<CheckCircle2 size={10} />}>Configured</Badge>
+                                                ) : (
+                                                    <Badge variant="warning" icon={<AlertTriangle size={10} />}>No Load</Badge>
+                                                )}
+                                            </td>
+                                            <td className="text-center">
+                                                <Button 
+                                                    variant="primary" 
+                                                    size="xs" 
+                                                    style={{ fontWeight: 800 }} 
+                                                    icon={<Edit2 size={12}/>}
+                                                    onClick={() => handleManageLoad(prof)}
+                                                >
+                                                    MANAGE LOAD
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <table className="matrix-table">
+                                <thead>
+                                    <tr>
+                                        <th>Section Name</th>
+                                        <th>Program</th>
+                                        <th>Year Level</th>
+                                        <th>Subjects</th>
+                                        <th>Schedule Status</th>
+                                        <th className="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredSections.map(section => (
+                                        <tr key={section.id}>
+                                            <td>
+                                                <div className="font-bold text-slate-700">{section.name}</div>
+                                                <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{section.session} Session</div>
+                                            </td>
+                                            <td className="font-bold text-xs text-slate-400">{section.program_code}</td>
+                                            <td className="text-sm font-medium text-slate-500">{section.year_level}</td>
+                                            <td>
+                                                <Badge variant="neutral">{section.subject_count} Components</Badge>
+                                            </td>
+                                            <td>
+                                                <Badge 
+                                                    variant={section.scheduling_status === 'FULL' ? 'success' : section.scheduling_status === 'PARTIAL' ? 'warning' : 'neutral'}
+                                                    icon={section.scheduling_status === 'FULL' ? <CheckCircle2 size={10} /> : <Clock size={10}/>}
+                                                >
+                                                    {section.scheduling_status}
+                                                </Badge>
+                                            </td>
+                                            <td className="text-center">
+                                                <Button 
+                                                    variant="primary" 
+                                                    size="xs" 
+                                                    style={{ fontWeight: 800 }} 
+                                                    icon={<Edit2 size={12}/>}
+                                                    onClick={() => handleManageSection(section)}
+                                                >
+                                                    SET TIMETABLE
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 </Card>
             </div>
@@ -321,95 +430,108 @@ const SchedulingPage = () => {
     }
 
     return (
-        <div className="scheduling-container-manage p-8 max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Header with Back button */}
-            <div className="flex items-center justify-between mb-8">
+        <div className="scheduling-container-manage animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Header */}
+            <div className="manage-header">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" onClick={handleBackToList}>Back to Matrix</Button>
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Manage Teaching Timetable</h2>
-                        <p className="text-sm text-slate-500 font-bold">Faculty: {selectedProf?.user?.first_name} {selectedProf?.user?.last_name} • {selectedProf?.employee_id}</p>
+                    <div className="header-title-section">
+                        <h2>
+                            {selectedProf ? 'Assign Faculty Load' : 'Section Timetable Configuration'}
+                        </h2>
+                        <p>
+                            {selectedProf 
+                                ? `Faculty: ${selectedProf?.user?.first_name} ${selectedProf?.user?.last_name} • ${selectedProf?.employee_id}`
+                                : `Target: ${selectedSection?.name} (${selectedSection?.program_name})`
+                            }
+                        </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3 bg-blue-50 px-6 py-4 rounded-xl border border-blue-100">
-                    <div className="text-right">
-                        <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none mb-1">Total Current Load</div>
-                        <div className="text-2xl font-black text-blue-700 leading-none">{calculateTotalUnits()} <span className="text-sm font-medium opacity-50">/ 30 UNITS</span></div>
+                {selectedProf && (
+                    <div className="stats-card-compact">
+                        <div className="text-right">
+                            <div className="stats-label">Total Current Load</div>
+                            <div className="stats-value">{calculateTotalUnits()} <span className="text-sm font-medium opacity-50">/ 30 UNITS</span></div>
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                            <BookOpen size={20} />
+                        </div>
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                        <BookOpen size={20} />
-                    </div>
-                </div>
+                )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Left Column: Availability Grid */}
-                <div className="lg:col-span-8 space-y-8">
-                    <Card title="Fixed Weekly Availability Grid" className="shadow-sm border-slate-100 overflow-hidden">
-                        <div className="flex justify-between items-center mb-6">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Click cells to toggle professor availability across days and sessions.</p>
-                            <div className="flex gap-2">
-                                <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('AM')}>Fill AM</Button>
-                                <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('PM')}>Fill PM</Button>
+            <div className={`grid grid-cols-1 ${selectedProf ? 'lg:grid-cols-12' : 'lg:grid-cols-1'} gap-8 items-start`}>
+                <div className={selectedProf ? 'lg:col-span-8 space-y-8' : 'space-y-8'}>
+                    {selectedProf && (
+                        <Card title="Fixed Weekly Availability Grid" className="shadow-sm border-slate-100 overflow-hidden">
+                            <div className="flex justify-between items-center mb-6">
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Click cells to toggle professor availability across days and sessions.</p>
+                                <div className="flex gap-2">
+                                    <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('AM')}>Fill AM</Button>
+                                    <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('PM')}>Fill PM</Button>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="availability-grid">
-                            <div className="grid-corner"></div>
-                            {DAYS.map(d => (
-                                <div key={d.key} className="grid-header-day">{d.key}</div>
-                            ))}
-                            
-                            {SESSIONS.map(session => (
-                                <React.Fragment key={session}>
-                                    <div className="grid-label-session">{session}</div>
-                                    {DAYS.map(day => {
-                                        const isAvailable = profAvailability.some(a => a.day === day.key && a.session === session);
-                                        const schedule = profSchedules.find(s => s.days.includes(day.key) && s.section_session === session);
-                                        
-                                        return (
-                                            <div 
-                                                key={`${day.key}-${session}`}
-                                                className={`grid-cell ${isAvailable ? 'available' : ''} ${schedule ? 'occupied' : ''} ${isSavingAvailability ? 'opacity-50 pointer-events-none' : ''}`}
-                                                onClick={() => !schedule && handleToggleAvailability(day.key, session)}
-                                            >
-                                                {schedule ? (
-                                                    <div className="occupied-badge">
-                                                        <span className="text-[9px] block whitespace-nowrap overflow-hidden text-ellipsis px-1">{schedule.subject_code}</span>
-                                                        <span className="text-[8px] opacity-70 block">{schedule.section_name}</span>
-                                                    </div>
-                                                ) : isAvailable ? (
-                                                    <CheckCircle2 size={16} className="text-blue-500" />
-                                                ) : null}
-                                            </div>
-                                        );
-                                    })}
-                                </React.Fragment>
-                            ))}
-                        </div>
-                    </Card>
+                            <div className="availability-grid">
+                                <div className="grid-corner"></div>
+                                {DAYS.map(d => (
+                                    <div key={d.key} className="grid-header-day">{d.key}</div>
+                                ))}
+                                
+                                {SESSIONS.map(session => (
+                                    <React.Fragment key={session}>
+                                        <div className="grid-label-session">{session}</div>
+                                        {DAYS.map(day => {
+                                            const isAvailable = profAvailability.some(a => a.day === day.key && a.session === session);
+                                            const schedule = profSchedules.find(s => s.days.includes(day.key) && s.section_session === session);
+                                            
+                                            return (
+                                                <div 
+                                                    key={`${day.key}-${session}`}
+                                                    className={`grid-cell ${isAvailable ? 'available' : ''} ${schedule ? 'occupied' : ''} ${isSavingAvailability ? 'opacity-50 pointer-events-none' : ''}`}
+                                                    onClick={() => !schedule && handleToggleAvailability(day.key, session)}
+                                                >
+                                                    {schedule ? (
+                                                        <div className="occupied-badge">
+                                                            <span className="text-[9px] block">{schedule.subject_code}</span>
+                                                            <span className="text-[8px] opacity-70 block">{schedule.section_name}</span>
+                                                        </div>
+                                                    ) : isAvailable ? (
+                                                        <CheckCircle2 size={16} className="text-blue-500" />
+                                                    ) : null}
+                                                </div>
+                                            );
+                                        })}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        </Card>
+                    )}
 
                      <div className="flex justify-between items-center px-2">
-                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Teaching Load Summary</h3>
+                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Schedule Breakdown</h3>
                         <div className="flex items-center gap-3">
-                            <Badge variant="primary" className="text-[10px] font-black">{profSchedules.length} Active Slots</Badge>
-                            <Button variant="primary" size="xs" icon={<BookOpen size={12}/>} style={{ fontWeight: 800 }} onClick={() => setIsAddLoadModalOpen(true)}>
-                                ADD SUBJECT LOAD
-                            </Button>
+                            <Badge variant="primary" className="text-[10px] font-black">{profSchedules.length} Components</Badge>
+                            {selectedProf && (
+                                <Button variant="primary" size="xs" icon={<BookOpen size={12}/>} style={{ fontWeight: 800 }} onClick={() => setIsAddLoadModalOpen(true)}>
+                                    ADD SUBJECT LOAD
+                                </Button>
+                            )}
                         </div>
                     </div>
 
                     <div className="space-y-4">
                         {profSchedules.map(sched => (
-                            <div key={sched.id} className="assignment-row shadow-sm hover:shadow-md border-slate-100">
+                            <div key={sched.id} className="assignment-row">
                                 <div className="flex items-center gap-4 flex-1">
-                                    <div className="load-icon border border-slate-100"><BookOpen size={20} className="text-slate-400" /></div>
+                                    <div className="load-icon"><BookOpen size={20} /></div>
                                     <div className="flex-1">
                                         <div className="flex gap-2 mb-1">
                                             <Badge variant="neutral" className="text-[9px] font-black">{sched.section_name}</Badge>
                                             <Badge variant={sched.section_session === 'AM' ? 'info' : 'warning'} className="text-[9px] font-black">{sched.section_session}</Badge>
+                                            {sched.professor_name && !selectedProf && <Badge variant="success" className="text-[9px] font-black">{sched.professor_name}</Badge>}
                                         </div>
-                                        <h4 className="font-bold text-slate-800 leading-tight">{sched.subject_code}</h4>
+                                        <h4 className="font-bold text-slate-800 leading-tight">{sched.subject_code} — {sched.component_type}</h4>
                                         <p className="text-[11px] text-slate-400 font-bold uppercase">{sched.subject_description}</p>
                                     </div>
                                 </div>
@@ -437,63 +559,49 @@ const SchedulingPage = () => {
                                 </div>
                             </div>
                         ))}
-                        {profSchedules.length === 0 && (
-                            <div className="text-center py-20 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
-                                <BookOpen size={48} className="mx-auto text-slate-200 mb-4" />
-                                <h4 className="text-slate-400 font-black tracking-widest uppercase text-sm">No Loads Assigned For This Professor</h4>
-                            </div>
-                        )}
                     </div>
                 </div>
 
-                {/* Right Column: Assigned Subjects & Stats */}
-                <div className="lg:col-span-4 space-y-6">
-                    <Card title="Expertise & Assignments" className="bg-slate-900 border-slate-800 text-white">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Confirmed subjects this professor is authorized to teach.</p>
-                        <div className="space-y-3">
-                            {selectedProf?.assigned_subjects?.map(ps => (
-                                <div key={ps.id} className="p-3 rounded-lg bg-slate-800 border border-slate-700 group hover:border-blue-500 transition-colors">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <span className="text-xs font-black text-blue-400 tracking-tight">{ps.subject_details?.code}</span>
-                                        <span className="text-[10px] font-black text-slate-500">{ps.subject_details?.units} UNITS</span>
+                {selectedProf && (
+                    <div className="lg:col-span-4 space-y-6">
+                        <div className="sidebar-card-dark shadow-xl">
+                            <h4 className="text-lg font-bold uppercase tracking-tight italic border-b border-slate-700 pb-4 mb-4">Expertise & Assignments</h4>
+                            <div className="space-y-3">
+                                {selectedProf?.assigned_subjects?.map(ps => (
+                                    <div key={ps.id} className="p-3 rounded-lg bg-slate-800 border border-slate-700 group hover:border-blue-500 transition-colors">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="text-xs font-black text-blue-400 tracking-tight">{ps.subject_details?.code}</span>
+                                            <span className="text-[10px] font-black text-slate-500">{ps.subject_details?.units} UNITS</span>
+                                        </div>
+                                        <div className="text-xs font-bold text-slate-200 line-clamp-1">{ps.subject_details?.name}</div>
                                     </div>
-                                    <div className="text-xs font-bold text-slate-200 line-clamp-1">{ps.subject_details?.name}</div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </Card>
 
-                    <Card title="Load Statistics" className="bg-white border-slate-100">
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center py-3 border-b border-slate-50">
-                                <span className="text-xs font-bold text-slate-400 uppercase">Employment</span>
-                                <span className="text-sm font-black text-slate-700">{selectedProf?.employment_status}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-3 border-b border-slate-50">
-                                <span className="text-xs font-bold text-slate-400 uppercase">Active Sections</span>
-                                <span className="text-sm font-black text-slate-700">{new Set(profSchedules.map(s => s.section)).size}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-3 border-b border-slate-50">
-                                <span className="text-xs font-bold text-slate-400 uppercase">Days Utilized</span>
-                                <span className="text-sm font-black text-slate-700">{new Set(profSchedules.flatMap(s => s.days)).size}</span>
-                            </div>
-                            <div className="bg-slate-50 p-4 rounded-xl mt-4">
-                                <div className="flex items-center gap-3 text-blue-600 mb-2">
-                                    <Clock size={16} />
-                                    <span className="text-[10px] font-black uppercase tracking-wider">Time Complexity</span>
+                        <Card title="Load Statistics" className="bg-white border-slate-100">
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center py-3 border-b border-slate-50">
+                                    <span className="text-xs font-bold text-slate-400 uppercase">Employment</span>
+                                    <span className="text-sm font-black text-slate-700">{selectedProf?.employment_status}</span>
                                 </div>
-                                <p className="text-[10px] text-slate-500 leading-relaxed font-bold">Professor teaching window is validated against Section overlaps and general availability to ensure a conflict-free semester.</p>
+                                <div className="bg-slate-50 p-4 rounded-xl mt-4">
+                                    <div className="flex items-center gap-3 text-blue-600 mb-2">
+                                        <Clock size={16} />
+                                        <span className="text-[10px] font-black uppercase tracking-wider">Time Complexity</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-relaxed font-bold">Professor teaching window is validated against Section overlaps and general availability to ensure a conflict-free semester.</p>
+                                </div>
                             </div>
-                        </div>
-                    </Card>
-                </div>
+                        </Card>
+                    </div>
+                )}
             </div>
 
-             {/* Modal for Setup remains essentially same but matches new design */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                title="Timetable Assignment"
+                title="Timetable Slot Configuration"
                 size="md"
             >
                 <div className="space-y-6">
@@ -506,14 +614,31 @@ const SchedulingPage = () => {
                     </div>
 
                     <div className="space-y-4">
+                        {selectedSection && (
+                             <Select 
+                                label="Assign Professor"
+                                placeholder="Select faculty member..."
+                                value={formData.professor}
+                                onChange={(e) => {
+                                    setFormData({...formData, professor: e.target.value});
+                                    if(e.target.value) {
+                                        facultyApi.getAvailability(e.target.value).then(res => setProfAvailability(res.data));
+                                    }
+                                }}
+                                options={professors.map(p => ({
+                                    value: p.id,
+                                    label: `${p.user?.first_name} ${p.user?.last_name} (${p.department})`
+                                }))}
+                            />
+                        )}
+
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Teaching Days</label>
                         <div className="flex flex-wrap gap-2">
                             {['M', 'T', 'W', 'TH', 'F', 'S'].map(day => {
-                                const isAvailable = profAvailability.some(a => a.day === day && a.session === selectedSchedule?.section_session);
+                                const isAvailable = profAvailability.length === 0 || profAvailability.some(a => a.day === day && a.session === selectedSchedule?.section_session);
                                 return (
                                     <button
                                         key={day}
-                                        disabled={!isAvailable}
                                         onClick={() => setFormData(prev => ({
                                             ...prev,
                                             days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day]
@@ -523,7 +648,7 @@ const SchedulingPage = () => {
                                             ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-105'
                                             : isAvailable
                                                 ? 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
-                                                : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-50'
+                                                : 'bg-slate-50 border-slate-100 text-slate-300'
                                         }`}
                                     >
                                         {day}
@@ -553,12 +678,11 @@ const SchedulingPage = () => {
 
                     <div className="flex gap-3 justify-end pt-4">
                         <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button variant="primary" loading={isSavingSchedule} onClick={handleSaveSchedule}>Publish Load</Button>
+                        <Button variant="primary" loading={isSavingSchedule} onClick={handleSaveSchedule}>Publish Configuration</Button>
                     </div>
                 </div>
              </Modal>
 
-            {/* Modal for Adding New Load */}
             <Modal
                 isOpen={isAddLoadModalOpen}
                 onClose={() => setIsAddLoadModalOpen(false)}
@@ -579,25 +703,11 @@ const SchedulingPage = () => {
                                     </div>
                                     <div className="text-sm font-black text-slate-800">{slot.subject_code} — {slot.subject_description}</div>
                                 </div>
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    icon={<ChevronRight size={14} />} 
-                                    onClick={() => {
-                                        setIsAddLoadModalOpen(false);
-                                        handleOpenSetup(slot);
-                                    }}
-                                >
+                                <Button variant="outline" size="sm" icon={<ChevronRight size={14} />} onClick={() => { setIsAddLoadModalOpen(false); handleOpenSetup(slot); }}>
                                     ASSIGN
                                 </Button>
                             </div>
                         ))}
-                        {availableSlots.length === 0 && (
-                            <div className="text-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                                <BookOpen size={48} className="mx-auto text-slate-200 mb-4" />
-                                <h4 className="text-slate-400 font-black tracking-widest uppercase text-sm">No Unassigned Sections Found</h4>
-                            </div>
-                        )}
                     </div>
                 </div>
             </Modal>

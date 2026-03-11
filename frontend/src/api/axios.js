@@ -1,60 +1,66 @@
 import axios from 'axios';
+import NProgress from 'nprogress';
+
+// Configure NProgress (optional, e.g., turn off spinner)
+NProgress.configure({ showSpinner: false });
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/',
+    withCredentials: true, // Crucial for sending cookies
+    xsrfCookieName: 'csrftoken',
+    xsrfHeaderName: 'X-CSRFToken',
 });
 
-// Request interceptor to attach JWT token
+// Request interceptor to start NProgress
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('access_token');
-        if (token && !config.url.includes('accounts/auth/login') && !config.url.includes('accounts/auth/refresh')) {
-            config.headers.Authorization = `Bearer ${token}`;
-        } else {
-            delete config.headers.Authorization;
-        }
+        NProgress.start();
         return config;
     },
-    (error) => Promise.reject(error)
+    (error) => {
+        NProgress.done();
+        return Promise.reject(error);
+    }
 );
 
 // Response interceptor to handle 401s and token refresh
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        NProgress.done();
+        return response;
+    },
     async (error) => {
+        NProgress.done();
         const originalRequest = error.config;
 
-        // Wait, let's avoid infinite loops. If the refresh endpoint fails, we log out.
-        // Disable auto-refresh for login endpoint to prevent redirects on wrong credentials
         if (error.response?.status === 401 && !originalRequest._retry &&
             !originalRequest.url.includes('accounts/auth/login') &&
             !originalRequest.url.includes('accounts/auth/refresh')) {
             originalRequest._retry = true;
-            const refreshToken = localStorage.getItem('refresh_token');
 
-            if (refreshToken) {
-                try {
-                    const res = await axios.post(
-                        `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/'}accounts/auth/refresh/`,
-                        { refresh: refreshToken }
-                    );
+            try {
+                // Post to refresh. Since withCredentials is true, the refresh cookie is sent.
+                const res = await api.post('accounts/auth/refresh/');
 
-                    if (res.status === 200) {
-                        localStorage.setItem('access_token', res.data.access);
-                        originalRequest.headers.Authorization = `Bearer ${res.data.access}`;
-                        return api(originalRequest);
-                    }
-                } catch (refreshError) {
-                    // Token refresh failed, meaning session is truly expired
-                    localStorage.removeItem('access_token');
-                    localStorage.removeItem('refresh_token');
-                    window.location.href = '/login?expired=true';
+                if (res.status === 200) {
+                    // Success! The backend just set a new access cookie. Retry original request.
+                    return api(originalRequest);
                 }
-            } else {
-                // No refresh token available
-                localStorage.removeItem('access_token');
-                window.location.href = '/login';
+            } catch (refreshError) {
+                // Token refresh failed, meaning session is truly expired
+                // AuthContext will handle state cleanup on next check
+                window.dispatchEvent(new Event('auth-expired'));
             }
+        } else if (error.response?.status >= 500) {
+            // Global catching for 500 Internal Server Errors
+            window.dispatchEvent(new CustomEvent('api-error', {
+                detail: { message: `Server error: ${error.response.status}. Please try again later.` }
+            }));
+        } else if (!error.response) {
+            // Network error / CORS / Server down
+            window.dispatchEvent(new CustomEvent('api-error', {
+                detail: { message: 'Network error. Please check your connection or try again later.' }
+            }));
         }
 
         return Promise.reject(error);

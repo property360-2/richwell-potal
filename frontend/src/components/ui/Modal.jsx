@@ -1,18 +1,30 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import './Modal.css';
 
 const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }) => {
+  const closeButtonRef = useRef(null);
+
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    if (!isOpen) return;
+    
+    // Focus close button for accessibility
+    setTimeout(() => {
+      closeButtonRef.current?.focus();
+    }, 100);
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleEscape);
+    
     return () => {
       document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -27,7 +39,12 @@ const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }) => {
       >
         <div className="modal-header">
           <h3 id="modal-title" className="modal-title">{title}</h3>
-          <button className="modal-close" onClick={onClose} aria-label="Close modal">
+          <button 
+            ref={closeButtonRef}
+            className="modal-close" 
+            onClick={onClose} 
+            aria-label="Close modal"
+          >
             <X size={20} />
           </button>
         </div>

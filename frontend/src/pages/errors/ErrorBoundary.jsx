@@ -28,7 +28,7 @@ class ErrorBoundary extends Component {
           <Button onClick={() => window.location.reload()}>
             Refresh Page
           </Button>
-          {process.env.NODE_ENV === 'development' && (
+          {import.meta.env.DEV && (
             <div style={{ marginTop: '32px', textAlign: 'left', backgroundColor: '#FEE2E2', padding: '16px', borderRadius: '8px', maxWidth: '800px', overflowX: 'auto' }}>
               <p style={{ fontWeight: 'bold', color: '#B91C1C', margin: 0 }}>{this.state.error?.toString()}</p>
             </div>

@@ -1,9 +1,10 @@
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
+from apps.auditing.mixins import AuditMixin
 
 
-class Grade(models.Model):
+class Grade(AuditMixin, models.Model):
     ADVISING_PENDING = 'PENDING'
     ADVISING_APPROVED = 'APPROVED'
     ADVISING_REJECTED = 'REJECTED'
@@ -21,6 +22,7 @@ class Grade(models.Model):
     STATUS_INC = 'INC'
     STATUS_DROPPED = 'DROPPED'
     STATUS_RETAKE = 'RETAKE'
+    STATUS_NO_GRADE = 'NO_GRADE'
 
     GRADE_STATUS_CHOICES = [
         (STATUS_ADVISING, 'Advising'),
@@ -30,6 +32,7 @@ class Grade(models.Model):
         (STATUS_INC, 'Incomplete'),
         (STATUS_DROPPED, 'Dropped'),
         (STATUS_RETAKE, 'Retake'),
+        (STATUS_NO_GRADE, 'No Grade'),
     ]
 
     student = models.ForeignKey(

@@ -76,7 +76,12 @@ const StaffManagement = () => {
       setModalOpen(false);
       fetchStaff();
     } catch (err) {
-      const msg = err.response?.data?.email?.[0] || err.response?.data?.username?.[0] || 'Failed to save staff';
+      const data = err.response?.data;
+      const msg = data?.email?.[0] || 
+                  data?.username?.[0] || 
+                  data?.detail || 
+                  (data && typeof data === 'object' ? Object.values(data)[0]?.[0] : null) ||
+                  'Failed to save staff';
       showToast('error', msg);
     }
   };

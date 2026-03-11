@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 from apps.grades.models import Grade
 from apps.academics.models import Subject
 from apps.students.models import StudentEnrollment
+from apps.notifications.services.notification_service import NotificationService
+from apps.notifications.models import Notification
 
 
 class AdvisingService:
@@ -96,6 +98,11 @@ class AdvisingService:
         """
         Automatically selects subjects for a regular student.
         """
+        # Guard: Check if already pending or approved
+        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
+        if enrollment and enrollment.advising_status in ['PENDING', 'APPROVED']:
+            raise ValidationError(f"Advising already submitted ({enrollment.advising_status}).")
+
         year_level = AdvisingService.get_year_level(student)
         
         # Determine semester type from term (e.g., 1st, 2nd)
@@ -151,6 +158,11 @@ class AdvisingService:
         """
         Validates and creates grades for irregular student selections.
         """
+        # Guard: Check if already pending or approved
+        current_enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
+        if current_enrollment and current_enrollment.advising_status in ['PENDING', 'APPROVED']:
+            raise ValidationError(f"Advising already submitted ({current_enrollment.advising_status}).")
+
         subjects = Subject.objects.filter(id__in=subject_ids)
         # Calculate total units including existing ones in THIS term
         existing_units = sum(g.subject.total_units for g in Grade.objects.filter(student=student, term=term))
@@ -161,7 +173,6 @@ class AdvisingService:
             raise ValidationError(f"Total units ({total_term_units}) exceed maximum limit of 30.")
 
         # Prerequisite check
-        from apps.students.models import StudentEnrollment
         current_enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         
         for subject in subjects:
@@ -228,6 +239,15 @@ class AdvisingService:
         student_enrollment.advising_approved_at = timezone.now()
         student_enrollment.save()
 
+        # Notify Student
+        NotificationService.notify(
+            recipient=student_enrollment.student.user,
+            notification_type=Notification.NotificationType.ADVISING,
+            title="Advising Approved",
+            message=f"Your advising for {student_enrollment.term.code} has been approved. You are now officially enrolled in your subjects.",
+            link_url="/student/grades"
+        )
+
     @staticmethod
     @transaction.atomic
     def reject_advising(student_enrollment, reason):
@@ -247,6 +267,15 @@ class AdvisingService:
 
         student_enrollment.advising_status = 'REJECTED'
         student_enrollment.save()
+
+        # Notify Student
+        NotificationService.notify(
+            recipient=student_enrollment.student.user,
+            notification_type=Notification.NotificationType.ADVISING,
+            title="Advising Rejected",
+            message=f"Your advising for {student_enrollment.term.code} was rejected. Reason: {reason}",
+            link_url="/student/advising" # Link to advising page to retry
+        )
 
     @staticmethod
     @transaction.atomic

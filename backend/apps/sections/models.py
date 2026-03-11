@@ -1,6 +1,7 @@
 from django.db import models
+from apps.auditing.mixins import AuditMixin
 
-class Section(models.Model):
+class Section(AuditMixin, models.Model):
     name = models.CharField(max_length=50)
     term = models.ForeignKey('terms.Term', on_delete=models.CASCADE, related_name='sections')
     program = models.ForeignKey('academics.Program', on_delete=models.CASCADE, related_name='sections')
@@ -21,7 +22,7 @@ class Section(models.Model):
     def __str__(self):
         return f"{self.name} ({self.session})"
 
-class SectionStudent(models.Model):
+class SectionStudent(AuditMixin, models.Model):
     section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='student_assignments')
     student = models.ForeignKey('students.Student', on_delete=models.CASCADE, related_name='section_assignments')
     is_home_section = models.BooleanField(default=True)

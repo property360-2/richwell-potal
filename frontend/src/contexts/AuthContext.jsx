@@ -14,136 +14,82 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProfileLoaded, setIsProfileLoaded] = useState(false);
 
-  // We decode the JWT to get user info without an extra API call
-  // This helps prevent UI flicker on refresh
-  const parseJwt = (token) => {
-    try {
-      if (!token) return null;
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-
-      return JSON.parse(jsonPayload);
-    } catch (e) {
-      return null;
-    }
-  };
-
-  const loadUserFromToken = useCallback(() => {
-    const token = localStorage.getItem('access_token');
-    const decoded = parseJwt(token);
-    
-    if (decoded && decoded.exp * 1000 > Date.now()) {
-      setUser({
-        id: decoded.user_id,
-        username: decoded.username || '',
-        email: decoded.email || ''
-      });
-      setRole(decoded.role || null);
-    } else {
-      setUser(null);
-      setRole(null);
-    }
-    setIsLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadUserFromToken();
-
-    // Listen to cross-tab logout events
-    const handleStorageChange = (e) => {
-      if (e.key === 'access_token') {
-        loadUserFromToken();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [loadUserFromToken]);
-
-  // Fetch full user profile if we only have basic info from token
-  const fetchMe = useCallback(async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const res = await api.get('accounts/auth/me/');
       setUser(res.data);
       setRole(res.data.role);
+      setIsProfileLoaded(true);
+      setIsLoading(false);
     } catch (err) {
-      console.error("AuthContext: Failed to fetch full profile", err);
-      // If 401, logout
-      if (err.response?.status === 401) {
-        logout();
-      }
+      setUser(null);
+      setRole(null);
+      setIsProfileLoaded(false);
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    // If we have a token but user doesn't have full info (e.g. first_name field is missing)
-    if (token && user && !Object.prototype.hasOwnProperty.call(user, 'first_name')) {
-      fetchMe();
-    }
-  }, [user, fetchMe]);
+    // Initialize CSRF
+    api.get('accounts/auth/csrf/').catch(() => {});
+    
+    checkAuth();
 
+    const handleAuthExpired = () => {
+      setUser(null);
+      setRole(null);
+      setIsProfileLoaded(false);
+      
+      // Prevent redirecting if already on public pages to avoid DOM detachment
+      const publicPaths = ['/login', '/apply', '/'];
+      if (!publicPaths.includes(window.location.pathname)) {
+        window.location.href = '/login?expired=true';
+      }
+    };
 
-  const login = async (credentials) => {
+    window.addEventListener('auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('auth-expired', handleAuthExpired);
+  }, [checkAuth]);
+
+  const login = useCallback(async (credentials) => {
     try {
-      // Clear old tokens first to ensure a clean session
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      
+      setIsLoading(true);
       const response = await api.post('accounts/auth/login/', credentials);
-      const { access, refresh, user: userData } = response.data;
+      const { user: userData } = response.data;
       
-      localStorage.setItem('access_token', access);
-      localStorage.setItem('refresh_token', refresh);
-      
-      // Update state directly from response for immediate availability
       if (userData) {
-        const newUser = {
-          id: userData.id,
-          username: userData.username,
-          email: userData.email
-        };
-        const newRole = userData.role;
-        
-        // We set these together. React will batch these updates.
-        setUser(newUser);
-        setRole(newRole);
+        setUser(userData);
+        setRole(userData.role);
+        setIsProfileLoaded(true);
         setIsLoading(false);
-        
         return { success: true, user: userData };
       } else {
-        // Fallback to token parsing if user data isn't in response
-        const token = localStorage.getItem('access_token');
-        const decoded = parseJwt(token);
-        if (decoded) {
-          setUser({
-            id: decoded.user_id,
-            username: decoded.username || '',
-            email: decoded.email || ''
-          });
-          setRole(decoded.role || null);
-        }
-        setIsLoading(false);
+        // If user data isn't in response, fetch it
+        await checkAuth();
         return { success: true };
       }
     } catch (error) {
       setIsLoading(false);
       return { 
         success: false, 
-        message: error.response?.data?.message || 'Login failed' 
+        message: error.response?.data?.detail || error.response?.data?.message || 'Login failed' 
       };
     }
-  };
+  }, [checkAuth]);
 
-  const logout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    setUser(null);
-    setRole(null);
-  };
+  const logout = useCallback(async () => {
+    try {
+      await api.post('accounts/auth/logout/');
+    } catch (err) {
+      console.error("Logout error", err);
+    } finally {
+      setUser(null);
+      setRole(null);
+      setIsProfileLoaded(false);
+    }
+  }, []);
 
   const value = {
     user,

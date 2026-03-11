@@ -69,11 +69,19 @@ class PickingService:
         Grade.objects.filter(student=student, term=term).update(section=target_section)
         
         # 5. Set Home Section assignment
-        SectionStudent.objects.update_or_create(
+        existing = SectionStudent.objects.filter(
             student=student,
-            section__term=term,
-            defaults={'section': target_section, 'is_home_section': True}
-        )
+            section__term=term
+        ).first()
+        if existing:
+            existing.section = target_section
+            existing.save()
+        else:
+            SectionStudent.objects.create(
+                student=student,
+                section=target_section,
+                is_home_section=True
+            )
 
         # 6. TODO: Notification if redirected
         # if redirected:
@@ -107,11 +115,19 @@ class PickingService:
         # of their chosen sections for administrative grouping.
         if selections:
             first_section = Section.objects.get(id=selections[0]['section_id'])
-            SectionStudent.objects.update_or_create(
+            existing = SectionStudent.objects.filter(
                 student=student,
-                section__term=term,
-                defaults={'section': first_section, 'is_home_section': True}
-            )
+                section__term=term
+            ).first()
+            if existing:
+                existing.section = first_section
+                existing.save()
+            else:
+                SectionStudent.objects.create(
+                    student=student,
+                    section=first_section,
+                    is_home_section=True
+                )
 
         return True
 

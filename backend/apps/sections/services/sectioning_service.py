@@ -6,24 +6,30 @@ from apps.scheduling.models import Schedule
 from apps.students.models import StudentEnrollment
 from apps.academics.models import Subject
 
-# AM: 7am start, up to 12 hours (7am-6pm). PM: 1pm start, up to 8 hours (1pm-8pm)
-AM_START = 7
-AM_HOURS = list(range(7, 19))
-PM_START = 13
-PM_HOURS = list(range(13, 21))
+# AM: 7am to 12pm. PM: 1pm to 6pm
+AM_HOURS = list(range(7, 12))  # [7, 8, 9, 10, 11] -> 7am to 12pm
+PM_HOURS = list(range(13, 18)) # [13, 14, 15, 16, 17] -> 1pm to 6pm
 DAYS_ORDER = ['M', 'T', 'W', 'TH', 'F', 'S']
 
 
 def _allocate_slots(used_slots, session, num_hours):
     """
     Block scheduling: allocates num_hours as one contiguous block on one day.
-    AM starts 7:00, PM starts 13:00. Returns (days, start_time, end_time) or None.
+    To ensure even distribution, it tries days with the least load first.
     """
     hours = AM_HOURS if session == 'AM' else PM_HOURS
     if num_hours <= 0 or num_hours > len(hours):
         return None
 
-    for day in DAYS_ORDER:
+    # Calculate current load per day to distribute evenly
+    day_loads = {day: 0 for day in DAYS_ORDER}
+    for day, hr in used_slots:
+        day_loads[day] += 1
+    
+    # Sort days by load (least busy first)
+    sorted_days = sorted(DAYS_ORDER, key=lambda d: day_loads[d])
+
+    for day in sorted_days:
         for start_idx in range(len(hours) - num_hours + 1):
             block = [(day, hours[start_idx + i]) for i in range(num_hours)]
             if all(slot not in used_slots for slot in block):
@@ -56,7 +62,7 @@ class SectioningService:
         return stats
 
     @transaction.atomic
-    def generate_sections(self, term, program, year_level):
+    def generate_sections(self, term, program, year_level, auto_schedule=False):
         """
         Generates sections based on student counts (optimal 35, max 40).
         Automatically attaches curriculum subjects as empty schedule slots.
@@ -72,16 +78,19 @@ class SectioningService:
         if count == 0:
             return []
 
-        # 2. Calculate num sections: ceil(count / 35)
-        num_sections = math.ceil(count / 35.0)
+        # 2. Calculate num sections: ceil(count / 40.0)
+        num_sections = math.ceil(count / 40.0)
         
-        # 3. AM/PM split (Balance evenly)
+        # 3. Dynamic target capacity (e.g., 150/4 = 37.5 -> 38)
+        target_capacity = math.ceil(count / num_sections) if num_sections > 0 else 40
+        
+        # 4. AM/PM split (Balance evenly)
         num_am = math.ceil(num_sections / 2.0)
         num_pm = num_sections - num_am
         
         created_sections = []
         
-        # 4. Fetch subjects for this program/year/semester (exclude practicum)
+        # 5. Fetch subjects for this program/year/semester (exclude practicum)
         subjects = Subject.objects.filter(
             curriculum__program=program,
             curriculum__is_active=True,
@@ -92,9 +101,10 @@ class SectioningService:
 
         for i in range(1, num_sections + 1):
             session = 'AM' if i <= num_am else 'PM'
-            section_name = f"{program.code} {year_level}-{i}"
+            section_name = f"{program.code} {year_level}-{i} ({term.code})"
 
-            section, created = Section.objects.get_or_create(
+            # Use update_or_create to refresh target_students if count changes
+            section, created = Section.objects.update_or_create(
                 term=term,
                 program=program,
                 year_level=year_level,
@@ -102,40 +112,38 @@ class SectioningService:
                 defaults={
                     'name': section_name,
                     'session': session,
-                    'target_students': 35,
+                    'target_students': target_capacity,
                     'max_students': 40
                 }
             )
             created_sections.append(section)
 
-            used_slots = set()
+            # 6. Build allocation tasks (Lec and Lab)
+            allocation_tasks = []
             for subject in subjects:
                 if subject.lec_units > 0:
-                    allocation = _allocate_slots(used_slots, session, subject.lec_units)
-                    defaults = {'days': [], 'start_time': None, 'end_time': None}
-                    if allocation:
-                        days, start_t, end_t = allocation
-                        defaults = {'days': days, 'start_time': start_t, 'end_time': end_t}
-                    Schedule.objects.get_or_create(
-                        term=term,
-                        section=section,
-                        subject=subject,
-                        component_type='LEC',
-                        defaults=defaults
-                    )
+                    allocation_tasks.append((subject, 'LEC', subject.lec_units))
                 if subject.lab_units > 0:
-                    allocation = _allocate_slots(used_slots, session, subject.lab_units)
-                    defaults = {'days': [], 'start_time': None, 'end_time': None}
-                    if allocation:
-                        days, start_t, end_t = allocation
-                        defaults = {'days': days, 'start_time': start_t, 'end_time': end_t}
-                    Schedule.objects.get_or_create(
-                        term=term,
-                        section=section,
-                        subject=subject,
-                        component_type='LAB',
-                        defaults=defaults
-                    )
+                    allocation_tasks.append((subject, 'LAB', subject.lab_units))
+            
+            # Sort by hours descending. This minimizes fragmentation!
+            allocation_tasks.sort(key=lambda x: x[2], reverse=True)
+
+            used_slots = set()
+            for subject, component_type, hours in allocation_tasks:
+                allocation = _allocate_slots(used_slots, session, hours) if auto_schedule else None
+                defaults = {'days': [], 'start_time': None, 'end_time': None}
+                if allocation:
+                    days, start_t, end_t = allocation
+                    defaults = {'days': days, 'start_time': start_t, 'end_time': end_t}
+                
+                Schedule.objects.get_or_create(
+                    term=term,
+                    section=section,
+                    subject=subject,
+                    component_type=component_type,
+                    defaults=defaults
+                )
         
         return created_sections
 

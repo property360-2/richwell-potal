@@ -6,6 +6,6 @@ export const schedulingApi = {
     publish: (data) => axios.post(`scheduling/publish/`, data),
     pickRegular: (data) => axios.post(`scheduling/pick-regular/`, data),
     pickIrregular: (data) => axios.post(`scheduling/pick-irregular/`, data),
-    getStatusMatrix: (params) => axios.get(`scheduling/status_matrix/`, { params }),
-    getAvailableSlots: (params) => axios.get(`scheduling/available_slots/`, { params }),
+    getStatusMatrix: (params) => axios.get(`scheduling/status-matrix/`, { params }),
+    getAvailableSlots: (params) => axios.get(`scheduling/available-slots/`, { params }),
 };

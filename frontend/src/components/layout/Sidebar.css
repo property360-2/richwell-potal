@@ -95,7 +95,13 @@
 
 .nav-link:hover {
     background-color: var(--color-bg);
-    color: var(--color-text);
+    color: var(--color-primary);
+}
+
+.nav-link.active {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+    border-left-color: var(--color-primary);
 }
 
 .nav-icon {

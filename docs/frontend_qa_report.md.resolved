@@ -1,0 +1,300 @@
+# Frontend QA Audit Report — Richwell Portal
+
+**Stack**: React 19 + Vite 7 + Axios + React Hook Form + React Router v7 + Lucide Icons
+**Date**: 2026-03-11 | **Files Scanned**: 125 source files across `src/`
+
+---
+
+## 1. Critical Issues (P0 — Fix Immediately)
+
+### 🔴 CRIT-01: Duplicate Route for `/student/grades`
+**File**: [index.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx#L319-L330)
+
+Two different components are mounted on the **same path**:
+```diff
+- <Route path="/student/grades" element={<GradeHistory />} />   ← Line 320
+- <Route path="/student/grades" element={<MyGrades />} />       ← Line 329
+```
+**Impact**: Only one will ever render (first match wins). `MyGrades` is dead code.
+**Fix**: Remove or rename the duplicate route (e.g., `/student/grades/history`).
+
+---
+
+### 🔴 CRIT-02: Duplicate Route for `/admin` Dashboard
+**File**: [index.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx#L208-L221)
+
+`AdminDashboard` is registered **twice** under different `PageWrapper` titles:
+```diff
+- Line 208: <Route path="/admin" element={<AdminDashboard />} />  (inside "Academic Management" wrapper)
+- Line 220: <Route path="/admin" element={<AdminDashboard />} />  (inside "Admin Dashboard" wrapper)
+```
+**Impact**: The first match wins, rendering Admin Dashboard with the **wrong page title** ("Academic Management").
+**Fix**: Remove the duplicate at line 208.
+
+---
+
+### 🔴 CRIT-03: Duplicate Route for `/admin/audit`
+**File**: [index.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx#L223-L244)
+
+`AuditLogList` is registered in **both** ADMIN and REGISTRAR route groups:
+```
+Line 223: Admin group → /admin/audit
+Line 244: Registrar group → /admin/audit
+```
+**Impact**: Route shadowing; confusing permission model.
+**Fix**: Keep only one definition, or use a shared route group.
+
+---
+
+### 🔴 CRIT-04: Duplicate Imports in Route Index
+**File**: [index.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx)
+
+```diff
+- Line 61: import ProfessorDashboard from '../pages/faculty/ProfessorDashboard';
+- Line 145: import ProfessorDashboard from '../pages/faculty/ProfessorDashboard'; ← DUPLICATE
+
+- Line 59: import StudentDashboard from '../pages/student/StudentDashboard';
+- Line 149: import StudentDashboard from '../pages/student/StudentDashboard';    ← DUPLICATE
+```
+**Impact**: Build warnings; can cause build failures with strict linting or module system issues.
+
+---
+
+### 🔴 CRIT-05: [useFetch](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useFetch.js#4-36) Hook Has Stale Closure Bug
+**File**: [useFetch.js](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useFetch.js#L31)
+
+```js
+[url, options] // ← options is an object, compared by reference
+```
+Since `options` is an object literal, it creates a **new reference on every render**, causing `fetchData` to be recreated infinitely in `useCallback`. Any `useEffect` depending on `fetchData` will trigger an infinite loop.
+
+**Fix**: Serialize `options` via `JSON.stringify` or accept stable primitive params.
+
+---
+
+## 2. Security Issues (P1)
+
+### 🟠 SEC-01: JWT Tokens Stored in `localStorage`
+**Files**: [axios.js](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/api/axios.js), [AuthContext.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/contexts/AuthContext.jsx)
+
+Tokens are stored in `localStorage`, which is vulnerable to XSS attacks. Any injected script can read `localStorage.getItem('access_token')`.
+
+> [!CAUTION]
+> If any XSS vector exists (3rd-party library, browser extension, etc.), the attacker gets full API access.
+
+**Fix**: Use `httpOnly` cookies for token storage (requires backend changes).
+
+---
+
+### 🟠 SEC-02: No CSRF Protection on API Calls
+**File**: [axios.js](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/api/axios.js)
+
+No CSRF token header is sent with state-changing requests. If you ever switch to cookie-based auth, this becomes critical.
+
+---
+
+### 🟡 SEC-03: [ErrorBoundary](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/pages/errors/ErrorBoundary.jsx#5-43) Exposes Stack Trace in Production (Conditional)
+**File**: [ErrorBoundary.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/pages/errors/ErrorBoundary.jsx#L31)
+
+Uses `process.env.NODE_ENV` check which is correct, but verify Vite sets this properly. Vite uses `import.meta.env.MODE`, not `process.env.NODE_ENV`.
+
+**Fix**: Replace `process.env.NODE_ENV === 'development'` with `import.meta.env.DEV`.
+
+---
+
+### ✅ SEC-PASS: No `dangerouslySetInnerHTML` or `innerHTML` Usage
+Zero instances found. This is excellent.
+
+---
+
+## 3. Performance Issues (P1)
+
+### 🟠 PERF-01: Zero Code Splitting — All 30+ Pages Eagerly Imported
+**File**: [index.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx)
+
+All ~35 page components are imported statically at the top of [routes/index.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx). No `React.lazy()` or `Suspense` usage anywhere.
+
+**Impact**: The initial JS bundle loads ALL role-specific pages, even those the user will never visit. A Student downloads all Admin, Registrar, Cashier, Dean, and Professor pages.
+
+**Fix**: Use `React.lazy()` + `<Suspense>` for each page import.
+
+---
+
+### 🟠 PERF-02: No `AbortController` in API Calls — Memory Leak Risk
+**Files**: All 35+ pages with `useEffect` + API calls
+
+None of the `useEffect` cleanup functions cancel in-flight requests. If a user navigates away while an API call is pending, the response callback still executes on an unmounted component.
+
+**Fix**: Add `AbortController` to the [useFetch](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useFetch.js#4-36) hook or individual page effects.
+
+---
+
+### 🟡 PERF-03: [useIdleTimer](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useIdleTimer.js#5-58) Event Listeners Not Throttled
+**File**: [useIdleTimer.js](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useIdleTimer.js#L40-L42)
+
+Five event listeners (`mousedown`, `mousemove`, `keydown`, `scroll`, `touchstart`) fire [resetTimer()](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useIdleTimer.js#15-30) on **every event** — which calls `clearTimeout` + `setTimeout` twice per event. On `mousemove`, this could fire 60+ times/sec.
+
+**Fix**: Add a throttle wrapper (e.g., 1-second debounce on [resetTimer](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useIdleTimer.js#15-30)).
+
+---
+
+### 🟡 PERF-04: [logout](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/contexts/AuthContext.jsx#10-11) Function Not Memoized
+**File**: [AuthContext.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/contexts/AuthContext.jsx#L140-L146)
+
+[logout](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/contexts/AuthContext.jsx#10-11) is a plain function, not wrapped in `useCallback`. It creates a new reference every render, causing re-renders in all consumers (Sidebar, IdleTimer, ProtectedRoute).
+
+---
+
+## 4. UI / UX Issues (P2)
+
+### 🟡 UX-01: `window.location.href` Used Instead of React Router (11 instances)
+**Files**: Multiple pages
+
+| File | Line | Usage |
+|------|------|-------|
+| [routes/index.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx) | 102, 127, 131 | [ProgramHeadDashboard](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx#64-143) navigation |
+| [StudentAdvising.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/pages/student/StudentAdvising.jsx) | 161 | "Go to Dashboard" |
+| [SchedulePicking.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/pages/student/SchedulePicking.jsx) | 127 | "Go to Advising" |
+| [PublicApplication.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/pages/PublicApplication.jsx) | 124 | `window.location.reload()` |
+| [useIdleTimer.js](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useIdleTimer.js) | 27 | Idle logout redirect |
+| [axios.js](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/api/axios.js) | 51, 56 | Token expiry redirect |
+
+**Impact**: Full page reload, loses React state, breaks SPA feel, causes white flash.
+
+---
+
+### 🟡 UX-02: [DeanDashboard](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx#63-64) is a Placeholder Stub
+**File**: [index.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx#L63)
+
+```jsx
+const DeanDashboard = () => <div className="p-8">Dean Dashboard</div>;
+```
+This renders plain text with no layout, stats, or navigation.
+
+---
+
+### 🟡 UX-03: Limited Responsive Breakpoints
+Only **14 `@media` queries** across the entire CSS codebase. Most pages rely solely on Tailwind-style utility classes embedded inline. The following areas have **zero responsive CSS**:
+
+- Admin Dashboard, Audit Log, Faculty Management, Room Management
+- All report pages (COR, Masterlist, Graduation)
+- Cashier pages, Dean Scheduling page
+
+---
+
+### 🟡 UX-04: Inconsistent Empty/Loading/Error State Patterns
+Some pages (e.g., `StudentDashboard`, `RegistrarDashboard`) have proper loading spinners and empty states. Others (e.g., `GradeEntry`, `SchedulingPage`) silently show empty content or have inconsistent error displays.
+
+---
+
+### 🟡 UX-05: Modal Missing Escape Key Handler & Focus Trap
+**File**: [Modal.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/components/ui/Modal.jsx)
+
+The modal handles `aria-modal` and `aria-labelledby` (good), but:
+- ❌ No Escape key listener to close
+- ❌ No focus trap (Tab can escape to background elements)
+- ❌ No initial focus management
+
+---
+
+### 🟡 UX-06: Sidebar Dead Links
+**File**: [Sidebar.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/components/layout/Sidebar.jsx)
+
+| Link | Destination | Status |
+|------|------------|--------|
+| `/grades` (line 40) | No route defined | **404** |
+| `/finance` (line 65) | No route defined | **404** |
+| `/auditing` (line 70) | No route defined | **404** |
+| `/student/payments` (line 79) | No route defined | **404** |
+
+---
+
+## 5. Accessibility Issues (P2)
+
+### 🟡 A11Y-01: Only 8 Files Use `aria-` Attributes
+Most page-level components have **zero** ARIA attributes. Specifically:
+- Tables have no `role="table"`, `aria-label`, or `scope` attributes
+- Form error messages are not linked via `aria-describedby`
+- Toast notifications not announced to screen readers (`role="alert"` missing on container)
+- Sidebar navigation missing `role="navigation"` and `aria-current="page"`
+
+---
+
+### 🟡 A11Y-02: No Skip-to-Content Link
+No skip navigation link exists for keyboard users to bypass the sidebar.
+
+---
+
+## 6. Code Quality Issues (P3)
+
+### 🟡 CQ-01: [ProgramHeadDashboard](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx#64-143) Defined Inline in Route File
+A full 80-line component with state, hooks, and JSX is defined inside [routes/index.jsx](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx). This should be in its own file at `pages/program-head/ProgramHeadDashboard.jsx`.
+
+---
+
+### 🟡 CQ-02: Frontend API URLs Don't Match Backend Kebab-Case
+**File**: [students.js](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/api/students.js#L9-L15)
+
+```js
+returningStudent: (id, data) => api.post(`students/${id}/returning_student/`, data),
+manualAdd: (data) => api.post('students/manual_add/', data),
+```
+Backend was refactored to use `returning-student` and `manual-add` (kebab-case). Frontend API clients still use `snake_case` URLs → **API calls will 404**.
+
+---
+
+### 🟡 CQ-03: Grades API Module is Minimal
+**File**: [grades.js](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/api/grades.js)
+
+Only exposes [getHistory()](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/api/grades.js#4-5). All other grade operations (submit midterm, submit final, resolution workflow, credit, uncredit) are called inline in page components instead of through a centralized API module.
+
+---
+
+## 7. Missing UI/UX States Summary
+
+| Page | Loading | Empty | Error | Skeleton |
+|------|---------|-------|-------|----------|
+| AdminDashboard | ✅ | ❌ | ❌ | ❌ |
+| RegistrarDashboard | ✅ | ✅ | ✅ | ❌ |
+| StudentDashboard | ✅ | ✅ | ✅ | ❌ |
+| DeanDashboard | ❌ | ❌ | ❌ | ❌ |
+| ProgramHeadDashboard | ❌ | ✅ | ❌ | ❌ |
+| ProfessorDashboard | ✅ | ❌ | ✅ | ❌ |
+| CashierDashboard | ✅ | ❌ | ✅ | ❌ |
+| GradeEntry | ✅ | ❌ | ❌ | ❌ |
+| SchedulingPage | ✅ | ❌ | ✅ | ❌ |
+| All Report Pages | ✅ | ❌ | ❌ | ❌ |
+
+---
+
+## 8. Prioritized Improvement Roadmap
+
+### Phase 1 — Critical Fixes (1-2 days)
+- [ ] **Fix duplicate routes** (`/student/grades`, `/admin`, `/admin/audit`)
+- [ ] **Fix duplicate imports** (`ProfessorDashboard`, `StudentDashboard`)
+- [ ] **Fix frontend API URLs** to match backend kebab-case routes
+- [ ] **Fix sidebar dead links** (`/grades`, `/finance`, `/auditing`, `/student/payments`)
+- [ ] **Fix [ErrorBoundary](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/pages/errors/ErrorBoundary.jsx#5-43)** env check (`import.meta.env.DEV`)
+
+### Phase 2 — Security & Performance (3-5 days)
+- [ ] **Add `React.lazy()` + `Suspense`** for all page routes
+- [ ] **Add `AbortController`** to [useFetch](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useFetch.js#4-36) hook
+- [ ] **Fix [useFetch](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useFetch.js#4-36) stale closure** bug
+- [ ] **Wrap [logout](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/contexts/AuthContext.jsx#10-11)** in `useCallback`
+- [ ] **Throttle [useIdleTimer](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/hooks/useIdleTimer.js#5-58)** event listeners
+- [ ] **Replace `window.location.href`** with React Router `useNavigate`
+
+### Phase 3 — UX & Accessibility (5-7 days)
+- [ ] **Add escape key + focus trap** to Modal
+- [ ] **Add proper ARIA attributes** to Tables, Forms, and Toast
+- [ ] **Add skip-to-content** link
+- [ ] **Build real [DeanDashboard](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx#63-64)** page
+- [ ] **Add responsive CSS** for admin, report, and cashier pages
+- [ ] **Add consistent empty/error states** to all pages
+- [ ] **Move [ProgramHeadDashboard](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/routes/index.jsx#64-143)** to its own file
+
+### Phase 4 — Polish (2-3 days)
+- [ ] **Centralize grades API** module
+- [ ] **Add loading skeletons** to data-heavy pages
+- [ ] **Add double-click/submit protection** on critical actions
+- [ ] **Remove `console.log`** from demo page

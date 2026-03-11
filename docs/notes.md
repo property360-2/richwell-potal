@@ -63,3 +63,6 @@ Default Password 2600140421
 260016
 2600160421
 
+
+npm run test:e2e - Runs all E2E tests in the background.
+npm run test:e2e:ui - Opens the interactive Playwright UI for debugging.

@@ -26,6 +26,8 @@ class StudentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'apply':
             return [permissions.AllowAny()]
+        if self.action in ['update', 'partial_update', 'destroy', 'approve', 'unlock_advising', 'toggle_regularity', 'manual_add']:
+            return [IsAdmission()] # Admission/Admin per code
         return [permissions.IsAuthenticated()]
 
     @action(detail=False, methods=['post'], url_path='apply')
@@ -150,7 +152,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 'student': StudentSerializer(student).data,
                 'credentials': {
                     'idn': idn,
-                    'password': generated_password
+                    'message': "Generated password is the IDN + birthdate (MMDD format)"
                 }
             })
         except Exception as e:
@@ -158,14 +160,14 @@ class StudentViewSet(viewsets.ModelViewSet):
             traceback.print_exc()
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsRegistrar | IsAdmin])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmission], url_path='unlock-advising')
     def unlock_advising(self, request, pk=None):
         student = self.get_object()
         student.is_advising_unlocked = True
         student.save()
         return Response({'status': 'Advising process unlocked'})
 
-    @action(detail=True, methods=['post'], permission_classes=[IsRegistrar | IsAdmin])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmission], url_path='toggle-regularity')
     def toggle_regularity(self, request, pk=None):
         student = self.get_object()
         is_regular = request.data.get('is_regular', True)
@@ -183,16 +185,17 @@ class StudentViewSet(viewsets.ModelViewSet):
         enrollment.save()
         return Response({'status': 'Regularity status updated', 'is_regular': enrollment.is_regular})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='returning-student')
     def returning_student(self, request, pk=None):
         """
         Action for a student or Admission to 'enroll' the student for the active term.
         """
         student = self.get_object()
         
-        # Permission check: Admission or the Student themselves
-        if not (request.user.role == 'ADMIN' or request.user.role == 'ADMISSION' or request.user == student.user):
+        # Permission check: Admission, Admin, or the Student themselves
+        if not (request.user.role in ('ADMIN', 'ADMISSION') or request.user.is_superuser or request.user == student.user):
             return Response({'error': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+        
         if student.status in ['APPLICANT', 'REJECTED']:
             return Response({'error': 'Only approved students can be enrolled as returning'}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -231,7 +234,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             'enrollment': StudentEnrollmentSerializer(enrollment).data
         })
 
-    @action(detail=False, methods=['post'], permission_classes=[IsRegistrar | IsAdmin])
+    @action(detail=False, methods=['post'], permission_classes=[IsAdmission], url_path='manual-add')
     def manual_add(self, request):
         """
         Manually add an existing student to the system.
@@ -319,6 +322,13 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['advising_status', 'is_regular']
 
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            # Enrollments should be managed by registrar or admissions staff
+            from core.permissions import IsStaff
+            return [IsStaff()]
+        return super().get_permissions()
+
 
     def get_queryset(self):
         user = self.request.user
@@ -332,7 +342,7 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
             return queryset.filter(
                 student__program__program_head=user
             ).annotate(
-                subject_count=Count('student__grades', filter=Q(student__grades__term=F('term')))
+                subject_count=Count('student__grades', filter=Q(student__grades__term=F('term')), distinct=True)
             ).filter(subject_count__gt=0).distinct()
 
             
@@ -351,4 +361,46 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
             
         serializer = self.get_serializer(enrollment)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def schedule(self, request):
+        term_id = request.query_params.get('term')
+        if not term_id:
+            return Response({"error": "Term ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user = request.user
+        if user.role != 'STUDENT':
+            return Response({"error": "Only students can access their schedule"}, status=status.HTTP_403_FORBIDDEN)
+            
+        from apps.grades.models import Grade
+        from apps.scheduling.models import Schedule
+        
+        # Get approved subjects for the student and term
+        student = user.student_profile
+        grades = Grade.objects.filter(student=student, term_id=term_id, advising_status='APPROVED')
+        
+        schedule_data = []
+        for g in grades:
+            # Find schedule for this subject and term
+            # In a real system, we might need to match by section if the student is irregular
+            # For now, we fetch the primary schedule linked to the student's sections
+            schedules = Schedule.objects.filter(
+                subject=g.subject, 
+                term_id=term_id,
+                section__student_assignments__student=student
+            )
+            
+            for s in schedules:
+                schedule_data.append({
+                    "subject_code": g.subject.code,
+                    "subject_name": g.subject.name,
+                    "days": s.days,
+                    "start_time": s.start_time.strftime('%H:%M') if s.start_time else None,
+                    "end_time": s.end_time.strftime('%H:%M') if s.end_time else None,
+                    "room": s.room.name if s.room else "TBA",
+                    "professor": s.professor.user.get_full_name() if s.professor else "TBA",
+                    "type": s.component_type
+                })
+        
+        return Response(schedule_data)
 

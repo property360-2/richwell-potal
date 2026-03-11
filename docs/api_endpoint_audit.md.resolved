@@ -1,0 +1,444 @@
+# Richwell Portal — Complete API Endpoint Audit
+
+> **Date:** 2026-03-11 | **Framework:** Django REST Framework + SimpleJWT  
+> **Global Defaults:** `JWTAuthentication`, `IsAuthenticated`, Paginated (20/page), `DjangoFilterBackend` + `SearchFilter` + `OrderingFilter`
+
+---
+
+## Table of Contents
+
+1. [Authentication (accounts)](#1-authentication-accounts)
+2. [Staff Management (accounts)](#2-staff-management-accounts)
+3. [Academics (programs, curricula, subjects, prerequisites)](#3-academics)
+4. [Terms](#4-terms)
+5. [Students](#5-students)
+6. [Student Enrollments](#6-student-enrollments)
+7. [Faculty (Professors)](#7-faculty-professors)
+8. [Facilities (Rooms)](#8-facilities-rooms)
+9. [Finance (Payments)](#9-finance-payments)
+10. [Finance (Permits)](#10-finance-permits)
+11. [Grades — Advising](#11-grades-advising)
+12. [Grades — Approvals](#12-grades-approvals)
+13. [Grades — Crediting](#13-grades-crediting)
+14. [Grades — Submission](#14-grades-submission)
+15. [Grades — Resolution](#15-grades-resolution)
+16. [Sections](#16-sections)
+17. [Scheduling](#17-scheduling)
+18. [Notifications](#18-notifications)
+19. [Auditing](#19-auditing)
+20. [Reports](#20-reports)
+21. [Core (Locations)](#21-core-locations)
+22. [Issues & Findings](#22-issues--findings)
+
+---
+
+## 1. Authentication (accounts)
+
+| Path | Method | Auth | Permissions | Serializer | Request Body | Response | Errors |
+|------|--------|------|-------------|------------|-------------|----------|--------|
+| `api/accounts/auth/login/` | POST | No | `AllowAny` | [LoginSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/serializers.py#28-53) | `{username, password}` | `{access, refresh, user: {id, username, email, first_name, last_name, role, is_active, headed_programs}}` | 401 Invalid credentials |
+| `api/accounts/auth/refresh/` | POST | No | `AllowAny` | SimpleJWT default | `{refresh}` | `{access, refresh}` | 401 Token invalid/expired |
+| `api/accounts/auth/logout/` | POST | Yes | `IsAuthenticated` | None | — | `{detail: "Successfully logged out."}` | 401 |
+| `api/accounts/auth/me/` | GET | Yes | `IsAuthenticated` | [UserSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/serializers.py#7-27) | — | `{id, username, email, first_name, last_name, role, is_active, headed_programs}` | 401 |
+| `api/accounts/auth/change-password/` | PUT/PATCH | Yes | `IsAuthenticated` | [ChangePasswordSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/serializers.py#54-63) | `{old_password, new_password, confirm_password}` | `{detail: "Password updated successfully."}` | 400 Wrong password / Passwords don't match |
+
+---
+
+## 2. Staff Management (accounts)
+
+| Path | Method | Auth | Permissions | Serializer | Request Body | Response | Errors |
+|------|--------|------|-------------|------------|-------------|----------|--------|
+| `api/accounts/staff/` | GET | Yes | `IsAuthenticated, IsAdmin` | [UserSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/serializers.py#7-27) | — | Paginated list `{id, username, email, first_name, last_name, role, is_active, headed_programs}` | 401, 403 |
+| `api/accounts/staff/` | POST | Yes | `IsAuthenticated, IsAdmin` | [StaffCreateSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/serializers.py#64-79) | `{username, email, first_name, last_name, role, is_active}` | `{id, username, email, first_name, last_name, role, is_active}` | 400 Validation |
+| `api/accounts/staff/{id}/` | GET | Yes | `IsAuthenticated, IsAdmin` | [UserSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/serializers.py#7-27) | — | Single user object | 404 |
+| `api/accounts/staff/{id}/` | PUT/PATCH | Yes | `IsAuthenticated, IsAdmin` | [StaffCreateSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/serializers.py#64-79) | `{username, email, first_name, last_name, role, is_active}` | Updated user | 400, 404 |
+| `api/accounts/staff/{id}/` | DELETE | Yes | `IsAuthenticated, IsAdmin` | — | — | 204 | 404 |
+| `api/accounts/staff/{id}/reset_password/` | POST | Yes | `IsAuthenticated, IsAdmin` | None | — | `{detail: "Password reset to {username}1234"}` | 404 |
+
+> [!CAUTION]
+> **[reset_password](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/views.py#89-96) returns the plaintext password in the response body.** This is a security risk.
+
+---
+
+## 3. Academics
+
+### Programs
+
+| Path | Method | Auth | Permissions | Serializer | Request Body | Response | Errors |
+|------|--------|------|-------------|------------|-------------|----------|--------|
+| `api/academics/programs/` | GET | No* | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [ProgramSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#37-51) | — | Paginated `{id, code, name, effective_year, has_summer, program_head, program_head_name, is_active, active_curriculum_id}` | — |
+| `api/academics/programs/` | POST | Yes | [IsAdmin](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#9-14) | [ProgramSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#37-51) | `{code, name, effective_year, has_summer, program_head}` | Created program | 400, 403 |
+| `api/academics/programs/{id}/` | GET/PUT/PATCH/DELETE | Mixed | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [ProgramSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#37-51) | — | Program object | 404 |
+
+*Read methods allow unauthenticated access via [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101).
+
+**Filters:** `is_active`, `has_summer` | **Search:** `code`, `name`
+
+### Curriculum Versions
+
+| Path | Method | Auth | Permissions | Serializer |
+|------|--------|------|-------------|------------|
+| `api/academics/curriculums/` | GET/POST | Mixed | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [CurriculumVersionSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#29-36) |
+| `api/academics/curriculums/{id}/` | GET/PUT/PATCH/DELETE | Mixed | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [CurriculumVersionSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#29-36) |
+| `api/academics/curriculums/{id}/set_active/` | POST | Yes | [IsAdmin](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#9-14) | — |
+
+**Response fields:** `{id, program, program_code, version_name, is_active, subject_count, created_at}`  
+**Filters:** [program](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/serializers.py#16-21), `is_active`
+
+### Subjects
+
+| Path | Method | Auth | Permissions | Serializer |
+|------|--------|------|-------------|------------|
+| `api/academics/subjects/` | GET/POST | Mixed | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [SubjectSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#16-28) |
+| `api/academics/subjects/{id}/` | GET/PUT/PATCH/DELETE | Mixed | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [SubjectSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#16-28) |
+| `api/academics/subjects/bulk_upload/` | POST | Yes | [IsAdmin](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#9-14) | Multipart CSV | 
+
+**Response fields:** `{id, curriculum, curriculum_name, program_code, code, description, year_level, semester, lec_units, lab_units, total_units, hrs_per_week, is_major, is_practicum, prerequisites[]}`  
+**Filters:** [curriculum](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#48-51), `curriculum__program`, `year_level`, `semester`, `is_major` | **Search:** `code`, `description`  
+**Parsers:** `MultiPartParser`, `FormParser`
+
+### Subject Prerequisites
+
+| Path | Method | Auth | Permissions | Serializer |
+|------|--------|------|-------------|------------|
+| `api/academics/prerequisites/` | GET/POST | Mixed | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [SubjectPrerequisiteSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#4-15) |
+| `api/academics/prerequisites/{id}/` | GET/PUT/PATCH/DELETE | Mixed | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [SubjectPrerequisiteSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/serializers.py#4-15) |
+
+**Response fields:** `{id, subject, prerequisite_type, prerequisite_type_display, prerequisite_subject, prerequisite_subject_code, standing_year, description}`  
+**Filters:** [subject](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/faculty/views.py#77-108), `prerequisite_type`
+
+---
+
+## 4. Terms
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/terms/` | GET | No* | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [TermSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/terms/serializers.py#4-18) | — |
+| `api/terms/` | POST | Yes | [IsAdmin](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#9-14) | [TermSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/terms/serializers.py#4-18) | 400, 403 |
+| `api/terms/{id}/` | GET/PUT/PATCH/DELETE | Mixed | [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101) | [TermSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/terms/serializers.py#4-18) | 404 |
+| `api/terms/{id}/activate/` | POST | Yes | [IsAdmin](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#9-14) | — | 404 |
+
+**Response fields:** `{id, code, academic_year, semester_type, semester_display, start_date, end_date, enrollment_start, enrollment_end, advising_start, advising_end, schedule_picking_start, schedule_picking_end, schedule_published, midterm_grade_start, midterm_grade_end, final_grade_start, final_grade_end, is_active, created_at, updated_at}`  
+**Filters:** `is_active`, `semester_type`, `academic_year` | **Search:** `code`, `academic_year`
+
+---
+
+## 5. Students
+
+| Path | Method | Auth | Permissions | Serializer | Request Body | Response | Errors |
+|------|--------|------|-------------|------------|-------------|----------|--------|
+| `api/students/` | GET | Yes | `IsAuthenticated` | [StudentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/serializers.py#10-43) | — | Paginated students list | 401 |
+| `api/students/{id}/` | GET/PUT/PATCH/ DELETE | Yes | `IsAuthenticated` | [StudentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/serializers.py#10-43) | — | Student object | 401, 404 |
+| `api/students/apply/` | POST | No | `AllowAny` | [StudentApplicationSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/serializers.py#44-61) | `{first_name, last_name, email, middle_name, date_of_birth, gender, address_municipality, address_barangay, address_full, contact_number, guardian_name, guardian_contact, program, curriculum, student_type, previous_school}` | Created student | 400 Duplicate email |
+| `api/students/{id}/approve/` | POST | Yes | [IsAdmission](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#30-35) | None (manual) | `{monthly_commitment}` | `{student, credentials: {idn, password}}` | 400, 500 |
+| `api/students/{id}/unlock_advising/` | POST | Yes | `IsRegistrar \| IsAdmin` | — | — | `{status: "Advising process unlocked"}` | 404 |
+| `api/students/{id}/toggle_regularity/` | POST | Yes | `IsRegistrar \| IsAdmin` | — | `{is_regular}` | `{status, is_regular}` | 400 |
+| `api/students/{id}/returning_student/` | POST | Yes | `IsAuthenticated` | — | `{monthly_commitment}` | `{message, enrollment}` | 400, 403 |
+| `api/students/manual_add/` | POST | Yes | `IsRegistrar \| IsAdmin` | — | `{idn, email, first_name, last_name, date_of_birth, gender, program, curriculum, student_type, year_level, monthly_commitment}` | `{message, student, is_regular}` | 400 |
+
+> [!CAUTION]
+> **[approve](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/views.py#81-160) endpoint returns plaintext password** `{credentials: {idn, password}}` in the response.
+
+**Filters:** [status](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/finance/views.py#68-82), `student_type`, [program](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/serializers.py#16-21) | **Search:** `user__first_name`, `user__last_name`, `user__email`, `idn`
+
+---
+
+## 6. Student Enrollments
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/students/enrollments/` | GET | Yes | `IsAuthenticated` | [StudentEnrollmentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/serializers.py#63-80) | 401 |
+| `api/students/enrollments/{id}/` | GET/PUT/PATCH/DELETE | Yes | `IsAuthenticated` | [StudentEnrollmentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/serializers.py#63-80) | 401, 404 |
+| `api/students/enrollments/me/` | GET | Yes | `IsAuthenticated` | [StudentEnrollmentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/serializers.py#63-80) | 400 Missing term |
+| `api/students/enrollments/schedule/` | GET | Yes | `IsAuthenticated` (STUDENT) | None (manual) | 400, 403 |
+
+**Response fields:** `{id, student, student_details, student_name, student_idn, program_code, term, term_details, advising_status, advising_approved_by, advising_approved_at, is_regular, year_level, monthly_commitment, enrolled_by, enrollment_date}`  
+**Filters:** `advising_status`, `is_regular`
+
+---
+
+## 7. Faculty (Professors)
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/faculty/professors/` | GET | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | [ProfessorSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/faculty/serializers.py#29-50) | 403 |
+| `api/faculty/professors/` | POST | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | [ProfessorCreateUpdateSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/faculty/serializers.py#51-80) | 400 |
+| `api/faculty/professors/{id}/` | GET/PUT/PATCH/DELETE | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | Mixed | 404 |
+| `api/faculty/professors/{id}/subjects/` | GET | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | [ProfessorSubjectSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/faculty/serializers.py#8-23) | 404 |
+| `api/faculty/professors/{id}/subjects/` | POST | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | None (manual) | 404 |
+| `api/faculty/professors/{id}/assign_subjects/` | POST | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | None (manual) | 404 |
+| `api/faculty/professors/{id}/availability/` | GET | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | [ProfessorAvailabilitySerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/faculty/serializers.py#24-28) | 404 |
+| `api/faculty/professors/{id}/availability/` | POST | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | None (manual) | 404 |
+
+**POST `/subjects/` body:** `{subject_ids: [int]}`  
+**POST `/assign_subjects/` body:** `{subject_ids: [int]}` (full replacement)  
+**POST `/availability/` body:** `{availabilities: [{day, session}]}`
+**Search:** `employee_id`, `user__first_name`, `user__last_name`, `department` | **Filters:** `department`, `employment_status`, `is_active`
+
+---
+
+## 8. Facilities (Rooms)
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/facilities/` | GET/POST | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | [RoomSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/facilities/serializers.py#4-14) | 403 |
+| `api/facilities/{id}/` | GET/PUT/PATCH/DELETE | Yes | [IsStaff](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#79-89) | [RoomSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/facilities/serializers.py#4-14) | 404 |
+
+**Response fields:** `{id, name, room_type, room_type_display, capacity, is_active, created_at, updated_at}`  
+**Filters:** `is_active`, `room_type` | **Search:** `name` | **Ordering:** `name`, `capacity`
+
+---
+
+## 9. Finance (Payments)
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/finance/payments/` | GET | Yes | Global default | [PaymentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/finance/serializers.py#4-19) | 401 |
+| `api/finance/payments/` | POST | Yes | Global default | [PaymentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/finance/serializers.py#4-19) | 400 |
+| `api/finance/payments/{id}/` | GET | Yes | Global default | [PaymentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/finance/serializers.py#4-19) | 404 |
+| `api/finance/payments/{id}/` | PUT/PATCH | Yes | — | — | **405 Always** |
+| `api/finance/payments/{id}/` | DELETE | Yes | — | — | **405 Always** |
+| `api/finance/payments/adjust/` | POST | Yes | Global default | [PaymentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/finance/serializers.py#4-19) | 400 |
+
+**Request body (create/adjust):** `{student, term, month, amount, is_promissory, remarks}`  
+**Response fields:** `{id, student, student_idn, student_name, term, month, amount, entry_type, entry_type_display, is_promissory, remarks, processed_by, processed_by_name, created_at}`
+
+> [!WARNING]
+> **No explicit permission_classes set** on [PaymentViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/finance/views.py#9-64). Falls back to global `IsAuthenticated` only. No role-based restriction (e.g., Cashier-only).
+
+---
+
+## 10. Finance (Permits)
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/finance/permits/status/` | GET | Yes | `IsAuthenticated` | None (manual) | 400 Missing params |
+| `api/finance/permits/my-permits/` | GET | Yes | `IsAuthenticated` | None (manual) | 400, 403 |
+
+**Query params:** `student_id`, `term_id`
+
+---
+
+## 11. Grades — Advising
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/grades/advising/` | GET | Yes | `IsStudent \| IsProgramHead \| IsAdmin` | [GradeSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/grades/serializers.py#6-26) | 403 |
+| `api/grades/advising/auto_advise/` | POST | Yes | `IsStudent \| IsProgramHead \| IsAdmin` | — | 400, 403 |
+| `api/grades/advising/manual_advise/` | POST | Yes | `IsStudent \| IsProgramHead \| IsAdmin` | [AdvisingSubmitSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/grades/serializers.py#29-45) | 400 |
+
+**Filters:** [student](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/views.py#186-233), `is_credited`, [term](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/grades/views.py#187-202), `advising_status`
+
+---
+
+## 12. Grades — Approvals
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/grades/approvals/batch_approve_regular/` | POST | Yes | `IsProgramHead \| IsAdmin` | — | 400 |
+| `api/grades/approvals/{id}/approve/` | POST | Yes | `IsProgramHead \| IsAdmin` | — | 404 |
+| `api/grades/approvals/{id}/reject/` | POST | Yes | `IsProgramHead \| IsAdmin` | — | 404 |
+
+**POST `/reject/` body:** `{reason}`
+
+---
+
+## 13. Grades — Crediting
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/grades/crediting/credit/` | POST | Yes | `IsRegistrar \| IsAdmin` | [CreditingSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/grades/serializers.py#47-49) | 400 |
+| `api/grades/crediting/uncredit/` | POST | Yes | `IsRegistrar \| IsAdmin` | — | 400, 404 |
+
+**POST `/credit/` body:** `{student_id, subject_id, term_id}`  
+**POST `/uncredit/` body:** `{grade_id}`
+
+---
+
+## 14. Grades — Submission
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/grades/submission/{id}/submit_midterm/` | POST | Yes | `IsProfessor \| IsRegistrar \| IsAdmin` | — | 400, 404 |
+| `api/grades/submission/{id}/submit_final/` | POST | Yes | `IsProfessor \| IsRegistrar \| IsAdmin` | — | 400, 404 |
+| `api/grades/submission/finalize/` | POST | Yes | `IsProfessor \| IsRegistrar \| IsAdmin` | — | 400, 403 |
+
+**POST `/submit_midterm/` body:** `{grade}` or `{grades: [{grade_id, grade}]}`  
+**POST `/submit_final/` body:** `{grade}` or `{grades: [{grade_id, grade}]}`  
+**POST `/finalize/` body:** `{term_id}`
+
+---
+
+## 15. Grades — Resolution
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/grades/resolution/{id}/request_resolution/` | POST | Yes | `IsProfessor \| IsRegistrar \| IsProgramHead \| IsAdmin` | — | 400, 404 |
+| `api/grades/resolution/{id}/registrar_approve/` | POST | Yes | Same | — | 400, 404 |
+| `api/grades/resolution/{id}/submit_grade/` | POST | Yes | Same | — | 400, 404 |
+| `api/grades/resolution/{id}/head_approve/` | POST | Yes | Same | — | 400, 404 |
+| `api/grades/resolution/{id}/head_reject/` | POST | Yes | Same | — | 400, 404 |
+
+---
+
+## 16. Sections
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/sections/` | GET | Yes | `IsAuthenticated` | [SectionSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/sections/serializers.py#4-39) | 401 |
+| `api/sections/` | POST | Yes | `IsAuthenticated` | [SectionSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/sections/serializers.py#4-39) | 400 |
+| `api/sections/{id}/` | GET/PUT/PATCH/DELETE | Yes | `IsAuthenticated` | [SectionSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/sections/serializers.py#4-39) | 404 |
+| `api/sections/stats/` | GET | Yes | `IsAuthenticated` | — | 400, 404 |
+| `api/sections/generate/` | POST | Yes | `IsAuthenticated` | [SectionSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/sections/serializers.py#4-39) | 400 |
+| `api/sections/{id}/transfer/` | POST | Yes | `IsAuthenticated` | — | 400 |
+| `api/sections/{id}/roster/` | GET | Yes | `IsAuthenticated` | [SectionStudentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/sections/serializers.py#40-47) | 404 |
+| `api/sections/my_sections/` | GET | Yes | `IsAuthenticated` | None (manual) | 400 |
+
+**Query params:** `term_id`, `program_id`, `year_level`, [subject_id](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/grades/serializers.py#35-45)
+
+> [!WARNING]
+> **Section CRUD uses only `IsAuthenticated`** — any logged-in user (including students) can create, update, or delete sections.
+
+---
+
+## 17. Scheduling
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/scheduling/` | GET | Yes | `IsAuthenticated` | [ScheduleSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/serializers.py#4-16) | 401 |
+| `api/scheduling/` | POST | Yes | `IsAuthenticated` | [ScheduleSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/serializers.py#4-16) | 400 |
+| `api/scheduling/{id}/` | GET/PUT/PATCH/DELETE | Yes | `IsAuthenticated` | [ScheduleSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/serializers.py#4-16) | 404 |
+| `api/scheduling/assign/` | POST | Yes | `IsAuthenticated` | [ScheduleSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/serializers.py#4-16) | 400 |
+| `api/scheduling/pick-regular/` | POST | Yes | `IsAuthenticated` | [ScheduleSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/serializers.py#4-16) | 400 |
+| `api/scheduling/pick-irregular/` | POST | Yes | `IsAuthenticated` | — | 400 |
+| `api/scheduling/status_matrix/` | GET | Yes | `IsAuthenticated` | None (manual) | 400 |
+| `api/scheduling/publish/` | POST | Yes | `IsAuthenticated` | — | 400, 404 |
+| `api/scheduling/available_slots/` | GET | Yes | `IsAuthenticated` | [ScheduleSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/serializers.py#4-16) | 400, 404 |
+
+> [!WARNING]
+> **Schedule CRUD and [assign](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/views.py#34-66), [publish](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/views.py#143-160) use only `IsAuthenticated`** — any user can create/modify/delete schedules and publish them. Should be restricted to Dean/Admin.
+
+---
+
+## 18. Notifications
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/notifications/` | GET | Yes | `IsAuthenticated` | [NotificationSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/notifications/serializers.py#4-15) | 401 |
+| `api/notifications/` | POST | Yes | — | — | **405 Disabled** |
+| `api/notifications/{id}/` | GET | Yes | `IsAuthenticated` | [NotificationSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/notifications/serializers.py#4-15) | 404 |
+| `api/notifications/{id}/` | PUT/PATCH | Yes | — | — | **405 Disabled** |
+| `api/notifications/{id}/` | DELETE | Yes | `IsAuthenticated` | — | 404 |
+| `api/notifications/{id}/mark-read/` | POST | Yes | `IsAuthenticated` | — | 404 |
+| `api/notifications/mark-all-read/` | POST | Yes | `IsAuthenticated` | — | — |
+| `api/notifications/unread-count/` | GET | Yes | `IsAuthenticated` | — | — |
+
+**Response fields:** `{id, recipient, recipient_name, type, type_display, title, message, link_url, is_read, created_at}`
+
+---
+
+## 19. Auditing
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/auditing/` | GET | Yes | [IsAdminOrHeadRegistrar](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/auditing/views.py#9-18) | [AuditLogSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/auditing/serializers.py#4-15) | 403 |
+| `api/auditing/{id}/` | GET | Yes | [IsAdminOrHeadRegistrar](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/auditing/views.py#9-18) | [AuditLogSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/auditing/serializers.py#4-15) | 404 |
+| `api/auditing/export_csv/` | GET | Yes | [IsAdminOrHeadRegistrar](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/auditing/views.py#9-18) | CSV file download | 403 |
+
+**Response fields:** `{id, user, user_name, user_username, action, action_display, model_name, object_id, object_repr, changes, ip_address, created_at}`  
+**Filters:** `user`, `action`, `model_name`, `created_at` | **Search:** `object_id`, `object_repr`, `user__username`, `user__first_name`, `user__last_name`
+
+> [!IMPORTANT]
+> Read-only ViewSet — good security practice for audit logs.
+
+---
+
+## 20. Reports
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/reports/masterlist/` | GET | Yes | `IsAdminUser` | None (Excel download) | 400, 500 |
+| `api/reports/cor/` | GET | Yes | `IsAuthenticated` | None (PDF download) | 400, 403, 500 |
+| `api/reports/graduation_check/` | GET | Yes | `IsAuthenticated` | None (manual) | 400, 500 |
+| `api/reports/stats/` | GET | Yes | `IsAuthenticated` | None (manual JSON) | — |
+
+**Query params (masterlist):** `term_id` (required), `program_id`, `year_level`  
+**Query params (cor):** `student_id`, `term_id` (required)
+
+---
+
+## 21. Core (Locations)
+
+| Path | Method | Auth | Permissions | Serializer | Errors |
+|------|--------|------|-------------|------------|--------|
+| `api/locations/` | GET | No | `AllowAny` | None (JSON file) | 500 File read error |
+
+---
+
+## 22. Issues & Findings
+
+### 🔴 Critical — Sensitive Data Exposure
+
+| Issue | Endpoint | Risk |
+|-------|----------|------|
+| **Plaintext password in response** | `POST /api/accounts/staff/{id}/reset_password/` | Returns `{detail: "Password reset to {username}1234"}` — exposes password in API response, logs, network traces |
+| **Plaintext credentials in response** | `POST /api/students/{id}/approve/` | Returns `{credentials: {idn, password}}` — initial password visible in response |
+| **Debug print statements** | `LoginSerializer.validate()` | `print(f"DEBUG: Login attempt for username: {attrs.get('username')}")` — leaks login attempts to stdout |
+| **`import` inside class body** | [StaffManagementViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/accounts/views.py#58-96) | `from rest_framework.decorators import action` on line 88 is inside the class body — unusual pattern, may cause issues |
+
+### 🟠 High — Missing Permission Restrictions
+
+| Issue | Endpoint | Impact |
+|-------|----------|--------|
+| **No role-based permissions** | [PaymentViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/finance/views.py#9-64) (CRUD) | Any authenticated user can create payments — should be `IsCashier \| IsAdmin` |
+| **No role-based permissions** | [SectionViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/sections/views.py#11-152) (CRUD) | Any authenticated user can create/update/delete sections — should be `IsRegistrar \| IsAdmin` |
+| **No role-based permissions** | [ScheduleViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/views.py#14-189) (CRUD + assign + publish) | Any authenticated user can create/publish schedules — should be `IsDean \| IsAdmin` |
+| **No role-based permissions** | [StudentEnrollmentViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/views.py#316-396) (CRUD) | Any authenticated user can modify enrollments — missing write restrictions |
+| **Overly permissive** | [StudentViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/views.py#14-315) (update/delete) | Only `IsAuthenticated` for PUT/PATCH/DELETE on students |
+| **Manual permission check** | [returning_student](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/views.py#186-233) action | Uses inline `if not (role == 'ADMIN' or ...)` instead of proper `permission_classes` |
+
+### 🟡 Medium — Inconsistent Naming
+
+| Pattern | Endpoints | Issue |
+|---------|-----------|-------|
+| URL casing inconsistency | `/pick-regular/` uses kebab-case but `/status_matrix/`, `/available_slots/`, `/auto_advise/` use snake_case | Pick one convention |
+| `/mark-read/` vs `/mark_all_read/` | Notifications | Kebab vs. snake_case within the same ViewSet |
+| Router prefix `r''` (empty) | [AuditLogViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/auditing/views.py#19-60), [RoomViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/facilities/views.py#6-13), [NotificationViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/notifications/views.py#8-43), [TermViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/terms/views.py#8-21), [SectionViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/sections/views.py#11-152), [ScheduleViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/views.py#14-189) | Registered with empty prefix — works but creates less descriptive API root |
+| Plural vs singular | `api/auditing/` (singular-ish) vs `api/academics/programs/` (plural) | Inconsistent resource naming |
+
+### 🟡 Medium — Missing Validation
+
+| Issue | Endpoint | Detail |
+|-------|----------|--------|
+| No body validation | `GET /reports/cor/` | `student_id` is compared as string but stored as integer — potential type mismatch |
+| No serializer for writes | `professors/{id}/subjects/`, `professors/{id}/availability/`, `professors/{id}/assign_subjects/` | Read raw `request.data` without serializer validation |
+| No serializer for writes | `scheduling/assign/`, `scheduling/pick-regular/`, `scheduling/pick-irregular/`, `scheduling/publish/` | All read raw `request.data` |
+| No serializer for writes | `students/{id}/approve/`, `students/{id}/toggle_regularity/`, `students/{id}/returning_student/`, `students/manual_add/` | All read raw `request.data` |
+| No serializer for writes | `sections/generate/`, `sections/{id}/transfer/` | Raw `request.data` usage |
+| No serializer for writes | `grades/approvals/`, `grades/crediting/`, `grades/submission/`, `grades/resolution/` (most actions) | Many custom actions bypass serializer validation |
+| `fields = '__all__'` | [ScheduleSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/scheduling/serializers.py#4-16), [SectionStudentSerializer](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/sections/serializers.py#40-47) | Exposes all model fields including potentially internal ones |
+| Broad exception handling | Multiple endpoints | `except Exception as e: return Response({"error": str(e)})` may expose internal error details |
+
+### 🟢 Low — Undocumented Endpoints
+
+| Endpoint | Issue |
+|----------|-------|
+| DRF Router API Root endpoints | Each `DefaultRouter` generates a browsable API root (e.g., `api/academics/`) — undocumented |
+| Django Admin | `admin/` — always accessible, default Django admin |
+| `api/grades/advising/` CRUD | [AdvisingViewSet](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/grades/views.py#17-86) has a `serializer_class = GradeSerializer` but unclear if standard CRUD (list/create/update/delete) is intended beyond the custom actions |
+| `api/grades/approvals/` CRUD | [AdvisingApprovalViewSet(viewsets.ViewSet)](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/grades/views.py#88-135) — no standard CRUD, only custom actions. But DRF ViewSet still exposes the API root |
+
+---
+
+## Summary Statistics
+
+| Metric | Count |
+|--------|-------|
+| **Total Apps** | 13 + core |
+| **Total API Endpoints** | ~75+ (including router-generated CRUD) |
+| **Public (No Auth)** | 4 (`login`, `refresh`, [apply](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/students/views.py#31-80), `locations`) |
+| **Read-only for non-admin** | ~12 (academics, terms via [IsAdminOrReadOnly](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/permissions.py#91-101)) |
+| **Critical Security Issues** | 4 |
+| **High Permission Issues** | 6 |
+| **Naming Inconsistencies** | 4 |
+| **Missing Validation** | 12+ |

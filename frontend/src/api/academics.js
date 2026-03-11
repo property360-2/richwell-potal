@@ -15,7 +15,7 @@ export const academicsApi = {
     getCurriculum: (id) => api.get(`academics/curriculums/${id}/`),
     createCurriculum: (data) => api.post('academics/curriculums/', data),
     updateCurriculum: (id, data) => api.patch(`academics/curriculums/${id}/`, data),
-    setActiveCurriculum: (id) => api.post(`academics/curriculums/${id}/set_active/`),
+    setActiveCurriculum: (id) => api.post(`academics/curriculums/${id}/set-active/`),
 
     // Subjects
     getSubjects: (params) => api.get('academics/subjects/', { params }),
@@ -23,7 +23,7 @@ export const academicsApi = {
     createSubject: (data) => api.post('academics/subjects/', data),
     updateSubject: (id, data) => api.patch(`academics/subjects/${id}/`, data),
     deleteSubject: (id) => api.delete(`academics/subjects/${id}/`),
-    bulkUploadSubjects: (formData) => api.post('academics/subjects/bulk_upload/', formData),
+    bulkUploadSubjects: (formData) => api.post('academics/subjects/bulk-upload/', formData),
 
     // Prerequisites
     getPrerequisites: (params) => api.get('academics/prerequisites/', { params }),

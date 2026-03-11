@@ -1,0 +1,36 @@
+.resolution-head-container {
+    min-height: calc(100vh - 100px);
+    background-color: #f8fafc;
+}
+
+.resolution-head-container .animate-in {
+    animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.text-danger {
+    color: #ef4444;
+}
+
+.hover\:bg-danger\/10:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.focus\:ring-danger:focus {
+    --tw-ring-color: #ef4444;
+}
+
+.focus\:border-danger:focus {
+    border-color: #ef4444;
+}

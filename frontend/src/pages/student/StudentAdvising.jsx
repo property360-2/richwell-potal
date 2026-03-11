@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Info
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../api/axios';
 import Card from '../../components/ui/Card';
@@ -19,6 +20,7 @@ import './StudentAdvising.css';
 
 const StudentAdvising = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [enrolled, setEnrolled] = useState(false);
   const [enrollment, setEnrollment] = useState(null);
@@ -158,7 +160,7 @@ const StudentAdvising = () => {
         <AlertCircle size={48} className="mx-auto text-amber-500 mb-4" />
         <h2 className="text-2xl font-bold text-slate-800">Enrollment Required</h2>
         <p className="text-slate-600 mt-2">You must enroll for the current term before you can proceed to subject advising.</p>
-        <Button className="mt-6" onClick={() => window.location.href = '/student'}>Go to Dashboard</Button>
+        <Button className="mt-6" onClick={() => navigate('/student')}>Go to Dashboard</Button>
       </div>
     );
   }

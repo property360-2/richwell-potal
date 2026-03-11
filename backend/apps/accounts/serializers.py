@@ -39,15 +39,11 @@ class LoginSerializer(TokenObtainPairSerializer):
         if 'username' in attrs:
             attrs['username'] = attrs['username'].strip()
         
-        print(f"DEBUG: Login attempt for username: {attrs.get('username')}")
-            
         try:
             data = super().validate(attrs)
-            print(f"DEBUG: Login success for: {self.user.username}")
             data['user'] = UserSerializer(self.user).data
             return data
         except serializers.ValidationError as e:
-            print(f"DEBUG: Login failed: {e}")
             # Re-raise standard SimpleJWT 401 but ensure it's not due to formatting
             raise e
 

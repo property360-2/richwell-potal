@@ -37,7 +37,7 @@ const getNavItems = (role) => {
     items.push({ path: '/admin/academics', label: 'Academics', icon: BookOpen });
     items.push({ path: '/admin/terms', label: 'Terms', icon: Calendar });
     items.push({ path: '/admin/faculty', label: 'Faculty', icon: Briefcase });
-    items.push({ path: '/grades', label: 'Grades', icon: ClipboardList });
+    items.push({ path: '/registrar/grades', label: 'Grades', icon: ClipboardList });
   }
 
   if (['ADMISSION', 'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
@@ -62,12 +62,12 @@ const getNavItems = (role) => {
   }
 
   if (['CASHIER', 'ADMIN'].includes(normalizedRole)) {
-    items.push({ path: '/finance', label: 'Finance', icon: CreditCard });
+    items.push({ path: '/cashier', label: 'Finance', icon: CreditCard });
   }
 
   if (['ADMIN'].includes(normalizedRole)) {
     items.push({ path: '/admin/rooms', label: 'Rooms', icon: Building });
-    items.push({ path: '/auditing', label: 'Audit Logs', icon: Settings });
+    items.push({ path: '/admin/audit', label: 'Audit Logs', icon: Settings });
   }
 
   if (normalizedRole === 'STUDENT') {
@@ -76,7 +76,7 @@ const getNavItems = (role) => {
     items.push({ path: '/student/grades', label: 'My Grades', icon: ClipboardList });
     items.push({ path: '/student/picking', label: 'Schedule Picking', icon: Clock });
     items.push({ path: '/student/schedule', label: 'My Schedule', icon: Clock });
-    items.push({ path: '/student/payments', label: 'Payments', icon: CreditCard });
+    items.push({ path: '/student/finance', label: 'Payments', icon: CreditCard });
   }
 
   return items;

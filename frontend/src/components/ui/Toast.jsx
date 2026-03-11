@@ -43,6 +43,16 @@ export const ToastProvider = ({ children }) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
+  useEffect(() => {
+    const handleApiError = (event) => {
+      const message = event.detail?.message || 'An unexpected error occurred. Please try again.';
+      addToast(message, 'error', 7000);
+    };
+    
+    window.addEventListener('api-error', handleApiError);
+    return () => window.removeEventListener('api-error', handleApiError);
+  }, [addToast]);
+
   return (
     <ToastContext.Provider value={{ showToast: addToast }}>
       {children}

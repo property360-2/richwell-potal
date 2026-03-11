@@ -36,12 +36,12 @@ class CurriculumVersionViewSet(viewsets.ModelViewSet):
         curriculum.save()
         return Response({'status': 'curriculum activated'})
 
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 
 class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.all().order_by('year_level', 'semester')
     serializer_class = SubjectSerializer
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['code', 'description']

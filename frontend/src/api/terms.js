@@ -7,6 +7,7 @@ export const termsApi = {
     updateTerm: (id, data) => api.patch(`terms/${id}/`, data),
     deleteTerm: (id) => api.delete(`terms/${id}/`),
     activateTerm: (id) => api.post(`terms/${id}/activate/`),
+    getActiveTerm: () => api.get('terms/?is_active=true'),
 };
 
 export default termsApi;

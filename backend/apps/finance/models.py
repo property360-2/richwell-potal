@@ -1,19 +1,27 @@
 from django.db import models
+from apps.auditing.mixins import AuditMixin
 
 # Create your models here.
 
-class Payment(models.Model):
+class Payment(AuditMixin, models.Model):
+    class EntryType(models.TextChoices):
+        PAYMENT = 'PAYMENT', 'Payment'
+        ADJUSTMENT = 'ADJUSTMENT', 'Adjustment'
+
     student = models.ForeignKey('students.Student', on_delete=models.CASCADE, related_name='payments')
     term = models.ForeignKey('terms.Term', on_delete=models.CASCADE, related_name='payments')
-    month_number = models.PositiveIntegerField() # 1-6
-    amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    month = models.PositiveIntegerField() # 1-6
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    entry_type = models.CharField(max_length=20, choices=EntryType.choices, default=EntryType.PAYMENT)
     
     is_promissory = models.BooleanField(default=False)
-    is_adjustment = models.BooleanField(default=False)
+    remarks = models.TextField(blank=True, null=True)
     
     processed_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, related_name='processed_payments')
-    payment_date = models.DateTimeField(auto_now_add=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at']
+
     def __str__(self):
-        return f"{self.student.idn} - Term {self.term.code} (Month {self.month_number})"
+        return f"{self.student.idn} - {self.entry_type} - Month {self.month} - {self.amount}"

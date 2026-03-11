@@ -1,0 +1,372 @@
+.reports-page {
+    padding: 32px;
+    background: #f8fafc;
+    min-height: 100vh;
+}
+
+.reports-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.header-icon-box {
+    width: 48px;
+    height: 48px;
+    background: #eff6ff;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.reports-header h1 {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 2px;
+}
+
+.reports-header p {
+    font-size: 14px;
+    color: #64748b;
+}
+
+.reports-grid {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+.search-card {
+    padding: 20px;
+    background: white;
+}
+
+.search-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.search-input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f1f5f9;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    transition: border 0.2s;
+}
+
+.search-input-group:focus-within {
+    border-color: #3b82f6;
+    background: white;
+}
+
+.search-input-group input {
+    border: none;
+    background: transparent;
+    padding: 12px 0;
+    font-size: 13px;
+    width: 100%;
+    outline: none;
+}
+
+.student-results {
+    max-height: 500px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.student-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.student-item:hover {
+    background: #f8fafc;
+}
+
+.student-item.active {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #2563eb;
+}
+
+.student-item .info {
+    display: flex;
+    flex-direction: column;
+}
+
+.student-item .name {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.student-item .idn {
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.6;
+}
+
+.preview-card {
+    padding: 40px;
+}
+
+.preview-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.user-avatar-large {
+    width: 64px;
+    height: 64px;
+    background: #f1f5f9;
+    color: #94a3b8;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+}
+
+.preview-header h3 {
+    font-size: 20px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.badge-idn {
+    background: #0f172a;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-block;
+    margin-bottom: 8px;
+}
+
+.preview-controls {
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    font-size: 14px;
+    background: #f8fafc;
+}
+
+.info-box {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.info-box p {
+    font-size: 12px;
+    color: #0369a1;
+    line-height: 1.4;
+}
+
+.filter-grid-layout {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.filter-item label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.filter-item select {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    font-size: 14px;
+    background: #f8fafc;
+}
+
+.export-actions {
+    border-top: 1px solid #f1f5f9;
+    padding-top: 32px;
+    text-align: center;
+}
+
+.export-btn {
+    width: auto !important;
+    padding: 16px 32px !important;
+    font-size: 16px !important;
+}
+
+.hint-text {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 16px;
+}
+
+/* Audit Card */
+.audit-card {
+    padding: 40px;
+}
+
+.audit-summary-box {
+    text-align: center;
+    padding-bottom: 32px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 32px;
+}
+
+.status-icon {
+    margin-bottom: 16px;
+}
+
+.status-icon.success {
+    color: #10b981;
+}
+
+.status-icon.pending {
+    color: #f59e0b;
+}
+
+.audit-summary-box h2 {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 16px;
+}
+
+.stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat .val {
+    font-size: 32px;
+    font-weight: 900;
+    color: #0f172a;
+}
+
+.stat .lbl {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.missing-section h3 {
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 16px;
+}
+
+.missing-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.missing-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.missing-item .code {
+    font-weight: 700;
+    min-width: 80px;
+}
+
+.missing-item .name {
+    flex: 1;
+}
+
+.success-state {
+    padding: 24px;
+    background: #ecfdf5;
+    color: #065f46;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+}
+
+.loading-audit {
+    padding: 100px;
+    text-align: center;
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3b82f6;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}

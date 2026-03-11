@@ -10,56 +10,56 @@ class IsAdmin(BasePermission):
     """Allow access only to users with ADMIN role."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'ADMIN'
+        return request.user.is_authenticated and (request.user.role == 'ADMIN' or request.user.is_superuser)
 
 
 class IsHeadRegistrar(BasePermission):
     """Allow access only to users with HEAD_REGISTRAR role."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'HEAD_REGISTRAR'
+        return request.user.is_authenticated and (request.user.role == 'HEAD_REGISTRAR' or request.user.is_superuser)
 
 
 class IsRegistrar(BasePermission):
     """Allow access only to users with REGISTRAR role."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'REGISTRAR'
+        return request.user.is_authenticated and (request.user.role == 'REGISTRAR' or request.user.is_superuser)
 
 
 class IsAdmission(BasePermission):
     """Allow access to users with ADMISSION or ADMIN role."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ('ADMISSION', 'ADMIN')
+        return request.user.is_authenticated and (request.user.role in ('ADMISSION', 'ADMIN') or request.user.is_superuser)
 
 
 class IsCashier(BasePermission):
     """Allow access only to users with CASHIER role."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'CASHIER'
+        return request.user.is_authenticated and (request.user.role == 'CASHIER' or request.user.is_superuser)
 
 
 class IsDean(BasePermission):
     """Allow access only to users with DEAN role."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'DEAN'
+        return request.user.is_authenticated and (request.user.role == 'DEAN' or request.user.is_superuser)
 
 
 class IsProgramHead(BasePermission):
     """Allow access only to users with PROGRAM_HEAD role."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'PROGRAM_HEAD'
+        return request.user.is_authenticated and (request.user.role == 'PROGRAM_HEAD' or request.user.is_superuser)
 
 
 class IsProfessor(BasePermission):
     """Allow access only to users with PROFESSOR role."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'PROFESSOR'
+        return request.user.is_authenticated and (request.user.role == 'PROFESSOR' or request.user.is_superuser)
 
 
 class IsStudent(BasePermission):
@@ -73,7 +73,7 @@ class IsAdminOrRegistrar(BasePermission):
     """Allow access to ADMIN or REGISTRAR roles."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ('ADMIN', 'REGISTRAR')
+        return request.user.is_authenticated and (request.user.role in ('ADMIN', 'REGISTRAR') or request.user.is_superuser)
 
 
 class IsStaff(BasePermission):
@@ -85,7 +85,7 @@ class IsStaff(BasePermission):
     }
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in self.STAFF_ROLES
+        return request.user.is_authenticated and (request.user.role in self.STAFF_ROLES or request.user.is_superuser)
 
 
 class IsAdminOrReadOnly(BasePermission):
@@ -97,4 +97,4 @@ class IsAdminOrReadOnly(BasePermission):
     def has_permission(self, request, view):
         if request.method in SAFE_METHODS:
             return True
-        return request.user.is_authenticated and request.user.role == 'ADMIN'
+        return request.user.is_authenticated and (request.user.role == 'ADMIN' or request.user.is_superuser)

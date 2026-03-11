@@ -22,12 +22,14 @@ const Button = ({
       type={type}
       className={`${baseClass} ${variantClass} ${sizeClass} ${className}`}
       disabled={disabled || loading}
+      aria-busy={loading}
+      aria-live="polite"
       {...props}
     >
       {loading ? (
-        <Loader2 className="btn-icon animate-spin" size={size === 'sm' ? 14 : 16} />
+        <Loader2 className="btn-icon animate-spin" size={size === 'sm' ? 14 : 16} aria-hidden="true" />
       ) : Icon ? (
-        <span className="btn-icon">
+        <span className="btn-icon" aria-hidden="true">
           {React.isValidElement(Icon) ? Icon : <Icon size={size === 'sm' ? 14 : 16} />}
         </span>
       ) : null}

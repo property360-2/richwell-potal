@@ -12,4 +12,9 @@ class ScheduleSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Schedule
-        fields = '__all__'
+        fields = [
+            'id', 'term', 'section', 'subject', 'component_type', 
+            'professor', 'room', 'days', 'start_time', 'end_time',
+            'subject_code', 'subject_description', 'professor_name', 
+            'room_name', 'section_name', 'section_session', 'subject_units'
+        ]

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Bell, User, Menu } from 'lucide-react';
+import { User, Menu } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import './Header.css';
+import NotificationBell from './NotificationBell';
 
 const Header = ({ title = 'Dashboard' }) => {
   const { user, role } = useAuth();
@@ -16,10 +17,7 @@ const Header = ({ title = 'Dashboard' }) => {
       </div>
       
       <div className="header-actions">
-        <button className="header-btn" aria-label="Notifications">
-          <Bell size={20} />
-          <span className="notification-badge"></span>
-        </button>
+        <NotificationBell />
         
         <div className="user-profile">
           <div className="user-avatar">

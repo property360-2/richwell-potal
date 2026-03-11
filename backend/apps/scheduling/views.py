@@ -18,6 +18,12 @@ class ScheduleViewSet(viewsets.ModelViewSet):
     serializer_class = ScheduleSerializer
     permission_classes = [permissions.IsAuthenticated]
     
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish']:
+            from core.permissions import IsDean
+            return [IsDean()]
+        return super().get_permissions()
+
     scheduling_service = SchedulingService()
     picking_service = PickingService()
 
@@ -31,7 +37,7 @@ class ScheduleViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(section_id=section_id)
         return queryset
 
-    @action(detail=False, methods=['POST'])
+    @action(detail=False, methods=['POST'], url_path='assign')
     def assign(self, request):
         """
         Deans use this to assign professor, room, and time to a schedule slot.
@@ -77,7 +83,8 @@ class ScheduleViewSet(viewsets.ModelViewSet):
             
         try:
             student = request.user.student_profile
-            section, redirected = self.picking_service.pick_schedule_regular(student, term_id, session)
+            term = Term.objects.get(id=term_id)
+            section, redirected = self.picking_service.pick_schedule_regular(student, term, session)
             
             schedules = Schedule.objects.filter(section=section)
             return Response({
@@ -103,12 +110,13 @@ class ScheduleViewSet(viewsets.ModelViewSet):
             
         try:
             student = request.user.student_profile
-            self.picking_service.pick_schedule_irregular(student, term_id, selections)
+            term = Term.objects.get(id=term_id)
+            self.picking_service.pick_schedule_irregular(student, term, selections)
             return Response({"message": "Successfully picked schedules."})
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=['GET'])
+    @action(detail=False, methods=['GET'], url_path='status-matrix')
     def status_matrix(self, request):
         """
         Returns sections with real-time slot counts.
@@ -138,7 +146,7 @@ class ScheduleViewSet(viewsets.ModelViewSet):
                 "is_full": s.current_students >= s.max_students
             } for s in sections
         ])
-    @action(detail=False, methods=['POST'])
+    @action(detail=False, methods=['POST'], url_path='publish')
     def publish(self, request):
         """
         Dean publishes the schedule for a term, opening student picking.
@@ -156,7 +164,7 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=['GET'])
+    @action(detail=False, methods=['GET'], url_path='available-slots')
     def available_slots(self, request):
         """
         Returns unassigned schedule slots matching a professor's assigned subjects.

@@ -2,8 +2,9 @@ from django.db import models
 from django.conf import settings
 from apps.academics.models import Program, CurriculumVersion
 from apps.terms.models import Term
+from apps.auditing.mixins import AuditMixin
 
-class Student(models.Model):
+class Student(AuditMixin, models.Model):
     GENDER_CHOICES = [
         ('MALE', 'Male'),
         ('FEMALE', 'Female'),
@@ -84,7 +85,7 @@ class Student(models.Model):
 
 
 
-class StudentEnrollment(models.Model):
+class StudentEnrollment(AuditMixin, models.Model):
     ADVISING_STATUS_CHOICES = [
         ('DRAFT', 'Draft/Open'),
         ('PENDING', 'Pending Approval'),

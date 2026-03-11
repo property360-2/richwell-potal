@@ -248,6 +248,10 @@ const SectioningDashboard = () => {
                         const existingSections = sections.filter(s => s.program === program.id && s.year_level === year);
                         const isFull = existingSections.some(s => s.student_count >= s.max_students);
                         
+                        // Calculate required sections based on 40 cap
+                        const requiredSections = Math.ceil(count / 40.0);
+                        const needsMore = count > 0 && existingSections.length < requiredSections;
+                        
                         return (
                           <td key={year}>
                             <div className="student-count-cell">
@@ -255,21 +259,27 @@ const SectioningDashboard = () => {
                                 {count}
                               </span>
                               
-                              {count > 0 && existingSections.length === 0 ? (
-                                <Button 
-                                  variant="primary" 
-                                  size="xs" 
-                                  style={{ borderRadius: '20px', padding: '0 12px', fontSize: '10px', fontWeight: 'bold' }}
-                                  icon={<FilePlus size={12} />}
-                                  onClick={() => handleGenerate(program.id, year)}
-                                >
-                                  GENERATE
-                                </Button>
-                              ) : existingSections.length > 0 ? (
-                                <Badge variant={isFull ? "error" : "success"} style={{ borderRadius: '20px', fontWeight: 'bold' }}>
-                                  {existingSections.length} {existingSections.length === 1 ? 'BLOCK' : 'BLOCKS'}
-                                </Badge>
-                              ) : null}
+                              {count > 0 && (
+                                <div className="flex flex-col gap-2 items-center">
+                                  {existingSections.length > 0 && (
+                                    <Badge variant={isFull ? "error" : "success"} style={{ borderRadius: '20px', fontWeight: 'bold' }}>
+                                      {existingSections.length} {existingSections.length === requiredSections ? (existingSections.length === 1 ? 'BLOCK' : 'BLOCKS') : `/ ${requiredSections} BLOCKS`}
+                                    </Badge>
+                                  )}
+                                  
+                                  {(existingSections.length === 0 || needsMore) && (
+                                    <Button 
+                                      variant={existingSections.length === 0 ? "primary" : "secondary"}
+                                      size="xs" 
+                                      style={{ borderRadius: '12px', padding: '2px 8px', fontSize: '9px', fontWeight: 'black' }}
+                                      icon={<FilePlus size={10} />}
+                                      onClick={() => handleGenerate(program.id, year)}
+                                    >
+                                      {existingSections.length === 0 ? 'GENERATE' : 'RE-GENERATE'}
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </td>
                         );
@@ -319,7 +329,7 @@ const SectioningDashboard = () => {
                         </div>
                         <div className="capacity-info">
                           <div className="current-count">{section.student_count}</div>
-                          <div className="max-label">/ {section.max_students}</div>
+                          <div className="max-label">/ {section.target_students}</div>
                         </div>
                       </div>
                       

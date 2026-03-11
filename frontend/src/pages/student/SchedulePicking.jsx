@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Clock, CheckSquare, ShieldCheck, AlertCircle, ChevronRight, Info, Calendar } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../api/axios';
@@ -13,6 +14,7 @@ import './SchedulePicking.css';
 
 const SchedulePicking = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [enrollment, setEnrollment] = useState(null);
   const [activeTerm, setActiveTerm] = useState(null);
@@ -124,7 +126,7 @@ const SchedulePicking = () => {
             <ShieldCheck size={64} style={{ color: 'var(--color-border)', marginBottom: 'var(--space-6)' }} />
             <h2 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>Advising Approval Required</h2>
             <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-6)' }}>You must have an approved subject advising list before you can proceed with schedule picking.</p>
-            <Button variant="primary" onClick={() => window.location.href = '/student/advising'}>Go to Advising</Button>
+            <Button variant="primary" onClick={() => navigate('/student/advising')}>Go to Advising</Button>
         </div>
       </div>
     );

@@ -1,6 +1,7 @@
 from django.db import models
+from apps.auditing.mixins import AuditMixin
 
-class Schedule(models.Model):
+class Schedule(AuditMixin, models.Model):
     COMPONENT_CHOICES = [
         ('LEC', 'Lecture'),
         ('LAB', 'Laboratory'),

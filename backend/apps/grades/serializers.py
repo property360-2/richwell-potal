@@ -8,13 +8,18 @@ class GradeSerializer(serializers.ModelSerializer):
     grade_status_display = serializers.CharField(source='get_grade_status_display', read_only=True)
     advising_status_display = serializers.CharField(source='get_advising_status_display', read_only=True)
     
+    student_name = serializers.CharField(source='student.user.get_full_name', read_only=True)
+    student_idn = serializers.CharField(source='student.idn', read_only=True)
+    
     class Meta:
         model = Grade
         fields = [
-            'id', 'student', 'subject', 'subject_details', 'term', 'section',
+            'id', 'student', 'student_name', 'student_idn', 
+            'subject', 'subject_details', 'term', 'section',
             'advising_status', 'advising_status_display',
             'grade_status', 'grade_status_display',
             'midterm_grade', 'final_grade',
+            'resolution_status', 'resolution_new_grade', 'resolution_reason',
             'is_credited', 'is_retake', 'rejection_reason', 'inc_deadline',
             'created_at', 'updated_at'
         ]

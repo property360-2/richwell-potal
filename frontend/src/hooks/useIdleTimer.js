@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import { useToast } from '../components/ui/Toast';
 
 export const useIdleTimer = (timeoutMinutes = 30, warningMinutes = 25) => {
     const { isAuthenticated, logout } = useAuth();
+    const navigate = useNavigate();
     const addToast = useToast();
 
     const timeoutId = useRef(null);
@@ -24,7 +26,7 @@ export const useIdleTimer = (timeoutMinutes = 30, warningMinutes = 25) => {
 
         timeoutId.current = setTimeout(() => {
             logout();
-            window.location.href = '/login?reason=idle';
+            navigate('/login?reason=idle');
         }, timeoutMs);
     };
 
@@ -37,8 +39,13 @@ export const useIdleTimer = (timeoutMinutes = 30, warningMinutes = 25) => {
 
         // Use a throttled version for performance if needed, 
         // but clearing timeouts is cheap enough for standard use
+        let lastActivity = Date.now();
         const handleUserActivity = () => {
-            resetTimer();
+            const now = Date.now();
+            if (now - lastActivity > 1000) { // Throttle to once per second
+                lastActivity = now;
+                resetTimer();
+            }
         };
 
         events.forEach(event => {

@@ -30,14 +30,23 @@ class ProfessorSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     assigned_subjects = ProfessorSubjectSerializer(many=True, read_only=True)
     availability = ProfessorAvailabilitySerializer(many=True, read_only=True)
+    assignment_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Professor
         fields = [
             'id', 'user', 'employee_id', 'department', 
             'employment_status', 'date_of_birth', 'is_active', 
-            'assigned_subjects', 'availability', 'created_at', 'updated_at'
+            'assigned_subjects', 'availability', 'assignment_count', 
+            'created_at', 'updated_at'
         ]
+
+    def get_assignment_count(self, obj):
+        # Count actual Schedule records assigned to this professor
+        # Note: Ideally we filter by current term, but since term isn't in context 
+        # easily here without extra work, total assignments is a decent proxy 
+        # for a dashboard list.
+        return obj.schedules.count()
 
 class ProfessorCreateUpdateSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(write_only=True)

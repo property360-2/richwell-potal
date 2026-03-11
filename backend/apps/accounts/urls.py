@@ -1,9 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     LoginView,
     LogoutView,
+    CsrfTokenView,
+    TokenRefreshCookieView,
     MeView,
     ChangePasswordView,
     StaffManagementViewSet
@@ -13,8 +14,9 @@ router = DefaultRouter()
 router.register(r'staff', StaffManagementViewSet, basename='staff')
 
 urlpatterns = [
+    path('auth/csrf/', CsrfTokenView.as_view(), name='csrf_token'),
     path('auth/login/', LoginView.as_view(), name='login'),
-    path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/refresh/', TokenRefreshCookieView.as_view(), name='token_refresh'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
     path('auth/me/', MeView.as_view(), name='me'),
     path('auth/change-password/', ChangePasswordView.as_view(), name='change_password'),

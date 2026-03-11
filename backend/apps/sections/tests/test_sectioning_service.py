@@ -60,7 +60,7 @@ class TestSectioningService:
         sections = self.service.generate_sections(self.term, self.program, 1)
         
         assert len(sections) == 1
-        assert sections[0].name == 'BSIS 1-1'
+        assert sections[0].name == f'BSIS 1-1 ({self.term.code})'
         assert sections[0].session == 'AM'
         
         # Check if schedules were created
@@ -76,7 +76,7 @@ class TestSectioningService:
         assert len(sections) == 2
         assert sections[0].session == 'AM'
         assert sections[1].session == 'PM'
-        assert sections[1].name == 'BSIS 1-2'
+        assert sections[1].name == f'BSIS 1-2 ({self.term.code})'
 
     def test_manual_transfer(self):
         from apps.sections.models import Section, SectionStudent
