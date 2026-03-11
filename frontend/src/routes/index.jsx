@@ -76,9 +76,9 @@ const MyGrades = lazy(() => import('../pages/student/MyGrades'));
 
 // Component to handle root redirect based on role
 const RootRedirect = () => {
-  const { role, isLoading, isAuthenticated } = useAuth();
+  const { role, isSuperUser, isLoading, isAuthenticated } = useAuth();
   
-  if (isLoading || (isAuthenticated && !role)) {
+  if (isLoading || (isAuthenticated && !role && !isSuperUser)) {
     return (
       <div className="flex bg-slate-50 min-h-screen items-center justify-center">
         <LoadingSpinner size="lg" />
@@ -88,7 +88,7 @@ const RootRedirect = () => {
   
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  const normalizedRole = role?.toUpperCase();
+  const normalizedRole = role?.toUpperCase() || (isSuperUser ? 'ADMIN' : '');
   
   switch (normalizedRole) {
     case 'ADMIN': return <Navigate to="/admin" replace />;
@@ -192,7 +192,7 @@ const AppRoutes = () => {
           </Route>
         </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={['DEAN']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['DEAN', 'ADMIN']} />}>
           <Route element={<PageWrapper title="Dean Dashboard" />}>
             <Route path="/dean" element={<DeanDashboard />} />
           </Route>

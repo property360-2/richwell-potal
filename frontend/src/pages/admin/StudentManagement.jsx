@@ -148,13 +148,13 @@ const StudentManagement = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Student Management</h1>
-          <p className="text-slate-500 mt-1">View and manage enrolled and approved students</p>
+    <div className="page-container space-y-8">
+      <div className="page-header">
+        <div className="header-title-section">
+          <h2>Student Management</h2>
+          <p>View and manage enrolled and approved students</p>
         </div>
-        <Button icon={<UserPlus size={18} />} onClick={() => setModalOpen(true)}>
+        <Button variant="primary" icon={<UserPlus size={18} />} onClick={() => setModalOpen(true)}>
           Add Student
         </Button>
       </div>

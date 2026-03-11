@@ -140,13 +140,13 @@ const StaffManagement = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Staff Management</h2>
-          <p className="text-slate-500">Manage administrators, registrars, deans, and other personnel.</p>
+    <div className="page-container space-y-8">
+      <div className="page-header">
+        <div className="header-title-section">
+          <h2>Staff Management</h2>
+          <p>Manage administrators, registrars, deans, and other personnel.</p>
         </div>
-        <Button icon={<Plus size={18} />} onClick={() => handleOpenModal()}>
+        <Button variant="primary" icon={<Plus size={18} />} onClick={() => handleOpenModal()}>
           Add Staff
         </Button>
       </div>

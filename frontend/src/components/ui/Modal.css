@@ -78,12 +78,12 @@
 }
 
 .modal-footer {
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-6);
     border-top: 1px solid var(--color-border);
     background-color: var(--color-bg);
     display: flex;
     justify-content: flex-end;
-    gap: var(--space-3);
+    gap: var(--space-4);
 }
 
 @keyframes fadeIn {

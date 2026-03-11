@@ -22,15 +22,15 @@ const roleColors = {
   STUDENT: 'var(--color-role-student)',
 };
 
-const getNavItems = (role) => {
+const getNavItems = (role, isSuperUser = false) => {
   // No role? No items.
-  if (!role) return [];
+  if (!role && !isSuperUser) return [];
 
   const items = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   ];
 
-  const normalizedRole = role.toUpperCase();
+  const normalizedRole = role?.toUpperCase() || (isSuperUser ? 'ADMIN' : '');
 
   if (['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
     items.push({ path: '/admin/staff', label: 'User Management', icon: Users });
@@ -82,11 +82,10 @@ const getNavItems = (role) => {
   return items;
 };
 
-const Sidebar = () => {
-  const { role, logout } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+const Sidebar = ({ collapsed, setCollapsed }) => {
+  const { role, isSuperUser, logout } = useAuth();
   
-  const navItems = getNavItems(role); 
+  const navItems = getNavItems(role, isSuperUser); 
   const themeColor = roleColors[role?.toUpperCase()] || 'var(--color-primary)';
 
   return (

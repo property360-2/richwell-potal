@@ -97,11 +97,11 @@ const TermManagement = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Term Management</h1>
-          <p className="text-slate-500">Configure academic years and enrollment periods</p>
+    <div className="page-container space-y-8">
+      <div className="page-header">
+        <div className="header-title-section">
+          <h2>Term Management</h2>
+          <p>Configure academic years and enrollment periods</p>
         </div>
         <Button variant="primary" icon={<Plus size={18} />} onClick={() => { setEditingTerm(null); setModalOpen(true); }}>
           New Term

@@ -12,7 +12,11 @@
 
 /* Dashboard Header */
 .dashboard-header {
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-10);
+}
+
+.header-title-section {
+    margin-right: var(--space-8);
 }
 
 .header-title-section h2 {
@@ -221,7 +225,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-10);
+    gap: var(--space-6);
 }
 
 .stats-card-compact {

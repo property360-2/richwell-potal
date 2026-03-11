@@ -1,22 +1,23 @@
 .page-wrapper {
-    display: flex;
     min-height: 100vh;
     background-color: var(--color-bg);
+    position: relative;
+    width: 100%;
 }
 
 .main-content {
-    flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 100vh;
     min-width: 0;
-    /* Important for flex child truncation */
-    /* Margin left matches default expanded sidebar width */
     margin-left: var(--sidebar-width);
     transition: margin-left var(--transition-fast);
 }
 
-/* Adjust margin when sidebar is collapsed */
-/* This requires global state for collapsed, but for now we'll handle responsive */
+.page-wrapper.sidebar-collapsed .main-content {
+    margin-left: var(--sidebar-collapsed);
+}
+
 @media (max-width: 768px) {
     .main-content {
         margin-left: 0;

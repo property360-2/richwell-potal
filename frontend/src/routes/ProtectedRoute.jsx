@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const ProtectedRoute = ({ allowedRoles }) => {
-  const { isAuthenticated, role, isLoading } = useAuth();
+  const { isAuthenticated, role, isSuperUser, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -29,7 +29,7 @@ const ProtectedRoute = ({ allowedRoles }) => {
     );
   }
 
-  if (allowedRoles && role) {
+  if (allowedRoles && role && !isSuperUser) {
     const normalizedRole = role.toUpperCase();
     const isAllowed = allowedRoles.some(r => r.toUpperCase() === normalizedRole);
     

@@ -92,11 +92,11 @@ const RoomManagement = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Room Management</h1>
-          <p className="text-slate-500">Manage campus facilities and capacities</p>
+    <div className="page-container space-y-8">
+      <div className="page-header">
+        <div className="header-title-section">
+          <h2>Room Management</h2>
+          <p>Manage campus facilities and capacities</p>
         </div>
         <Button variant="primary" icon={<Plus size={18} />} onClick={() => { setEditingRoom(null); setModalOpen(true); }}>
           Add Room

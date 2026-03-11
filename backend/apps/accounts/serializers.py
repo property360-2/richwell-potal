@@ -10,8 +10,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'is_active', 'headed_programs']
-        read_only_fields = ['id', 'role', 'is_active']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'is_active', 'headed_programs', 'is_superuser']
+        read_only_fields = ['id', 'role', 'is_active', 'is_superuser']
 
     def get_headed_programs(self, obj):
         return [

@@ -4,6 +4,7 @@ import api from '../api/axios';
 export const AuthContext = createContext({
   user: null,
   role: null,
+  isSuperUser: false,
   isAuthenticated: false,
   isLoading: true,
   login: async () => {},
@@ -94,6 +95,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     role,
+    isSuperUser: user?.is_superuser || false,
     isAuthenticated: !!user,
     isLoading,
     login,

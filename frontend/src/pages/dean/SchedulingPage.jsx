@@ -603,6 +603,12 @@ const SchedulingPage = () => {
                 onClose={() => setIsModalOpen(false)}
                 title="Timetable Slot Configuration"
                 size="md"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button variant="primary" loading={isSavingSchedule} onClick={handleSaveSchedule}>Publish Configuration</Button>
+                    </>
+                }
             >
                 <div className="space-y-6">
                     <div className="bg-slate-900 p-4 rounded-lg text-white flex justify-between items-center">
@@ -675,11 +681,6 @@ const SchedulingPage = () => {
                             label: `${r.name} (${r.room_type} — Max: ${r.capacity})`
                         }))}
                     />
-
-                    <div className="flex gap-3 justify-end pt-4">
-                        <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button variant="primary" loading={isSavingSchedule} onClick={handleSaveSchedule}>Publish Configuration</Button>
-                    </div>
                 </div>
              </Modal>
 

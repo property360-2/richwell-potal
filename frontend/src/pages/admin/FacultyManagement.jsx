@@ -110,13 +110,13 @@ const FacultyManagement = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Faculty Management</h1>
-          <p className="text-slate-500 mt-1">Manage professors and their subject assignments</p>
+    <div className="page-container space-y-8">
+      <div className="page-header">
+        <div className="header-title-section">
+          <h2>Faculty Management</h2>
+          <p>Manage professors and their subject assignments</p>
         </div>
-        <Button onClick={handleAdd} icon={<Plus size={18} />}>
+        <Button variant="primary" onClick={handleAdd} icon={<Plus size={18} />}>
           Add Professor
         </Button>
       </div>

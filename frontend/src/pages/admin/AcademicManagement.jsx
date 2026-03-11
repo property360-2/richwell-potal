@@ -433,7 +433,14 @@ const AcademicManagement = () => {
   ];
 
   return (
-    <div className="academic-management">
+    <div className="page-container space-y-8 academic-management">
+      <div className="page-header">
+        <div className="header-title-section">
+          <h2>Academic Management</h2>
+          <p>Manage programs, subjects, and curriculum data.</p>
+        </div>
+      </div>
+
       <div className="tabs-container">
         {tabs.map(tab => (
           <button
