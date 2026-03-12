@@ -16,9 +16,12 @@ import Badge from '../../components/ui/Badge';
 import Select from '../../components/ui/Select';
 import { useToast } from '../../components/ui/Toast';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import Input from '../../components/ui/Input';
 
 import './SubjectCrediting.css';
 import Table from '../../components/ui/Table';
+import PageHeader from '../../components/shared/PageHeader';
+import SearchBar from '../../components/shared/SearchBar';
 
 const SubjectCrediting = () => {
   const [loading, setLoading] = useState(false);
@@ -187,12 +190,13 @@ const SubjectCrediting = () => {
       header: 'Grade', 
       width: '120px',
       render: (row) => (
-        <input 
-          type="text" 
+        <Input 
+          type="number"
+          step="0.25"
           placeholder="0.00"
-          className="w-full px-3 py-1 border border-slate-200 rounded text-center font-mono text-sm focus:border-primary outline-none transition-all"
           value={subjectGrades[row.id] || ""}
           onChange={(e) => handleUpdateGrade(row.id, e.target.value)}
+          className="text-center font-mono"
         />
       )
     },
@@ -229,37 +233,47 @@ const SubjectCrediting = () => {
 
   return (
     <div className="subject-crediting-container">
-      <header className="crediting-header">
-        <h1>Subject Crediting</h1>
-        <p className="text-slate-500">Academic history and course equivalency management</p>
-      </header>
+      <PageHeader
+        title="Subject Crediting"
+        description="Academic history and course equivalency management"
+      />
 
-      <section className="search-section">
-        <form onSubmit={handleSearch} className="flex gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-            <input 
-              type="text" 
+      <Card className="mb-8 p-8 bg-gradient-to-br from-white to-slate-50/50">
+        <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4 items-end max-w-3xl mx-auto">
+          <div className="flex-1 w-full">
+            <Input 
+              label="Student Identification"
               placeholder="Enter IDN or Student Name..."
-              className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              icon={Search}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full"
             />
           </div>
-          <Button type="submit" loading={searching} size="lg" className="px-8">
+          <Button 
+            type="submit" 
+            loading={searching} 
+            size="lg" 
+            className="px-8 min-w-[160px]"
+            icon={Search}
+          >
             Find Student
           </Button>
         </form>
         
         {message && (
-          <div className={`mt-4 p-4 rounded-lg flex gap-3 animate-in fade-in slide-in-from-top-2 ${
-            message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'
-          }`}>
-             <AlertCircle size={20} className="shrink-0" />
-             <span className="text-sm font-medium">{message.text}</span>
+          <div className="max-w-3xl mx-auto">
+            <div className={`mt-6 p-4 rounded-xl flex gap-3 animate-in fade-in slide-in-from-top-2 border ${
+              message.type === 'error' 
+                ? 'bg-rose-50 text-rose-700 border-rose-100' 
+                : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+            }`}>
+               {message.type === 'error' ? <AlertCircle size={20} className="shrink-0" /> : <CheckCircle2 size={20} className="shrink-0" />}
+               <span className="text-sm font-semibold">{message.text}</span>
+            </div>
           </div>
         )}
-      </section>
+      </Card>
 
       {student && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

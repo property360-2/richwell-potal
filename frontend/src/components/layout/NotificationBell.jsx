@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, CheckCheck, Clock, ExternalLink, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { notificationsApi } from '../../api/notifications';
@@ -11,20 +11,21 @@ const NotificationBell = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef(null);
 
-  useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     try {
       const res = await notificationsApi.getUnreadCount();
       setUnreadCount(res.data.unread_count);
     } catch (error) {
       console.error('Failed to fetch unread count');
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, [fetchUnreadCount]);
 
   const toggleDropdown = async () => {
     if (!isOpen) {

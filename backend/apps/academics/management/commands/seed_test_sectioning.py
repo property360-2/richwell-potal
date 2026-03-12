@@ -165,6 +165,21 @@ class Command(BaseCommand):
             total_units = int(row.get('Total_Units') or 0)
             desc = row.get('Subject_Description', '')
 
+            # Parse Hours per week
+            hrs_sem_raw = row.get('Hrs_Sem', '')
+            hrs_per_week = 0
+            if hrs_sem_raw:
+                match = re.search(r'(\d+(?:\.\d+)?)', hrs_sem_raw)
+                if match:
+                    val = float(match.group(1))
+                    if 'hrs/week' in hrs_sem_raw.lower() or 'hours/week' in hrs_sem_raw.lower():
+                        hrs_per_week = val
+                    else:
+                        hrs_per_week = val / 18.0
+            
+            if hrs_per_week == 0 and total_units > 0:
+                hrs_per_week = float(total_units)
+
             subject, _ = Subject.objects.update_or_create(
                 curriculum=curriculum,
                 code=subject_code,
@@ -175,6 +190,7 @@ class Command(BaseCommand):
                     'lec_units': lec_units,
                     'lab_units': lab_units,
                     'total_units': total_units,
+                    'hrs_per_week': hrs_per_week,
                     'is_practicum': 'Practicum' in desc or 'practicum' in desc.lower(),
                 },
             )

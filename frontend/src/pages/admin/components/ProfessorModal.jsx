@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import Modal from '../../../components/ui/Modal';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
+import Button from '../../../components/ui/Button';
 import { facultyApi } from '../../../api/faculty';
 import { useToast } from '../../../components/ui/Toast';
 import { Mail, UserCircle, Briefcase, Calendar, Hash } from 'lucide-react';
@@ -11,7 +12,7 @@ const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
   const { showToast } = useToast();
   const isEditing = !!professor;
   
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
       first_name: '',
       last_name: '',
@@ -64,8 +65,20 @@ const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error saving professor:', error);
-      showToast(error.response?.data?.email?.[0] || 'An error occurred while saving the professor.', 'error');
+      const errorData = error.response?.data;
+      if (error.response?.status === 400 && errorData && typeof errorData === 'object') {
+        Object.keys(errorData).forEach((field) => {
+          if (['first_name', 'last_name', 'email', 'department', 'date_of_birth', 'employee_id'].includes(field)) {
+            setError(field, {
+              type: 'manual',
+              message: Array.isArray(errorData[field]) ? errorData[field][0] : errorData[field]
+            });
+          }
+        });
+        showToast('Please correct the errors in the form', 'error');
+      } else {
+        showToast(errorData?.detail || 'An error occurred while saving the professor.', 'error');
+      }
     }
   };
 
@@ -154,21 +167,21 @@ const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
         )}
 
         <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 mt-6">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             disabled={isSubmitting}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            disabled={isSubmitting}
+            variant="primary"
+            loading={isSubmitting}
           >
-            {isSubmitting ? 'Saving...' : 'Save Professor'}
-          </button>
+            Save Professor
+          </Button>
         </div>
       </form>
     </Modal>

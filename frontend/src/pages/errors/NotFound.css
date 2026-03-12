@@ -1,0 +1,113 @@
+.not-found-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: radial-gradient(circle at center, #ffffff 0%, #f8fafc 100%);
+    padding: var(--space-6);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.not-found-watermark {
+    position: absolute;
+    font-size: clamp(10rem, 40vw, 25rem);
+    font-weight: 900;
+    color: var(--color-slate-200);
+    opacity: 0.15;
+    /* Much lower opacity to avoid clashing with text */
+    z-index: 0;
+    user-select: none;
+    pointer-events: none;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    filter: blur(2px);
+    /* Slight blur to make it less sharp behind text */
+}
+
+.not-found-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 520px;
+    padding: var(--space-8);
+    background: rgba(255, 255, 255, 0.7);
+    /* Glassmorphism effect */
+    backdrop-filter: blur(8px);
+    border-radius: var(--radius-3xl);
+    animation: contentFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes contentFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.not-found-icon-wrapper {
+    width: 100px;
+    height: 100px;
+    background: var(--color-primary);
+    border-radius: var(--radius-2xl);
+    box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-8);
+    color: white;
+    position: relative;
+    transform: rotate(-3deg);
+}
+
+.not-found-icon-wrapper::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border: 2px solid var(--color-primary-light);
+    border-radius: inherit;
+    opacity: 0.3;
+    z-index: -1;
+}
+
+.not-found-title {
+    font-size: 2.25rem;
+    font-weight: 900;
+    color: var(--color-slate-900);
+    margin-bottom: var(--space-4);
+    letter-spacing: -0.03em;
+}
+
+.not-found-message {
+    font-size: 1.125rem;
+    color: var(--color-slate-600);
+    line-height: 1.6;
+    margin-bottom: var(--space-10);
+    max-width: 400px;
+}
+
+.not-found-actions {
+    display: flex;
+    gap: var(--space-4);
+    width: 100%;
+    justify-content: center;
+}
+
+@media (max-width: 480px) {
+    .not-found-actions {
+        flex-direction: column;
+    }
+
+    .not-found-actions button {
+        width: 100%;
+    }
+}

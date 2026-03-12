@@ -218,6 +218,36 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['get'])
+    def roster(self, request):
+        """
+        Returns the student list and their grades for a section + subject.
+        """
+        section_id = request.query_params.get('section_id')
+        subject_id = request.query_params.get('subject_id')
+        
+        if not all([section_id, subject_id]):
+            return Response({"error": "section_id and subject_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Security: Only show if professor is assigned to this section/subject
+        if request.user.role == 'PROFESSOR':
+            from apps.scheduling.models import Schedule
+            is_assigned = Schedule.objects.filter(
+                term__is_active=True,
+                professor=request.user.professor_profile,
+                section_id=section_id,
+                subject_id=subject_id
+            ).exists()
+            if not is_assigned:
+                return Response({"error": "You are not assigned to this section/subject load."}, status=status.HTTP_403_FORBIDDEN)
+
+        grades = Grade.objects.filter(
+            section_id=section_id,
+            subject_id=subject_id
+        ).select_related('student__user').order_by('student__user__last_name')
+        
+        return Response(GradeSerializer(grades, many=True).data)
+
     @action(detail=False, methods=['post'])
     def finalize(self, request):
         term_id = request.data.get('term_id')

@@ -14,6 +14,7 @@ const LazyLoader = () => (
 
 // Auth Pages
 const Login = lazy(() => import('../pages/auth/Login'));
+const ForgotPassword = lazy(() => import('../pages/auth/ForgotPassword'));
 
 // Error Pages
 const NotFound = lazy(() => import('../pages/errors/NotFound'));
@@ -110,6 +111,7 @@ const AppRoutes = () => {
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/apply" element={<PublicApplication />} />
         <Route path="/demo" element={<UIDemo />} />
 

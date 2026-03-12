@@ -8,20 +8,22 @@ from core.permissions import IsAdmin, IsAdmission, IsRegistrar
 
 from .models import Student, StudentEnrollment
 from .serializers import StudentSerializer, StudentApplicationSerializer, StudentEnrollmentSerializer
+from .filters import StudentFilter
 
 User = get_user_model()
 
 class StudentViewSet(viewsets.ModelViewSet):
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
-    filterset_fields = ['status', 'student_type', 'program']
+    filterset_class = StudentFilter
     search_fields = ['user__first_name', 'user__last_name', 'user__email', 'idn']
 
     def get_queryset(self):
         user = self.request.user
+        queryset = Student.objects.all().order_by('-updated_at')
         if user.is_authenticated and user.role == 'STUDENT':
-            return Student.objects.filter(user=user)
-        return Student.objects.all()
+            return queryset.filter(user=user)
+        return queryset
     
     def get_permissions(self):
         if self.action == 'apply':
@@ -152,6 +154,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 'student': StudentSerializer(student).data,
                 'credentials': {
                     'idn': idn,
+                    'password': generated_password,
                     'message': "Generated password is the IDN + birthdate (MMDD format)"
                 }
             })

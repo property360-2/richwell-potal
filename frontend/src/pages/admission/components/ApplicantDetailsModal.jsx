@@ -7,7 +7,8 @@ import {
   MapPin, 
   GraduationCap,
   ShieldCheck,
-  Calendar
+  Calendar,
+  Check
 } from 'lucide-react';
 import Modal from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
@@ -22,7 +23,7 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
   const [approving, setApproving] = useState(false);
   const [monthlyCommitment, setMonthlyCommitment] = useState('');
   const [approvedCredentials, setApprovedCredentials] = useState(null);
-  const { showToast } = useToast();
+  const { addToast } = useToast();
 
   useEffect(() => {
     if (applicant) {
@@ -45,15 +46,15 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
   const handleUpdateChecklist = async () => {
     try {
       await studentsApi.updateStudent(applicant.id, { document_checklist: checklist });
-      showToast('success', 'Document checklist updated');
+      addToast('success', 'Document checklist updated');
     } catch (err) {
-      showToast('error', 'Failed to update checklist');
+      addToast('error', 'Failed to update checklist');
     }
   };
 
   const handleApprove = async () => {
     if (!monthlyCommitment) {
-      showToast('error', 'Please enter the monthly commitment amount');
+      addToast('error', 'Please enter the monthly commitment amount');
       return;
     }
     if (!window.confirm('Approve this applicant? This will generate their Student ID and account.')) return;
@@ -65,16 +66,31 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
       const res = await studentsApi.approve(applicant.id, { monthly_commitment: monthlyCommitment });
       
       setApprovedCredentials(res.data.credentials);
-      showToast('success', `Applicant approved! IDN: ${res.data.credentials.idn}`);
+      addToast('success', `Applicant approved! IDN: ${res.data.credentials.idn}`);
       onSuccess();
     } catch (err) {
-      showToast('error', err.response?.data?.error || 'Failed to approve applicant');
+      addToast('error', err.response?.data?.error || 'Failed to approve applicant');
     } finally {
       setApproving(false);
     }
   };
 
+  const markAll = (submitted) => {
+    setChecklist(prev => {
+      const updated = {};
+      Object.keys(prev).forEach(key => {
+        updated[key] = { ...prev[key], submitted };
+      });
+      return updated;
+    });
+  };
+
   if (!applicant) return null;
+
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text);
+    addToast('success', `${label} copied to clipboard`);
+  };
 
   if (approvedCredentials) {
     return (
@@ -88,14 +104,33 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
             <p className="text-sm text-slate-500 mt-2">The following student account has been generated. Please provide these credentials to the student.</p>
           </div>
 
-          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
-            <div className="flex flex-col items-center">
+          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-6">
+            <div className="flex flex-col items-center gap-2">
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Student ID (IDN)</span>
-              <span className="text-2xl font-mono font-bold text-primary select-all">{approvedCredentials.idn}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-3xl font-mono font-bold text-primary select-all">{approvedCredentials.idn}</span>
+                <button 
+                  onClick={() => copyToClipboard(approvedCredentials.idn, 'Student ID')}
+                  className="p-1.5 text-slate-400 hover:text-primary hover:bg-white rounded-md transition-colors border border-transparent hover:border-slate-100"
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
             </div>
-            <div className="flex flex-col items-center">
+
+            <div className="h-px bg-slate-200 w-2/3 mx-auto"></div>
+
+            <div className="flex flex-col items-center gap-2">
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Default Password</span>
-              <span className="text-2xl font-mono font-bold text-slate-700 select-all">{approvedCredentials.password}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-3xl font-mono font-bold text-slate-700 select-all">{approvedCredentials.password}</span>
+                <button 
+                  onClick={() => copyToClipboard(approvedCredentials.password, 'Password')}
+                  className="p-1.5 text-slate-400 hover:text-primary hover:bg-white rounded-md transition-colors border border-transparent hover:border-slate-100"
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -197,20 +232,54 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
            </div>
 
            {/* Right Column: Document Checklist */}
-           <section className="bg-slate-50 p-6 rounded-lg border border-slate-100">
-              <h4 className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">
-                 <FileText size={16} /> Document Checklist
-              </h4>
-              <div className="space-y-2">
+           <section className="bg-slate-50 p-6 rounded-lg border border-slate-100 h-fit">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-wider">
+                   <FileText size={16} /> Document Checklist
+                </h4>
+                <div className="flex gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => markAll(true)}
+                    className="text-[10px] font-bold text-primary hover:text-primary-hover uppercase tracking-tight"
+                  >
+                    Mark All
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <button 
+                    type="button"
+                    onClick={() => markAll(false)}
+                    className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase tracking-tight"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
                  {Object.keys(checklist).map(key => (
                     <label 
                       key={key} 
-                      className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${checklist[key].submitted ? 'bg-green-50 text-green-700' : 'hover:bg-slate-200 text-slate-600'}`}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${
+                        checklist[key].submitted 
+                        ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-sm' 
+                        : 'bg-white border-slate-100 hover:border-slate-300 text-slate-600'
+                      }`}
                     >
-                       <div className="flex items-center gap-2 text-xs font-medium uppercase">
-                          {checklist[key].submitted ? <CheckCircle2 size={14} /> : <div className="w-3.5 h-3.5 border border-slate-300 rounded" />}
-                          {key.replace('_', ' ')}
+                       <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+                         checklist[key].submitted 
+                         ? 'bg-blue-600 border-blue-600 text-white' 
+                         : 'bg-white border-slate-300 group-hover:border-slate-400'
+                       }`}>
+                          {checklist[key].submitted && <Check size={14} strokeWidth={4} />}
                        </div>
+
+                       <span className={`text-[11px] font-bold uppercase tracking-tight transition-colors ${
+                         checklist[key].submitted ? 'text-blue-900' : 'text-slate-600'
+                       }`}>
+                          {key.replace(/_/g, ' ')}
+                       </span>
+
                        <input 
                          type="checkbox" 
                          checked={checklist[key].submitted} 

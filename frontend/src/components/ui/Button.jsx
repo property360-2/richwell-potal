@@ -11,16 +11,18 @@ const Button = ({
   disabled = false, 
   className = '', 
   type = 'button',
+  fullWidth = false,
   ...props 
 }) => {
   const baseClass = 'btn';
   const variantClass = `btn-${variant}`;
   const sizeClass = `btn-${size}`;
+  const widthClass = fullWidth ? 'btn-full-width' : '';
   
   return (
     <button 
       type={type}
-      className={`${baseClass} ${variantClass} ${sizeClass} ${className}`}
+      className={`${baseClass} ${variantClass} ${sizeClass} ${widthClass} ${className}`}
       disabled={disabled || loading}
       aria-busy={loading}
       aria-live="polite"

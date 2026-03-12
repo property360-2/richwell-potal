@@ -1,22 +1,29 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useId } from 'react';
 import './Input.css';
 
-const Input = forwardRef(({ 
-  label, 
-  error, 
-  id, 
-  className = '', 
-  disabled = false, 
-  type = 'text',
-  icon: Icon,
-  helperText,
-  ...props 
-}, ref) => {
-  const inputId = id || `input-${Math.random().toString(36).substring(2, 9)}`;
+const Input = forwardRef((props, ref) => {
+  const { 
+    label, 
+    error, 
+    id, 
+    className = '', 
+    disabled = false, 
+    type = 'text',
+    icon: Icon,
+    helperText,
+    fullWidth = false,
+    multiline = false,
+    ...restProps 
+  } = props;
+
+  const defaultId = useId();
+  const inputId = id || defaultId;
   const hasError = !!error;
   
+  const InputElement = multiline ? 'textarea' : 'input';
+  
   return (
-    <div className={`input-container ${className}`}>
+    <div className={`input-container ${fullWidth ? 'w-full' : ''} ${className}`}>
       {label && (
         <label htmlFor={inputId} className="input-label">
           {label}
@@ -24,21 +31,21 @@ const Input = forwardRef(({
       )}
       
       <div className="input-wrapper">
-        {Icon && (
+        {Icon && !multiline && (
           <span className="input-icon-left">
             {React.isValidElement(Icon) ? Icon : <Icon size={16} />}
           </span>
         )}
         
-        <input
+        <InputElement
           id={inputId}
           ref={ref}
-          type={type}
+          type={multiline ? undefined : type}
           disabled={disabled}
-          className={`input-field ${hasError ? 'input-error' : ''} ${Icon ? 'has-icon-left' : ''}`}
+          className={`input-field ${hasError ? 'input-error' : ''} ${Icon && !multiline ? 'has-icon-left' : ''} ${multiline ? 'min-h-[120px] py-3' : ''}`}
           aria-invalid={hasError}
           aria-describedby={hasError ? `${inputId}-error` : undefined}
-          {...props}
+          {...restProps}
         />
       </div>
       

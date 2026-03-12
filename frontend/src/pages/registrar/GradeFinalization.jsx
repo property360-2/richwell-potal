@@ -6,8 +6,11 @@ import Input from '../../components/ui/Input';
 import Table from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
+import Tabs from '../../components/ui/Tabs';
 import { gradesApi } from '../../api/grades';
 import { termsApi } from '../../api/terms';
+import PageHeader from '../../components/shared/PageHeader';
+import SearchBar from '../../components/shared/SearchBar';
 import './GradeFinalization.css';
 
 const GradeFinalization = () => {
@@ -29,7 +32,14 @@ const GradeFinalization = () => {
     try {
       setLoading(true);
       const termRes = await termsApi.getActiveTerm();
-      const term = termRes.data.results?.[0] || termRes.data[0];
+      const term = termRes.data?.results?.[0] || termRes.data?.[0];
+      
+      if (!term) {
+        setPendingSections([]);
+        setResolutions([]);
+        return;
+      }
+
       setActiveTerm(term);
 
       if (activeTab === 'pending') {
@@ -41,7 +51,8 @@ const GradeFinalization = () => {
         
         // Group by section and subject
         const grouped = {};
-        res.data.results.forEach(g => {
+        const grades = res.data?.results || [];
+        grades.forEach(g => {
             const key = `${g.section}-${g.subject}`;
             if (!grouped[key]) {
                 grouped[key] = {
@@ -62,9 +73,10 @@ const GradeFinalization = () => {
            is_resolution_requested: 'true',
            is_resolution_approved: 'false'
         });
-        setResolutions(res.data.results);
+        setResolutions(res.data?.results || []);
       }
     } catch (error) {
+      console.error('Error loading data:', error);
       addToast('error', 'Failed to load data.');
     } finally {
       setLoading(false);
@@ -172,32 +184,21 @@ const GradeFinalization = () => {
 
   return (
     <div className="grade-finalization-container p-6 animate-in fade-in duration-500">
-      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <Layers className="text-primary" size={32} />
-            Grade Management Dashboard
-          </h1>
-          <p className="text-slate-500 mt-1">
-            Review and finalize student grades for {activeTerm?.name || 'Active Term'}
-          </p>
-        </div>
-        
-        <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm self-start">
-            <button 
-              onClick={() => setActiveTab('pending')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'pending' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-                Finalization Queue
-            </button>
-            <button 
-              onClick={() => setActiveTab('resolutions')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'resolutions' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-                Resolution Requests
-            </button>
-        </div>
-      </div>
+      <PageHeader 
+        title="Grade Management Dashboard"
+        description={`Review and finalize student grades for ${activeTerm?.name || 'Active Term'}`}
+        badge={<Layers className="text-primary" size={32} />}
+        actions={
+          <Tabs 
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            tabs={[
+              { id: 'pending', label: 'Finalization Queue' },
+              { id: 'resolutions', label: 'Resolution Requests' }
+            ]}
+          />
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6">
           <Card>
@@ -209,12 +210,9 @@ const GradeFinalization = () => {
                    </h2>
                 </div>
                 <div className="flex items-center gap-2">
-                   <Input 
+                   <SearchBar 
                      placeholder="Search..." 
-                     size="sm" 
-                     icon={<Search size={16} />}
-                     value={searchTerm}
-                     onChange={(e) => setSearchTerm(e.target.value)}
+                     onSearch={setSearchTerm}
                    />
                 </div>
             </div>

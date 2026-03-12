@@ -28,7 +28,7 @@ const StaffManagement = () => {
   const [editingId, setEditingId] = useState(null);
   const { showToast } = useToast();
 
-  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm();
+  const { register, handleSubmit, reset, setValue, setError, formState: { errors, isSubmitting } } = useForm();
 
   const fetchStaff = async () => {
     try {
@@ -76,13 +76,24 @@ const StaffManagement = () => {
       setModalOpen(false);
       fetchStaff();
     } catch (err) {
-      const data = err.response?.data;
-      const msg = data?.email?.[0] || 
-                  data?.username?.[0] || 
-                  data?.detail || 
-                  (data && typeof data === 'object' ? Object.values(data)[0]?.[0] : null) ||
-                  'Failed to save staff';
-      showToast('error', msg);
+      const errorData = err.response?.data;
+      
+      if (err.response?.status === 400 && errorData && typeof errorData === 'object') {
+        // Map backend errors to form fields
+        Object.keys(errorData).forEach((field) => {
+          if (['username', 'email', 'first_name', 'last_name', 'role'].includes(field)) {
+            setError(field, {
+              type: 'manual',
+              message: Array.isArray(errorData[field]) ? errorData[field][0] : errorData[field]
+            });
+          }
+        });
+        
+        showToast('error', 'Please correct the errors in the form');
+      } else {
+        const msg = errorData?.detail || 'Failed to save staff';
+        showToast('error', msg);
+      }
     }
   };
 

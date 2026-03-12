@@ -1,6 +1,6 @@
 .cashier-container {
     min-height: calc(100vh - 100px);
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    background-color: var(--color-bg);
 }
 
 .cashier-container .animate-in {

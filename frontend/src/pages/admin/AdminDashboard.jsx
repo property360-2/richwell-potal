@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Users, GraduationCap, BookOpen, MapPin, Activity, Settings, Layout, Layers } from 'lucide-react';
 import { reportsApi } from '../../api/reports';
 import Card from '../../components/ui/Card';
+import StatCard from '../../components/shared/StatCard';
+import PageHeader from '../../components/shared/PageHeader';
 import '../shared/Dashboard.css';
 
 const AdminDashboard = () => {
@@ -32,11 +34,11 @@ const AdminDashboard = () => {
     };
 
     const statCards = [
-        { label: 'Academic Programs', value: stats.programs, icon: <Layout />, color: 'bg-blue-glass' },
-        { label: 'Faculty Members', value: stats.professors, icon: <Users />, color: 'bg-purple-glass' },
-        { label: 'Active Subjects', value: stats.subjects, icon: <BookOpen />, color: 'bg-emerald-glass' },
-        { label: 'Campus Rooms', value: stats.rooms, icon: <MapPin />, color: 'bg-amber-glass' },
-        { label: 'Audit Entries', value: stats.audit_count, icon: <Activity />, color: 'bg-rose-glass' },
+        { label: 'Academic Programs', value: stats.programs, icon: <Layout />, color: 'blue' },
+        { label: 'Faculty Members', value: stats.professors, icon: <Users />, color: 'purple' },
+        { label: 'Active Subjects', value: stats.subjects, icon: <BookOpen />, color: 'emerald' },
+        { label: 'Campus Rooms', value: stats.rooms, icon: <MapPin />, color: 'amber' },
+        { label: 'Audit Entries', value: stats.audit_count, icon: <Activity />, color: 'rose' },
     ];
 
     const quickLinks = [
@@ -48,22 +50,23 @@ const AdminDashboard = () => {
 
     return (
         <div className="dashboard-container">
-            <div className="dashboard-header">
-                <h1>Admin Command Center</h1>
-                <p>Global oversight and system configuration.</p>
-            </div>
+            <PageHeader 
+                title="Admin Command Center" 
+                description="Global oversight and system configuration." 
+                className="mb-8"
+            />
 
             <div className="stats-grid">
                 {statCards.map((card, i) => (
-                    <div key={i} className="stat-card animate-in fade-in slide-in-from-bottom-2" style={{ animationDelay: `${i * 100}ms` }}>
-                        <div className={`stat-icon-wrapper ${card.color}`}>
-                            {card.icon}
-                        </div>
-                        <div className="stat-info">
-                            <span className="stat-value">{loading ? '...' : card.value}</span>
-                            <span className="stat-label">{card.label}</span>
-                        </div>
-                    </div>
+                    <StatCard
+                        key={i}
+                        title={card.label}
+                        value={card.value}
+                        icon={card.icon}
+                        colorTheme={card.color}
+                        delay={i * 100}
+                        loading={loading}
+                    />
                 ))}
             </div>
 

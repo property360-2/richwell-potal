@@ -9,6 +9,7 @@ class ScheduleSerializer(serializers.ModelSerializer):
     section_name = serializers.CharField(source='section.name', read_only=True)
     section_session = serializers.CharField(source='section.session', read_only=True)
     subject_units = serializers.IntegerField(source='subject.total_units', read_only=True)
+    subject_hrs_per_week = serializers.DecimalField(source='subject.hrs_per_week', max_digits=4, decimal_places=1, read_only=True)
     
     class Meta:
         model = Schedule
@@ -16,5 +17,6 @@ class ScheduleSerializer(serializers.ModelSerializer):
             'id', 'term', 'section', 'subject', 'component_type', 
             'professor', 'room', 'days', 'start_time', 'end_time',
             'subject_code', 'subject_description', 'professor_name', 
-            'room_name', 'section_name', 'section_session', 'subject_units'
+            'room_name', 'section_name', 'section_session', 'subject_units',
+            'subject_hrs_per_week'
         ]

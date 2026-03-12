@@ -16,7 +16,7 @@ const PREREQ_TYPES = [
 ];
 
 const SubjectModal = ({ isOpen, onClose, onSuccess, curriculumId, subject = null }) => {
-  const { register, handleSubmit, reset, setValue, watch, control, formState: { errors, isSubmitting } } = useForm();
+  const { register, handleSubmit, reset, setValue, watch, control, setError, formState: { errors, isSubmitting } } = useForm();
   const { fields, append, remove } = useFieldArray({
     control,
     name: "prerequisites"
@@ -44,6 +44,7 @@ const SubjectModal = ({ isOpen, onClose, onSuccess, curriculumId, subject = null
       setValue('total_units', subject.total_units);
       setValue('is_major', subject.is_major ? 'true' : 'false');
       setValue('is_practicum', subject.is_practicum ? 'true' : 'false');
+      setValue('hrs_per_week', subject.hrs_per_week);
       
       // Load current prerequisites if any
       if (subject.prerequisites) {
@@ -69,6 +70,7 @@ const SubjectModal = ({ isOpen, onClose, onSuccess, curriculumId, subject = null
         total_units: 3,
         is_major: 'false',
         is_practicum: 'false',
+        hrs_per_week: 3.0,
         prerequisites: []
       });
     }
@@ -97,7 +99,20 @@ const SubjectModal = ({ isOpen, onClose, onSuccess, curriculumId, subject = null
       onSuccess();
       onClose();
     } catch (err) {
-      showToast('error', 'Failed to save subject');
+      const errorData = err.response?.data;
+      if (err.response?.status === 400 && errorData && typeof errorData === 'object') {
+        Object.keys(errorData).forEach((field) => {
+          if (['code', 'description', 'year_level', 'semester', 'lec_units', 'lab_units', 'total_units'].includes(field)) {
+            setError(field, {
+              type: 'manual',
+              message: Array.isArray(errorData[field]) ? errorData[field][0] : errorData[field]
+            });
+          }
+        });
+        showToast('error', 'Please correct the errors in the form');
+      } else {
+        showToast('error', errorData?.detail || 'Failed to save subject');
+      }
     }
   };
 
@@ -160,6 +175,12 @@ const SubjectModal = ({ isOpen, onClose, onSuccess, curriculumId, subject = null
                         label="Practicum?"
                         options={[{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]}
                         {...register('is_practicum')}
+                    />
+                    <Input 
+                        label="Hrs/Wk" 
+                        type="number" 
+                        step="0.1" 
+                        {...register('hrs_per_week', { valueAsNumber: true })} 
                     />
                 </div>
             </div>

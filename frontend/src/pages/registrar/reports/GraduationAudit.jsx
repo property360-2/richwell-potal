@@ -5,6 +5,8 @@ import { studentsApi } from '../../../api/students';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
+import Input from '../../../components/ui/Input';
+import PageHeader from '../../../components/shared/PageHeader';
 import './Reports.css';
 
 const GraduationAudit = () => {
@@ -44,29 +46,24 @@ const GraduationAudit = () => {
 
   return (
     <div className="reports-page">
-      <div className="reports-header">
-        <div className="header-icon-box bg-purple-50 text-purple-600">
-           <Award />
-        </div>
-        <div>
-          <h1>Graduation Audit</h1>
-          <p>Verify curriculum completion and eligibility for graduation.</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Graduation Audit"
+        description="Verify curriculum completion and eligibility for graduation."
+        badge={<div className="header-icon-box bg-purple-50 text-purple-600"><Award /></div>}
+      />
 
       <div className="reports-grid">
         <Card className="search-card">
           <form onSubmit={handleSearch} className="search-form">
-            <div className="search-input-group">
-              <Search size={18} className="text-slate-400" />
-              <input 
-                type="text" 
+            <div className="w-full">
+              <Input 
                 placeholder="Search Student..." 
+                icon={Search}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button type="submit" loading={loading}>Search</Button>
+            <Button type="submit" loading={loading} className="whitespace-nowrap shrink-0">Search</Button>
           </form>
 
           <div className="student-results">

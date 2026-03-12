@@ -5,6 +5,8 @@ import { termsApi } from '../../../api/terms';
 import { academicsApi } from '../../../api/academics';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
+import Select from '../../../components/ui/Select';
+import PageHeader from '../../../components/shared/PageHeader';
 import './Reports.css';
 
 const MasterlistExport = () => {
@@ -58,49 +60,48 @@ const MasterlistExport = () => {
 
   return (
     <div className="reports-page">
-      <div className="reports-header">
-        <div className="header-icon-box bg-emerald-50 text-emerald-600">
-           <TableIcon />
-        </div>
-        <div>
-          <h1>Masterlist Export</h1>
-          <p>Download comprehensive Excel files of enrolled students.</p>
-        </div>
-      </div>
+      <PageHeader 
+        title="Masterlist Export"
+        description="Download comprehensive Excel files of enrolled students."
+        badge={<div className="header-icon-box bg-emerald-50 text-emerald-600"><TableIcon /></div>}
+      />
 
       <Card className="filter-card p-8">
         <div className="filter-grid-layout">
           <div className="filter-item">
-            <label>School Term</label>
-            <select 
+            <Select 
+                label="School Term"
                 value={filters.term_id}
                 onChange={(e) => setFilters({...filters, term_id: e.target.value})}
-            >
-                <option value="">Select Term</option>
-                {terms.map(t => <option key={t.id} value={t.id}>{t.code}</option>)}
-            </select>
+                options={[
+                  { value: '', label: 'Select Term' },
+                  ...terms.map(t => ({ value: t.id, label: t.code }))
+                ]}
+            />
           </div>
 
           <div className="filter-item">
-            <label>Academic Program (Optional)</label>
-            <select 
+            <Select 
+                label="Academic Program (Optional)"
                 value={filters.program_id}
                 onChange={(e) => setFilters({...filters, program_id: e.target.value})}
-            >
-                <option value="">All Programs</option>
-                {programs.map(p => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
-            </select>
+                options={[
+                  { value: '', label: 'All Programs' },
+                  ...programs.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))
+                ]}
+            />
           </div>
 
           <div className="filter-item">
-            <label>Year Level (Optional)</label>
-            <select 
+            <Select 
+                label="Year Level (Optional)"
                 value={filters.year_level}
                 onChange={(e) => setFilters({...filters, year_level: e.target.value})}
-            >
-                <option value="">All Years</option>
-                {[1,2,3,4].map(y => <option key={y} value={y}>Year {y}</option>)}
-            </select>
+                options={[
+                  { value: '', label: 'All Years' },
+                  ...[1,2,3,4].map(y => ({ value: y, label: `Year ${y}` }))
+                ]}
+            />
           </div>
         </div>
 

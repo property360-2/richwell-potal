@@ -136,3 +136,134 @@ class SchedulingService:
             capacity__gte=capacity_needed,
             is_active=True
         ).order_by('capacity').first()
+
+    @staticmethod
+    @transaction.atomic
+    def randomize_section_schedule(term, section):
+        """
+        Auto-generates day/time assignments for all schedule slots of a section.
+        Each subject component gets ONE continuous block on ONE day.
+        Professor and room are NOT touched.
+        Respects section session (AM → 7:00-13:00, PM → 13:00-19:00).
+        Splits hrs_per_week between LEC and LAB components of the same subject.
+        """
+        import random
+        from datetime import time as dt_time
+        from collections import defaultdict
+
+        slots = Schedule.objects.filter(
+            term=term, section=section
+        ).select_related('subject').order_by('id')
+
+        if not slots.exists():
+            raise ValueError("No schedule slots found for this section.")
+
+        # Reset existing time assignments
+        slots.update(days=[], start_time=None, end_time=None)
+
+        # Determine time window based on section session
+        if section.session == 'AM':
+            GRID_START = 7 * 60    # 7:00 AM
+            GRID_END = 13 * 60     # 1:00 PM (6 hours)
+        else:
+            GRID_START = 13 * 60   # 1:00 PM
+            GRID_END = 19 * 60     # 7:00 PM (6 hours)
+
+        DAYS = ['M', 'T', 'W', 'TH', 'F', 'S']
+
+        # Track occupied intervals per day
+        occupied = {d: [] for d in DAYS}
+
+        def find_gap(day, duration_minutes):
+            """Find the first available gap on a given day for the required duration."""
+            day_slots = sorted(occupied[day], key=lambda x: x[0])
+            candidate = GRID_START
+
+            for occ_start, occ_end in day_slots:
+                if candidate + duration_minutes <= occ_start:
+                    return candidate
+                candidate = max(candidate, occ_end)
+
+            if candidate + duration_minutes <= GRID_END:
+                return candidate
+            return None
+
+        # Group slots by subject to split hours between LEC and LAB
+        subject_slots = defaultdict(list)
+        for slot in slots:
+            subject_slots[slot.subject_id].append(slot)
+
+        # Calculate duration for each individual slot
+        slot_durations = {}
+        for subject_id, group in subject_slots.items():
+            subject = group[0].subject
+            total_hrs = float(subject.hrs_per_week or subject.total_units or 3)
+
+            if len(group) == 1:
+                # Only one component — gets all hours
+                slot_durations[group[0].id] = total_hrs
+            else:
+                # Multiple components (LEC + LAB) — split by unit ratio
+                total_units = (subject.lec_units or 0) + (subject.lab_units or 0)
+                if total_units == 0:
+                    # Equal split as fallback
+                    each = total_hrs / len(group)
+                    for s in group:
+                        slot_durations[s.id] = each
+                else:
+                    for s in group:
+                        if s.component_type == 'LAB':
+                            ratio = (subject.lab_units or 0) / total_units
+                        else:
+                            ratio = (subject.lec_units or 0) / total_units
+                        slot_durations[s.id] = total_hrs * ratio
+
+        # Build placement list, randomize then sort longest-first for better packing
+        slot_list = list(slots)
+        random.shuffle(slot_list)
+        slot_list.sort(key=lambda s: slot_durations.get(s.id, 3), reverse=True)
+
+        # Cycle through days to distribute load
+        day_index = 0
+
+        for slot in slot_list:
+            hrs = slot_durations.get(slot.id, 3)
+            duration_minutes = int(hrs * 60)
+
+            # Minimum 30 minutes, cap at grid window
+            duration_minutes = max(duration_minutes, 30)
+            if duration_minutes > (GRID_END - GRID_START):
+                duration_minutes = GRID_END - GRID_START
+
+            placed = False
+
+            for attempt in range(len(DAYS)):
+                day = DAYS[(day_index + attempt) % len(DAYS)]
+                gap_start = find_gap(day, duration_minutes)
+
+                if gap_start is not None:
+                    gap_end = gap_start + duration_minutes
+                    occupied[day].append((gap_start, gap_end))
+
+                    start_h, start_m = divmod(gap_start, 60)
+                    end_h, end_m = divmod(gap_end, 60)
+
+                    slot.days = [day]
+                    slot.start_time = dt_time(start_h, start_m)
+                    slot.end_time = dt_time(end_h, end_m)
+                    slot.save(update_fields=['days', 'start_time', 'end_time'])
+
+                    day_index = (day_index + attempt + 1) % len(DAYS)
+                    placed = True
+                    break
+
+            if not placed:
+                raise ValueError(
+                    f"Could not place {slot.subject.code} ({slot.component_type}) — "
+                    f"all days are full for {section.session} session. "
+                    f"Try reducing subject hours or adding Saturday."
+                )
+
+        return Schedule.objects.filter(
+            term=term, section=section
+        ).select_related('subject', 'professor__user', 'room', 'section', 'term')

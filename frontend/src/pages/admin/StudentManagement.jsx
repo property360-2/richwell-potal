@@ -19,14 +19,15 @@ const StudentManagement = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [curriculums, setCurriculums] = useState([]);
-  const { showToast } = useToast();
+  const [statusFilter, setStatusFilter] = useState('APPROVED,ENROLLED,INACTIVE,GRADUATED');
+  const { addToast } = useToast();
 
   const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm();
   const selectedProgram = watch('program');
 
   useEffect(() => {
     fetchStudents();
-  }, [searchTerm]);
+  }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     if (modalOpen) {
@@ -44,9 +45,12 @@ const StudentManagement = () => {
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      const res = await studentsApi.getStudents({ search: searchTerm });
-      const allStudents = res.data.results || [];
-      setStudents(allStudents.filter(s => s.status !== 'APPLICANT'));
+      const res = await studentsApi.getStudents({ 
+        search: searchTerm,
+        status: statusFilter,
+        page_size: 100
+      });
+      setStudents(res.data.results || (Array.isArray(res.data) ? res.data : []));
     } catch (error) {
       console.error('Failed to fetch students:', error);
       setStudents([]);
@@ -60,7 +64,7 @@ const StudentManagement = () => {
       const progRes = await academicsApi.getPrograms({ page_size: 100 });
       setPrograms(progRes.data.results.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` })));
     } catch (err) {
-      showToast('error', 'Failed to load academic data');
+      addToast('error', 'Failed to load academic data');
     }
   };
 
@@ -76,12 +80,12 @@ const StudentManagement = () => {
   const onSubmit = async (data) => {
     try {
       const res = await studentsApi.manualAdd(data);
-      showToast('success', `Student added! Password set to: ${data.idn}${data.date_of_birth.replace(/-/g, '').slice(4, 8)}`);
+      addToast('success', `Student added! Password set to: ${data.idn}${data.date_of_birth.replace(/-/g, '').slice(4, 8)}`);
       setModalOpen(false);
       reset();
       fetchStudents();
     } catch (err) {
-      showToast('error', err.response?.data?.error || 'Failed to add student');
+      addToast('error', err.response?.data?.error || 'Failed to add student');
     }
   };
 
@@ -167,6 +171,19 @@ const StudentManagement = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+        <div className="w-full md:w-64">
+           <Select 
+             value={statusFilter}
+             onChange={(e) => setStatusFilter(e.target.value)}
+             options={[
+               { value: 'APPROVED,ENROLLED,INACTIVE,GRADUATED', label: 'All Students' },
+               { value: 'APPROVED', label: 'Approved Students' },
+               { value: 'ENROLLED', label: 'Officially Enrolled' },
+               { value: 'INACTIVE', label: 'Inactive' },
+               { value: 'APPLICANT', label: 'Applications (Pending)' }
+             ]}
+           />
         </div>
       </div>
 

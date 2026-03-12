@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import Table from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
+import PageHeader from '../../components/shared/PageHeader';
+import SearchBar from '../../components/shared/SearchBar';
 import { useToast } from '../../components/ui/Toast';
 import { studentsApi } from '../../api/students';
 import ApplicantDetailsModal from './components/ApplicantDetailsModal';
@@ -86,25 +87,21 @@ const ApplicantManagement = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Applicant Management</h1>
-          <p className="text-slate-500">Review and approve new student applications</p>
-        </div>
-        <div className="flex items-center gap-2">
-           <Badge variant="neutral" className="text-sm px-3 py-1">
+      <PageHeader 
+        title="Applicant Management"
+        description="Review and approve new student applications"
+        actions={
+          <Badge variant="neutral" className="text-sm px-3 py-1">
              {applicants.length} Pending Applications
-           </Badge>
-        </div>
-      </div>
+          </Badge>
+        }
+      />
 
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1">
-          <Input 
+          <SearchBar 
             placeholder="Search by name or email..." 
-            icon={<Search size={18} />} 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onSearch={setSearchQuery}
           />
         </div>
       </div>

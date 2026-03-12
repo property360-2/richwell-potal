@@ -12,6 +12,8 @@ import academicsApi from '../../api/academics';
 import Modal from '../../components/ui/Modal';
 import Table from '../../components/ui/Table';
 import Select from '../../components/ui/Select';
+import Tabs from '../../components/ui/Tabs';
+import PageHeader from '../../components/shared/PageHeader';
 
 import './SectioningDashboard.css';
 
@@ -185,36 +187,27 @@ const SectioningDashboard = () => {
 
   return (
     <div className="sectioning-container">
-      <div className="sectioning-header">
-        <div className="header-title">
-          <h1>Sectioning Dashboard</h1>
-          <div className="header-subtitle">
-            <Badge variant="primary">{activeTerm?.code}</Badge> 
-            <span>Enrollment Matrix & Automated Section Generation</span>
-          </div>
-        </div>
-        <div className="header-actions">
-          <Button variant="ghost" style={{ backgroundColor: 'white', borderColor: 'var(--color-border)' }} icon={<RefreshCw size={18} />} onClick={fetchData}>
+      <PageHeader 
+        title="Sectioning Dashboard"
+        description="Enrollment Matrix & Automated Section Generation"
+        badge={<Badge variant="primary" className="ml-2">{activeTerm?.code}</Badge>}
+        actions={
+          <Button variant="ghost" className="bg-white border border-slate-200" icon={<RefreshCw size={18} />} onClick={fetchData}>
             Sync Matrix
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Main Tabs Selection */}
-      <div className="main-nav-tabs">
-        <button 
-          className={`nav-tab ${mainTab === 'matrix' ? 'active' : ''}`}
-          onClick={() => setMainTab('matrix')}
-        >
-          Enrollment Matrix
-        </button>
-        <button 
-          className={`nav-tab ${mainTab === 'sections' ? 'active' : ''}`}
-          onClick={() => setMainTab('sections')}
-        >
-          Generated Sections
-        </button>
-      </div>
+      <Tabs 
+        activeTab={mainTab}
+        onTabChange={setMainTab}
+        tabs={[
+          { id: 'matrix', label: 'Enrollment Matrix', icon: LayoutGrid },
+          { id: 'sections', label: 'Generated Sections', icon: Users }
+        ]}
+        className="mb-6"
+      />
 
       <div className="tab-content animate-in fade-in duration-300">
         {mainTab === 'matrix' ? (
@@ -372,20 +365,15 @@ const SectioningDashboard = () => {
         size="lg"
       >
         {/* Modal Tabs */}
-        <div style={{ display: 'flex', gap: 'var(--space-6)', borderBottom: '1px solid var(--color-border)', marginBottom: 'var(--space-6)' }}>
-           <button 
-            onClick={() => setModalTab('students')}
-            className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all ${modalTab === 'students' ? 'text-primary border-b-2 border-primary' : 'text-slate-400 hover:text-slate-600'}`}
-           >
-             Student Roster
-           </button>
-           <button 
-            onClick={() => setModalTab('schedule')}
-            className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all ${modalTab === 'schedule' ? 'text-primary border-b-2 border-primary' : 'text-slate-400 hover:text-slate-600'}`}
-           >
-             Class Schedule
-           </button>
-        </div>
+        <Tabs 
+          activeTab={modalTab}
+          onTabChange={setModalTab}
+          tabs={[
+            { id: 'students', label: 'Student Roster', icon: Users },
+            { id: 'schedule', label: 'Class Schedule', icon: Clock }
+          ]}
+          className="mb-6"
+        />
 
         {modalTab === 'students' ? (
           <Table columns={rosterColumns} data={roster} loading={rosterLoading} />

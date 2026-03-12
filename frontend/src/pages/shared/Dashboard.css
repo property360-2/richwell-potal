@@ -117,8 +117,10 @@
 }
 
 .link-card:hover {
-    background: #0f172a;
-    border-color: #0f172a;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.25);
 }
 
 .link-card:hover h3 {
@@ -126,11 +128,16 @@
 }
 
 .link-card:hover p {
-    color: #94a3b8;
+    color: rgba(255, 255, 255, 0.85);
 }
 
 .link-card:hover .link-icon {
+    background: rgba(255, 255, 255, 0.15) !important;
     transform: scale(1.1);
+}
+
+.link-card:hover .link-icon svg {
+    color: white !important;
 }
 
 .link-icon {

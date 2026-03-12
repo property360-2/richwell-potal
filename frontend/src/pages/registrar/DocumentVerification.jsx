@@ -15,6 +15,9 @@ import Select from '../../components/ui/Select';
 import { useToast } from '../../components/ui/Toast';
 import { studentsApi } from '../../api/students';
 import RegistrarVerificationModal from './components/RegistrarVerificationModal';
+import PageHeader from '../../components/shared/PageHeader';
+import SearchBar from '../../components/shared/SearchBar';
+import './DocumentVerification.css';
 
 const DocumentVerification = () => {
   const [students, setStudents] = useState([]);
@@ -23,18 +26,19 @@ const DocumentVerification = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('APPROVED');
-  const { showToast } = useToast();
+  const { addToast } = useToast();
 
   const fetchStudents = async () => {
     try {
       setLoading(true);
       const res = await studentsApi.getStudents({ 
         status: statusFilter, 
-        search: searchQuery 
+        search: searchQuery,
+        page_size: 100
       });
       setStudents(res.data.results || res.data);
     } catch (err) {
-      showToast('error', 'Failed to load students');
+      addToast('error', 'Failed to load students');
     } finally {
       setLoading(false);
     }
@@ -48,13 +52,13 @@ const DocumentVerification = () => {
     { 
       header: 'Student', 
       render: (row) => (
-        <div>
+        <div className="py-1">
           <div className="font-bold text-slate-800">{row.user.first_name} {row.user.last_name}</div>
-          <div className="text-xs text-slate-400">IDN: {row.idn}</div>
+          <div className="text-xs text-slate-500 font-mono">IDN: {row.idn}</div>
         </div>
       )
     },
-    { header: 'Program', render: (row) => row.program_details?.code || 'N/A' },
+    { header: 'Program', render: (row) => <div className="font-medium text-slate-600">{row.program_details?.code || 'N/A'}</div> },
     { 
       header: 'Status', 
       render: (row) => (
@@ -69,10 +73,14 @@ const DocumentVerification = () => {
         const submittedCount = Object.values(row.document_checklist || {}).filter(d => d.submitted).length;
         const totalCount = Object.keys(row.document_checklist || {}).length;
         return (
-          <div className="text-xs font-medium">
-            <span className={submittedCount === totalCount ? 'text-green-600' : 'text-slate-500'}>
-              {submittedCount}/{totalCount} submitted
-            </span>
+          <div className="flex flex-col gap-1">
+            <div className="text-xs font-bold text-slate-700">{submittedCount}/{totalCount}</div>
+            <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+               <div 
+                 className={`h-full transition-all ${submittedCount === totalCount ? 'bg-green-500' : 'bg-blue-400'}`} 
+                 style={{ width: `${(submittedCount / (totalCount || 1)) * 100}%` }}
+               />
+            </div>
           </div>
         );
       }
@@ -83,10 +91,14 @@ const DocumentVerification = () => {
         const verifiedCount = Object.values(row.document_checklist || {}).filter(d => d.verified).length;
         const totalCount = Object.keys(row.document_checklist || {}).length;
         return (
-          <div className="text-xs font-medium">
-            <span className={verifiedCount === totalCount ? 'text-blue-600' : 'text-slate-500'}>
-              {verifiedCount}/{totalCount} verified
-            </span>
+          <div className="flex flex-col gap-1">
+            <div className="text-xs font-bold text-slate-700">{verifiedCount}/{totalCount}</div>
+            <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+               <div 
+                 className={`h-full transition-all ${verifiedCount === totalCount ? 'bg-blue-600' : 'bg-indigo-400'}`} 
+                 style={{ width: `${(verifiedCount / (totalCount || 1)) * 100}%` }}
+               />
+            </div>
           </div>
         );
       }
@@ -98,6 +110,7 @@ const DocumentVerification = () => {
         <Button 
           variant="ghost" 
           size="sm" 
+          className="text-primary hover:bg-primary-light font-bold"
           icon={<ClipboardCheck size={16} />} 
           onClick={() => { setSelectedStudent(row); setModalOpen(true); }}
         >
@@ -108,39 +121,42 @@ const DocumentVerification = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Document Verification</h1>
-          <p className="text-slate-500">Registrar quality check and enrollment finalization</p>
+    <div className="verification-page-container animate-in fade-in duration-500">
+      <PageHeader 
+        title="Document Verification" 
+        description="Registrar quality check and enrollment finalization" 
+      />
+
+      <div className="filter-card">
+        <div className="filter-row">
+          <div className="filter-label">
+            <Filter size={18} />
+            <span>Filter & Search</span>
+          </div>
+          
+          <div className="filter-group">
+            <div className="search-wrapper">
+              <SearchBar 
+                placeholder="Search name or IDN..." 
+                onSearch={setSearchQuery}
+              />
+            </div>
+            <div className="status-wrapper">
+              <Select 
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                options={[
+                  { value: 'APPROVED', label: 'Approved by Admission' },
+                  { value: 'ENROLLED', label: 'Officially Enrolled' },
+                  { value: '', label: 'All Students' }
+                ]}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-end">
-        <div className="flex-1">
-          <Input 
-            label="Search Student"
-            placeholder="Search name or IDN..." 
-            icon={<Search size={18} />} 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <div className="w-48">
-          <Select 
-            label="Filter Status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            options={[
-              { value: 'APPROVED', label: 'Approved by Admission' },
-              { value: 'ENROLLED', label: 'Officially Enrolled' },
-              { value: '', label: 'All Students' }
-            ]}
-          />
-        </div>
-      </div>
-
-      <Card padding="0">
+      <Card padding="0" className="overflow-hidden shadow-md border-slate-100">
         <Table 
           columns={columns} 
           data={students} 

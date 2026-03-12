@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 import csv
 import io
+import re
 from .models import Program, CurriculumVersion, Subject, SubjectPrerequisite
 from .serializers import (
     ProgramSerializer, CurriculumVersionSerializer, 
@@ -26,7 +27,7 @@ class CurriculumVersionViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['program', 'is_active']
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='set-active')
     def set_active(self, request, pk=None):
         curriculum = self.get_object()
         # Deactivate all others for this program
@@ -47,7 +48,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
     search_fields = ['code', 'description']
     filterset_fields = ['curriculum', 'curriculum__program', 'year_level', 'semester', 'is_major']
     
-    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    @action(detail=False, methods=['post'], url_path='bulk-upload', parser_classes=[MultiPartParser, FormParser])
     def bulk_upload(self, request):
         if 'file' not in request.FILES:
             return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
@@ -75,6 +76,10 @@ class SubjectViewSet(viewsets.ModelViewSet):
             # We store created subjects in a map for the second pass (prerequisites)
             subject_map = {} # (curriculum_id, code) -> Subject object
             rows = list(reader)
+            
+            # Variables to track current state across rows
+            last_program_code = None
+            current_year_level = 1
 
             for row_idx, row in enumerate(rows, start=2): # record 1 is header
                 try:
@@ -83,6 +88,11 @@ class SubjectViewSet(viewsets.ModelViewSet):
                     
                     program_code = row.get('Program')
                     if not program_code: continue
+
+                    # Reset year level if program changes
+                    if program_code != last_program_code:
+                        current_year_level = 1
+                        last_program_code = program_code
                         
                     # Get or Create Program
                     program, p_created = Program.objects.get_or_create(
@@ -100,16 +110,20 @@ class SubjectViewSet(viewsets.ModelViewSet):
                     
                     # Parse Year & Semester
                     yr_sem = row.get('Year_Semester', '')
-                    year_level = 1
                     semester = '1'
                     
                     if 'Summer' in yr_sem:
                         semester = 'S'
+                        # For Summer, we use the last known year_level
+                        # and update the program to has_summer
+                        if not program.has_summer:
+                            program.has_summer = True
+                            program.save(update_fields=['has_summer'])
                     else:
-                        if '1st Year' in yr_sem: year_level = 1
-                        elif '2nd Year' in yr_sem: year_level = 2
-                        elif '3rd Year' in yr_sem: year_level = 3
-                        elif '4th Year' in yr_sem: year_level = 4
+                        if '1st Year' in yr_sem: current_year_level = 1
+                        elif '2nd Year' in yr_sem: current_year_level = 2
+                        elif '3rd Year' in yr_sem: current_year_level = 3
+                        elif '4th Year' in yr_sem: current_year_level = 4
                         
                         if '1st Semester' in yr_sem: semester = '1'
                         elif '2nd Semester' in yr_sem: semester = '2'
@@ -117,21 +131,81 @@ class SubjectViewSet(viewsets.ModelViewSet):
                     # Subject setup
                     subject_code = row.get('Program_Code', '')
                     if not subject_code: continue
-                        
-                    lec_units = int(row.get('Lec_Units') or 0)
-                    lab_units = int(row.get('Lab_Units') or 0) 
-                    total_units = int(row.get('Total_Units') or 0)
+
+                    # Automatic Major Subject Detection Heuristic
+                    # Majors usually start with program-specific prefixes
+                    major_prefixes = [
+                        'CC', 'IS', 'CAP', # IS
+                        'NCM', 'MC', # Nursing
+                        'CRIM', 'CLJ', 'CDI', 'LEA', 'CA', 'FOR', 'FOR S', 'CFLM', 'CLFM', # Crim
+                        'FSM', # BTVTED
+                        'AE', 'PC', # BSAIS
+                        'ENTREP', 'EST', # Entrep
+                        'THC', 'TPC', 'TMPE', # Tourism
+                        'ECE', # BECEd
+                        'Practicum', 'Practicum 1', 'Practicum 2', 'Practicum 3', # General
+                    ]
                     
+                    is_major = False
+                    is_practicum = False
+                    
+                    # Logic to check if major
+                    code_upper = subject_code.upper()
+                    for prefix in major_prefixes:
+                        if code_upper.startswith(prefix):
+                            is_major = True
+                            break
+                    
+                    # Special check for Internship/Practicum
+                    if 'INTERNSHIP' in code_upper or 'PRACTICUM' in code_upper or 'TEACHING INTERNSHIP' in code_upper:
+                        is_practicum = True
+                        is_major = True # Practicum is always major
+                        
+                    # Use cleaned units and handle non-numeric values
+                    def parse_int(val):
+                        if not val: return 0
+                        try:
+                            # Remove non-numeric characters except decimal point (if any)
+                            clean_val = re.sub(r'[^\d.]', '', str(val))
+                            return int(float(clean_val)) if clean_val else 0
+                        except (ValueError, TypeError):
+                            return 0
+
+                    lec_units = parse_int(row.get('Lec_Units'))
+                    lab_units = parse_int(row.get('Lab_Units')) 
+                    total_units = parse_int(row.get('Total_Units'))
+
+                    # Parse Hours per week
+                    hrs_sem_raw = row.get('Hrs_Sem', '')
+                    hrs_per_week = 0
+                    if hrs_sem_raw:
+                        # Extract all numbers/decimals
+                        match = re.search(r'(\d+(?:\.\d+)?)', hrs_sem_raw)
+                        if match:
+                            val = float(match.group(1))
+                            if 'hrs/week' in hrs_sem_raw.lower() or 'hours/week' in hrs_sem_raw.lower():
+                                hrs_per_week = val
+                            else:
+                                # Assume it's total semester hours, divide by standard 18 weeks
+                                hrs_per_week = val / 18.0
+                    
+                    # Fallback for GE subjects often being 3 hrs/week
+                    if hrs_per_week == 0 and total_units > 0:
+                        hrs_per_week = float(total_units)
+
                     subject, _ = Subject.objects.update_or_create(
                         curriculum=curriculum,
                         code=subject_code,
                         defaults={
                             'description': row.get('Subject_Description', ''),
-                            'year_level': year_level,
+                            'year_level': current_year_level,
                             'semester': semester,
                             'lec_units': lec_units,
                             'lab_units': lab_units,
                             'total_units': total_units,
+                            'hrs_per_week': hrs_per_week,
+                            'is_major': is_major,
+                            'is_practicum': is_practicum,
                         }
                     )
                     subject_map[(curriculum.id, subject_code)] = subject
@@ -161,7 +235,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
                     if not subject: continue
 
                     # Split prerequisites by comma or semicolon
-                    import re
                     prereq_codes = [p.strip() for p in re.split(r'[,;]', prereq_str) if p.strip()]
                     
                     for p_code in prereq_codes:

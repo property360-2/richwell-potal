@@ -18,6 +18,11 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
+import Tabs from '../../components/ui/Tabs';
+import SearchBar from '../../components/shared/SearchBar';
+import EmptyState from '../../components/shared/EmptyState';
+import PageHeader from '../../components/shared/PageHeader';
+import Input from '../../components/ui/Input';
 import './AdvisingApproval.css';
 
 
@@ -114,48 +119,37 @@ const AdvisingApproval = () => {
 
   return (
     <div className="advising-approval-container">
-      <header className="advising-header">
-        <div className="advising-header-content">
-          <h1>Subject Advising Approval</h1>
-          <p>Review and approve student subject selections</p>
-        </div>
-        
-        {activeTab === 'REGULAR' && enrollments.length > 0 && (
-          <Button 
-            variant="primary" 
-            onClick={handleBatchApproveRegular}
-            icon={<CheckSquare size={18} />}
-          >
-            Approve All Regular
-          </Button>
-        )}
-      </header>
+      <PageHeader 
+        title="Subject Advising Approval"
+        description="Review and approve student subject selections"
+        actions={
+          activeTab === 'REGULAR' && enrollments.length > 0 && (
+            <Button 
+              variant="primary" 
+              onClick={handleBatchApproveRegular}
+              icon={<CheckSquare size={18} />}
+            >
+              Approve All Regular
+            </Button>
+          )
+        }
+      />
 
-      <div className="tabs-container">
-        <button
-          className={`tab-button ${activeTab === 'REGULAR' ? 'active' : ''}`}
-          onClick={() => setActiveTab('REGULAR')}
-        >
-          Regular Students
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'IRREGULAR' ? 'active' : ''}`}
-          onClick={() => setActiveTab('IRREGULAR')}
-        >
-          Irregular Students
-        </button>
-      </div>
+      <Tabs 
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        tabs={[
+          { id: 'REGULAR', label: 'Regular Students', icon: Users },
+          { id: 'IRREGULAR', label: 'Irregular Students', icon: Filter }
+        ]}
+      />
 
       <Card>
-        <div className="search-container">
-           <Search className="search-icon" size={18} />
-           <input 
-             type="text" 
-             placeholder="Search by IDN or Name..."
-             className="search-input"
-             value={searchTerm}
-             onChange={(e) => setSearchTerm(e.target.value)}
-           />
+        <div className="mb-4 max-w-md">
+            <SearchBar 
+                placeholder="Search by IDN or Name..." 
+                onSearch={setSearchTerm} 
+            />
         </div>
 
         {loading ? (
@@ -163,9 +157,11 @@ const AdvisingApproval = () => {
             <LoadingSpinner />
           </div>
         ) : filteredEnrollments.length === 0 ? (
-          <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-            No pending {activeTab.toLowerCase()} enrollments found.
-          </div>
+          <EmptyState 
+            title="No Pending Enrollments"
+            message={`No pending ${activeTab.toLowerCase()} enrollments found.`}
+            icon={<CheckSquare size={48} />}
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="table">
@@ -303,9 +299,9 @@ const AdvisingApproval = () => {
           <p className="text-sm text-slate-600">
             Please provide a reason for rejecting the subject selection of <strong>{selectedEnrollment?.student_name}</strong>.
           </p>
-          <textarea
-            className="search-input"
-            style={{ height: '120px', resize: 'none' }}
+          <Input
+            multiline
+            style={{ height: '120px' }}
             placeholder="e.g., Missing prerequisites for CS102. Please re-check."
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}

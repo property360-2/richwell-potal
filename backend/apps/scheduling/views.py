@@ -19,7 +19,7 @@ class ScheduleViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish']:
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish', 'randomize']:
             from core.permissions import IsDean
             return [IsDean()]
         return super().get_permissions()
@@ -67,6 +67,27 @@ class ScheduleViewSet(viewsets.ModelViewSet):
                 exclude_id=schedule.id
             )
             return Response(self.get_serializer(updated_schedule).data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['POST'], url_path='randomize')
+    def randomize(self, request):
+        """
+        Auto-generates day/time assignments for all slots of a section.
+        Each subject gets one continuous block on one day.
+        Professor and room are NOT touched.
+        """
+        section_id = request.data.get('section_id')
+        term_id = request.data.get('term_id')
+
+        if not all([section_id, term_id]):
+            return Response({"error": "section_id and term_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            term = Term.objects.get(id=term_id)
+            section = Section.objects.get(id=section_id)
+            updated = SchedulingService.randomize_section_schedule(term, section)
+            return Response(self.get_serializer(updated, many=True).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

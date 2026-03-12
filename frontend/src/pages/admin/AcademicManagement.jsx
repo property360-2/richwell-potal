@@ -23,6 +23,7 @@ import { useToast } from '../../components/ui/Toast';
 import { academicsApi } from '../../api/academics';
 import ProgramModal from './components/ProgramModal';
 import SubjectModal from './components/SubjectModal';
+import PageHeader from '../../components/shared/PageHeader';
 import './AcademicManagement.css';
 
 const ProgramTab = () => {
@@ -62,10 +63,6 @@ const ProgramTab = () => {
     { header: 'Code', accessor: 'code' },
     { header: 'Program Name', accessor: 'name' },
     { header: 'Program Head', accessor: 'program_head_name', emptyValue: 'Not Assigned' },
-    { 
-      header: 'Summer',
-      render: (row) => row.has_summer ? <Badge variant="info">Yes</Badge> : <Badge variant="neutral">No</Badge>
-    },
     { 
       header: 'Status',
       render: (row) => row.is_active ? <Badge variant="success">Active</Badge> : <Badge variant="error">Inactive</Badge>
@@ -112,6 +109,7 @@ const SubjectTab = () => {
   const [curriculums, setCurriculums] = useState([]);
   const [selectedCurriculumId, setSelectedCurriculumId] = useState('');
   const [selectedYearLevel, setSelectedYearLevel] = useState('');
+  const [selectedSemester, setSelectedSemester] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -125,6 +123,13 @@ const SubjectTab = () => {
     { value: '2', label: '2nd Year' },
     { value: '3', label: '3rd Year' },
     { value: '4', label: '4th Year' },
+  ];
+
+  const SEMESTER_OPTIONS = [
+    { value: '', label: 'All Semesters' },
+    { value: '1', label: '1st Semester' },
+    { value: '2', label: '2nd Semester' },
+    { value: 'S', label: 'Summer' },
   ];
 
   useEffect(() => {
@@ -172,6 +177,9 @@ const SubjectTab = () => {
       if (selectedYearLevel) {
         params.year_level = selectedYearLevel;
       }
+      if (selectedSemester) {
+        params.semester = selectedSemester;
+      }
 
       const res = await academicsApi.getSubjects(params);
       setSubjects(res.data.results || res.data);
@@ -184,7 +192,7 @@ const SubjectTab = () => {
 
   useEffect(() => {
     fetchSubjects();
-  }, [selectedCurriculumId, selectedYearLevel, searchQuery]);
+  }, [selectedCurriculumId, selectedYearLevel, selectedSemester, searchQuery]);
 
   const columns = [
     { header: 'Code', accessor: 'code' },
@@ -194,6 +202,7 @@ const SubjectTab = () => {
       render: (row) => `${row.year_level} - ${row.semester === 'S' ? 'Summer' : row.semester + (row.semester === '1' ? 'st' : 'nd')}` 
     },
     { header: 'Units', accessor: 'total_units' },
+    { header: 'Hrs/Wk', accessor: 'hrs_per_week' },
     { 
         header: 'Major', 
         render: (row) => row.is_major ? <Badge variant="warning">Major</Badge> : <Badge variant="neutral">Minor</Badge>
@@ -245,10 +254,17 @@ const SubjectTab = () => {
             options={YEAR_OPTIONS}
             disabled={!selectedCurriculumId}
           />
+          <Select 
+            label="Semester" 
+            value={selectedSemester} 
+            onChange={(e) => setSelectedSemester(e.target.value)}
+            options={SEMESTER_OPTIONS}
+            disabled={!selectedCurriculumId}
+          />
           <div className="search-box-container">
              <Input 
                 label="Search"
-                placeholder="Search code/name..." 
+                placeholder="Search..." 
                 icon={<Search size={18} />} 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -256,7 +272,7 @@ const SubjectTab = () => {
           </div>
           <div className="flex justify-end">
              <Button variant="primary" icon={<Plus size={18} />} onClick={() => { setEditingSubject(null); setModalOpen(true); }} disabled={!selectedCurriculumId}>
-                Add Subject
+                Add
              </Button>
           </div>
         </div>
@@ -434,12 +450,10 @@ const AcademicManagement = () => {
 
   return (
     <div className="page-container space-y-8 academic-management">
-      <div className="page-header">
-        <div className="header-title-section">
-          <h2>Academic Management</h2>
-          <p>Manage programs, subjects, and curriculum data.</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Academic Management"
+        description="Manage programs, subjects, and curriculum data."
+      />
 
       <div className="tabs-container">
         {tabs.map(tab => (

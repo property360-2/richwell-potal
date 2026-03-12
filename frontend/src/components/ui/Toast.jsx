@@ -1,9 +1,12 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { CheckCircle, AlertCircle, Info, XCircle, X } from 'lucide-react';
 import './Toast.css';
 
+// eslint-disable-next-line react-refresh/only-export-components
 const ToastContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useToast = () => useContext(ToastContext);
 
 const Toast = ({ message, type, onClose }) => {
@@ -28,7 +31,22 @@ const Toast = ({ message, type, onClose }) => {
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
-  const addToast = useCallback((message, type = 'info', duration = 5000) => {
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
+
+  const addToast = useCallback((msgOrType, typeOrMsg = 'info', duration = 5000) => {
+    // Detect parameter order: if first arg is one of the types, it's (type, message)
+    const types = ['success', 'error', 'warning', 'info', 'neutral', 'primary'];
+    let message = msgOrType;
+    let type = typeOrMsg;
+    
+    // Check if parameters are swapped: addToast('error', 'My message') instead of addToast('My message', 'error')
+    if (types.includes(msgOrType) && !types.includes(typeOrMsg)) {
+        message = typeOrMsg;
+        type = msgOrType;
+    }
+
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, message, type, duration }]);
     
@@ -37,11 +55,7 @@ export const ToastProvider = ({ children }) => {
         removeToast(id);
       }, duration);
     }
-  }, []);
-
-  const removeToast = useCallback((id) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
+  }, [removeToast]);
 
   useEffect(() => {
     const handleApiError = (event) => {
@@ -54,7 +68,7 @@ export const ToastProvider = ({ children }) => {
   }, [addToast]);
 
   return (
-    <ToastContext.Provider value={{ showToast: addToast }}>
+    <ToastContext.Provider value={{ showToast: addToast, addToast }}>
       {children}
       <div className="toast-container">
         {toasts.map((toast) => (

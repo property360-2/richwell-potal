@@ -12,6 +12,7 @@
   --color-primary-light: #EFF6FF;
   --color-secondary: #64748B;
   --color-bg: #F8FAFC;
+  --color-bg-secondary: #f1f5f9;
   --color-surface: #FFFFFF;
   --color-text: #0F172A;
   --color-text-secondary: #475569;
@@ -272,6 +273,14 @@ textarea:focus {
   display: block;
 }
 
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+}
+
 .inline-block {
   display: inline-block;
 }
@@ -468,4 +477,40 @@ textarea:focus {
 
 .border-slate-200 {
   border-color: #e2e8f0;
+}
+
+.text-danger {
+  color: var(--color-error) !important;
+}
+
+.text-primary {
+  color: var(--color-primary) !important;
+}
+
+.text-warning {
+  color: var(--color-warning) !important;
+}
+
+.text-success {
+  color: var(--color-success) !important;
+}
+
+.text-rose-600 {
+  color: var(--color-error) !important;
+}
+
+.border-none {
+  border: none !important;
+}
+
+.shadow-none {
+  box-shadow: none !important;
+}
+
+.rounded-2xl {
+  border-radius: 1rem;
+}
+
+.rounded-xl {
+  border-radius: 0.75rem;
 }

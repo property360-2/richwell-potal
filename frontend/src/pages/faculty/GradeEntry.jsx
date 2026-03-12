@@ -7,6 +7,7 @@ import Table from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
 import { gradesApi } from '../../api/grades';
+import Select from '../../components/ui/Select';
 import './GradeEntry.css';
 
 const GradeEntry = () => {
@@ -86,12 +87,12 @@ const GradeEntry = () => {
       header: 'Midterm',
       render: (row) => (
         <div className="flex items-center gap-2">
-            <input 
+            <Input 
               type="number" 
               step="0.25" 
               min="1.0" 
               max="5.0"
-              className="grade-input"
+              className="w-20 text-center font-bold"
               defaultValue={getGradeValue(row.midterm_grade)}
               onBlur={(e) => {
                 const val = parseFloat(e.target.value);
@@ -108,9 +109,9 @@ const GradeEntry = () => {
       header: 'Final Grade',
       render: (row) => (
         <div className="flex items-center gap-2">
-             <select 
-                className="grade-select"
-                defaultValue={row.grade_status === 'INC' ? 'INC' : row.grade_status === 'NO_GRADE' ? 'NG' : getGradeValue(row.final_grade)}
+             <Select 
+                className="w-24 font-bold"
+                value={row.grade_status === 'INC' ? 'INC' : row.grade_status === 'NO_GRADE' ? 'NG' : getGradeValue(row.final_grade)}
                 onChange={(e) => {
                     const val = e.target.value;
                     if (val === 'INC') {
@@ -122,14 +123,13 @@ const GradeEntry = () => {
                     }
                 }}
                 disabled={row.grade_status !== 'ENROLLED' && row.grade_status !== 'ADVISING'}
-            >
-                <option value="">--</option>
-                {[1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 5.0].map(v => (
-                    <option key={v} value={v}>{v.toFixed(2)}</option>
-                ))}
-                <option value="INC">INC</option>
-                <option value="NG">NG</option>
-             </select>
+                options={[
+                    { value: '', label: '--' },
+                    ...[1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 5.0].map(v => ({ value: v, label: v.toFixed(2) })),
+                    { value: 'INC', label: 'INC' },
+                    { value: 'NG', label: 'NG' }
+                ]}
+             />
         </div>
       )
     },
@@ -284,8 +284,9 @@ const GradeEntry = () => {
               <div className="space-y-4">
                  <div>
                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Reason for Resolution</label>
-                   <textarea 
-                     className="w-full rounded-xl border-slate-200 h-24 p-3 focus:ring-primary focus:border-primary text-sm shadow-inner bg-slate-50"
+                   <Input 
+                     multiline
+                     style={{ height: '96px' }}
                      placeholder="e.g., Student completed missing requirements (Project X submitted on Mar 10)"
                      value={resReason}
                      onChange={(e) => setResReason(e.target.value)}

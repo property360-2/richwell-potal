@@ -8,7 +8,7 @@ import { academicsApi } from '../../../api/academics';
 import { useToast } from '../../../components/ui/Toast';
 
 const ProgramModal = ({ isOpen, onClose, onSuccess, program = null }) => {
-  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm();
+  const { register, handleSubmit, reset, setValue, setError, formState: { errors, isSubmitting } } = useForm();
   const { showToast } = useToast();
 
   const [programHeads, setProgramHeads] = useState([]);
@@ -62,7 +62,20 @@ const ProgramModal = ({ isOpen, onClose, onSuccess, program = null }) => {
       onSuccess();
       onClose();
     } catch (err) {
-      showToast('error', 'Failed to save program');
+      const errorData = err.response?.data;
+      if (err.response?.status === 400 && errorData && typeof errorData === 'object') {
+        Object.keys(errorData).forEach((field) => {
+          if (['code', 'name', 'program_head'].includes(field)) {
+            setError(field, {
+              type: 'manual',
+              message: Array.isArray(errorData[field]) ? errorData[field][0] : errorData[field]
+            });
+          }
+        });
+        showToast('error', 'Please correct the errors in the form');
+      } else {
+        showToast('error', errorData?.detail || 'Failed to save program');
+      }
     }
   };
 

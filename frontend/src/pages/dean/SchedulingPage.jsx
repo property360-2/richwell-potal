@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, BookOpen, Calendar, MapPin, AlertTriangle, CheckCircle2, Search, Edit2, RefreshCw, ChevronRight } from 'lucide-react';
+import { Clock, BookOpen, Calendar, MapPin, AlertTriangle, CheckCircle2, Search, Edit2, RefreshCw, ChevronRight, CircleUser, Info, Shuffle } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -13,6 +13,8 @@ import { termsApi } from '../../api/terms';
 import { facilitiesApi } from '../../api/facilities';
 import Modal from '../../components/ui/Modal';
 import Select from '../../components/ui/Select';
+import Tabs from '../../components/ui/Tabs';
+import PageHeader from '../../components/shared/PageHeader';
 
 import './SchedulingPage.css';
 
@@ -42,6 +44,7 @@ const SchedulingPage = () => {
     const [selectedSchedule, setSelectedSchedule] = useState(null);
     const [isSavingSchedule, setIsSavingSchedule] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+    const [isRandomizing, setIsRandomizing] = useState(false);
     
     const [formData, setFormData] = useState({
         professor: '',
@@ -279,16 +282,12 @@ const SchedulingPage = () => {
     if (view === 'LIST') {
         return (
             <div className="scheduling-container-list">
-                <Card className="dashboard-header">
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="header-title-section">
-                            <h2>Scheduling Dashboard</h2>
-                            <p>Manage faculty assignments and section timetables for {activeTerm?.code}</p>
-                        </div>
-                        <div className="flex gap-4">
-                            {activeTerm?.schedule_published && (
-                                <Badge variant="success" className="self-center">Published</Badge>
-                            )}
+                <PageHeader 
+                    title="Scheduling Dashboard"
+                    description={`Manage faculty assignments and section timetables for ${activeTerm?.code}`}
+                    badge={activeTerm?.schedule_published ? <Badge variant="success" className="self-center ml-2">Published</Badge> : null}
+                    actions={
+                        <div className="flex gap-4 items-center">
                             <Input 
                                 placeholder="Search..." 
                                 icon={<Search size={16} />} 
@@ -303,26 +302,22 @@ const SchedulingPage = () => {
                                 onClick={handlePublishSchedule}
                                 disabled={activeTerm?.schedule_published}
                             >
-                                {activeTerm?.schedule_published ? 'Published' : 'Publish Schedule'}
+                                {activeTerm?.schedule_published ? 'Published' : 'Publish'}
                             </Button>
                             <Button variant="ghost" icon={<RefreshCw size={16} />} onClick={fetchData}>Sync</Button>
                         </div>
-                    </div>
+                    }
+                />
+                <Card className="mb-6">
 
-                    <div className="scheduling-tabs">
-                        <button 
-                            className={`tab-button ${activeTab === 'professors' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('professors')}
-                        >
-                            Faculty Matrix
-                        </button>
-                        <button 
-                            className={`tab-button ${activeTab === 'sections' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('sections')}
-                        >
-                            Section Blocks
-                        </button>
-                    </div>
+                    <Tabs 
+                        activeTab={activeTab}
+                        onTabChange={setActiveTab}
+                        tabs={[
+                            { id: 'professors', label: 'Faculty Matrix', icon: BookOpen },
+                            { id: 'sections', label: 'Section Blocks', icon: Calendar }
+                        ]}
+                    />
 
                     <div className="overflow-x-auto">
                         {activeTab === 'professors' ? (
@@ -508,58 +503,277 @@ const SchedulingPage = () => {
                         </Card>
                     )}
 
-                     <div className="flex justify-between items-center px-2">
-                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Schedule Breakdown</h3>
-                        <div className="flex items-center gap-3">
-                            <Badge variant="primary" className="text-[10px] font-black">{profSchedules.length} Components</Badge>
-                            {selectedProf && (
-                                <Button variant="primary" size="xs" icon={<BookOpen size={12}/>} style={{ fontWeight: 800 }} onClick={() => setIsAddLoadModalOpen(true)}>
-                                    ADD SUBJECT LOAD
-                                </Button>
-                            )}
-                        </div>
-                    </div>
+                    {/* SECTION VIEW: Visual Weekly Timetable Grid */}
+                    {selectedSection && (() => {
+                        const TIME_SLOTS = [];
+                        for (let h = 7; h <= 19; h++) {
+                            TIME_SLOTS.push(`${String(h).padStart(2, '0')}:00`);
+                            if (h < 19) TIME_SLOTS.push(`${String(h).padStart(2, '0')}:30`);
+                        }
+                        const GRID_DAYS = ['M', 'T', 'W', 'TH', 'F', 'S'];
+                        const DAY_LABELS = { M: 'Mon', T: 'Tue', W: 'Wed', TH: 'Thu', F: 'Fri', S: 'Sat' };
+                        const COLORS = [
+                            { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af' },
+                            { bg: '#f0fdf4', border: '#22c55e', text: '#166534' },
+                            { bg: '#fefce8', border: '#eab308', text: '#854d0e' },
+                            { bg: '#fdf2f8', border: '#ec4899', text: '#9d174d' },
+                            { bg: '#f5f3ff', border: '#8b5cf6', text: '#5b21b6' },
+                            { bg: '#fff7ed', border: '#f97316', text: '#9a3412' },
+                            { bg: '#ecfeff', border: '#06b6d4', text: '#155e75' },
+                            { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' },
+                        ];
 
-                    <div className="space-y-4">
-                        {profSchedules.map(sched => (
-                            <div key={sched.id} className="assignment-row">
-                                <div className="flex items-center gap-4 flex-1">
-                                    <div className="load-icon"><BookOpen size={20} /></div>
-                                    <div className="flex-1">
-                                        <div className="flex gap-2 mb-1">
-                                            <Badge variant="neutral" className="text-[9px] font-black">{sched.section_name}</Badge>
-                                            <Badge variant={sched.section_session === 'AM' ? 'info' : 'warning'} className="text-[9px] font-black">{sched.section_session}</Badge>
-                                            {sched.professor_name && !selectedProf && <Badge variant="success" className="text-[9px] font-black">{sched.professor_name}</Badge>}
+                        // Build color map per subject code
+                        const subjectCodes = [...new Set(profSchedules.map(s => s.subject_code))];
+                        const colorMap = {};
+                        subjectCodes.forEach((code, i) => { colorMap[code] = COLORS[i % COLORS.length]; });
+
+                        // Parse time helper
+                        const timeToMinutes = (t) => {
+                            if (!t) return 0;
+                            const [h, m] = t.substring(0, 5).split(':').map(Number);
+                            return h * 60 + m;
+                        };
+                        const startMinute = 7 * 60; // 7:00 AM
+                        const SLOT_HEIGHT = 28; // px per 30 minutes
+                        const TOTAL_SLOTS = 25; // 7:00 to 19:30
+
+                        // Find scheduled blocks per day
+                        const getBlocksForDay = (dayKey) => {
+                            return profSchedules.filter(s => s.days && s.days.includes(dayKey) && s.start_time && s.end_time);
+                        };
+
+                        const unassigned = profSchedules.filter(s => !s.start_time || !s.end_time || !s.days || s.days.length === 0);
+
+                        return (
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                {/* Timetable Grid */}
+                                <div className="lg:col-span-9">
+                                    <div className="flex justify-between items-center mb-4 px-1">
+                                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Weekly Timetable</h3>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="xs"
+                                                style={{ fontWeight: 800 }}
+                                                icon={<Shuffle size={14} />}
+                                                loading={isRandomizing}
+                                                onClick={async () => {
+                                                    if (!window.confirm('This will reset and randomize all time slots for this section. Professor and room assignments will be kept. Continue?')) return;
+                                                    try {
+                                                        setIsRandomizing(true);
+                                                        const res = await schedulingApi.randomize({
+                                                            section_id: selectedSection.id,
+                                                            term_id: activeTerm.id
+                                                        });
+                                                        setProfSchedules(res.data);
+                                                        showToast('success', 'Schedule randomized successfully!');
+                                                    } catch (err) {
+                                                        showToast('error', err.response?.data?.error || 'Failed to randomize schedule');
+                                                    } finally {
+                                                        setIsRandomizing(false);
+                                                    }
+                                                }}
+                                            >
+                                                RANDOMIZE
+                                            </Button>
+                                            <Badge variant="primary" className="text-[10px] font-black">{profSchedules.length} Components</Badge>
                                         </div>
-                                        <h4 className="font-bold text-slate-800 leading-tight">{sched.subject_code} — {sched.component_type}</h4>
-                                        <p className="text-[11px] text-slate-400 font-bold uppercase">{sched.subject_description}</p>
+                                    </div>
+                                    <div className="timetable-grid-wrapper">
+                                        <div className="timetable-grid" style={{ gridTemplateColumns: `60px repeat(${GRID_DAYS.length}, 1fr)` }}>
+                                            {/* Header row */}
+                                            <div className="tt-corner"></div>
+                                            {GRID_DAYS.map(d => (
+                                                <div key={d} className="tt-day-header">{DAY_LABELS[d]}</div>
+                                            ))}
+
+                                            {/* Time rows */}
+                                            {TIME_SLOTS.map((slot, idx) => (
+                                                <React.Fragment key={slot}>
+                                                    <div className={`tt-time-label ${slot.endsWith(':00') ? '' : 'tt-time-half'}`}>
+                                                        {slot.endsWith(':00') ? slot : ''}
+                                                    </div>
+                                                    {GRID_DAYS.map(dayKey => (
+                                                        <div key={`${dayKey}-${slot}`} className={`tt-cell ${slot.endsWith(':00') ? 'tt-cell-hour' : ''}`}>
+                                                        </div>
+                                                    ))}
+                                                </React.Fragment>
+                                            ))}
+                                        </div>
+
+                                        {/* Floating schedule blocks */}
+                                        <div className="tt-blocks-overlay" style={{ gridTemplateColumns: `60px repeat(${GRID_DAYS.length}, 1fr)` }}>
+                                            <div></div>
+                                            {GRID_DAYS.map((dayKey, dayIdx) => {
+                                                const blocks = getBlocksForDay(dayKey);
+                                                return (
+                                                    <div key={dayKey} className="tt-day-column">
+                                                        {blocks.map(sched => {
+                                                            const top = ((timeToMinutes(sched.start_time) - startMinute) / 30) * SLOT_HEIGHT;
+                                                            const duration = timeToMinutes(sched.end_time) - timeToMinutes(sched.start_time);
+                                                            const height = (duration / 30) * SLOT_HEIGHT;
+                                                            const color = colorMap[sched.subject_code] || COLORS[0];
+
+                                                            return (
+                                                                <div
+                                                                    key={`${sched.id}-${dayKey}`}
+                                                                    className="tt-block"
+                                                                    style={{
+                                                                        top: `${top}px`,
+                                                                        height: `${Math.max(height - 2, SLOT_HEIGHT - 2)}px`,
+                                                                        backgroundColor: color.bg,
+                                                                        borderLeft: `3px solid ${color.border}`,
+                                                                        color: color.text,
+                                                                    }}
+                                                                    onClick={() => handleOpenSetup(sched)}
+                                                                    title={`${sched.subject_code} (${sched.component_type}) — ${sched.professor_name || 'No Prof'} — ${sched.room_name || 'No Room'}`}
+                                                                >
+                                                                    <span className="tt-block-code">{sched.subject_code}</span>
+                                                                    <span className="tt-block-type">{sched.component_type}</span>
+                                                                    {height > 40 && <span className="tt-block-prof">{sched.professor_name || 'TBA'}</span>}
+                                                                    {height > 55 && <span className="tt-block-room">{sched.room_name || ''}</span>}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col gap-1 items-center px-8 border-l border-slate-100 min-w-[200px]">
-                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Schedule Configuration</div>
-                                    <div className="text-xs font-black text-slate-700 flex items-center gap-2">
-                                        <Calendar size={12} className="text-blue-500" />
-                                        {sched.days.length > 0 ? `${sched.days.join(', ')} • ${sched.start_time?.substring(0, 5)} - ${sched.end_time?.substring(0, 5)}` : <span className="text-red-400">UNCONFIGURED</span>}
+                                {/* Sidebar: Assignments Tracking Table */}
+                                <div className="lg:col-span-3 space-y-4">
+                                    <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+                                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                            <h4 className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic">
+                                                Assignments ({profSchedules.filter(s => s.start_time).length}/{profSchedules.length})
+                                            </h4>
+                                            {profSchedules.length > 0 && profSchedules.every(s => s.start_time) && (
+                                                <Badge variant="success" className="text-[8px]">Complete</Badge>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="max-h-[500px] overflow-y-auto">
+                                            <table className="w-full text-[10px] text-left border-collapse">
+                                                <thead className="bg-slate-50 sticky top-0 z-10">
+                                                    <tr>
+                                                        <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">Subject</th>
+                                                        <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 text-center">Hours</th>
+                                                        <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">Type</th>
+                                                        <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {profSchedules.map(sched => {
+                                                        const isAssigned = sched.start_time && sched.end_time && sched.days?.length > 0;
+                                                        return (
+                                                            <tr 
+                                                                key={sched.id} 
+                                                                className="border-b border-slate-50 hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                                                                onClick={() => handleOpenSetup(sched)}
+                                                            >
+                                                                <td className="p-3">
+                                                                    <div className="font-black text-blue-600 group-hover:text-blue-700">{sched.subject_code}</div>
+                                                                    <div className="text-[8px] text-slate-400 truncate w-24 font-medium">{sched.subject_description}</div>
+                                                                </td>
+                                                                <td className="p-3 text-center">
+                                                                    <div className="font-bold text-slate-600">{sched.subject_hrs_per_week}h</div>
+                                                                </td>
+                                                                <td className="p-3">
+                                                                    <span className="font-bold text-slate-500">{sched.component_type}</span>
+                                                                </td>
+                                                                <td className="p-3">
+                                                                    <Badge 
+                                                                        variant={isAssigned ? "success" : "neutral"} 
+                                                                        className="text-[8px] px-1 py-0"
+                                                                    >
+                                                                        {isAssigned ? "Assigned" : "Pending"}
+                                                                    </Badge>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div className="flex flex-col gap-1 items-center px-8 border-l border-slate-100 min-w-[150px]">
-                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Facility</div>
-                                    <div className="text-xs font-black text-slate-700 flex items-center gap-2">
-                                        <MapPin size={12} className="text-slate-400" />
-                                        {sched.room_name || 'TBA'}
-                                    </div>
+                                    {/* All Subjects Legend */}
+                                    <Card className="border-slate-100">
+                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Color Legend</h4>
+                                        <div className="space-y-2">
+                                            {subjectCodes.map(code => {
+                                                const color = colorMap[code];
+                                                return (
+                                                    <div key={code} className="flex items-center gap-2">
+                                                        <div className="w-3 h-3 rounded" style={{ backgroundColor: color.border }}></div>
+                                                        <span className="text-[10px] font-bold text-slate-600">{code}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </Card>
                                 </div>
+                            </div>
+                        );
+                    })()}
 
-                                <div className="pl-6 border-l border-slate-100">
-                                    <Button variant="outline" size="sm" icon={<Edit2 size={12}/>} style={{ fontWeight: 800 }} onClick={() => handleOpenSetup(sched)}>
-                                        SETUP
+                    {/* PROFESSOR VIEW: Flat schedule breakdown (unchanged) */}
+                    {selectedProf && (
+                        <>
+                            <div className="flex justify-between items-center px-2">
+                                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Schedule Breakdown</h3>
+                                <div className="flex items-center gap-3">
+                                    <Badge variant="primary" className="text-[10px] font-black">{profSchedules.length} Components</Badge>
+                                    <Button variant="primary" size="xs" icon={<BookOpen size={12}/>} style={{ fontWeight: 800 }} onClick={() => setIsAddLoadModalOpen(true)}>
+                                        ADD SUBJECT LOAD
                                     </Button>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+
+                            <div className="space-y-4">
+                                {profSchedules.map(sched => (
+                                    <div key={sched.id} className="assignment-row">
+                                        <div className="flex items-center gap-4 flex-1">
+                                            <div className="load-icon"><BookOpen size={20} /></div>
+                                            <div className="flex-1">
+                                                <div className="flex gap-2 mb-1">
+                                                    <Badge variant="neutral" className="text-[9px] font-black">{sched.section_name}</Badge>
+                                                    <Badge variant={sched.section_session === 'AM' ? 'info' : 'warning'} className="text-[9px] font-black">{sched.section_session}</Badge>
+                                                </div>
+                                                <h4 className="font-bold text-slate-800 leading-tight">{sched.subject_code} — {sched.component_type}</h4>
+                                                <p className="text-[11px] text-slate-400 font-bold uppercase">{sched.subject_description}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1 items-center px-8 border-l border-slate-100 min-w-[200px]">
+                                            <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Schedule Configuration</div>
+                                            <div className="text-xs font-black text-slate-700 flex items-center gap-2">
+                                                <Calendar size={12} className="text-blue-500" />
+                                                {sched.days.length > 0 ? `${sched.days.join(', ')} • ${sched.start_time?.substring(0, 5)} - ${sched.end_time?.substring(0, 5)}` : <span className="text-red-400">UNCONFIGURED</span>}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1 items-center px-8 border-l border-slate-100 min-w-[150px]">
+                                            <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Facility</div>
+                                            <div className="text-xs font-black text-slate-700 flex items-center gap-2">
+                                                <MapPin size={12} className="text-slate-400" />
+                                                {sched.room_name || 'TBA'}
+                                            </div>
+                                        </div>
+
+                                        <div className="pl-6 border-l border-slate-100">
+                                            <Button variant="outline" size="sm" icon={<Edit2 size={12}/>} style={{ fontWeight: 800 }} onClick={() => handleOpenSetup(sched)}>
+                                                SETUP
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {selectedProf && (
@@ -601,28 +815,43 @@ const SchedulingPage = () => {
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                title="Timetable Slot Configuration"
+                title="Slot Configuration"
                 size="md"
                 footer={
-                    <>
-                        <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button variant="primary" loading={isSavingSchedule} onClick={handleSaveSchedule}>Publish Configuration</Button>
-                    </>
+                    <div className="flex gap-3 w-full justify-end">
+                        <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button variant="primary" loading={isSavingSchedule} onClick={handleSaveSchedule} className="px-8">
+                            Save Configuration
+                        </Button>
+                    </div>
                 }
             >
-                <div className="space-y-6">
-                    <div className="bg-slate-900 p-4 rounded-lg text-white flex justify-between items-center">
-                        <div>
-                            <div className="text-[10px] uppercase font-bold opacity-50 mb-1">Subject & Section ({selectedSchedule?.section_session})</div>
-                            <div className="text-lg font-bold">{selectedSchedule?.subject_code} — {selectedSchedule?.section_name}</div>
+                <div className="slot-modal-content">
+                    {/* Header Info Card */}
+                    <div className="slot-modal-header">
+                        <div className="slot-header-top">
+                            <Badge variant="info" className="slot-type-badge">
+                                {selectedSchedule?.component_type} COMPONENT
+                            </Badge>
+                            <div className="slot-session-info">
+                                <Clock size={10} /> {selectedSchedule?.section_session} Session
+                            </div>
                         </div>
-                        <Badge variant="info">{selectedSchedule?.component_type}</Badge>
+                        <h3 className="slot-title">{selectedSchedule?.subject_code}</h3>
+                        <p className="slot-subtitle">{selectedSchedule?.subject_description}</p>
+                        <div className="slot-header-footer flex justify-between items-center">
+                            <Badge variant="neutral" className="slot-section-badge">{selectedSchedule?.section_name}</Badge>
+                            <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
+                                {selectedSchedule?.subject_hrs_per_week} HRS / WEEK REQUIRED
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="slot-form-body">
+                        {/* Professor Selection */}
                         {selectedSection && (
                              <Select 
-                                label="Assign Professor"
+                                label={<span className="field-label-with-icon"><CircleUser size={14} /> Assign Professor</span>}
                                 placeholder="Select faculty member..."
                                 value={formData.professor}
                                 onChange={(e) => {
@@ -633,56 +862,75 @@ const SchedulingPage = () => {
                                 }}
                                 options={professors.map(p => ({
                                     value: p.id,
-                                    label: `${p.user?.first_name} ${p.user?.last_name} (${p.department})`
+                                    label: `${p.user?.last_name}, ${p.user?.first_name} (${p.department})`
                                 }))}
                             />
                         )}
 
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Teaching Days</label>
-                        <div className="flex flex-wrap gap-2">
-                            {['M', 'T', 'W', 'TH', 'F', 'S'].map(day => {
-                                const isAvailable = profAvailability.length === 0 || profAvailability.some(a => a.day === day && a.session === selectedSchedule?.section_session);
-                                return (
-                                    <button
-                                        key={day}
-                                        onClick={() => setFormData(prev => ({
-                                            ...prev,
-                                            days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day]
-                                        }))}
-                                        className={`w-12 h-12 rounded-lg font-bold text-sm border flex items-center justify-center transition-all ${
-                                            formData.days.includes(day)
-                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-105'
-                                            : isAvailable
-                                                ? 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
-                                                : 'bg-slate-50 border-slate-100 text-slate-300'
-                                        }`}
-                                    >
-                                        {day}
-                                        {!isAvailable && <span className="absolute top-0 right-0 w-2 h-2 bg-red-400 rounded-full"></span>}
-                                    </button>
-                                );
-                            })}
+                        {/* Day Selection */}
+                        <div className="field-group">
+                            <label className="field-label-with-icon">
+                                <Calendar size={14} /> Select Teaching Days
+                            </label>
+                            <div className="day-selector">
+                                {['M', 'T', 'W', 'TH', 'F', 'S'].map(day => {
+                                    const isAvailable = profAvailability.length === 0 || profAvailability.some(a => a.day === day && a.session === selectedSchedule?.section_session);
+                                    const isSelected = formData.days.includes(day);
+                                    
+                                    return (
+                                        <button
+                                            key={day}
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({
+                                                ...prev,
+                                                days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day]
+                                            }))}
+                                            className={`day-selector-btn ${isSelected ? 'active' : ''} ${!isAvailable && !isSelected ? 'unavailable' : ''}`}
+                                        >
+                                            {day}
+                                            {isSelected && <div className="selected-dot"></div>}
+                                            {!isAvailable && !isSelected && <AlertTriangle size={10} className="warning-icon" />}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div className="info-banner">
+                                <Info size={14} className="info-icon" />
+                                <p>
+                                    Professor is <strong>unavailable</strong> on grayed-out days for the {selectedSchedule?.section_session} session.
+                                </p>
+                            </div>
                         </div>
-                        <p className="text-[10px] text-slate-400 font-bold italic">* RED DOT INDICATES PROFESSOR UNAVAILABLE AT THIS SESSION ({selectedSchedule?.section_session})</p>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <Input label="Start Time" type="time" value={formData.start_time} onChange={(e) => setFormData({...formData, start_time: e.target.value})} />
-                        <Input label="End Time" type="time" value={formData.end_time} onChange={(e) => setFormData({...formData, end_time: e.target.value})} />
-                    </div>
+                        {/* Time & Room */}
+                        <div className="form-row-two-col">
+                            <Input 
+                                label={<span className="field-label-with-icon"><Clock size={14} className="text-emerald" /> Start Time</span>}
+                                type="time" 
+                                value={formData.start_time} 
+                                onChange={(e) => setFormData({...formData, start_time: e.target.value})} 
+                            />
+                            <Input 
+                                label={<span className="field-label-with-icon"><Clock size={14} className="text-rose" /> End Time</span>}
+                                type="time" 
+                                value={formData.end_time} 
+                                onChange={(e) => setFormData({...formData, end_time: e.target.value})} 
+                            />
+                        </div>
 
-                    <Select 
-                        label="Room Assignment"
-                        placeholder="Automatic / TBA"
-                        value={formData.room}
-                        onChange={(e) => setFormData({...formData, room: e.target.value})}
-                        options={rooms.map(r => ({
-                            value: r.id,
-                            label: `${r.name} (${r.room_type} — Max: ${r.capacity})`
-                        }))}
-                    />
+                        <Select 
+                            label={<span className="field-label-with-icon"><MapPin size={14} /> Room Assignment</span>}
+                            placeholder="Automatic / TBA"
+                            value={formData.room}
+                            onChange={(e) => setFormData({...formData, room: e.target.value})}
+                            options={rooms.map(r => ({
+                                value: r.id,
+                                label: `${r.name} (${r.room_type} — Capacity: ${r.capacity})`
+                            }))}
+                        />
+                    </div>
                 </div>
-             </Modal>
+            </Modal>
 
             <Modal
                 isOpen={isAddLoadModalOpen}

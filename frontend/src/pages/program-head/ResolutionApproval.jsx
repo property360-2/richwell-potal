@@ -7,6 +7,7 @@ import Badge from '../../components/ui/Badge';
 import Input from '../../components/ui/Input';
 import { useToast } from '../../components/ui/Toast';
 import { gradesApi } from '../../api/grades';
+import PageHeader from '../../components/shared/PageHeader';
 import './ResolutionApproval.css';
 
 const ResolutionApproval = () => {
@@ -142,13 +143,11 @@ const ResolutionApproval = () => {
 
   return (
     <div className="resolution-head-container p-6 animate-in fade-in duration-500">
-      <div className="mb-8">
-         <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <UserCheck className="text-primary" size={32} />
-            Resolution Approval Queue
-         </h1>
-         <p className="text-slate-500 mt-1">Review and give final approval for resolved Incomplete (INC) grades.</p>
-      </div>
+      <PageHeader 
+        title="Resolution Approval Queue"
+        description="Review and give final approval for resolved Incomplete (INC) grades."
+        badge={<UserCheck className="text-primary" size={32} />}
+      />
 
       <div className="grid grid-cols-1 gap-6">
           <Card>
@@ -192,8 +191,9 @@ const ResolutionApproval = () => {
                  <div className="space-y-4">
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Comment / Reason</label>
-                        <textarea 
-                           className="w-full rounded-xl border-slate-200 h-28 p-3 focus:ring-danger focus:border-danger text-sm shadow-inner bg-slate-50"
+                        <Input 
+                           multiline
+                           style={{ height: '112px' }}
                            placeholder="Provide specific feedback..."
                            value={rejectReason}
                            onChange={(e) => setRejectReason(e.target.value)}

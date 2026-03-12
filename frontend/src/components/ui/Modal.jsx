@@ -4,14 +4,22 @@ import './Modal.css';
 
 const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }) => {
   const closeButtonRef = useRef(null);
+  const hasFocused = useRef(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      hasFocused.current = false;
+      return;
+    }
     
-    // Focus close button for accessibility
-    setTimeout(() => {
-      closeButtonRef.current?.focus();
-    }, 100);
+    // Only focus the close button the first time the modal opens
+    if (!hasFocused.current) {
+      const focusTimer = setTimeout(() => {
+        closeButtonRef.current?.focus();
+        hasFocused.current = true;
+      }, 100);
+      return () => clearTimeout(focusTimer);
+    }
 
     const handleEscape = (e) => {
       if (e.key === 'Escape') onClose();
@@ -24,7 +32,7 @@ const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }) => {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose]); // Constant size dependency array
 
   if (!isOpen) return null;
 

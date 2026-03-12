@@ -5,7 +5,9 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Table from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
+import StatCard from '../../components/shared/StatCard';
 import { financeApi } from '../../api/finance';
+import '../shared/Dashboard.css';
 import './Cashier.css';
 
 const CashierDashboard = () => {
@@ -85,70 +87,54 @@ const CashierDashboard = () => {
     <div className="cashier-container p-6 animate-in fade-in duration-500">
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <DollarSign className="text-emerald-500" size={32} />
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+            <DollarSign className="text-emerald-500" size={24} />
             Cashier Dashboard
           </h1>
-          <p className="text-slate-500 mt-1">Overview of institutional collections and recent transactions.</p>
+          <p className="text-sm text-slate-500 mt-1">Overview of collections and recent transactions.</p>
         </div>
         <Button 
           variant="primary" 
-          size="lg"
-          className="shadow-lg shadow-primary/20"
-          icon={<UserSearch size={20} />}
+          size="md"
+          icon={<UserSearch size={18} />}
           onClick={() => navigate('/cashier/processing')}
         >
           Process New Payment
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card className="border-l-4 border-l-emerald-500 overflow-hidden relative group">
-          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
-             <TrendingUp size={120} />
-          </div>
-          <div className="p-6">
-            <div className="text-sm font-bold text-emerald-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Calendar size={16} /> Daily Collection
-            </div>
-            <div className="text-4xl font-black text-slate-900">₱{stats.daily.toLocaleString()}</div>
-            <div className="text-xs text-slate-400 mt-2">Aggregated from today's transactions</div>
-          </div>
-        </Card>
+      <div className="stats-grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <StatCard 
+          title="Daily Collection"
+          value={`₱${stats.daily.toLocaleString()}`}
+          icon={<TrendingUp size={24} />}
+          colorTheme="emerald"
+          loading={loading}
+        />
 
-        <Card className="border-l-4 border-l-blue-500 overflow-hidden relative group">
-          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
-             <CreditCard size={120} />
-          </div>
-          <div className="p-6">
-            <div className="text-sm font-bold text-blue-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Calendar size={16} /> Monthly Total
-            </div>
-            <div className="text-4xl font-black text-slate-900">₱{stats.monthly.toLocaleString()}</div>
-            <div className="text-xs text-slate-400 mt-2">Cumulative for current month</div>
-          </div>
-        </Card>
+        <StatCard 
+          title="Monthly Total"
+          value={`₱${stats.monthly.toLocaleString()}`}
+          icon={<Calendar size={24} />}
+          colorTheme="blue"
+          loading={loading}
+        />
 
-        <Card className="border-l-4 border-l-purple-500 overflow-hidden relative group">
-          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
-             <History size={120} />
-          </div>
-          <div className="p-6">
-            <div className="text-sm font-bold text-purple-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Calendar size={16} /> Transaction Count
-            </div>
-            <div className="text-4xl font-black text-slate-900">{stats.count || 0}</div>
-            <div className="text-xs text-slate-400 mt-2">Successful payments today</div>
-          </div>
-        </Card>
+        <StatCard 
+          title="Transaction Count"
+          value={stats.count || 0}
+          icon={<History size={24} />}
+          colorTheme="purple"
+          loading={loading}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        <Card>
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <Card className="border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
              <div className="flex items-center gap-2">
-                <History className="text-slate-400" size={18} />
-                <span className="text-sm font-bold text-slate-800 uppercase tracking-wider">Recent Collections</span>
+                <History className="text-slate-400" size={16} />
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recent Collections</span>
              </div>
              <Button variant="ghost" size="sm" onClick={() => navigate('/cashier/processing')}>View Full History</Button>
           </div>

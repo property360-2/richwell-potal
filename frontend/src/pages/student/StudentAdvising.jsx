@@ -15,6 +15,9 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import PageHeader from '../../components/shared/PageHeader';
+import SearchBar from '../../components/shared/SearchBar';
+import Table from '../../components/ui/Table';
 import './StudentAdvising.css';
 
 
@@ -192,28 +195,26 @@ const StudentAdvising = () => {
 
   return (
     <div className="student-advising-container" style={{ paddingBottom: '100px' }}>
-      <header className="advising-header">
-        <div className="advising-header-info">
-          <h1>Subject Advising</h1>
-          <p>Pick your subjects for {activeTerm?.code} ({activeTerm?.semester_display})</p>
-        </div>
-        
-        {enrollmentStatus && (
-          <div className="status-badge-container">
-            <span className="text-slate-500 font-medium">Status:</span>
-            <Badge 
-              variant={
-                enrollmentStatus === 'APPROVED' ? 'success' : 
-                enrollmentStatus === 'REJECTED' ? 'error' : 
-                enrollmentStatus === 'DRAFT' ? 'info' : 'warning'
-              }
-              style={{ padding: '8px 16px', fontSize: '14px' }}
-            >
-              {enrollmentStatus === 'DRAFT' ? 'OPEN / DRAFT' : enrollmentStatus}
-            </Badge>
-          </div>
-        )}
-      </header>
+      <PageHeader 
+        title="Subject Advising"
+        description={`Pick your subjects for ${activeTerm?.code} (${activeTerm?.semester_display})`}
+        actions={
+          enrollmentStatus && (
+            <div className="status-badge-container flex items-center gap-2">
+              <span className="text-slate-500 font-medium text-sm">Status:</span>
+              <Badge 
+                variant={
+                  enrollmentStatus === 'APPROVED' ? 'success' : 
+                  enrollmentStatus === 'REJECTED' ? 'error' : 
+                  enrollmentStatus === 'DRAFT' ? 'info' : 'warning'
+                }
+              >
+                {enrollmentStatus === 'DRAFT' ? 'OPEN / DRAFT' : enrollmentStatus}
+              </Badge>
+            </div>
+          )
+        }
+      />
 
       <div className="advising-grid">
         <div className="space-y-6">
@@ -221,33 +222,24 @@ const StudentAdvising = () => {
           {hasAdvising && (
             <Card title="Your Selected Subjects" icon={<CheckCircle2 size={18} className="text-success" />}>
               <div className="table-container" style={{ border: 'none' }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '120px' }}>Code</th>
-                      <th>Description</th>
-                      <th style={{ width: '80px', textAlign: 'center' }}>Units</th>
-                      <th style={{ width: '120px', textAlign: 'center' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {enrollingGrades.map(grade => (
-                      <tr key={grade.id}>
-                        <td className="font-bold text-slate-800">{grade.subject_details?.code}</td>
-                        <td className="text-slate-600">
-                          {grade.subject_details?.description}
-                          {grade.is_retake && <Badge variant="error" size="sm" style={{ marginLeft: '8px' }}>Retake</Badge>}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>{grade.subject_details?.total_units}</td>
-                        <td style={{ textAlign: 'center' }}>
-                           <Badge variant={grade.grade_status === 'ENROLLED' ? 'success' : 'warning'}>
-                             {grade.grade_status_display}
+                <Table 
+                   columns={[
+                      { header: 'Code', render: (row) => <span className="font-bold text-slate-800">{row.subject_details?.code}</span> },
+                      { header: 'Description', render: (row) => (
+                           <span className="text-slate-600">
+                             {row.subject_details?.description}
+                             {row.is_retake && <Badge variant="error" size="sm" style={{ marginLeft: '8px' }}>Retake</Badge>}
+                           </span>
+                      ) },
+                      { header: 'Units', align: 'center', render: (row) => <span style={{ textAlign: 'center', display: 'block' }}>{row.subject_details?.total_units}</span> },
+                      { header: 'Status', align: 'center', render: (row) => (
+                           <Badge variant={row.grade_status === 'ENROLLED' ? 'success' : 'warning'}>
+                             {row.grade_status_display}
                            </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      ) }
+                   ]}
+                   data={enrollingGrades}
+                />
               </div>
               
               {enrollmentStatus === 'REJECTED' && (
@@ -308,16 +300,10 @@ const StudentAdvising = () => {
           ) : (
             enrollmentStatus !== 'APPROVED' && (
               <Card title="Selection of Subjects" icon={<Filter size={18} className="text-primary" />}>
-                 <div className="search-container">
-                    <Search className="search-icon" size={18} />
-                    <input 
-                      type="text" 
-                      placeholder="Filter by code or description..."
-                      className="search-input"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                 </div>
+                 <SearchBar 
+                    placeholder="Filter by code or description..."
+                    onSearch={setSearchTerm}
+                 />
 
                  <div className="subject-selection-list">
                     {Object.keys(categorizedSubjects).length > 0 ? (

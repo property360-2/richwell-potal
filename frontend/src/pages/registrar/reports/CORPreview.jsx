@@ -5,6 +5,9 @@ import { studentsApi } from '../../../api/students';
 import { termsApi } from '../../../api/terms';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
+import Select from '../../../components/ui/Select';
+import PageHeader from '../../../components/shared/PageHeader';
 import './Reports.css';
 
 const CORPreview = () => {
@@ -66,29 +69,24 @@ const CORPreview = () => {
 
   return (
     <div className="reports-page">
-      <div className="reports-header">
-        <div className="header-icon-box">
-           <FileText className="text-blue-500" />
-        </div>
-        <div>
-          <h1>Registration Certificates</h1>
-          <p>Generate and issue official CORs for students.</p>
-        </div>
-      </div>
+      <PageHeader 
+        title="Registration Certificates"
+        description="Generate and issue official CORs for students."
+        badge={<div className="header-icon-box"><FileText className="text-blue-500" /></div>}
+      />
 
       <div className="reports-grid">
         <Card className="search-card">
           <form onSubmit={handleSearch} className="search-form">
-            <div className="search-input-group">
-              <Search size={18} className="text-slate-400" />
-              <input 
-                type="text" 
+            <div className="w-full">
+              <Input 
                 placeholder="Search Student Name or ID..." 
+                icon={Search}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button type="submit" loading={loading}>Search</Button>
+            <Button type="submit" loading={loading} className="whitespace-nowrap shrink-0">Search</Button>
           </form>
 
           <div className="student-results">
@@ -124,16 +122,13 @@ const CORPreview = () => {
             </div>
 
             <div className="preview-controls">
-               <div className="form-group">
-                 <label>Academic Term</label>
-                 <select 
+               <div className="form-group pb-4">
+                 <Select 
+                    label="Academic Term"
                     value={selectedTerm} 
                     onChange={(e) => setSelectedTerm(e.target.value)}
-                 >
-                    {terms.map(t => (
-                      <option key={t.id} value={t.id}>{t.code} - {t.name}</option>
-                    ))}
-                 </select>
+                    options={terms.map(t => ({ value: t.id, label: `${t.code} - ${t.name}` }))}
+                 />
                </div>
 
                <div className="info-box">

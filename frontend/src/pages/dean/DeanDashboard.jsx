@@ -12,6 +12,8 @@ import {
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import PageHeader from '../../components/shared/PageHeader';
+import StatCard from '../../components/shared/StatCard';
 import api from '../../api/axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -58,47 +60,49 @@ const DeanDashboard = () => {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-            <LayoutDashboard className="text-indigo-600" />
-            Dean Operations Center
-          </h1>
-          <p className="text-slate-500 mt-1">Welcome back. Here's what's happening in your department today.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="success" className="px-3 py-1">AY 2026-2027</Badge>
-          <Badge variant="info" className="px-3 py-1">First Semester</Badge>
-        </div>
-      </header>
+      <PageHeader
+        title="Dean Operations Center"
+        description="Welcome back. Here's what's happening in your department today."
+        badge={<LayoutDashboard className="text-indigo-600" />}
+        actions={
+          <div className="flex items-center gap-3">
+            <Badge variant="success" className="px-3 py-1">AY 2026-2027</Badge>
+            <Badge variant="info" className="px-3 py-1">First Semester</Badge>
+          </div>
+        }
+      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard 
+        <StatCard 
           title="Total Faculty" 
           value={stats.facultyCount} 
-          icon={<Users className="text-blue-600" />} 
-          trend="+2 this month"
+          icon={<Users size={24} className="text-blue-600" />} 
+          trend={{ value: "+2", label: "this month", isPositive: true }}
           loading={loading}
+          colorTheme="blue"
         />
-        <StatsCard 
+        <StatCard 
           title="Active Programs" 
           value={stats.activePrograms} 
-          icon={<BookOpen className="text-emerald-600" />} 
+          icon={<BookOpen size={24} className="text-emerald-600" />} 
           loading={loading}
+          colorTheme="emerald"
         />
-        <StatsCard 
+        <StatCard 
           title="Pending Schedules" 
           value={stats.pendingSchedules} 
-          icon={<AlertCircle className="text-amber-600" />} 
-          trend="Needs Review"
+          icon={<AlertCircle size={24} className="text-amber-600" />} 
+          trend={{ value: "Needs Review", label: "", isPositive: false }}
           loading={loading}
+          colorTheme="amber"
         />
-        <StatsCard 
+        <StatCard 
           title="Grades Finalized" 
           value={stats.approvedGrades} 
-          icon={<CheckCircle className="text-indigo-600" />} 
+          icon={<CheckCircle size={24} className="text-indigo-600" />} 
           loading={loading}
+          colorTheme="indigo"
         />
       </div>
 
@@ -168,22 +172,7 @@ const DeanDashboard = () => {
   );
 };
 
-const StatsCard = ({ title, value, icon, trend, loading }) => (
-  <Card className="relative overflow-hidden group">
-    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-      {React.cloneElement(icon, { size: 48 })}
-    </div>
-    <div className="flex flex-col">
-      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</span>
-      {loading ? (
-        <div className="h-8 w-24 bg-slate-100 animate-pulse rounded mt-2" />
-      ) : (
-        <span className="text-3xl font-bold text-slate-900 mt-1">{value}</span>
-      )}
-      {trend && <span className="text-[10px] font-bold text-indigo-500 mt-2 bg-indigo-50 px-2 py-0.5 rounded-full w-fit">{trend}</span>}
-    </div>
-  </Card>
-);
+
 
 const AlertItem = ({ type, title, desc }) => (
   <div className={`p-3 rounded-lg border ${type === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-800' : 'bg-blue-50 border-blue-100 text-blue-800'}`}>

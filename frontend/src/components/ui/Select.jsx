@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useId } from 'react';
 import { ChevronDown } from 'lucide-react';
 import './Select.css';
 
@@ -11,13 +11,15 @@ const Select = forwardRef(({
   disabled = false, 
   placeholder,
   icon: Icon,
+  fullWidth = false,
   ...props 
 }, ref) => {
-  const selectId = id || `select-${Math.random().toString(36).substring(2, 9)}`;
+  const defaultId = useId();
+  const selectId = id || defaultId;
   const hasError = !!error;
   
   return (
-    <div className={`select-container ${className}`}>
+    <div className={`select-container ${fullWidth ? 'w-full' : ''} ${className}`}>
       {label && (
         <label htmlFor={selectId} className="select-label">
           {label}

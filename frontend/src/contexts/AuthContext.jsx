@@ -1,6 +1,8 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext({
   user: null,
   role: null,
