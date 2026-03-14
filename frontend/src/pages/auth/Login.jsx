@@ -91,7 +91,7 @@ const Login = () => {
           
           <div className="login-header">
             <div className="login-logo-container">
-              <img src="/school-logo.png" alt="Richwell Logo" />
+              <img src="/school-logo-v2.png" alt="Richwell Logo" />
             </div>
             <h1 className="login-title">Welcome Back</h1>
             <p className="login-subtitle">Sign in to your Richwell Portal</p>

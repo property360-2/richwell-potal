@@ -127,7 +127,8 @@ class ChangePasswordView(generics.UpdateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class StaffManagementViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsAdmin]
+    from core.permissions import IsStaff
+    permission_classes = [IsAuthenticated, IsStaff]
     
     def get_queryset(self):
         queryset = User.objects.exclude(role='STUDENT').order_by('id')

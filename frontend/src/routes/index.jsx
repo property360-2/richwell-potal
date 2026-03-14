@@ -126,21 +126,28 @@ const AppRoutes = () => {
         </Route>
 
         {/* Admin Routes */}
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-          <Route element={<PageWrapper title="Staff Management" />}>
-            <Route path="/admin/staff" element={<StaffManagement />} />
-          </Route>
+        {/* Management Routes shared by Admin and Dean */}
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'DEAN']} />}>
           <Route element={<PageWrapper title="Academic Management" />}>
             <Route path="/admin/academics" element={<AcademicManagement />} />
           </Route>
-          <Route element={<PageWrapper title="Term Management" />}>
-            <Route path="/admin/terms" element={<TermManagement />} />
+          <Route element={<PageWrapper title="Faculty Management" />}>
+            <Route path="/admin/faculty" element={<FacultyManagement />} />
           </Route>
           <Route element={<PageWrapper title="Room Management" />}>
             <Route path="/admin/rooms" element={<RoomManagement />} />
           </Route>
-          <Route element={<PageWrapper title="Faculty Management" />}>
-            <Route path="/admin/faculty" element={<FacultyManagement />} />
+          <Route element={<PageWrapper title="Sectioning" />}>
+            <Route path="/admin/sectioning" element={<SectioningDashboard />} />
+          </Route>
+        </Route>
+
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+          <Route element={<PageWrapper title="Staff Management" />}>
+            <Route path="/admin/staff" element={<StaffManagement />} />
+          </Route>
+          <Route element={<PageWrapper title="Term Management" />}>
+            <Route path="/admin/terms" element={<TermManagement />} />
           </Route>
           <Route element={<PageWrapper title="Admin Dashboard" />}>
             <Route path="/admin" element={<AdminDashboard />} />
@@ -156,10 +163,14 @@ const AppRoutes = () => {
           </Route>
         </Route>
 
-        {/* Redirect /academics to /admin/academics for admins */}
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR']} />}>
+        {/* Redirects to maintain consistency and handle legacy routes */}
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'DEAN']} />}>
           <Route path="/academics" element={<Navigate to="/admin/academics" replace />} />
+          <Route path="/academics/programs" element={<Navigate to="/admin/academics" replace />} />
           <Route path="/users" element={<Navigate to="/admin/staff" replace />} />
+          <Route path="/faculty/load" element={<Navigate to="/admin/faculty" replace />} />
+          <Route path="/dean/faculty" element={<Navigate to="/admin/faculty" replace />} />
+          <Route path="/registrar/sectioning" element={<Navigate to="/admin/sectioning" replace />} />
         </Route>
 
         {/* Other Role Routes... */}
@@ -173,9 +184,6 @@ const AppRoutes = () => {
           </Route>
           <Route element={<PageWrapper title="Subject Crediting" />}>
             <Route path="/registrar/crediting" element={<SubjectCrediting />} />
-          </Route>
-          <Route element={<PageWrapper title="Sectioning" />}>
-            <Route path="/registrar/sectioning" element={<SectioningDashboard />} />
           </Route>
           <Route element={<PageWrapper title="Grade Management" />}>
             <Route path="/registrar/grades" element={<GradeFinalization />} />
@@ -201,12 +209,12 @@ const AppRoutes = () => {
           <Route element={<PageWrapper title="Scheduling" />}>
             <Route path="/dean/scheduling" element={<SchedulingPage />} />
           </Route>
+          <Route element={<PageWrapper title="Academics" />}>
+            <Route path="/admin/academics" element={<AcademicManagement />} />
+          </Route>
         </Route>
 
         <Route element={<ProtectedRoute allowedRoles={['PROGRAM_HEAD', 'DEAN', 'ADMIN']} />}>
-          <Route element={<PageWrapper title="Faculty Teaching Load" />}>
-            <Route path="/faculty/load" element={<div className="p-8">Teaching Load Report (Coming Soon)</div>} />
-          </Route>
           <Route element={<PageWrapper title="Program Head Dashboard" />}>
             <Route path="/program-head" element={<ProgramHeadDashboard />} />
             <Route path="/program-head/advising" element={<AdvisingApproval />} />

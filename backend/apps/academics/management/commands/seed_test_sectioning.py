@@ -268,8 +268,7 @@ class Command(BaseCommand):
         self.stdout.write(f'  Rooms: {len(rooms)}')
 
     def _create_professors(self, program, curriculum, staff):
-        """Create 3 professors with assigned subjects (1st Year 1st Sem)."""
-        program_head = staff.get(User.RoleChoices.PROGRAM_HEAD)
+        """Create 8 professors with assigned subjects and mixed availabilities."""
         subjects_qs = Subject.objects.filter(
             curriculum=curriculum,
             year_level=1,
@@ -278,30 +277,34 @@ class Command(BaseCommand):
         ).order_by('code')
 
         subj_list = list(subjects_qs)
-        if len(subj_list) < 9:
-            self.stdout.write(self.style.WARNING('Not enough 1st Year 1st Sem subjects for 3 professors'))
+        if not subj_list:
             return
 
-        assignments = [
-            (subj_list[0:3], 'Prof', 'One', date(1985, 1, 1)),
-            (subj_list[3:6], 'Prof', 'Two', date(1986, 5, 15)),
-            (subj_list[6:9], 'Prof', 'Three', date(1987, 10, 20)),
+        prof_data = [
+            ('Prof. Michael', 'Jordan', date(1980, 2, 17), 'FULL_TIME'),
+            ('Prof. Serena', 'Williams', date(1981, 9, 26), 'PART_TIME'),
+            ('Prof. Albert', 'Einstein', date(1985, 3, 14), 'FULL_TIME'),
+            ('Prof. Marie', 'Curie', date(1987, 11, 7), 'FULL_TIME'),
+            ('Prof. Isaac', 'Newton', date(1983, 12, 25), 'PART_TIME'),
+            ('Prof. Ada', 'Lovelace', date(1985, 12, 10), 'FULL_TIME'),
+            ('Prof. Nikola', 'Tesla', date(1986, 7, 10), 'FULL_TIME'),
+            ('Prof. Grace', 'Hopper', date(1984, 12, 9), 'FULL_TIME'),
         ]
 
-        for idx, (subjs, first, last, dob) in enumerate(assignments, start=1):
+        for idx, (first, last, dob, status) in enumerate(prof_data, start=1):
             emp_id = f'EMP{str(idx).zfill(3)}'
-            pw = f'{emp_id}{dob.strftime("%m%d")}'
+            username = f'prof{idx}'
             user, created = User.objects.get_or_create(
-                username=f'prof{idx}',
+                username=username,
                 defaults={
-                    'email': f'prof{idx}@richwell.edu',
+                    'email': f'{username}@richwell.edu',
                     'first_name': first,
                     'last_name': last,
                     'role': User.RoleChoices.PROFESSOR,
                 },
             )
             if created:
-                user.set_password(pw)
+                user.set_password('password123')
                 user.save()
 
             prof, _ = Professor.objects.get_or_create(
@@ -309,15 +312,31 @@ class Command(BaseCommand):
                 defaults={
                     'employee_id': emp_id,
                     'department': 'Information Systems',
-                    'employment_status': 'FULL_TIME',
+                    'employment_status': status,
                     'date_of_birth': dob,
                 },
             )
 
-            for subj in subjs:
+            # Assign 2-3 random subjects to each
+            import random
+            assigned = random.sample(subj_list, min(len(subj_list), 3))
+            for subj in assigned:
                 ProfessorSubject.objects.get_or_create(professor=prof, subject=subj)
 
-        self.stdout.write(f'  Professors: 3 with assigned subjects')
+            # Assign availabilities
+            days = ['M', 'T', 'W', 'TH', 'F', 'S']
+            if status == 'FULL_TIME':
+                # Most full timers are available both sessions
+                for d in days:
+                    ProfessorAvailability.objects.create(professor=prof, day=d, session='AM')
+                    ProfessorAvailability.objects.create(professor=prof, day=d, session='PM')
+            else:
+                # Part timers are picky
+                pref_session = random.choice(['AM', 'PM'])
+                for d in random.sample(days, 4):
+                    ProfessorAvailability.objects.create(professor=prof, day=d, session=pref_session)
+
+        self.stdout.write(f'  Professors: {len(prof_data)} with assigned subjects and availability')
 
     def _create_students(self, program, curriculum, term, staff):
         """Create 150 sample students: mostly regular, some transferee."""

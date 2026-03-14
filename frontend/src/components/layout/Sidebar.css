@@ -138,6 +138,23 @@
     color: var(--color-error);
 }
 
+.nav-group-label {
+    padding: var(--space-6) var(--space-4) var(--space-2);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-text-secondary);
+    opacity: 0.6;
+}
+
+.nav-group-divider {
+    height: 1px;
+    background-color: var(--color-border);
+    margin: var(--space-4) var(--space-3);
+    list-style: none;
+}
+
 @media (max-width: 768px) {
     .sidebar {
         transform: translateX(-100%);

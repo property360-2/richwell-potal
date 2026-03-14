@@ -8,6 +8,8 @@ import Badge from '../../components/ui/Badge';
 import { facultyApi } from '../../api/faculty';
 import ProfessorModal from './components/ProfessorModal';
 import ProfessorSubjectModal from './components/ProfessorSubjectModal';
+import FacultyLoadModal from './components/FacultyLoadModal';
+import { Clock } from 'lucide-react';
 
 const FacultyManagement = () => {
   const [professors, setProfessors] = useState([]);
@@ -17,6 +19,7 @@ const FacultyManagement = () => {
   // Modal states
   const [isProfModalOpen, setIsProfModalOpen] = useState(false);
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [selectedProf, setSelectedProf] = useState(null);
 
   useEffect(() => {
@@ -51,6 +54,11 @@ const FacultyManagement = () => {
     setIsSubjectModalOpen(true);
   };
 
+  const handleViewLoad = (prof) => {
+    setSelectedProf(prof);
+    setIsLoadModalOpen(true);
+  };
+
   const columns = [
     {
       header: 'Professor Name',
@@ -64,7 +72,23 @@ const FacultyManagement = () => {
       )
     },
     { header: 'Employee ID', accessor: 'employee_id' },
+    { 
+      header: 'Hours Assigned', 
+      render: (prof) => (
+        <div className="font-bold text-slate-700">
+          {prof.hours_assigned} hrs
+        </div>
+      )
+    },
     { header: 'Department', accessor: 'department' },
+    { 
+      header: 'Type', 
+      render: (prof) => (
+        <Badge variant={prof.employment_status === 'FULL_TIME' ? 'primary' : 'warning'} className="text-[10px] font-black uppercase">
+          {prof.employment_status === 'FULL_TIME' ? 'Full-time' : 'Part-time'}
+        </Badge>
+      )
+    },
     {
       header: 'Subjects Assigned',
       render: (prof) => (
@@ -89,9 +113,18 @@ const FacultyManagement = () => {
           <Button 
             variant="ghost" 
             size="sm"
+            onClick={() => handleViewLoad(prof)}
+            title="View Teaching Load"
+            className="text-primary"
+          >
+            <Clock size={16} />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
             onClick={() => handleAssignSubjects(prof)}
             title="Assign Subjects"
-            className="text-primary"
+            className="text-slate-500"
           >
             <BookOpen size={16} />
           </Button>
@@ -153,6 +186,12 @@ const FacultyManagement = () => {
         onClose={() => setIsSubjectModalOpen(false)}
         professor={selectedProf}
         onSuccess={fetchProfessors}
+      />
+
+      <FacultyLoadModal
+        isOpen={isLoadModalOpen}
+        onClose={() => setIsLoadModalOpen(false)}
+        professor={selectedProf}
       />
     </div>
   );

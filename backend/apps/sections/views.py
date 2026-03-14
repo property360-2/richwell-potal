@@ -1,3 +1,4 @@
+import math
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -6,7 +7,7 @@ from apps.sections.serializers import SectionSerializer, SectionStudentSerialize
 from apps.sections.services.sectioning_service import SectioningService
 from apps.terms.models import Term
 from apps.academics.models import Program
-from apps.students.models import Student
+from apps.students.models import Student, StudentEnrollment
 
 class SectionViewSet(viewsets.ModelViewSet):
     queryset = Section.objects.all().order_by('program__code', 'year_level', 'section_number')
@@ -14,9 +15,13 @@ class SectionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'generate', 'transfer']:
-            from core.permissions import IsRegistrar
-            return [IsRegistrar()]
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'generate', 'transfer', 'preview_generation']:
+            from core.permissions import IsDean, IsRegistrar
+            # Allow either Registrar or Dean to perform these actions
+            class DeanOrRegistrar(permissions.BasePermission):
+                def has_permission(self, request, view):
+                    return IsDean().has_permission(request, view) or IsRegistrar().has_permission(request, view)
+            return [DeanOrRegistrar()]
         return super().get_permissions()
 
     service = SectioningService()
@@ -71,11 +76,52 @@ class SectionViewSet(viewsets.ModelViewSet):
         try:
             term = Term.objects.get(id=term_id)
             program = Program.objects.get(id=program_id)
+            num_sections = request.data.get('num_sections')
             auto_schedule = request.data.get('auto_schedule', False)
             
-            sections = self.service.generate_sections(term, program, int(year_level), auto_schedule=auto_schedule)
+            sections = self.service.generate_sections(
+                term, program, int(year_level), 
+                num_sections=int(num_sections) if num_sections else None,
+                auto_schedule=auto_schedule
+            )
             serializer = self.get_serializer(sections, many=True)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['POST'], url_path='preview-generation')
+    def preview_generation(self, request):
+        """
+        Preview how many sections and students per section based on input.
+        """
+        term_id = request.data.get('term_id')
+        program_id = request.data.get('program_id')
+        year_level = request.data.get('year_level')
+        desired_sections = request.data.get('desired_sections')
+
+        if not all([term_id, program_id, year_level]):
+            return Response({"error": "term_id, program_id, and year_level are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            count = StudentEnrollment.objects.filter(
+                term_id=term_id,
+                student__program_id=program_id,
+                year_level=year_level,
+                advising_status='APPROVED'
+            ).count()
+
+            if desired_sections:
+                num_sections = int(desired_sections)
+            else:
+                num_sections = math.ceil(count / 40.0) if count > 0 else 0
+
+            students_per_section = math.ceil(count / num_sections) if num_sections > 0 else 0
+            
+            return Response({
+                "total_students": count,
+                "num_sections": num_sections,
+                "students_per_section": students_per_section,
+            })
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

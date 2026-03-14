@@ -5,7 +5,8 @@ import {
   Search,
   Edit2,
   Trash2,
-  Users
+  Users,
+  Clock
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -15,6 +16,7 @@ import Badge from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
 import { facilitiesApi } from '../../api/facilities';
 import RoomModal from './components/RoomModal';
+import RoomUtilizationModal from './components/RoomUtilizationModal';
 
 const RoomManagement = () => {
   const [rooms, setRooms] = useState([]);
@@ -22,6 +24,8 @@ const RoomManagement = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [utilizationModalOpen, setUtilizationModalOpen] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState(null);
   const { showToast } = useToast();
 
   const fetchRooms = async () => {
@@ -77,6 +81,13 @@ const RoomManagement = () => {
           <Button 
             variant="ghost" 
             size="sm" 
+            icon={<Clock size={16} className="text-primary" />} 
+            title="View Room Utilization"
+            onClick={() => { setSelectedRoom(row); setUtilizationModalOpen(true); }} 
+          />
+          <Button 
+            variant="ghost" 
+            size="sm" 
             icon={<Edit2 size={16} />} 
             onClick={() => { setEditingRoom(row); setModalOpen(true); }} 
           />
@@ -121,6 +132,12 @@ const RoomManagement = () => {
         onClose={() => setModalOpen(false)} 
         onSuccess={fetchRooms} 
         room={editingRoom} 
+      />
+
+      <RoomUtilizationModal
+        isOpen={utilizationModalOpen}
+        onClose={() => setUtilizationModalOpen(false)}
+        room={selectedRoom}
       />
     </div>
   );

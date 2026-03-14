@@ -54,8 +54,9 @@ const DeanDashboard = () => {
 
   const quickActions = [
     { title: 'Manage Schedules', icon: <Calendar size={18} />, path: '/dean/scheduling', color: 'bg-blue-50 text-blue-600' },
-    { title: 'Faculty Assignment', icon: <UserCheck size={18} />, path: '/dean/faculty', color: 'bg-purple-50 text-purple-600' },
-    { title: 'Academic Programs', icon: <BookOpen size={18} />, path: '/academics/programs', color: 'bg-emerald-50 text-emerald-600' },
+    { title: 'Faculty Assignment', icon: <UserCheck size={18} />, path: '/admin/faculty', color: 'bg-purple-50 text-purple-600' },
+    { title: 'Academic Programs', icon: <BookOpen size={18} />, path: '/admin/academics', color: 'bg-emerald-50 text-emerald-600' },
+    { title: 'Sectioning Hub', icon: <Users size={18} />, path: '/admin/sectioning', color: 'bg-indigo-50 text-indigo-600' },
   ];
 
   return (

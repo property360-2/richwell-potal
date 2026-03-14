@@ -6,7 +6,7 @@ import { useToast } from '../components/ui/Toast';
 export const useIdleTimer = (timeoutMinutes = 30, warningMinutes = 25) => {
     const { isAuthenticated, logout } = useAuth();
     const navigate = useNavigate();
-    const addToast = useToast();
+    const { addToast } = useToast();
 
     const timeoutId = useRef(null);
     const warningId = useRef(null);

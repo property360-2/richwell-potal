@@ -191,9 +191,14 @@ def create_past_term(stdout):
 ROOM_CONFIG = [
     ('Room 101', 'LECTURE', 40),
     ('Room 102', 'LECTURE', 40),
-    ('Room 103', 'LECTURE', 35),
-    ('Lab 201', 'COMPUTER_LAB', 25),
-    ('Lab 202', 'COMPUTER_LAB', 25),
+    ('Room 103', 'LECTURE', 40),
+    ('Room 104', 'LECTURE', 40),
+    ('Room 105', 'LECTURE', 40),
+    ('Lab 201', 'COMPUTER_LAB', 40),
+    ('Lab 202', 'COMPUTER_LAB', 40),
+    ('Lab 203', 'COMPUTER_LAB', 40),
+    ('Sci Lab 1', 'SCIENCE_LAB', 40),
+    ('Sci Lab 2', 'SCIENCE_LAB', 40),
 ]
 
 
@@ -217,6 +222,11 @@ PROFESSOR_CONFIG = [
     ('prof1', 'Prof', 'One', date(1985, 1, 1)),
     ('prof2', 'Prof', 'Two', date(1986, 5, 15)),
     ('prof3', 'Prof', 'Three', date(1987, 10, 20)),
+    ('prof4', 'Prof', 'Four', date(1988, 2, 10)),
+    ('prof5', 'Prof', 'Five', date(1989, 3, 20)),
+    ('prof6', 'Prof', 'Six', date(1990, 4, 15)),
+    ('prof7', 'Prof', 'Seven', date(1991, 5, 25)),
+    ('prof8', 'Prof', 'Eight', date(1992, 6, 30)),
 ]
 
 DAY_SESSION_AVAILABILITY = [
@@ -230,13 +240,11 @@ DAY_SESSION_AVAILABILITY = [
 
 def create_professors(curriculum, stdout, with_availability=False):
     """
-    Create 3 professors, assign Y1S1 subjects (3 each).
+    Create professors, assign Y1S1 subjects (distributed).
     Returns list of (Professor, [Subject]) tuples.
     """
     subjects = get_subjects(curriculum, year_level=1, semester='1')
-    if len(subjects) < 9:
-        stdout.write('  WARNING: Not enough Y1S1 subjects for 3 professors, assigning what is available.')
-
+    
     professors = []
     for idx, (username, first, last, dob) in enumerate(PROFESSOR_CONFIG):
         emp_id = f'EMP{str(idx + 1).zfill(3)}'
@@ -255,32 +263,50 @@ def create_professors(curriculum, stdout, with_availability=False):
             user.set_password(pw)
             user.save()
 
+        # Some are part-time
+        estatus = 'PART_TIME' if idx >= 6 else 'FULL_TIME'
+
         prof, _ = Professor.objects.get_or_create(
             user=user,
             defaults={
                 'employee_id': emp_id,
                 'department': 'Information Systems',
-                'employment_status': 'FULL_TIME',
+                'employment_status': estatus,
                 'date_of_birth': dob,
             },
         )
 
-        # Assign subjects (split evenly across professors)
-        start_idx = idx * 3
-        assigned_subjects = subjects[start_idx:start_idx + 3]
-        for subj in assigned_subjects:
-            ProfessorSubject.objects.get_or_create(professor=prof, subject=subj)
+        # Assign subjects (distribute subjects among professors)
+        # Each professor gets 2 subjects round-robin style
+        assigned_subjects = []
+        if subjects:
+            s1 = subjects[(idx * 2) % len(subjects)]
+            s2 = subjects[(idx * 2 + 1) % len(subjects)]
+            assigned_subjects = [s1, s2]
+            for subj in assigned_subjects:
+                ProfessorSubject.objects.get_or_create(professor=prof, subject=subj)
 
-        # Optionally set availability (all days AM+PM)
+        # Set varied availability
         if with_availability:
-            for day, session in DAY_SESSION_AVAILABILITY:
-                ProfessorAvailability.objects.get_or_create(
-                    professor=prof, day=day, session=session
-                )
+            avail_days = ['M', 'T', 'W', 'TH', 'F']
+            sessions = ['AM', 'PM']
+            
+            if username in ['prof3', 'prof4']:
+                avail_days = ['M', 'W', 'F']
+            elif username in ['prof5', 'prof6']:
+                avail_days = ['T', 'TH']
+            elif username in ['prof7', 'prof8']:
+                sessions = ['AM']
+                
+            for day in avail_days:
+                for session in sessions:
+                    ProfessorAvailability.objects.get_or_create(
+                        professor=prof, day=day, session=session
+                    )
 
         professors.append((prof, assigned_subjects))
 
-    stdout.write(f'  Professors: {len(professors)} (availability={with_availability})')
+    stdout.write(f'  Professors: {len(professors)} (varied availability={with_availability})')
     return professors
 
 

@@ -44,20 +44,29 @@ class Command(BaseCommand):
             wipe_all(self.stdout)
 
         with transaction.atomic():
+            # Step 1: Create Staff Users (Dean, Registrar, Admin, etc.)
             staff = create_staff_users(self.stdout)
+
+            # Step 2: Create Active Term (default 2026-1)
             active_term = create_term(self.stdout)
+
+            # Step 3: Create Facilities/Rooms (Capacity set to 40)
             create_rooms(self.stdout)
 
+            # Step 4: Get Program and Curriculum
             program = get_or_fail_program()
             curriculum = get_or_fail_curriculum(program)
 
-            # Assign program head
+            # Step 5: Assign Program Head to Program
             program_head = staff.get('PROGRAM_HEAD')
             if program_head:
                 program.program_head = program_head
                 program.save()
 
+            # Step 6: Create Faculty Profiles & Availabilities
             create_professors(curriculum, self.stdout, with_availability=True)
+
+            # Step 7: Get Subjects for Y1S1 (1st Year, 1st Sem)
             subjects = get_subjects(curriculum, year_level=1, semester='1')
 
             if not subjects:
@@ -65,13 +74,14 @@ class Command(BaseCommand):
 
             approver = staff.get('PROGRAM_HEAD') or staff.get('ADMIN')
 
-            # Create 150 students: all ENROLLED status, advising approved
+            # Step 8: Loop 150 times to generate Students
             self.stdout.write('  Creating 150 advised students...')
             students = []
             for idx in range(1, 151):
                 dob = date(2005, (idx % 12) + 1, (idx % 28) + 1)
                 stype = 'TRANSFEREE' if idx > 130 else 'FRESHMAN'
 
+                # Step 8a: Generate Student User and Profile
                 student = generate_student(
                     idx, program, curriculum,
                     student_type=stype,
@@ -80,13 +90,13 @@ class Command(BaseCommand):
                     is_active_user=True,
                 )
 
-                # Transferees: unlock advising
+                # Step 8b: Setup Transferee special fields
                 if stype == 'TRANSFEREE':
                     student.is_advising_unlocked = True
                     student.previous_school = f'Transfer School {idx}'
                     student.save()
 
-                # Create enrollment (APPROVED)
+                # Step 8c: Create Enrollment records (marked as APPROVED by Program Head)
                 is_regular = stype == 'FRESHMAN'
                 create_enrollment(
                     student, active_term, approver,
@@ -96,7 +106,7 @@ class Command(BaseCommand):
                     is_regular=is_regular,
                 )
 
-                # Create grade records (ENROLLED, advising APPROVED)
+                # Step 8d: Attach Grade records (ENROLLED status for active term subjects)
                 create_grade_records(
                     student, active_term, subjects,
                     grade_status='ENROLLED',
@@ -105,6 +115,7 @@ class Command(BaseCommand):
 
                 students.append(student)
 
+            # Step 9: Sync system sequences for unique IDs
             update_system_sequence('27', 150)
 
         self.stdout.write(self.style.SUCCESS(

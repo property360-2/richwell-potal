@@ -62,9 +62,9 @@ class SectioningService:
         return stats
 
     @transaction.atomic
-    def generate_sections(self, term, program, year_level, auto_schedule=False):
+    def generate_sections(self, term, program, year_level, num_sections=None, auto_schedule=False):
         """
-        Generates sections based on student counts (optimal 35, max 40).
+        Generates sections based on student counts or provided num_sections.
         Automatically attaches curriculum subjects as empty schedule slots.
         """
         # 1. Count students
@@ -78,8 +78,9 @@ class SectioningService:
         if count == 0:
             return []
 
-        # 2. Calculate num sections: ceil(count / 40.0)
-        num_sections = math.ceil(count / 40.0)
+        # 2. Calculate num sections if not provided
+        if num_sections is None:
+            num_sections = math.ceil(count / 40.0)
         
         # 3. Dynamic target capacity (e.g., 150/4 = 37.5 -> 38)
         target_capacity = math.ceil(count / num_sections) if num_sections > 0 else 40

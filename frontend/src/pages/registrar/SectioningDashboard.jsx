@@ -14,6 +14,7 @@ import Table from '../../components/ui/Table';
 import Select from '../../components/ui/Select';
 import Tabs from '../../components/ui/Tabs';
 import PageHeader from '../../components/shared/PageHeader';
+import SectionPreviewModal from './components/SectionPreviewModal';
 
 import './SectioningDashboard.css';
 
@@ -38,6 +39,9 @@ const SectioningDashboard = () => {
   const [studentToTransfer, setStudentToTransfer] = useState(null);
   const [targetSectionId, setTargetSectionId] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
+
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [generationParams, setGenerationParams] = useState(null);
 
   const { showToast } = useToast();
 
@@ -69,18 +73,22 @@ const SectioningDashboard = () => {
     fetchData();
   }, []);
 
-  const handleGenerate = async (programId, yearLevel) => {
-    if (!window.confirm('This will auto-generate sections based on the number of approved students. Continue?')) return;
+  const handleGenerate = (programId, yearLevel) => {
+    setGenerationParams({ program_id: programId, year_level: yearLevel, term_id: activeTerm.id });
+    setIsPreviewOpen(true);
+  };
+
+  const handleConfirmGeneration = async (numSections) => {
     try {
       await sectionsApi.generate({
-        term_id: activeTerm.id,
-        program_id: programId,
-        year_level: yearLevel
+        ...generationParams,
+        num_sections: numSections
       });
       showToast('success', 'Sections generated successfully');
       fetchData();
     } catch (err) {
       showToast('error', err.response?.data?.error || 'Failed to generate sections');
+      throw err;
     }
   };
 
@@ -400,7 +408,6 @@ const SectioningDashboard = () => {
         isOpen={isTransferOpen}
         onClose={() => setIsTransferOpen(false)}
         title="Transfer Student"
-        size="sm"
       >
         <div className="space-y-6">
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
@@ -436,6 +443,12 @@ const SectioningDashboard = () => {
             </div>
         </div>
       </Modal>
+      <SectionPreviewModal 
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        params={generationParams}
+        onConfirm={handleConfirmGeneration}
+      />
     </div>
   );
 };

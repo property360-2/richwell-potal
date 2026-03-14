@@ -136,7 +136,8 @@ const SchedulePicking = () => {
   const pickingNotPublished = activeTerm && !activeTerm.schedule_published;
   const pickingNotStarted = activeTerm?.schedule_picking_start && today < activeTerm.schedule_picking_start;
   const pickingEnded = activeTerm?.schedule_picking_end && today > activeTerm.schedule_picking_end;
-  const pickingBlocked = pickingNotPublished || pickingNotStarted || pickingEnded;
+  // Removed pickingNotPublished from blocker: Students can pick as soon as sections are generated.
+  const pickingBlocked = (activeTerm?.schedule_picking_start && pickingNotStarted) || pickingEnded;
 
   if (pickingBlocked && activeTerm) {
     let title = 'Schedule Picking Unavailable';

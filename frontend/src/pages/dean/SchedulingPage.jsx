@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, BookOpen, Calendar, MapPin, AlertTriangle, CheckCircle2, Search, Edit2, RefreshCw, ChevronRight, CircleUser, Info, Shuffle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Clock, BookOpen, Calendar, MapPin, AlertTriangle, CheckCircle2, Search, Edit2, RefreshCw, ChevronRight, CircleUser, Info, Shuffle, FileText, ArrowRight, LayoutGrid } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -16,9 +17,14 @@ import Select from '../../components/ui/Select';
 import Tabs from '../../components/ui/Tabs';
 import PageHeader from '../../components/shared/PageHeader';
 
+import SchedulingReports from './components/SchedulingReports';
+import RandomizeOptionsModal from './components/RandomizeOptionsModal';
+import SlotConfigModal from './components/SlotConfigModal';
+
 import './SchedulingPage.css';
 
 const SchedulingPage = () => {
+    const navigate = useNavigate();
     const [view, setView] = useState('LIST'); // 'LIST' or 'MANAGE'
     const [activeTab, setActiveTab] = useState('professors'); // 'professors' or 'sections'
     const [loading, setLoading] = useState(true);
@@ -41,18 +47,10 @@ const SchedulingPage = () => {
     const [isSavingAvailability, setIsSavingAvailability] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAddLoadModalOpen, setIsAddLoadModalOpen] = useState(false);
+    const [isRandomizeModalOpen, setIsRandomizeModalOpen] = useState(false);
     const [selectedSchedule, setSelectedSchedule] = useState(null);
-    const [isSavingSchedule, setIsSavingSchedule] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
     const [isRandomizing, setIsRandomizing] = useState(false);
-    
-    const [formData, setFormData] = useState({
-        professor: '',
-        days: [],
-        start_time: '',
-        end_time: '',
-        room: ''
-    });
 
     const { showToast } = useToast();
 
@@ -193,63 +191,17 @@ const SchedulingPage = () => {
 
     const handleOpenSetup = (sched) => {
         setSelectedSchedule(sched);
-        setFormData({
-            professor: sched.professor || '',
-            days: sched.days || [],
-            start_time: sched.start_time ? sched.start_time.substring(0, 5) : '',
-            end_time: sched.end_time ? sched.end_time.substring(0, 5) : '',
-            room: sched.room || ''
-        });
-        
-        if (sched.professor) {
-            facultyApi.getAvailability(sched.professor).then(res => setProfAvailability(res.data));
-        }
-
         setIsModalOpen(true);
     };
 
-    const handleSaveSchedule = async () => {
-        const profId = selectedProf?.id || formData.professor;
-        if (!formData.start_time || !formData.end_time || formData.days.length === 0 || !profId) {
-            return showToast('error', 'Please fill in all required fields including Professor');
-        }
-
-        if (profAvailability.length > 0) {
-             const unavailableDays = formData.days.filter(day => 
-                !profAvailability.some(a => a.day === day && a.session === selectedSchedule.section_session)
-            );
-            if (unavailableDays.length > 0) {
-                return showToast('error', `Professor is NOT available at ${selectedSchedule.section_session} on ${unavailableDays.join(', ')}`);
-            }
-        }
-
-        try {
-            setIsSavingSchedule(true);
-            await schedulingApi.assign({
-                id: selectedSchedule.id,
-                term_id: activeTerm.id,
-                section_id: selectedSchedule.section,
-                subject_id: selectedSchedule.subject,
-                professor_id: profId,
-                room_id: formData.room || null,
-                days: formData.days,
-                start_time: formData.start_time,
-                end_time: formData.end_time
-            });
-            showToast('success', 'Schedule updated successfully');
-            setIsModalOpen(false);
-            if (selectedProf) fetchProfDetails(selectedProf.id);
-            else if (selectedSection) fetchSectionDetails(selectedSection.id);
-        } catch (err) {
-            showToast('error', err.response?.data?.error || 'Conflict detected');
-        } finally {
-            setIsSavingSchedule(false);
-        }
+    const onScheduleSuccess = () => {
+        if (selectedProf) fetchProfDetails(selectedProf.id);
+        else if (selectedSection) fetchSectionDetails(selectedSection.id);
     };
 
     const handlePublishSchedule = async () => {
         if (!activeTerm) return;
-        if (!window.confirm('Publish the schedule? Students will be notified and can start picking their sections.')) return;
+        if (!window.confirm('Finalize and notify students? Students will receive a notification that the full timetable (Rooms/Professors) is now ready.')) return;
         try {
             setIsPublishing(true);
             await schedulingApi.publish({ term_id: activeTerm.id });
@@ -302,7 +254,7 @@ const SchedulingPage = () => {
                                 onClick={handlePublishSchedule}
                                 disabled={activeTerm?.schedule_published}
                             >
-                                {activeTerm?.schedule_published ? 'Published' : 'Publish'}
+                                {activeTerm?.schedule_published ? 'Finalized' : 'Finalize & Notify'}
                             </Button>
                             <Button variant="ghost" icon={<RefreshCw size={16} />} onClick={fetchData}>Sync</Button>
                         </div>
@@ -315,7 +267,8 @@ const SchedulingPage = () => {
                         onTabChange={setActiveTab}
                         tabs={[
                             { id: 'professors', label: 'Faculty Matrix', icon: BookOpen },
-                            { id: 'sections', label: 'Section Blocks', icon: Calendar }
+                            { id: 'sections', label: 'Section Blocks', icon: Calendar },
+                            { id: 'reports', label: 'Reports Hub', icon: FileText }
                         ]}
                     />
 
@@ -327,7 +280,7 @@ const SchedulingPage = () => {
                                         <th>Faculty Member</th>
                                         <th>Employee ID</th>
                                         <th>Department</th>
-                                        <th>Units Loaded</th>
+                                        <th>Hours Loaded</th>
                                         <th>Status</th>
                                         <th className="text-center">Actions</th>
                                     </tr>
@@ -346,7 +299,7 @@ const SchedulingPage = () => {
                                             <td className="font-bold text-xs text-slate-400">{prof.employee_id}</td>
                                             <td className="text-sm font-medium text-slate-500">{prof.department}</td>
                                             <td>
-                                                <Badge variant="neutral">{prof.assignment_count} Active Slots</Badge>
+                                                <Badge variant="neutral">{prof.hours_assigned} hrs Assigned</Badge>
                                             </td>
                                             <td>
                                                 {prof.assignment_count > 0 ? (
@@ -370,53 +323,100 @@ const SchedulingPage = () => {
                                     ))}
                                 </tbody>
                             </table>
-                        ) : (
-                            <table className="matrix-table">
-                                <thead>
-                                    <tr>
-                                        <th>Section Name</th>
-                                        <th>Program</th>
-                                        <th>Year Level</th>
-                                        <th>Subjects</th>
-                                        <th>Schedule Status</th>
-                                        <th className="text-center">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredSections.map(section => (
-                                        <tr key={section.id}>
-                                            <td>
-                                                <div className="font-bold text-slate-700">{section.name}</div>
-                                                <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{section.session} Session</div>
-                                            </td>
-                                            <td className="font-bold text-xs text-slate-400">{section.program_code}</td>
-                                            <td className="text-sm font-medium text-slate-500">{section.year_level}</td>
-                                            <td>
-                                                <Badge variant="neutral">{section.subject_count} Components</Badge>
-                                            </td>
-                                            <td>
-                                                <Badge 
-                                                    variant={section.scheduling_status === 'FULL' ? 'success' : section.scheduling_status === 'PARTIAL' ? 'warning' : 'neutral'}
-                                                    icon={section.scheduling_status === 'FULL' ? <CheckCircle2 size={10} /> : <Clock size={10}/>}
-                                                >
-                                                    {section.scheduling_status}
-                                                </Badge>
-                                            </td>
-                                            <td className="text-center">
-                                                <Button 
-                                                    variant="primary" 
-                                                    size="xs" 
-                                                    style={{ fontWeight: 800 }} 
-                                                    icon={<Edit2 size={12}/>}
+                        ) : activeTab === 'sections' ? (
+                            <div className="p-6">
+                                <div className="flex justify-between items-center mb-10">
+                                    <div className="flex flex-col gap-1">
+                                        <h3 className="text-2xl font-black text-slate-800 tracking-tight">Active Matrix</h3>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Manage section assignments and professor loading</p>
+                                    </div>
+                                    <div className="flex items-center gap-3 glass-panel px-6 py-3 rounded-2xl border border-white/50 bg-white/40">
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase leading-none">Total Enrolled</span>
+                                            <span className="text-xl font-black text-primary leading-none">150</span>
+                                        </div>
+                                        <div className="w-px h-8 bg-slate-200/50 mx-2"></div>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase leading-none">Sections</span>
+                                            <span className="text-xl font-black text-slate-800 leading-none">{sections.length}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="min-h-[400px]">
+                                    {filteredSections.length === 0 ? (
+                                        <div className="premium-empty-state">
+                                            <div className="empty-state-icon-wrapper">
+                                                <LayoutGrid size={32} />
+                                            </div>
+                                            <h3 className="text-xl font-black text-slate-800 mb-2">No Sections Generated</h3>
+                                            <p className="text-sm font-bold text-slate-400 mb-8 max-w-sm">Start your scheduling process by generating sections from the enrolled student population.</p>
+                                            <div className="flex gap-4">
+                                                <Button variant="primary" size="lg" className="rounded-xl px-8 shadow-xl shadow-primary/20" icon={<Shuffle size={18}/>}>Generate Matrix</Button>
+                                                <Button variant="outline" size="lg" className="rounded-xl px-8">Refresh Data</Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="section-grid-pro pb-10">
+                                            {filteredSections.map(section => (
+                                                <div 
+                                                    key={section.id} 
+                                                    className="section-card-pro group"
                                                     onClick={() => handleManageSection(section)}
                                                 >
-                                                    SET TIMETABLE
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                                    <div className="card-status-badge">
+                                                        <Badge 
+                                                            variant={section.scheduling_status === 'FULL' ? 'success' : section.scheduling_status === 'PARTIAL' ? 'warning' : 'neutral'}
+                                                            className="shadow-sm font-black text-[9px] uppercase px-2"
+                                                        >
+                                                            {section.scheduling_status}
+                                                        </Badge>
+                                                    </div>
+                                                    
+                                                    <div className="mb-6">
+                                                        <div className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{section.program_code}</div>
+                                                        <h4 className="text-xl font-black text-slate-800 group-hover:text-primary transition-colors">{section.name}</h4>
+                                                        <div className="text-[11px] font-extrabold text-slate-300 mt-1 uppercase tracking-wider">{section.session} Session</div>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between pt-6 border-t border-slate-50">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase leading-none">Year</span>
+                                                                <span className="text-xs font-black text-slate-700">{section.year_level}</span>
+                                                            </div>
+                                                            <div className="flex flex-col pl-4 border-l border-slate-100">
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase leading-none">Components</span>
+                                                                <span className="text-xs font-black text-slate-700">{section.subject_count} Subjects</span>
+                                                            </div>
+                                                        </div>
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="xs" 
+                                                            className="bg-slate-50 hover:bg-primary hover:text-white rounded-lg transition-all"
+                                                            icon={<ArrowRight size={14}/>}
+                                                        >
+                                                            Manage
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <SchedulingReports 
+                                activeTerm={activeTerm}
+                                onManageSection={(id) => {
+                                    const section = sections.find(s => s.id == id);
+                                    if (section) handleManageSection(section);
+                                }}
+                                onManageFaculty={(id) => {
+                                    const prof = professors.find(p => p.id == id);
+                                    if (prof) handleManageLoad(prof);
+                                }}
+                            />
                         )}
                     </div>
                 </Card>
@@ -425,512 +425,348 @@ const SchedulingPage = () => {
     }
 
     return (
-        <div className="scheduling-container-manage animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Header */}
-            <div className="manage-header">
-                <div className="flex items-center gap-4">
-                    <Button variant="outline" size="sm" onClick={handleBackToList}>Back to Matrix</Button>
-                    <div className="header-title-section">
-                        <h2>
-                            {selectedProf ? 'Assign Faculty Load' : 'Section Timetable Configuration'}
-                        </h2>
-                        <p>
-                            {selectedProf 
-                                ? `Faculty: ${selectedProf?.user?.first_name} ${selectedProf?.user?.last_name} • ${selectedProf?.employee_id}`
-                                : `Target: ${selectedSection?.name} (${selectedSection?.program_name})`
-                            }
-                        </p>
-                    </div>
-                </div>
-                {selectedProf && (
-                    <div className="stats-card-compact">
-                        <div className="text-right">
-                            <div className="stats-label">Total Current Load</div>
-                            <div className="stats-value">{calculateTotalUnits()} <span className="text-sm font-medium opacity-50">/ 30 UNITS</span></div>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                            <BookOpen size={20} />
+        <>
+            <div className="scheduling-container-manage animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {/* Header */}
+                <div className="manage-header">
+                    <div className="flex items-center gap-4">
+                        <Button variant="outline" size="sm" onClick={handleBackToList}>Back to Matrix</Button>
+                        <div className="header-title-section">
+                            <h2>
+                                {selectedProf ? 'Assign Faculty Load' : 'Section Timetable Configuration'}
+                            </h2>
+                            <p>
+                                {selectedProf 
+                                    ? `Faculty: ${selectedProf?.user?.first_name} ${selectedProf?.user?.last_name} • ${selectedProf?.employee_id}`
+                                    : `Target: ${selectedSection?.name} (${selectedSection?.program_name})`
+                                }
+                            </p>
                         </div>
                     </div>
-                )}
-            </div>
-
-            <div className={`grid grid-cols-1 ${selectedProf ? 'lg:grid-cols-12' : 'lg:grid-cols-1'} gap-8 items-start`}>
-                <div className={selectedProf ? 'lg:col-span-8 space-y-8' : 'space-y-8'}>
                     {selectedProf && (
-                        <Card title="Fixed Weekly Availability Grid" className="shadow-sm border-slate-100 overflow-hidden">
-                            <div className="flex justify-between items-center mb-6">
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Click cells to toggle professor availability across days and sessions.</p>
-                                <div className="flex gap-2">
-                                    <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('AM')}>Fill AM</Button>
-                                    <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('PM')}>Fill PM</Button>
-                                </div>
+                        <div className="stats-card-compact">
+                            <div className="text-right">
+                                <div className="stats-label">Total Current Load</div>
+                                <div className="stats-value">{calculateTotalUnits()} <span className="text-sm font-medium opacity-50">/ 30 UNITS</span></div>
                             </div>
-
-                            <div className="availability-grid">
-                                <div className="grid-corner"></div>
-                                {DAYS.map(d => (
-                                    <div key={d.key} className="grid-header-day">{d.key}</div>
-                                ))}
-                                
-                                {SESSIONS.map(session => (
-                                    <React.Fragment key={session}>
-                                        <div className="grid-label-session">{session}</div>
-                                        {DAYS.map(day => {
-                                            const isAvailable = profAvailability.some(a => a.day === day.key && a.session === session);
-                                            const schedule = profSchedules.find(s => s.days.includes(day.key) && s.section_session === session);
-                                            
-                                            return (
-                                                <div 
-                                                    key={`${day.key}-${session}`}
-                                                    className={`grid-cell ${isAvailable ? 'available' : ''} ${schedule ? 'occupied' : ''} ${isSavingAvailability ? 'opacity-50 pointer-events-none' : ''}`}
-                                                    onClick={() => !schedule && handleToggleAvailability(day.key, session)}
-                                                >
-                                                    {schedule ? (
-                                                        <div className="occupied-badge">
-                                                            <span className="text-[9px] block">{schedule.subject_code}</span>
-                                                            <span className="text-[8px] opacity-70 block">{schedule.section_name}</span>
-                                                        </div>
-                                                    ) : isAvailable ? (
-                                                        <CheckCircle2 size={16} className="text-blue-500" />
-                                                    ) : null}
-                                                </div>
-                                            );
-                                        })}
-                                    </React.Fragment>
-                                ))}
+                            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                                <BookOpen size={20} />
                             </div>
-                        </Card>
-                    )}
-
-                    {/* SECTION VIEW: Visual Weekly Timetable Grid */}
-                    {selectedSection && (() => {
-                        const TIME_SLOTS = [];
-                        for (let h = 7; h <= 19; h++) {
-                            TIME_SLOTS.push(`${String(h).padStart(2, '0')}:00`);
-                            if (h < 19) TIME_SLOTS.push(`${String(h).padStart(2, '0')}:30`);
-                        }
-                        const GRID_DAYS = ['M', 'T', 'W', 'TH', 'F', 'S'];
-                        const DAY_LABELS = { M: 'Mon', T: 'Tue', W: 'Wed', TH: 'Thu', F: 'Fri', S: 'Sat' };
-                        const COLORS = [
-                            { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af' },
-                            { bg: '#f0fdf4', border: '#22c55e', text: '#166534' },
-                            { bg: '#fefce8', border: '#eab308', text: '#854d0e' },
-                            { bg: '#fdf2f8', border: '#ec4899', text: '#9d174d' },
-                            { bg: '#f5f3ff', border: '#8b5cf6', text: '#5b21b6' },
-                            { bg: '#fff7ed', border: '#f97316', text: '#9a3412' },
-                            { bg: '#ecfeff', border: '#06b6d4', text: '#155e75' },
-                            { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' },
-                        ];
-
-                        // Build color map per subject code
-                        const subjectCodes = [...new Set(profSchedules.map(s => s.subject_code))];
-                        const colorMap = {};
-                        subjectCodes.forEach((code, i) => { colorMap[code] = COLORS[i % COLORS.length]; });
-
-                        // Parse time helper
-                        const timeToMinutes = (t) => {
-                            if (!t) return 0;
-                            const [h, m] = t.substring(0, 5).split(':').map(Number);
-                            return h * 60 + m;
-                        };
-                        const startMinute = 7 * 60; // 7:00 AM
-                        const SLOT_HEIGHT = 28; // px per 30 minutes
-                        const TOTAL_SLOTS = 25; // 7:00 to 19:30
-
-                        // Find scheduled blocks per day
-                        const getBlocksForDay = (dayKey) => {
-                            return profSchedules.filter(s => s.days && s.days.includes(dayKey) && s.start_time && s.end_time);
-                        };
-
-                        const unassigned = profSchedules.filter(s => !s.start_time || !s.end_time || !s.days || s.days.length === 0);
-
-                        return (
-                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                                {/* Timetable Grid */}
-                                <div className="lg:col-span-9">
-                                    <div className="flex justify-between items-center mb-4 px-1">
-                                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Weekly Timetable</h3>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="xs"
-                                                style={{ fontWeight: 800 }}
-                                                icon={<Shuffle size={14} />}
-                                                loading={isRandomizing}
-                                                onClick={async () => {
-                                                    if (!window.confirm('This will reset and randomize all time slots for this section. Professor and room assignments will be kept. Continue?')) return;
-                                                    try {
-                                                        setIsRandomizing(true);
-                                                        const res = await schedulingApi.randomize({
-                                                            section_id: selectedSection.id,
-                                                            term_id: activeTerm.id
-                                                        });
-                                                        setProfSchedules(res.data);
-                                                        showToast('success', 'Schedule randomized successfully!');
-                                                    } catch (err) {
-                                                        showToast('error', err.response?.data?.error || 'Failed to randomize schedule');
-                                                    } finally {
-                                                        setIsRandomizing(false);
-                                                    }
-                                                }}
-                                            >
-                                                RANDOMIZE
-                                            </Button>
-                                            <Badge variant="primary" className="text-[10px] font-black">{profSchedules.length} Components</Badge>
-                                        </div>
-                                    </div>
-                                    <div className="timetable-grid-wrapper">
-                                        <div className="timetable-grid" style={{ gridTemplateColumns: `60px repeat(${GRID_DAYS.length}, 1fr)` }}>
-                                            {/* Header row */}
-                                            <div className="tt-corner"></div>
-                                            {GRID_DAYS.map(d => (
-                                                <div key={d} className="tt-day-header">{DAY_LABELS[d]}</div>
-                                            ))}
-
-                                            {/* Time rows */}
-                                            {TIME_SLOTS.map((slot, idx) => (
-                                                <React.Fragment key={slot}>
-                                                    <div className={`tt-time-label ${slot.endsWith(':00') ? '' : 'tt-time-half'}`}>
-                                                        {slot.endsWith(':00') ? slot : ''}
-                                                    </div>
-                                                    {GRID_DAYS.map(dayKey => (
-                                                        <div key={`${dayKey}-${slot}`} className={`tt-cell ${slot.endsWith(':00') ? 'tt-cell-hour' : ''}`}>
-                                                        </div>
-                                                    ))}
-                                                </React.Fragment>
-                                            ))}
-                                        </div>
-
-                                        {/* Floating schedule blocks */}
-                                        <div className="tt-blocks-overlay" style={{ gridTemplateColumns: `60px repeat(${GRID_DAYS.length}, 1fr)` }}>
-                                            <div></div>
-                                            {GRID_DAYS.map((dayKey, dayIdx) => {
-                                                const blocks = getBlocksForDay(dayKey);
-                                                return (
-                                                    <div key={dayKey} className="tt-day-column">
-                                                        {blocks.map(sched => {
-                                                            const top = ((timeToMinutes(sched.start_time) - startMinute) / 30) * SLOT_HEIGHT;
-                                                            const duration = timeToMinutes(sched.end_time) - timeToMinutes(sched.start_time);
-                                                            const height = (duration / 30) * SLOT_HEIGHT;
-                                                            const color = colorMap[sched.subject_code] || COLORS[0];
-
-                                                            return (
-                                                                <div
-                                                                    key={`${sched.id}-${dayKey}`}
-                                                                    className="tt-block"
-                                                                    style={{
-                                                                        top: `${top}px`,
-                                                                        height: `${Math.max(height - 2, SLOT_HEIGHT - 2)}px`,
-                                                                        backgroundColor: color.bg,
-                                                                        borderLeft: `3px solid ${color.border}`,
-                                                                        color: color.text,
-                                                                    }}
-                                                                    onClick={() => handleOpenSetup(sched)}
-                                                                    title={`${sched.subject_code} (${sched.component_type}) — ${sched.professor_name || 'No Prof'} — ${sched.room_name || 'No Room'}`}
-                                                                >
-                                                                    <span className="tt-block-code">{sched.subject_code}</span>
-                                                                    <span className="tt-block-type">{sched.component_type}</span>
-                                                                    {height > 40 && <span className="tt-block-prof">{sched.professor_name || 'TBA'}</span>}
-                                                                    {height > 55 && <span className="tt-block-room">{sched.room_name || ''}</span>}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Sidebar: Assignments Tracking Table */}
-                                <div className="lg:col-span-3 space-y-4">
-                                    <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
-                                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                            <h4 className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic">
-                                                Assignments ({profSchedules.filter(s => s.start_time).length}/{profSchedules.length})
-                                            </h4>
-                                            {profSchedules.length > 0 && profSchedules.every(s => s.start_time) && (
-                                                <Badge variant="success" className="text-[8px]">Complete</Badge>
-                                            )}
-                                        </div>
-                                        
-                                        <div className="max-h-[500px] overflow-y-auto">
-                                            <table className="w-full text-[10px] text-left border-collapse">
-                                                <thead className="bg-slate-50 sticky top-0 z-10">
-                                                    <tr>
-                                                        <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">Subject</th>
-                                                        <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 text-center">Hours</th>
-                                                        <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">Type</th>
-                                                        <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {profSchedules.map(sched => {
-                                                        const isAssigned = sched.start_time && sched.end_time && sched.days?.length > 0;
-                                                        return (
-                                                            <tr 
-                                                                key={sched.id} 
-                                                                className="border-b border-slate-50 hover:bg-blue-50/50 transition-colors cursor-pointer group"
-                                                                onClick={() => handleOpenSetup(sched)}
-                                                            >
-                                                                <td className="p-3">
-                                                                    <div className="font-black text-blue-600 group-hover:text-blue-700">{sched.subject_code}</div>
-                                                                    <div className="text-[8px] text-slate-400 truncate w-24 font-medium">{sched.subject_description}</div>
-                                                                </td>
-                                                                <td className="p-3 text-center">
-                                                                    <div className="font-bold text-slate-600">{sched.subject_hrs_per_week}h</div>
-                                                                </td>
-                                                                <td className="p-3">
-                                                                    <span className="font-bold text-slate-500">{sched.component_type}</span>
-                                                                </td>
-                                                                <td className="p-3">
-                                                                    <Badge 
-                                                                        variant={isAssigned ? "success" : "neutral"} 
-                                                                        className="text-[8px] px-1 py-0"
-                                                                    >
-                                                                        {isAssigned ? "Assigned" : "Pending"}
-                                                                    </Badge>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-
-                                    {/* All Subjects Legend */}
-                                    <Card className="border-slate-100">
-                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Color Legend</h4>
-                                        <div className="space-y-2">
-                                            {subjectCodes.map(code => {
-                                                const color = colorMap[code];
-                                                return (
-                                                    <div key={code} className="flex items-center gap-2">
-                                                        <div className="w-3 h-3 rounded" style={{ backgroundColor: color.border }}></div>
-                                                        <span className="text-[10px] font-bold text-slate-600">{code}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </Card>
-                                </div>
-                            </div>
-                        );
-                    })()}
-
-                    {/* PROFESSOR VIEW: Flat schedule breakdown (unchanged) */}
-                    {selectedProf && (
-                        <>
-                            <div className="flex justify-between items-center px-2">
-                                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Schedule Breakdown</h3>
-                                <div className="flex items-center gap-3">
-                                    <Badge variant="primary" className="text-[10px] font-black">{profSchedules.length} Components</Badge>
-                                    <Button variant="primary" size="xs" icon={<BookOpen size={12}/>} style={{ fontWeight: 800 }} onClick={() => setIsAddLoadModalOpen(true)}>
-                                        ADD SUBJECT LOAD
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                {profSchedules.map(sched => (
-                                    <div key={sched.id} className="assignment-row">
-                                        <div className="flex items-center gap-4 flex-1">
-                                            <div className="load-icon"><BookOpen size={20} /></div>
-                                            <div className="flex-1">
-                                                <div className="flex gap-2 mb-1">
-                                                    <Badge variant="neutral" className="text-[9px] font-black">{sched.section_name}</Badge>
-                                                    <Badge variant={sched.section_session === 'AM' ? 'info' : 'warning'} className="text-[9px] font-black">{sched.section_session}</Badge>
-                                                </div>
-                                                <h4 className="font-bold text-slate-800 leading-tight">{sched.subject_code} — {sched.component_type}</h4>
-                                                <p className="text-[11px] text-slate-400 font-bold uppercase">{sched.subject_description}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col gap-1 items-center px-8 border-l border-slate-100 min-w-[200px]">
-                                            <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Schedule Configuration</div>
-                                            <div className="text-xs font-black text-slate-700 flex items-center gap-2">
-                                                <Calendar size={12} className="text-blue-500" />
-                                                {sched.days.length > 0 ? `${sched.days.join(', ')} • ${sched.start_time?.substring(0, 5)} - ${sched.end_time?.substring(0, 5)}` : <span className="text-red-400">UNCONFIGURED</span>}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col gap-1 items-center px-8 border-l border-slate-100 min-w-[150px]">
-                                            <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Facility</div>
-                                            <div className="text-xs font-black text-slate-700 flex items-center gap-2">
-                                                <MapPin size={12} className="text-slate-400" />
-                                                {sched.room_name || 'TBA'}
-                                            </div>
-                                        </div>
-
-                                        <div className="pl-6 border-l border-slate-100">
-                                            <Button variant="outline" size="sm" icon={<Edit2 size={12}/>} style={{ fontWeight: 800 }} onClick={() => handleOpenSetup(sched)}>
-                                                SETUP
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </>
+                        </div>
                     )}
                 </div>
 
-                {selectedProf && (
-                    <div className="lg:col-span-4 space-y-6">
-                        <div className="sidebar-card-dark shadow-xl">
-                            <h4 className="text-lg font-bold uppercase tracking-tight italic border-b border-slate-700 pb-4 mb-4">Expertise & Assignments</h4>
-                            <div className="space-y-3">
-                                {selectedProf?.assigned_subjects?.map(ps => (
-                                    <div key={ps.id} className="p-3 rounded-lg bg-slate-800 border border-slate-700 group hover:border-blue-500 transition-colors">
-                                        <div className="flex justify-between items-start mb-1">
-                                            <span className="text-xs font-black text-blue-400 tracking-tight">{ps.subject_details?.code}</span>
-                                            <span className="text-[10px] font-black text-slate-500">{ps.subject_details?.units} UNITS</span>
-                                        </div>
-                                        <div className="text-xs font-bold text-slate-200 line-clamp-1">{ps.subject_details?.name}</div>
+                <div className={`grid grid-cols-1 ${selectedProf ? 'lg:grid-cols-12' : 'lg:grid-cols-1'} gap-8 items-start`}>
+                    <div className={selectedProf ? 'lg:col-span-8 space-y-8' : 'space-y-8'}>
+                        {selectedProf && (
+                            <Card title="Fixed Weekly Availability Grid" className="shadow-sm border-slate-100 overflow-hidden">
+                                <div className="flex justify-between items-center mb-6">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Click cells to toggle professor availability across days and sessions.</p>
+                                    <div className="flex gap-2">
+                                        <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('AM')}>Fill AM</Button>
+                                        <Button size="xs" variant="ghost" onClick={() => handleQuickAvailability('PM')}>Fill PM</Button>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <Card title="Load Statistics" className="bg-white border-slate-100">
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center py-3 border-b border-slate-50">
-                                    <span className="text-xs font-bold text-slate-400 uppercase">Employment</span>
-                                    <span className="text-sm font-black text-slate-700">{selectedProf?.employment_status}</span>
                                 </div>
-                                <div className="bg-slate-50 p-4 rounded-xl mt-4">
-                                    <div className="flex items-center gap-3 text-blue-600 mb-2">
-                                        <Clock size={16} />
-                                        <span className="text-[10px] font-black uppercase tracking-wider">Time Complexity</span>
+
+                                <div className="overflow-x-auto">
+                                    <div className="availability-grid min-w-[700px]">
+                                    <div className="grid-corner"></div>
+                                    {DAYS.map(d => (
+                                        <div key={d.key} className="grid-header-day mb-2">{d.label}</div>
+                                    ))}
+                                    
+                                    {SESSIONS.map(session => (
+                                        <React.Fragment key={session}>
+                                            <div className="grid-label-session">{session}</div>
+                                            {DAYS.map(day => {
+                                                const isAvailable = profAvailability.some(a => a.day === day.key && a.session === session);
+                                                const schedule = profSchedules.find(s => s.days.includes(day.key) && s.section_session === session);
+                                                
+                                                return (
+                                                    <div 
+                                                        key={`${day.key}-${session}`}
+                                                        className={`grid-cell ${isAvailable ? 'available' : ''} ${schedule ? 'occupied' : ''} ${isSavingAvailability ? 'opacity-50 pointer-events-none' : ''}`}
+                                                        onClick={() => !schedule && handleToggleAvailability(day.key, session)}
+                                                    >
+                                                        {schedule ? (
+                                                            <div className="occupied-indicator" title={`${schedule.subject_code} — ${schedule.section_name}`}>
+                                                                <div className="occupied-indicator-dot"></div>
+                                                            </div>
+                                                        ) : isAvailable ? (
+                                                            <CheckCircle2 size={16} className="text-blue-500" />
+                                                        ) : null}
+                                                    </div>
+                                                );
+                                            })}
+                                        </React.Fragment>
+                                    ))}
                                     </div>
-                                    <p className="text-[10px] text-slate-500 leading-relaxed font-bold">Professor teaching window is validated against Section overlaps and general availability to ensure a conflict-free semester.</p>
                                 </div>
-                            </div>
-                        </Card>
-                    </div>
-                )}
-            </div>
-
-            <Modal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title="Slot Configuration"
-                size="md"
-                footer={
-                    <div className="flex gap-3 w-full justify-end">
-                        <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button variant="primary" loading={isSavingSchedule} onClick={handleSaveSchedule} className="px-8">
-                            Save Configuration
-                        </Button>
-                    </div>
-                }
-            >
-                <div className="slot-modal-content">
-                    {/* Header Info Card */}
-                    <div className="slot-modal-header">
-                        <div className="slot-header-top">
-                            <Badge variant="info" className="slot-type-badge">
-                                {selectedSchedule?.component_type} COMPONENT
-                            </Badge>
-                            <div className="slot-session-info">
-                                <Clock size={10} /> {selectedSchedule?.section_session} Session
-                            </div>
-                        </div>
-                        <h3 className="slot-title">{selectedSchedule?.subject_code}</h3>
-                        <p className="slot-subtitle">{selectedSchedule?.subject_description}</p>
-                        <div className="slot-header-footer flex justify-between items-center">
-                            <Badge variant="neutral" className="slot-section-badge">{selectedSchedule?.section_name}</Badge>
-                            <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
-                                {selectedSchedule?.subject_hrs_per_week} HRS / WEEK REQUIRED
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="slot-form-body">
-                        {/* Professor Selection */}
-                        {selectedSection && (
-                             <Select 
-                                label={<span className="field-label-with-icon"><CircleUser size={14} /> Assign Professor</span>}
-                                placeholder="Select faculty member..."
-                                value={formData.professor}
-                                onChange={(e) => {
-                                    setFormData({...formData, professor: e.target.value});
-                                    if(e.target.value) {
-                                        facultyApi.getAvailability(e.target.value).then(res => setProfAvailability(res.data));
-                                    }
-                                }}
-                                options={professors.map(p => ({
-                                    value: p.id,
-                                    label: `${p.user?.last_name}, ${p.user?.first_name} (${p.department})`
-                                }))}
-                            />
+                            </Card>
                         )}
 
-                        {/* Day Selection */}
-                        <div className="field-group">
-                            <label className="field-label-with-icon">
-                                <Calendar size={14} /> Select Teaching Days
-                            </label>
-                            <div className="day-selector">
-                                {['M', 'T', 'W', 'TH', 'F', 'S'].map(day => {
-                                    const isAvailable = profAvailability.length === 0 || profAvailability.some(a => a.day === day && a.session === selectedSchedule?.section_session);
-                                    const isSelected = formData.days.includes(day);
-                                    
-                                    return (
-                                        <button
-                                            key={day}
-                                            type="button"
-                                            onClick={() => setFormData(prev => ({
-                                                ...prev,
-                                                days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day]
-                                            }))}
-                                            className={`day-selector-btn ${isSelected ? 'active' : ''} ${!isAvailable && !isSelected ? 'unavailable' : ''}`}
-                                        >
-                                            {day}
-                                            {isSelected && <div className="selected-dot"></div>}
-                                            {!isAvailable && !isSelected && <AlertTriangle size={10} className="warning-icon" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div className="info-banner">
-                                <Info size={14} className="info-icon" />
-                                <p>
-                                    Professor is <strong>unavailable</strong> on grayed-out days for the {selectedSchedule?.section_session} session.
-                                </p>
-                            </div>
-                        </div>
+                        {/* SECTION VIEW: Visual Weekly Timetable Grid */}
+                        {selectedSection && (() => {
+                            const TIME_SLOTS = [];
+                            for (let h = 7; h <= 19; h++) {
+                                TIME_SLOTS.push(`${String(h).padStart(2, '0')}:00`);
+                                if (h < 19) TIME_SLOTS.push(`${String(h).padStart(2, '0')}:30`);
+                            }
+                            const GRID_DAYS = ['M', 'T', 'W', 'TH', 'F', 'S'];
+                            const DAY_LABELS = { M: 'Mon', T: 'Tue', W: 'Wed', TH: 'Thu', F: 'Fri', S: 'Sat' };
+                            const COLORS = [
+                                { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af' },
+                                { bg: '#f0fdf4', border: '#22c55e', text: '#166534' },
+                                { bg: '#fefce8', border: '#eab308', text: '#854d0e' },
+                                { bg: '#fdf2f8', border: '#ec4899', text: '#9d174d' },
+                                { bg: '#f5f3ff', border: '#8b5cf6', text: '#5b21b6' },
+                                { bg: '#fff7ed', border: '#f97316', text: '#9a3412' },
+                                { bg: '#ecfeff', border: '#06b6d4', text: '#155e75' },
+                                { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' },
+                            ];
 
-                        {/* Time & Room */}
-                        <div className="form-row-two-col">
-                            <Input 
-                                label={<span className="field-label-with-icon"><Clock size={14} className="text-emerald" /> Start Time</span>}
-                                type="time" 
-                                value={formData.start_time} 
-                                onChange={(e) => setFormData({...formData, start_time: e.target.value})} 
-                            />
-                            <Input 
-                                label={<span className="field-label-with-icon"><Clock size={14} className="text-rose" /> End Time</span>}
-                                type="time" 
-                                value={formData.end_time} 
-                                onChange={(e) => setFormData({...formData, end_time: e.target.value})} 
-                            />
-                        </div>
+                            // Build color map per subject code
+                            const subjectCodes = [...new Set(profSchedules.map(s => s.subject_code))];
+                            const colorMap = {};
+                            subjectCodes.forEach((code, i) => { colorMap[code] = COLORS[i % COLORS.length]; });
 
-                        <Select 
-                            label={<span className="field-label-with-icon"><MapPin size={14} /> Room Assignment</span>}
-                            placeholder="Automatic / TBA"
-                            value={formData.room}
-                            onChange={(e) => setFormData({...formData, room: e.target.value})}
-                            options={rooms.map(r => ({
-                                value: r.id,
-                                label: `${r.name} (${r.room_type} — Capacity: ${r.capacity})`
-                            }))}
-                        />
+                            // Parse time helper
+                            const timeToMinutes = (t) => {
+                                if (!t) return 0;
+                                const [h, m] = t.substring(0, 5).split(':').map(Number);
+                                return h * 60 + m;
+                            };
+                            const startMinute = 7 * 60; // 7:00 AM
+                            const SLOT_HEIGHT = 28; // px per 30 minutes
+                            
+                            // Find scheduled blocks per day
+                            const getBlocksForDay = (dayKey) => {
+                                return profSchedules.filter(s => s.days && s.days.includes(dayKey) && s.start_time && s.end_time);
+                            };
+
+                            return (
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                    {/* Timetable Grid */}
+                                    <div className="lg:col-span-9">
+                                        <div className="flex justify-between items-center mb-4 px-1">
+                                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Weekly Timetable</h3>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="xs"
+                                                    style={{ fontWeight: 800 }}
+                                                    icon={<Shuffle size={14} />}
+                                                    onClick={() => setIsRandomizeModalOpen(true)}
+                                                >
+                                                    RANDOMIZE
+                                                </Button>
+                                                <Badge variant="primary" className="text-[10px] font-black">{profSchedules.length} Components</Badge>
+                                            </div>
+                                        </div>
+                                        <div className="timetable-grid-wrapper">
+                                            <div className="timetable-grid" style={{ gridTemplateColumns: `60px repeat(${GRID_DAYS.length}, 1fr)` }}>
+                                                {/* Header row */}
+                                                <div className="tt-corner"></div>
+                                                {GRID_DAYS.map(d => (
+                                                    <div key={d} className="tt-day-header">{DAY_LABELS[d]}</div>
+                                                ))}
+
+                                                {/* Time rows */}
+                                                {TIME_SLOTS.map((slot, idx) => (
+                                                    <React.Fragment key={slot}>
+                                                        <div className={`tt-time-label ${slot.endsWith(':00') ? '' : 'tt-time-half'}`}>
+                                                            {slot.endsWith(':00') ? slot : ''}
+                                                        </div>
+                                                        {GRID_DAYS.map(dayKey => (
+                                                            <div key={`${dayKey}-${slot}`} className={`tt-cell ${slot.endsWith(':00') ? 'tt-cell-hour' : ''}`}>
+                                                            </div>
+                                                        ))}
+                                                    </React.Fragment>
+                                                ))}
+                                            </div>
+
+                                            {/* Floating schedule blocks */}
+                                            <div className="tt-blocks-overlay" style={{ gridTemplateColumns: `60px repeat(${GRID_DAYS.length}, 1fr)` }}>
+                                                <div></div>
+                                                {GRID_DAYS.map((dayKey, dayIdx) => {
+                                                    const blocks = getBlocksForDay(dayKey);
+                                                    return (
+                                                        <div key={dayKey} className="tt-day-column">
+                                                            {blocks.map(sched => {
+                                                                const top = ((timeToMinutes(sched.start_time) - startMinute) / 30) * SLOT_HEIGHT;
+                                                                const duration = timeToMinutes(sched.end_time) - timeToMinutes(sched.start_time);
+                                                                const height = (duration / 30) * SLOT_HEIGHT;
+                                                                const color = colorMap[sched.subject_code] || COLORS[0];
+
+                                                                return (
+                                                                    <div
+                                                                        key={`${sched.id}-${dayKey}`}
+                                                                        className="tt-block"
+                                                                        style={{
+                                                                            top: `${top}px`,
+                                                                            height: `${Math.max(height - 2, SLOT_HEIGHT - 2)}px`,
+                                                                            backgroundColor: color.bg,
+                                                                            borderLeft: `3px solid ${color.border}`,
+                                                                            color: color.text,
+                                                                        }}
+                                                                        onClick={() => handleOpenSetup(sched)}
+                                                                        title={`${sched.subject_code} (${sched.component_type}) — ${sched.professor_name || 'No Prof'} — ${sched.room_name || 'No Room'}`}
+                                                                    >
+                                                                        <div className="flex flex-col h-full overflow-hidden p-0.5" style={{ fontSize: '9px' }}>
+                                                                            <div className="font-black truncate flex items-center gap-1 leading-tight mb-1">
+                                                                                {sched.subject_code}
+                                                                                <span className="opacity-60 text-[7px] font-bold">({sched.component_type})</span>
+                                                                            </div>
+                                                                            <div className="flex flex-col gap-0.5 mt-auto">
+                                                                                {height > 42 && (
+                                                                                    <div className="flex items-center gap-1 opacity-80 truncate font-black tracking-tight leading-none">
+                                                                                        <CircleUser size={10} strokeWidth={3} className="shrink-0" />
+                                                                                        {sched.professor_name || 'TBA'}
+                                                                                    </div>
+                                                                                )}
+                                                                                {height > 58 && (
+                                                                                    <div className="flex items-center gap-1 opacity-80 truncate font-black tracking-tight leading-none">
+                                                                                        <MapPin size={10} strokeWidth={3} className="shrink-0" />
+                                                                                        {sched.room_name || 'TBA'}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Sidebar: Assignments Tracking Table */}
+                                    <div className="lg:col-span-3 space-y-4">
+                                        <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+                                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                                <h4 className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic">
+                                                    Assignments ({profSchedules.filter(s => s.start_time).length}/{profSchedules.length})
+                                                </h4>
+                                                {profSchedules.length > 0 && profSchedules.every(s => s.start_time) && (
+                                                    <Badge variant="success" className="text-[8px]">Complete</Badge>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="max-h-[500px] overflow-y-auto">
+                                                <table className="w-full text-[10px] text-left border-collapse">
+                                                    <thead className="bg-slate-50 sticky top-0 z-10">
+                                                        <tr>
+                                                            <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">Subject</th>
+                                                            <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 text-center">Hours</th>
+                                                            <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">Type</th>
+                                                            <th className="p-3 font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {profSchedules.map(sched => {
+                                                            const isAssigned = sched.start_time && sched.end_time && sched.days?.length > 0;
+                                                            return (
+                                                                <tr 
+                                                                    key={sched.id} 
+                                                                    className="border-b border-slate-50 hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                                                                    onClick={() => handleOpenSetup(sched)}
+                                                                >
+                                                                    <td className="p-3">
+                                                                        <div className="font-black text-blue-600 group-hover:text-blue-700">{sched.subject_code}</div>
+                                                                        <div className="text-[8px] text-slate-400 truncate w-24 font-medium">{sched.subject_description}</div>
+                                                                    </td>
+                                                                    <td className="p-3 text-center">
+                                                                        <div className="font-bold text-slate-600">{sched.subject_hrs_per_week}h</div>
+                                                                    </td>
+                                                                    <td className="p-3">
+                                                                        <span className="font-bold text-slate-500">{sched.component_type}</span>
+                                                                    </td>
+                                                                    <td className="p-3">
+                                                                        <Badge 
+                                                                            variant={isAssigned ? "success" : "neutral"} 
+                                                                            className="text-[8px] px-1 py-0"
+                                                                        >
+                                                                            {isAssigned ? "Assigned" : "Pending"}
+                                                                        </Badge>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        {/* All Subjects Legend */}
+                                        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Color Legend</h4>
+                                            <div className="space-y-2">
+                                                {subjectCodes.map(code => {
+                                                    const color = colorMap[code];
+                                                    return (
+                                                        <div key={code} className="flex items-center gap-2">
+                                                            <div className="w-3 h-3 rounded" style={{ backgroundColor: color.border }}></div>
+                                                            <span className="text-[10px] font-bold text-slate-600">{code}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
+
+                    {selectedProf && (
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="sidebar-card-dark shadow-xl">
+                                <h4 className="text-lg font-bold uppercase tracking-tight italic border-b border-slate-700 pb-4 mb-4">Expertise & Assignments</h4>
+                                <div className="space-y-3">
+                                    {selectedProf?.assigned_subjects?.map(ps => (
+                                        <div key={ps.id} className="p-3 rounded-lg bg-slate-800 border border-slate-700 group hover:border-blue-500 transition-colors">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className="text-xs font-black text-blue-400 tracking-tight">{ps.subject_details?.code}</span>
+                                                <span className="text-[10px] font-black text-slate-500">{ps.subject_details?.units} UNITS</span>
+                                            </div>
+                                            <div className="text-xs font-bold text-slate-200 line-clamp-1">{ps.subject_details?.name}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <Card title="Load Statistics" className="bg-white border-slate-100">
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center py-3 border-b border-slate-50">
+                                        <span className="text-xs font-bold text-slate-400 uppercase">Employment</span>
+                                        <span className="text-sm font-black text-slate-700">{selectedProf?.employment_status}</span>
+                                    </div>
+                                    <div className="bg-slate-50 p-4 rounded-xl mt-4">
+                                        <div className="flex items-center gap-3 text-blue-600 mb-2">
+                                            <Clock size={16} />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Time Complexity</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 leading-relaxed font-bold">Professor teaching window is validated against Section overlaps and general availability to ensure a conflict-free semester.</p>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+                    )}
                 </div>
-            </Modal>
+            </div>
+
+            {/* Modals moved outside animated container to ensure proper centering (avoids transform Coordinate System overlap) */}
+            <SlotConfigModal 
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                selectedSchedule={selectedSchedule}
+                activeTerm={activeTerm}
+                professors={professors}
+                rooms={rooms}
+                onSuccess={onScheduleSuccess}
+            />
 
             <Modal
                 isOpen={isAddLoadModalOpen}
@@ -960,7 +796,31 @@ const SchedulingPage = () => {
                     </div>
                 </div>
             </Modal>
-        </div>
+
+            <RandomizeOptionsModal 
+                isOpen={isRandomizeModalOpen} 
+                onClose={() => setIsRandomizeModalOpen(false)} 
+                isRandomizing={isRandomizing}
+                onConfirm={async ({ respectProfessor, respectRoom }) => {
+                    try {
+                        setIsRandomizing(true);
+                        const res = await schedulingApi.randomize({
+                            section_id: selectedSection.id,
+                            term_id: activeTerm.id,
+                            respect_professor: respectProfessor,
+                            respect_room: respectRoom
+                        });
+                        setProfSchedules(res.data);
+                        showToast('success', 'Schedule randomized optimally!');
+                        setIsRandomizeModalOpen(false);
+                    } catch (err) {
+                        showToast('error', err.response?.data?.error || 'Failed to randomize schedule');
+                    } finally {
+                        setIsRandomizing(false);
+                    }
+                }} 
+            />
+        </>
     );
 };
 

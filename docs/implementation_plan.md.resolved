@@ -1,0 +1,113 @@
+# Manual Scheduling & Section Management - Technical Plan
+
+The goal is to shift the scheduling responsibility to the Dean using a manual, insight-driven approach with robust conflict detection. Real-time updates (e.g., websockets) are explicitly out of scope for this phase; standard database fetches after form submissions will be utilized.
+
+## 1. User Roles & Navigation Changes
+- **Target Changes**: 
+  - Change the faculty management route to `/admin/faculty`. The old route `/faculty/load` will be completely removed.
+  - Move section generation from `/registrar/sectioning` to `/admin/sectioning`. The old registrar route will be removed from navigation and strictly redirected to the admin route if accessed.
+  - Establish `/dean/scheduling` as the central Hub for Dean scheduling activities. 
+- **Frontend Changes**: Update the sidebar navigation components to reflect these changes for the DEAN and ADMIN role contexts, ensuring deprecated routes are hidden.
+
+## 2. Database Schema Improvements
+
+The current models (`academics.Subject`, `scheduling.Schedule`) support most structural requirements (`hrs_per_week` exists on [Subject](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/apps/academics/models.py#36-58)).
+
+### Schedule Assignment Requirements & Statuses
+- To successfully assign a schedule, the following fields are **REQUIRED**:
+   - [professor](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/management/commands/_base_seeder.py#241-311) (ForeignKey)
+   - [room](file:///c:/Users/Administrator/Desktop/richwell-potal/backend/core/management/commands/_base_seeder.py#205-215) (ForeignKey)
+   - `days` (JSON array, e.g., `["M", "W"]`)
+   - `start_time` (Time)
+   - `end_time` (Time)
+- **Assignment Statuses** (Derived dynamically on the frontend/serializer):
+    - **Unassigned**: All required fields are null/empty.
+    - **Fully Assigned**: All required fields are populated.
+    - **Partially Assigned**: Some fields are populated, but not all.
+
+## 3. API Structure & Conflict Validation Logic
+
+### Conflict Detection Engine
+A new service (`backend/apps/scheduling/services.py`) will handle the overlap logic, invoked during `PUT/PATCH /api/scheduling/<id>/`.
+- **Overlap Formula**: `Time Range A` overlaps `Time Range B` if [(StartA < EndB) AND (EndA > StartB)](file:///c:/Users/Administrator/Desktop/richwell-potal/frontend/src/App.jsx#17-31).
+- **Three-Pillar Check**: For every proposed schedule update, check existing schedules in the same Term that share the same **day(s)**.
+    1. **Professor Conflict**: Does this professor have another class at this time?
+    2. **Room Conflict**: Is this room booked by another section at this time?
+    3. **Section Conflict**: Does this section already have another subject scheduled at this time?
+
+### API Endpoints and Example Responses
+
+**1. Update Schedule Assignment [PUT/PATCH] `/api/scheduling/<id>/`**
+- *Success Response (200 OK)*: `{ "id": 1, "status": "fully_assigned", ... }`
+- *Error Response (400 Bad Request - Conflict)*:
+```json
+{
+  "error": "Schedule Conflict Detected",
+  "conflict_details": {
+    "type": "room_conflict",
+    "message": "Currently using this slot:",
+    "time": "Monday 9:00 - 11:00",
+    "subject": "Database Lab",
+    "section": "BSIS 1A",
+    "professor": "Prof. Cruz",
+    "room": "Laboratory 1"
+  }
+}
+```
+
+**2. Faculty List (with computed load) [GET] `/api/faculty/`**
+- *Response (200 OK)*:
+```json
+[
+  {
+    "id": 1,
+    "name": "Prof A",
+    "department": "CCS",
+    "hours_assigned": 12.0
+  }
+]
+```
+*(Calculated via `SUM(Subject.hrs_per_week)` for all assigned schedules for that professor).*
+
+**3. Insight Endpoints [GET]**
+- `/api/scheduling/insights/faculty/<id>/`
+- `/api/scheduling/insights/room/<id>/`
+- `/api/scheduling/insights/section/<id>/`
+- *Example Response structure*:
+```json
+{
+  "Monday": [
+    {"time": "9:00 - 10:30", "subject": "Programming 1", "section": "BSIS 1A"}
+  ],
+  "Tuesday": [
+    {"time": "1:00 - 4:00", "subject": "Database Lab", "section": "BSIS 1B"}
+  ]
+}
+```
+
+**4. Section Generation Preview [POST] `/api/sections/preview-generation/`**
+- *Request Body*: `{ "total_students": 170, "desired_sections": 5 }`
+- *Response (200 OK)*: `{ "students_per_section": 34, "remainder": 0 }`
+
+## 4. UI Workflow Enhancements
+
+### Faculty Management (`/admin/faculty`)
+- Update the Faculty Data Table to include the new "Hours Assigned" column.
+- Add a "View Load" action icon. Clicking this opens a **Faculty Load Modal** using the insight endpoint data.
+
+### Section Generation Preview (`/admin/sectioning`)
+- Intercept the "Generate Section" button click.
+- Launch a modal showing:
+    - Total Students
+    - Number Input: "How many sections do you want?"
+    - Dynamic Preview relying on the preview endpoint calculation.
+- Confirmation proceeds with actual section generation.
+
+### The Dean Scheduling Hub (`/dean/scheduling`)
+- Displays all generated sections and their subjects.
+- Color codes subjects by Assignment Status (Unassigned, Partial, Fully).
+- Includes an **Insights Drawer/Sidebar**: Allow the Dean to select a Room or Professor and immediately see their week schedule.
+- **Conflict Handling**: If an assignment fails, parse the `conflict_details` from the 400 response and display the exact conflict warning snippet.
+
+---
+*Note: Students and Professors will also have read-only views of their respective schedules fetching from the same insight endpoints.*

@@ -2,6 +2,8 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from apps.accounts.serializers import UserSerializer
 from .models import Professor, ProfessorSubject, ProfessorAvailability
+from apps.terms.models import Term
+from django.db.models import Sum
 
 User = get_user_model()
 
@@ -37,16 +39,26 @@ class ProfessorSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'employee_id', 'department', 
             'employment_status', 'date_of_birth', 'is_active', 
-            'assigned_subjects', 'availability', 'assignment_count', 
-            'created_at', 'updated_at'
+            'assigned_subjects', 'availability', 'hours_assigned', 
+            'assignment_count', 'created_at', 'updated_at'
         ]
 
+    hours_assigned = serializers.SerializerMethodField()
+
+    def get_hours_assigned(self, obj):
+        active_term = Term.objects.filter(is_active=True).first()
+        if not active_term:
+            return 0
+        total = obj.schedules.filter(term=active_term).aggregate(
+            total=Sum('subject__hrs_per_week')
+        )['total'] or 0
+        return float(total)
+
     def get_assignment_count(self, obj):
-        # Count actual Schedule records assigned to this professor
-        # Note: Ideally we filter by current term, but since term isn't in context 
-        # easily here without extra work, total assignments is a decent proxy 
-        # for a dashboard list.
-        return obj.schedules.count()
+        active_term = Term.objects.filter(is_active=True).first()
+        if not active_term:
+            return 0
+        return obj.schedules.filter(term=active_term).count()
 
 class ProfessorCreateUpdateSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(write_only=True)

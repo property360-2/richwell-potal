@@ -45,20 +45,30 @@ const getNavItems = (role, isSuperUser = false) => {
     items.push({ path: '/students', label: 'Students', icon: GraduationCap });
   }
 
+  // Registrar Specifics
   if (['REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN'].includes(normalizedRole)) {
     items.push({ path: '/registrar/verification', label: 'Verify Docs', icon: ClipboardList });
     items.push({ path: '/registrar/crediting', label: 'Subject Crediting', icon: BookOpen });
-    items.push({ path: '/registrar/sectioning', label: 'Sectioning', icon: Users });
   }
 
-  if (['PROGRAM_HEAD', 'DEAN', 'ADMIN'].includes(normalizedRole)) {
-     items.push({ path: '/faculty/load', label: 'Faculty Load', icon: Briefcase });
-     if (normalizedRole === 'DEAN' || normalizedRole === 'ADMIN') {
-        items.push({ path: '/dean/scheduling', label: 'Scheduling', icon: Clock });
-     }
-     if (normalizedRole === 'PROGRAM_HEAD' || normalizedRole === 'ADMIN') {
-        items.push({ path: '/program-head/advising', label: 'Advising Approval', icon: CheckCircle });
-     }
+  // Dean Logic
+  if (normalizedRole === 'DEAN') {
+    items.push({ type: 'label', label: 'Quick Actions' });
+    items.push({ path: '/dean/scheduling', label: 'Manage Schedules', icon: Clock });
+    items.push({ path: '/admin/faculty', label: 'Faculty Assignment', icon: Briefcase });
+    items.push({ path: '/admin/rooms', label: 'Room Management', icon: Building });
+    items.push({ path: '/admin/academics', label: 'Academic Programs', icon: BookOpen });
+    items.push({ path: '/admin/sectioning', label: 'Sectioning Hub', icon: Users });
+  }
+
+  // Admin & Registrar shared logic for Sectioning
+  if (normalizedRole === 'ADMIN') {
+    items.push({ path: '/admin/sectioning', label: 'Sectioning', icon: Users });
+    items.push({ path: '/dean/scheduling', label: 'Scheduling', icon: Clock });
+  }
+
+  if (normalizedRole === 'PROGRAM_HEAD') {
+    items.push({ path: '/program-head/advising', label: 'Advising Approval', icon: CheckCircle });
   }
 
   if (['CASHIER', 'ADMIN'].includes(normalizedRole)) {
@@ -109,19 +119,28 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
         <nav className="sidebar-nav">
           <ul>
-            {navItems.map((item) => (
-              <li key={item.path}>
-                <NavLink 
-                  to={item.path} 
-                  className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-                  style={({ isActive }) => isActive && !collapsed ? { borderLeftColor: themeColor, backgroundColor: 'var(--color-primary-light)', color: themeColor } : {}}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <item.icon size={20} className="nav-icon" />
-                  {!collapsed && <span className="nav-label">{item.label}</span>}
-                </NavLink>
-              </li>
-            ))}
+            {navItems.map((item, idx) => {
+              if (item.type === 'label') {
+                return !collapsed ? (
+                  <li key={`label-${idx}`} className="nav-group-label">
+                    {item.label}
+                  </li>
+                ) : <li key={`label-${idx}`} className="nav-group-divider" />;
+              }
+              return (
+                <li key={item.path}>
+                  <NavLink 
+                    to={item.path} 
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                    style={({ isActive }) => isActive && !collapsed ? { borderLeftColor: themeColor, backgroundColor: 'var(--color-primary-light)', color: themeColor } : {}}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <item.icon size={20} className="nav-icon" />
+                    {!collapsed && <span className="nav-label">{item.label}</span>}
+                  </NavLink>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 
