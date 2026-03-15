@@ -67,6 +67,8 @@ class StudentEnrollmentSerializer(serializers.ModelSerializer):
     student_idn = serializers.CharField(source='student.idn', read_only=True)
     program_code = serializers.CharField(source='student.program.code', read_only=True)
 
+    is_schedule_picked = serializers.SerializerMethodField()
+    
     class Meta:
         model = StudentEnrollment
         fields = [
@@ -74,7 +76,12 @@ class StudentEnrollmentSerializer(serializers.ModelSerializer):
             'program_code', 'term', 'term_details',
             'advising_status', 'advising_approved_by', 'advising_approved_at',
             'is_regular', 'year_level', 'monthly_commitment',
-            'enrolled_by', 'enrollment_date'
+            'enrolled_by', 'enrollment_date', 'is_schedule_picked'
         ]
         read_only_fields = ['enrollment_date']
+
+    def get_is_schedule_picked(self, obj):
+        from apps.sections.models import SectionStudent
+        return SectionStudent.objects.filter(student=obj.student, section__term=obj.term).exists()
+
 

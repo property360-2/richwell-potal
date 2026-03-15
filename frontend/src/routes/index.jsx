@@ -61,6 +61,8 @@ const ResolutionApproval = lazy(() => import('../pages/program-head/ResolutionAp
 // Faculty Pages
 const ProfessorDashboard = lazy(() => import('../pages/faculty/ProfessorDashboard'));
 const GradeEntry = lazy(() => import('../pages/faculty/GradeEntry'));
+const ProfessorSchedule = lazy(() => import('../pages/faculty/ProfessorSchedule'));
+const ProfessorResolutions = lazy(() => import('../pages/faculty/ProfessorResolutions'));
 
 // Cashier Pages
 const CashierDashboard = lazy(() => import('../pages/cashier/CashierDashboard'));
@@ -234,8 +236,14 @@ const AppRoutes = () => {
           <Route element={<PageWrapper title="Professor Dashboard" />}>
             <Route path="/professor" element={<ProfessorDashboard />} />
           </Route>
-          <Route element={<PageWrapper title="Grade Entry" />}>
+          <Route element={<PageWrapper title="My Classes" />}>
             <Route path="/professor/grading" element={<GradeEntry />} />
+          </Route>
+          <Route element={<PageWrapper title="My Schedule" />}>
+            <Route path="/professor/schedule" element={<ProfessorSchedule />} />
+          </Route>
+          <Route element={<PageWrapper title="INC Resolutions" />}>
+            <Route path="/professor/resolutions" element={<ProfessorResolutions />} />
           </Route>
         </Route>
 

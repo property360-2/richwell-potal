@@ -8,6 +8,21 @@ python manage.py seed_advising          # Enrolled students
     - 1 Term (Active, 2026-1)
     - Standard Staff Users (admin, registrar, cashier, etc.)
   Perfect for manual testing of Section Generation and Scheduling.
+  
+  Login Credentials (First 5 Users):
+    Students:
+      - Username: 270001, Password: 2700010202 (DOB: 2005-02-02)
+      - Username: 270002, Password: 2700020303 (DOB: 2005-03-03)
+      - Username: 270003, Password: 2700030404 (DOB: 2005-04-04)
+      - Username: 270004, Password: 2700040505 (DOB: 2005-05-05)
+      - Username: 270005, Password: 2700050606 (DOB: 2005-06-06)
+
+    Professors:
+      - Username: prof1, Password: EMP0010101 (DOB: 1985-01-01)
+      - Username: prof2, Password: EMP0020515 (DOB: 1986-05-15)
+      - Username: prof3, Password: EMP0031020 (DOB: 1987-10-20)
+      - Username: prof4, Password: EMP0040210 (DOB: 1988-02-10)
+      - Username: prof5, Password: EMP0050320 (DOB: 1989-03-20)
 
 python manage.py seed_grade_submission  # Professors submit grades
 

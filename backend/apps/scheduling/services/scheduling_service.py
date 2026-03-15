@@ -34,7 +34,7 @@ class SchedulingService:
                     recipient=enrollment.student.user,
                     title="Schedule Published",
                     message=f"Class schedules for {term.code} are now available. You may pick your section/schedule.",
-                    notification_type="SCHEDULE_PUBLISHED",
+                    type=Notification.NotificationType.SCHEDULE,
                     link_url=link_url
                 )
     @transaction.atomic

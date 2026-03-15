@@ -396,7 +396,8 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
             for s in schedules:
                 schedule_data.append({
                     "subject_code": g.subject.code,
-                    "subject_name": g.subject.name,
+                    "subject_name": g.subject.description,
+                    "section_name": s.section.name,
                     "days": s.days,
                     "start_time": s.start_time.strftime('%H:%M') if s.start_time else None,
                     "end_time": s.end_time.strftime('%H:%M') if s.end_time else None,

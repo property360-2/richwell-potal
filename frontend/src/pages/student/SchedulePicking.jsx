@@ -133,31 +133,25 @@ const SchedulePicking = () => {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const pickingNotPublished = activeTerm && !activeTerm.schedule_published;
-  const pickingNotStarted = activeTerm?.schedule_picking_start && today < activeTerm.schedule_picking_start;
-  const pickingEnded = activeTerm?.schedule_picking_end && today > activeTerm.schedule_picking_end;
-  // Removed pickingNotPublished from blocker: Students can pick as soon as sections are generated.
-  const pickingBlocked = (activeTerm?.schedule_picking_start && pickingNotStarted) || pickingEnded;
+  
+  const pickingBlocked = enrollment.is_schedule_picked;
 
   if (pickingBlocked && activeTerm) {
-    let title = 'Schedule Picking Unavailable';
-    let message = 'You cannot pick your schedule at this time.';
-    if (pickingNotPublished) {
-      title = 'Schedule Not Published Yet';
-      message = 'The Dean has not published the schedule for this term. Please check back later.';
-    } else if (pickingNotStarted) {
-      title = 'Picking Period Not Started';
-      message = `Schedule picking opens on ${activeTerm.schedule_picking_start}.`;
-    } else if (pickingEnded) {
-      title = 'Picking Period Ended';
-      message = `Schedule picking ended on ${activeTerm.schedule_picking_end}. Please contact the Registrar.`;
+    let title = 'Schedule Locked';
+    let message = 'Your schedule for this term has already been finalized and locked.';
+    
+    if (enrollment.is_schedule_picked) {
+        title = 'Schedule Already Selected';
+        message = 'You have already picked your schedule for this term. You can view your active timetable in the "My Schedule" page.';
     }
+
     return (
       <div className="picking-container" style={{ alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
         <div style={{ maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Calendar size={64} style={{ color: 'var(--color-border)', marginBottom: 'var(--space-6)' }} />
+            <CheckSquare size={64} style={{ color: 'var(--color-success)', marginBottom: 'var(--space-6)' }} />
             <h2 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>{title}</h2>
             <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-6)' }}>{message}</p>
+            <Button variant="primary" onClick={() => navigate('/student/schedule')}>View My Schedule</Button>
         </div>
       </div>
     );
@@ -246,7 +240,7 @@ const SchedulePicking = () => {
                 })}
               </div>
 
-              {enrollment.enrollment_status === 'ENROLLED' && (
+              {enrollment.is_schedule_picked && (
                 <div style={{ margin: 'var(--space-8)', marginTop: 0, padding: 'var(--space-6)', backgroundColor: 'var(--color-success-light)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-success)', display: 'flex', gap: 'var(--space-4)' }}>
                     <CheckSquare size={24} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
                     <div>
@@ -263,12 +257,13 @@ const SchedulePicking = () => {
                     Selected: <span style={{ color: 'var(--color-primary)' }}>{selectedSession === 'AM' ? 'Morning (AM)' : 'Afternoon (PM)'} Block</span>
                    </span>
                 </div>
+
                 <Button 
                   variant="primary" 
                   size="lg" 
                   loading={isProcessing}
                   onClick={handlePickRegular}
-                  disabled={enrollment.enrollment_status === 'ENROLLED'}
+                  disabled={enrollment.is_schedule_picked}
                 >
                   Confirm & Lock Schedule
                 </Button>
@@ -335,7 +330,7 @@ const SchedulePicking = () => {
                   size="lg" 
                   loading={isProcessing}
                   onClick={handlePickIrregular}
-                  disabled={Object.keys(selectedSections).length < approvedGrades.length || enrollment.enrollment_status === 'ENROLLED'}
+                  disabled={Object.keys(selectedSections).length < approvedGrades.length || enrollment.is_schedule_picked}
                 >
                   Finalize Timetable
                 </Button>

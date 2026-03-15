@@ -80,6 +80,13 @@ const getNavItems = (role, isSuperUser = false) => {
     items.push({ path: '/admin/audit', label: 'Audit Logs', icon: Settings });
   }
 
+  if (normalizedRole === 'PROFESSOR') {
+    items[0].path = '/professor'; // Point Dashboard directly to professor page
+    items.push({ path: '/professor/grading', label: 'My Classes', icon: BookOpen });
+    items.push({ path: '/professor/schedule', label: 'My Schedule', icon: Clock });
+    items.push({ path: '/professor/resolutions', label: 'INC Resolutions', icon: CheckCircle });
+  }
+
   if (normalizedRole === 'STUDENT') {
     items[0].path = '/student'; // Point Dashboard directly to student page
     items.push({ path: '/student/advising', label: 'Subject Advising', icon: ClipboardList });

@@ -9,15 +9,12 @@ class PickingService:
     def validate_picking_period(term):
         """
         Validates that schedule picking is allowed for this term.
-        Raises ValueError if schedule not published or outside picking period.
+        Checks that sections are generated for this term.
         """
-        if not term.schedule_published:
-            raise ValueError("Schedule has not been published yet. Please wait for the Dean to publish the schedule.")
-        today = timezone.localdate()
-        if term.schedule_picking_start and today < term.schedule_picking_start:
-            raise ValueError(f"Schedule picking opens on {term.schedule_picking_start.strftime('%Y-%m-%d')}.")
-        if term.schedule_picking_end and today > term.schedule_picking_end:
-            raise ValueError(f"Schedule picking has ended ({term.schedule_picking_end.strftime('%Y-%m-%d')}).")
+        from apps.sections.models import Section
+        if not Section.objects.filter(term=term).exists():
+            raise ValueError("Sections have not been generated yet for this term. Please wait for the Dean to set up the classes.")
+
 
     @transaction.atomic
     def pick_schedule_regular(self, student, term, preferred_session):
@@ -33,6 +30,11 @@ class PickingService:
         if not enrollment:
             raise ValueError("Student enrollment not found for this term.")
             
+        # Check if already picked for this term
+        from apps.sections.models import SectionStudent
+        if SectionStudent.objects.filter(student=student, section__term=term).exists():
+            raise ValueError("Your schedule for this term has already been picked and locked.")
+
         if not enrollment.is_regular:
             raise ValueError("Student is classified as Irregular. Please use the individual schedule picker.")
 
@@ -96,6 +98,10 @@ class PickingService:
         selections: list of {'subject_id': id, 'section_id': id}
         """
         self.validate_picking_period(term)
+
+        from apps.sections.models import SectionStudent
+        if SectionStudent.objects.filter(student=student, section__term=term).exists():
+            raise ValueError("Your schedule for this term has already been picked and locked.")
 
         for item in selections:
             subject_id = item.get('subject_id')

@@ -126,6 +126,7 @@ const Login = () => {
                 placeholder="••••••••"
                 icon={Lock}
                 error={errors.password?.message}
+                autoComplete="current-password"
                 {...register('password', { required: 'Password is required' })}
               />
               <div className="flex justify-end mt-1">

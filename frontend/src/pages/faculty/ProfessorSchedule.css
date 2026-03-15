@@ -1,0 +1,333 @@
+.professor-schedule-container {
+  overflow-x: auto;
+  padding-bottom: var(--space-4);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+.professor-schedule-grid-wrapper {
+  min-width: 800px;
+}
+
+.professor-schedule-header {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.professor-schedule-time-col-header {
+  width: 80px;
+  flex-shrink: 0;
+  text-align: center;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  padding: var(--space-3) 0;
+  background-color: var(--color-bg);
+}
+
+.professor-schedule-day-header {
+  flex: 1;
+  text-align: center;
+  font-weight: 600;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  padding: var(--space-3) 0;
+  border-left: 1px solid var(--color-border);
+}
+
+.professor-schedule-body {
+  display: flex;
+  position: relative;
+}
+
+.professor-schedule-time-col {
+  width: 80px;
+  flex-shrink: 0;
+  background-color: var(--color-surface);
+  position: relative;
+  z-index: 10;
+  border-right: 1px solid var(--color-border);
+}
+
+.professor-schedule-time-label {
+  position: absolute;
+  width: 100%;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-align: right;
+  padding-right: var(--space-2);
+}
+
+.professor-schedule-bg-lines {
+  position: absolute;
+  inset: 0;
+  left: 80px;
+  right: 0;
+  pointer-events: none;
+}
+
+.professor-schedule-bg-line {
+  position: absolute;
+  width: 100%;
+  border-top: 1px solid var(--color-border-light, #f1f5f9);
+}
+
+.professor-schedule-days-container {
+  flex: 1;
+  display: flex;
+}
+
+.professor-schedule-day-col {
+  flex: 1;
+  position: relative;
+  border-right: 1px solid var(--color-border-light, #f1f5f9);
+}
+
+.professor-schedule-day-col:last-child {
+  border-right: none;
+}
+
+.professor-schedule-block {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  background-color: var(--color-primary-light, #eff6ff);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: box-shadow var(--transition-fast), z-index 0s;
+  z-index: 20;
+}
+
+.professor-schedule-block:hover {
+  box-shadow: var(--shadow-md);
+  z-index: 30;
+}
+
+.professor-schedule-block-code {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-primary-dark, #1e3a8a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.professor-schedule-block-section {
+  font-size: 10px;
+  color: var(--color-primary, #1d4ed8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.professor-schedule-block-room {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.professor-schedule-tooltip {
+  position: absolute;
+  display: none;
+  z-index: 50;
+  background-color: #1e293b;
+  color: white;
+  font-size: var(--font-size-xs);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl);
+  top: 100%;
+  margin-top: 4px;
+  left: 0;
+  width: 192px;
+  word-wrap: break-word;
+  pointer-events: none;
+}
+
+.professor-schedule-block:hover .professor-schedule-tooltip {
+  display: block;
+}
+
+/* List View Styles */
+.professor-list-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.professor-list-day-card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.professor-list-day-header {
+  background-color: var(--color-bg);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.professor-list-day-title {
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.professor-list-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.professor-list-item {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--color-border-light, #f1f5f9);
+  transition: background-color var(--transition-fast);
+}
+
+.professor-list-item:hover {
+  background-color: var(--color-bg);
+}
+
+.professor-list-item:last-child {
+  border-bottom: none;
+}
+
+@media (min-width: 768px) {
+  .professor-list-item {
+    flex-direction: row;
+  }
+}
+
+.professor-list-time-block {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+@media (min-width: 768px) {
+  .professor-list-time-block {
+    width: 192px;
+  }
+}
+
+.professor-list-time-icon {
+  color: var(--color-text-muted);
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.professor-list-time-text {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.professor-list-time-subtext {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.professor-list-details-block {
+  flex: 1;
+}
+
+.professor-list-details-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.professor-list-subject-code {
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+  color: var(--color-primary);
+}
+
+.professor-list-subject-desc {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+  margin-top: 0;
+}
+
+.professor-list-room {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.professor-list-room-icon {
+  margin-right: 4px;
+  color: var(--color-text-muted);
+}
+
+.professor-schedule-empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--color-border);
+}
+
+.professor-schedule-toggles {
+  display: flex;
+  background-color: var(--color-bg);
+  padding: 4px;
+  border-radius: var(--radius-md);
+}
+
+.professor-schedule-toggle-btn {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.professor-schedule-toggle-btn:hover {
+  color: var(--color-text);
+}
+
+.professor-schedule-toggle-btn.active {
+  background-color: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.professor-schedule-header-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .professor-schedule-header-container {
+    flex-direction: row;
+    align-items: center;
+  }
+}

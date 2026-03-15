@@ -160,6 +160,46 @@ class SectionViewSet(viewsets.ModelViewSet):
         serializer = SectionStudentSerializer(assignments, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['GET'], url_path='my-schedule')
+    def my_schedule(self, request):
+        """
+        Returns full schedule details (time, day, room) for the logged-in professor.
+        """
+        if not hasattr(request.user, 'professor_profile'):
+            return Response({"error": "User does not have a professor profile."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        professor = request.user.professor_profile
+        active_term = Term.objects.filter(is_active=True).first()
+        
+        if not active_term:
+            return Response({"error": "No active term found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.scheduling.models import Schedule
+        schedules = Schedule.objects.filter(
+            professor=professor,
+            term=active_term
+        ).select_related('section', 'subject', 'room')
+
+        results = []
+        for sched in schedules:
+            results.append({
+                "id": sched.id,
+                "days": sched.days,
+                "start_time": sched.start_time.strftime("%H:%M:%S") if sched.start_time else None,
+                "end_time": sched.end_time.strftime("%H:%M:%S") if sched.end_time else None,
+                "room": sched.room.name if sched.room else "TBA",
+                "section": {
+                    "id": sched.section.id,
+                    "name": sched.section.name,
+                },
+                "subject": {
+                    "id": sched.subject.id,
+                    "code": sched.subject.code,
+                    "description": sched.subject.description,
+                }
+            })
+            
+        return Response(results)
     @action(detail=False, methods=['GET'], url_path='my-sections')
     def my_sections(self, request):
         """
@@ -195,7 +235,7 @@ class SectionViewSet(viewsets.ModelViewSet):
                     "subject": {
                         "id": sched.subject.id,
                         "code": sched.subject.code,
-                        "name": sched.subject.name,
+                        "description": sched.subject.description,
                     }
                 })
                 seen_pairs.add(pair)
