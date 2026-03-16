@@ -1,0 +1,88 @@
+.release-doc-container {
+    position: relative;
+    display: inline-block;
+}
+
+.release-doc-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 0.5rem;
+    width: 200px;
+    background: white;
+    border: 1px solid var(--color-slate-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    z-index: 50;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    overflow: hidden;
+}
+
+.release-doc-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    color: var(--color-slate-700);
+    border-radius: var(--radius-md);
+    transition: all 0.2s;
+    text-align: left;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.release-doc-item:hover {
+    background: var(--color-slate-50);
+    color: var(--color-primary);
+}
+
+.release-doc-item svg {
+    color: var(--color-slate-400);
+}
+
+.release-doc-item:hover svg {
+    color: var(--color-primary);
+}
+
+/* Animate-in utilities if not defined elsewhere */
+.animate-in {
+    animation-duration: 200ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    animation-fill-mode: forwards;
+}
+
+.fade-in {
+    animation-name: fadeIn;
+}
+
+.zoom-in-95 {
+    animation-name: zoomIn95;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes zoomIn95 {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}

@@ -6,20 +6,13 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import AuditLog
 from .serializers import AuditLogSerializer
 
-class IsAdminOrHeadRegistrar(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if not request.user.is_authenticated:
-            return False
-        if request.user.role == 'ADMIN':
-            return True
-        if request.user.role == 'REGISTRAR' and getattr(request.user, 'is_head', False):
-            return True
-        return False
+from core.permissions import IsHeadRegistrar
+
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AuditLog.objects.all()
     serializer_class = AuditLogSerializer
-    permission_classes = [IsAdminOrHeadRegistrar]
+    permission_classes = [IsHeadRegistrar]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['user', 'action', 'model_name', 'created_at']
     search_fields = ['object_id', 'object_repr', 'user__username', 'user__first_name', 'user__last_name']
@@ -29,8 +22,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = super().get_queryset()
-        if user.role == 'REGISTRAR':
-             queryset = queryset.filter(user__role='REGISTRAR')
+        if user.role in ('REGISTRAR', 'HEAD_REGISTRAR'):
+             # Head Registrar sees logs for anyone in the registrar department
+             queryset = queryset.filter(user__role__in=['REGISTRAR', 'HEAD_REGISTRAR'])
         return queryset
 
     @decorators.action(detail=False, methods=['get'])

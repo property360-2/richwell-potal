@@ -13,4 +13,5 @@ export const reportsApi = {
         params: { student_id }
     }),
     getStats: () => api.get('reports/stats/'),
+    getAcademicSummary: (params) => api.get('reports/academic-summary/', { params }),
 };

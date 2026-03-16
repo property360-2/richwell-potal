@@ -9,6 +9,7 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Badge from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../hooks/useAuth';
 import { Plus, Edit2, KeyRound } from 'lucide-react';
 
 const ROLE_OPTIONS = [
@@ -21,7 +22,13 @@ const ROLE_OPTIONS = [
   { value: 'ADMIN', label: 'Admin' },
 ];
 
+const REGISTRAR_ONLY_OPTIONS = [
+  { value: 'REGISTRAR', label: 'Registrar' },
+  { value: 'HEAD_REGISTRAR', label: 'Head Registrar' },
+];
+
 const StaffManagement = () => {
+  const { role } = useAuth();
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -100,7 +107,7 @@ const StaffManagement = () => {
   const handleResetPassword = async (id) => {
     if (!window.confirm('Are you sure you want to reset this user\'s password?')) return;
     try {
-      const res = await api.post(`accounts/staff/${id}/reset_password/`);
+      const res = await api.post(`accounts/staff/${id}/reset-password/`);
       showToast('success', res.data.detail || 'Password reset successfully');
     } catch (err) {
       showToast('error', 'Failed to reset password');
@@ -211,7 +218,7 @@ const StaffManagement = () => {
           <div className="grid grid-cols-2 gap-4">
             <Select
               label="Role"
-              options={ROLE_OPTIONS}
+              options={role === 'HEAD_REGISTRAR' ? REGISTRAR_ONLY_OPTIONS : ROLE_OPTIONS}
               error={errors.role?.message}
               {...register('role', { required: 'Role is required' })}
             />

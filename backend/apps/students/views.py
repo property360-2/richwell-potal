@@ -29,7 +29,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         if self.action == 'apply':
             return [permissions.AllowAny()]
         if self.action in ['update', 'partial_update', 'destroy', 'approve', 'unlock_advising', 'toggle_regularity', 'manual_add']:
-            return [IsAdmission()] # Admission/Admin per code
+            return [IsAdmission() | IsRegistrar()]
         return [permissions.IsAuthenticated()]
 
     @action(detail=False, methods=['post'], url_path='apply')
@@ -195,8 +195,8 @@ class StudentViewSet(viewsets.ModelViewSet):
         """
         student = self.get_object()
         
-        # Permission check: Admission, Admin, or the Student themselves
-        if not (request.user.role in ('ADMIN', 'ADMISSION') or request.user.is_superuser or request.user == student.user):
+        # Permission check: Admission, Admin, Registrar or the Student themselves
+        if not (request.user.role in ('ADMIN', 'ADMISSION', 'REGISTRAR', 'HEAD_REGISTRAR') or request.user.is_superuser or request.user == student.user):
             return Response({'error': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
         
         if student.status in ['APPLICANT', 'REJECTED']:

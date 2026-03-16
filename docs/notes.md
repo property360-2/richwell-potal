@@ -45,6 +45,10 @@ npm run test:e2e:ui - Opens the interactive Playwright UI for debugging.
 Backend
 
 
-
-including the applicants navigation too
-also when i click the students navigation it says that i have no  access here as registrar
+payments: 
+month 1: subject enrollment 
+month 2: Chapter Test permit
+month 3: prelims test permit 
+month 4: midterms test permit
+month 5: pre finals test permit
+month 6: finals test permit

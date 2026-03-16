@@ -15,19 +15,32 @@ class SectionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'generate', 'transfer', 'preview_generation']:
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'generate', 'preview_generation']:
             from core.permissions import IsDean, IsRegistrar
             # Allow either Registrar or Dean to perform these actions
             class DeanOrRegistrar(permissions.BasePermission):
                 def has_permission(self, request, view):
                     return IsDean().has_permission(request, view) or IsRegistrar().has_permission(request, view)
             return [DeanOrRegistrar()]
+        if self.action in ['transfer', 'roster']:
+            from core.permissions import IsDean, IsRegistrar, IsProgramHead
+            class MgmtPermissions(permissions.BasePermission):
+                def has_permission(self, request, view):
+                    return (IsDean().has_permission(request, view) or 
+                            IsRegistrar().has_permission(request, view) or 
+                            IsProgramHead().has_permission(request, view))
+            return [MgmtPermissions()]
         return super().get_permissions()
 
     service = SectioningService()
 
     def get_queryset(self):
         queryset = Section.objects.all()
+        
+        # If Program Head, filter by programs they manage
+        if self.request.user.role == 'PROGRAM_HEAD':
+            queryset = queryset.filter(program__program_head=self.request.user)
+
         term_id = self.request.query_params.get('term_id')
         program_id = self.request.query_params.get('program_id')
         year_level = self.request.query_params.get('year_level')
@@ -142,6 +155,10 @@ class SectionViewSet(viewsets.ModelViewSet):
             student = Student.objects.get(id=student_id)
             term = Term.objects.get(id=term_id)
             
+            # Program Head can always override capacity
+            if self.request.user.role == 'PROGRAM_HEAD':
+                override = True
+                
             count = self.service.manual_transfer_student(student, section, term, override_capacity=override)
             return Response({
                 "message": f"Successfully transferred student to {section.name}.",

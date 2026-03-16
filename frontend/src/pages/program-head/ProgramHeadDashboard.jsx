@@ -48,6 +48,14 @@ const ProgramHeadDashboard = () => {
                                 >
                                     Pending Advising
                                 </Button>
+                                <Button
+                                    variant="secondary"
+                                    className="w-full justify-between"
+                                    icon={<ArrowRight size={16} />}
+                                    onClick={() => navigate(`/program-head/sections?program_id=${program.id}`)}
+                                >
+                                    Section Management
+                                </Button>
                             </div>
                         </Card>
                     ))}

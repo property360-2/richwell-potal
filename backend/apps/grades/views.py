@@ -17,7 +17,7 @@ from core.permissions import IsStudent, IsProgramHead, IsRegistrar, IsAdmin, IsP
 class AdvisingViewSet(viewsets.ModelViewSet):
     # ... (existing code remains same)
     serializer_class = GradeSerializer
-    permission_classes = [IsStudent | IsProgramHead | IsAdmin]
+    permission_classes = [IsStudent | IsProgramHead | IsRegistrar | IsAdmin]
     filter_backends = (DjangoFilterBackend,)
     filterset_fields = ['student', 'is_credited', 'term', 'advising_status']
 
@@ -32,7 +32,7 @@ class AdvisingViewSet(viewsets.ModelViewSet):
             # PH only sees grades for students in their headed programs
             return queryset.filter(student__program__program_head=user)
             
-        elif user.role == 'ADMIN':
+        elif user.role in ['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR']:
             return queryset
             
         return queryset.none()
@@ -86,7 +86,7 @@ class AdvisingViewSet(viewsets.ModelViewSet):
 
 
 class AdvisingApprovalViewSet(viewsets.ViewSet):
-    permission_classes = [IsProgramHead | IsAdmin]
+    permission_classes = [IsProgramHead | IsRegistrar | IsAdmin]
 
     @action(detail=False, methods=['post'], url_path='batch-approve-regular')
     def batch_approve_regular(self, request):

@@ -35,6 +35,11 @@ class ScheduleViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        
+        # If Program Head, filter by programs they manage
+        if self.request.user.role == 'PROGRAM_HEAD':
+            queryset = queryset.filter(section__program__program_head=self.request.user)
+
         term_id = self.request.query_params.get('term_id')
         section_id = self.request.query_params.get('section_id')
         professor_id = self.request.query_params.get('professor_id')

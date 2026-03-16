@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, CheckCircle, ShieldAlert, FileCheck, Layers, Filter } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -14,14 +15,13 @@ import SearchBar from '../../components/shared/SearchBar';
 import './GradeFinalization.css';
 
 const GradeFinalization = () => {
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'resolutions'
   const [loading, setLoading] = useState(false);
   const [activeTerm, setActiveTerm] = useState(null);
   const [pendingSections, setPendingSections] = useState([]);
   const [resolutions, setResolutions] = useState([]);
-  const [selectedSection, setSelectedSection] = useState(null);
-  const [roster, setRoster] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -69,9 +69,9 @@ const GradeFinalization = () => {
         setPendingSections(Object.values(grouped));
       } else {
         const res = await gradesApi.getGrades({ 
-           grade_status: 'INC',
-           is_resolution_requested: 'true',
-           is_resolution_approved: 'false'
+          grade_status: 'INC',
+          is_resolution_requested: 'true',
+          is_resolution_approved: 'false'
         });
         setResolutions(res.data?.results || []);
       }
@@ -83,37 +83,8 @@ const GradeFinalization = () => {
     }
   };
 
-  const handleOpenRoster = async (section) => {
-    setSelectedSection(section);
-    try {
-      setLoading(true);
-      const res = await gradesApi.getGrades({ 
-        term: activeTerm.id,
-        section: section.section_id,
-        subject: section.subject_id
-      });
-      setRoster(res.data.results);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFinalize = async () => {
-    try {
-      setLoading(true);
-      await gradesApi.finalizeGrades({
-        term: activeTerm.id,
-        subject: selectedSection.subject_id,
-        section: selectedSection.section_id
-      });
-      addToast('success', 'Grades finalized successfully!');
-      setSelectedSection(null);
-      fetchInitialData();
-    } catch (error) {
-      addToast('error', error.response?.data?.error || 'Finalization failed.');
-    } finally {
-      setLoading(false);
-    }
+  const handleOpenRoster = (section) => {
+    navigate(`/registrar/grades/review/${activeTerm.id}/${section.section_id}/${section.subject_id}`);
   };
 
   const pendingColumns = [
@@ -224,47 +195,6 @@ const GradeFinalization = () => {
             />
           </Card>
       </div>
-
-      {/* Roster Modal */}
-      {selectedSection && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-           <Card className="w-full max-w-4xl shadow-2xl h-[80vh] flex flex-col overflow-hidden">
-                <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                    <div>
-                        <Badge variant="info">{selectedSection.section_name}</Badge>
-                        <h3 className="text-xl font-black text-slate-900 mt-1 uppercase leading-none">
-                            {selectedSection.subject_name}
-                        </h3>
-                    </div>
-                    <Button variant="ghost" onClick={() => setSelectedSection(null)}>Close</Button>
-                </div>
-                <div className="flex-1 overflow-auto p-4">
-                    <Table 
-                       columns={[
-                         { header: 'Student', render: (r) => <div className="font-medium">{r.student_name}</div>},
-                         { header: 'Midterm', accessor: 'midterm_grade'},
-                         { header: 'Final', accessor: 'final_grade'},
-                         { header: 'Status', render: (r) => <Badge variant={r.grade_status === 'PASSED' ? 'success' : 'neutral'}>{r.grade_status_display}</Badge>}
-                       ]}
-                       data={roster}
-                       loading={loading}
-                    />
-                </div>
-                <div className="p-6 border-t border-slate-100 bg-white flex justify-between items-center">
-                    <div className="flex items-center gap-2 text-slate-500 text-sm italic">
-                        <CheckCircle size={16} className="text-emerald-500" />
-                        Finalizing will lock these grades permanently.
-                    </div>
-                    <div className="flex gap-3">
-                        <Button variant="ghost" onClick={() => setSelectedSection(null)}>Cancel</Button>
-                        <Button variant="primary" size="lg" icon={<Layers size={20} />} onClick={handleFinalize}>
-                            Finalize All Grades
-                        </Button>
-                    </div>
-                </div>
-           </Card>
-        </div>
-      )}
     </div>
   );
 };

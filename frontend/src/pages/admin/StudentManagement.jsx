@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Search, UserCheck, GraduationCap, Clock, Plus, UserPlus } from 'lucide-react';
+import { Search, UserCheck, GraduationCap, Clock, Plus, UserPlus, FileText, Download, ChevronDown } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Table from '../../components/ui/Table';
@@ -11,8 +12,12 @@ import Select from '../../components/ui/Select';
 import { useToast } from '../../components/ui/Toast';
 import { studentsApi } from '../../api/students';
 import { academicsApi } from '../../api/academics';
+import { reportsApi } from '../../api/reports';
+import { termsApi } from '../../api/terms';
+import './StudentManagement.css';
 
 const StudentManagement = () => {
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,6 +25,9 @@ const StudentManagement = () => {
   const [programs, setPrograms] = useState([]);
   const [curriculums, setCurriculums] = useState([]);
   const [statusFilter, setStatusFilter] = useState('APPROVED,ENROLLED,INACTIVE,GRADUATED');
+  const [activeTerm, setActiveTerm] = useState(null);
+  const [dropdownStudentId, setDropdownStudentId] = useState(null);
+  const dropdownRef = useRef(null);
   const { addToast } = useToast();
 
   const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm();
@@ -33,7 +41,28 @@ const StudentManagement = () => {
     if (modalOpen) {
       fetchAcademics();
     }
+    fetchActiveTerm();
   }, [modalOpen]);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownStudentId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchActiveTerm = async () => {
+    try {
+      const res = await termsApi.getActiveTerm();
+      setActiveTerm(res.data?.[0] || res.data?.results?.[0]);
+    } catch (err) {
+      console.error("Failed to fetch active term");
+    }
+  };
 
   // Refetch curricula when program changes
   useEffect(() => {
@@ -74,6 +103,45 @@ const StudentManagement = () => {
       setCurriculums(res.data.results.map(c => ({ value: c.id, label: c.version_name })));
     } catch (err) {
       console.error('Failed to fetch curriculums');
+    }
+  };
+
+  const handleDownloadCOR = async (student) => {
+    if (!activeTerm) {
+      addToast('error', 'No active term found for COR generation');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await reportsApi.getCOR({
+        student_id: student.id,
+        term_id: activeTerm.id
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `COR_${student.idn}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      addToast('success', 'COR downloaded successfully');
+    } catch (err) {
+      if (err.response?.data instanceof Blob) {
+        const text = await err.response.data.text();
+        try {
+          const json = JSON.parse(text);
+          addToast('error', json.error || 'Failed to generate COR');
+        } catch (e) {
+          addToast('error', 'Failed to generate COR');
+        }
+      } else {
+        addToast('error', err.response?.data?.error || 'Failed to generate COR. Ensure student is enrolled for the term.');
+      }
+    } finally {
+      setLoading(false);
+      setDropdownStudentId(null);
     }
   };
 
@@ -148,6 +216,47 @@ const StudentManagement = () => {
           </Badge>
         );
       }
+    },
+    {
+      header: 'Actions',
+      align: 'right',
+      render: (student) => (
+        <div className="flex justify-end gap-2">
+          {student.status === 'ENROLLED' && (
+            <div className="release-doc-container" ref={dropdownStudentId === student.id ? dropdownRef : null}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setDropdownStudentId(dropdownStudentId === student.id ? null : student.id)}
+                icon={<FileText size={16} />}
+                className="text-primary hover:bg-primary/5"
+              >
+                Release Document <ChevronDown size={14} className="ml-1" />
+              </Button>
+              
+              {dropdownStudentId === student.id && (
+                <div className="release-doc-dropdown animate-in fade-in zoom-in-95">
+                  <button 
+                    className="release-doc-item"
+                    onClick={() => handleDownloadCOR(student)}
+                  >
+                    <FileText size={16} />
+                    <span>Certificate of Registration (COR)</span>
+                  </button>
+                  <button 
+                    className="release-doc-item"
+                    onClick={() => navigate(`/registrar/students/${student.id}/summary`)}
+                  >
+                    <GraduationCap size={16} />
+                    <span>Summary of Grades</span>
+                  </button>
+                  {/* Future documents can be added here */}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )
     }
   ];
 

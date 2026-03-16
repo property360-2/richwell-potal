@@ -80,6 +80,9 @@ class ReportService:
         enrollment = StudentEnrollment.objects.get(student_id=student_id, term_id=term_id)
         grades = Grade.objects.filter(student_id=student_id, term_id=term_id, advising_status='APPROVED')
         
+        if not grades.exists():
+            raise ValueError("No approved subjects found for this student in the selected term. Please ensure advising is approved.")
+        
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch)
         elements = []

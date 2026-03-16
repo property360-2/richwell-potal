@@ -11,18 +11,10 @@ from apps.notifications.models import Notification
 class AdvisingService:
     @staticmethod
     def check_student_regularity(student, term):
-        """
-        Determines if a student should be Regular or Irregular.
-        Irregular if:
-        1. Has unresolved INC.
-        2. Failed a subject that is a prerequisite for another subject.
-        3. Missing "Back Subjects" (prior units in the curriculum sequence).
-        """
-        # 0. New Transferees are Irregular by default (needs crediting/selection)
-        if student.student_type == 'TRANSFEREE':
-            has_history = Grade.objects.filter(student=student, grade_status=Grade.STATUS_PASSED).exists()
-            if not has_history:
-                return False
+        # 0. Irregular if:
+        # - Has unresolved INC.
+        # - Failed a subject that is a prerequisite for another subject.
+        # - Missing "Back Subjects" (prior units in the curriculum sequence).
 
         # 1. Check for INC
         if Grade.objects.filter(student=student, grade_status=Grade.STATUS_INC).exists():

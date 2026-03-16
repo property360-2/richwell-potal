@@ -32,8 +32,11 @@ const getNavItems = (role, isSuperUser = false) => {
 
   const normalizedRole = role?.toUpperCase() || (isSuperUser ? 'ADMIN' : '');
 
-  if (normalizedRole === 'ADMIN') {
+  if (['ADMIN', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
     items.push({ path: '/admin/staff', label: 'User Management', icon: Users });
+  }
+  
+  if (normalizedRole === 'ADMIN') {
     items.push({ path: '/admin/academics', label: 'Academics', icon: BookOpen });
     items.push({ path: '/admin/terms', label: 'Terms', icon: Calendar });
     items.push({ path: '/admin/faculty', label: 'Faculty', icon: Briefcase });
@@ -75,15 +78,19 @@ const getNavItems = (role, isSuperUser = false) => {
 
   if (normalizedRole === 'PROGRAM_HEAD') {
     items.push({ path: '/program-head/advising', label: 'Advising Approval', icon: CheckCircle });
+    items.push({ path: '/program-head/sections', label: 'Section Management', icon: Users });
   }
 
   if (['CASHIER', 'ADMIN'].includes(normalizedRole)) {
     items.push({ path: '/cashier', label: 'Finance', icon: CreditCard });
   }
 
-  if (['ADMIN'].includes(normalizedRole)) {
-    items.push({ path: '/admin/rooms', label: 'Rooms', icon: Building });
+  if (['ADMIN', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
     items.push({ path: '/admin/audit', label: 'Audit Logs', icon: Settings });
+  }
+
+  if (normalizedRole === 'ADMIN') {
+    items.push({ path: '/admin/rooms', label: 'Rooms', icon: Building });
   }
 
   if (normalizedRole === 'PROFESSOR') {
@@ -100,6 +107,12 @@ const getNavItems = (role, isSuperUser = false) => {
     items.push({ path: '/student/picking', label: 'Schedule Picking', icon: Clock });
     items.push({ path: '/student/schedule', label: 'My Schedule', icon: Clock });
     items.push({ path: '/student/finance', label: 'Payments', icon: CreditCard });
+  }
+
+  if (normalizedRole === 'HEAD_REGISTRAR') {
+    items[0].path = '/head-registrar';
+  } else if (normalizedRole === 'REGISTRAR') {
+    items[0].path = '/registrar';
   }
 
   return items;

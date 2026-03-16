@@ -45,9 +45,11 @@ const DocumentVerification = lazy(() => import('../pages/registrar/DocumentVerif
 const SubjectCrediting = lazy(() => import('../pages/registrar/SubjectCrediting'));
 const SectioningDashboard = lazy(() => import('../pages/registrar/SectioningDashboard'));
 const GradeFinalization = lazy(() => import('../pages/registrar/GradeFinalization'));
+const GradeReviewPage = lazy(() => import('../pages/registrar/GradeReviewPage'));
 const CORPreview = lazy(() => import('../pages/registrar/reports/CORPreview'));
 const MasterlistExport = lazy(() => import('../pages/registrar/reports/MasterlistExport'));
 const GraduationAudit = lazy(() => import('../pages/registrar/reports/GraduationAudit'));
+const SummaryOfGrades = lazy(() => import('../pages/registrar/SummaryOfGrades'));
 
 // Dean Pages
 const DeanDashboard = lazy(() => import('../pages/dean/DeanDashboard'));
@@ -57,6 +59,7 @@ const SchedulingPage = lazy(() => import('../pages/dean/SchedulingPage'));
 const ProgramHeadDashboard = lazy(() => import('../pages/program-head/ProgramHeadDashboard'));
 const AdvisingApproval = lazy(() => import('../pages/program-head/AdvisingApproval'));
 const ResolutionApproval = lazy(() => import('../pages/program-head/ResolutionApproval'));
+const SectionManagement = lazy(() => import('../pages/program-head/SectionManagement'));
 
 // Faculty Pages
 const ProfessorDashboard = lazy(() => import('../pages/faculty/ProfessorDashboard'));
@@ -144,18 +147,21 @@ const AppRoutes = () => {
           </Route>
         </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'HEAD_REGISTRAR']} />}>
           <Route element={<PageWrapper title="Staff Management" />}>
             <Route path="/admin/staff" element={<StaffManagement />} />
           </Route>
-          <Route element={<PageWrapper title="Term Management" />}>
-            <Route path="/admin/terms" element={<TermManagement />} />
-          </Route>
-          <Route element={<PageWrapper title="Admin Dashboard" />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-          </Route>
           <Route element={<PageWrapper title="System Audit Trail" />}>
             <Route path="/admin/audit" element={<AuditLogList />} />
+          </Route>
+          
+          <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+            <Route element={<PageWrapper title="Term Management" />}>
+              <Route path="/admin/terms" element={<TermManagement />} />
+            </Route>
+            <Route element={<PageWrapper title="Admin Dashboard" />}>
+              <Route path="/admin" element={<AdminDashboard />} />
+            </Route>
           </Route>
         </Route>
 
@@ -189,11 +195,13 @@ const AppRoutes = () => {
           </Route>
           <Route element={<PageWrapper title="Grade Management" />}>
             <Route path="/registrar/grades" element={<GradeFinalization />} />
+            <Route path="/registrar/grades/review/:termId/:sectionId/:subjectId" element={<GradeReviewPage />} />
           </Route>
           <Route element={<PageWrapper title="Reports" />}>
             <Route path="/registrar/reports/cor" element={<CORPreview />} />
             <Route path="/registrar/reports/masterlist" element={<MasterlistExport />} />
             <Route path="/registrar/reports/graduation" element={<GraduationAudit />} />
+            <Route path="/registrar/students/:studentId/summary" element={<SummaryOfGrades />} />
           </Route>
         </Route>
 
@@ -221,6 +229,7 @@ const AppRoutes = () => {
             <Route path="/program-head" element={<ProgramHeadDashboard />} />
             <Route path="/program-head/advising" element={<AdvisingApproval />} />
             <Route path="/program-head/resolutions" element={<ResolutionApproval />} />
+            <Route path="/program-head/sections" element={<SectionManagement />} />
           </Route>
 
         </Route>

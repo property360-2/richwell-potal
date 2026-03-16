@@ -127,11 +127,20 @@ class ChangePasswordView(generics.UpdateAPIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+from core.permissions import IsAdmin, IsHeadRegistrar
+from rest_framework.exceptions import PermissionDenied
+
 class StaffManagementViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin | IsHeadRegistrar]
     
     def get_queryset(self):
+        user = self.request.user
         queryset = User.objects.exclude(role='STUDENT').order_by('id')
+        
+        if user.role == 'HEAD_REGISTRAR':
+            # Head Registrar can only see and manage other Registrars (including other Head Registrars)
+            queryset = queryset.filter(role__in=['REGISTRAR', 'HEAD_REGISTRAR'])
+            
         role = self.request.query_params.get('role')
         if role:
             queryset = queryset.filter(role=role)
@@ -144,14 +153,16 @@ class StaffManagementViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def perform_create(self, serializer):
-        user = serializer.save()
-        # initial password is {prefix}{MMDD} 
-        # Since we don't have birthdate in User model (it's in Student/Professor),
-        # Staff users who are not professors/students (Admin, Registrar, Cashier, etc.) don't have birthdate.
-        # So we'll auto-generate a generic one or use their username as initial password.
-        initial_password = f"{user.username}1234"
-        user.set_password(initial_password)
-        user.save()
+        user = self.request.user
+        target_role = serializer.validated_data.get('role')
+        
+        if user.role == 'HEAD_REGISTRAR' and target_role not in ['REGISTRAR', 'HEAD_REGISTRAR']:
+            raise PermissionDenied("Head Registrars can only create other Registrar accounts.")
+            
+        new_user = serializer.save()
+        initial_password = f"{new_user.username}1234"
+        new_user.set_password(initial_password)
+        new_user.save()
 
     def perform_update(self, serializer):
         # We don't want to update password here, only staff roles and active status.
