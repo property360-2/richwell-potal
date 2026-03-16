@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
 from django.contrib.auth import get_user_model
-from core.permissions import IsStaff
+from core.permissions import IsStaff, IsAdmin
 import datetime
 
 from .models import Professor, ProfessorSubject, ProfessorAvailability
@@ -14,7 +14,7 @@ User = get_user_model()
 
 class ProfessorViewSet(viewsets.ModelViewSet):
     queryset = Professor.objects.all()
-    permission_classes = [IsStaff]
+    permission_classes = [IsAdmin]
     search_fields = ['employee_id', 'user__first_name', 'user__last_name', 'department']
     filterset_fields = ['department', 'employment_status', 'is_active']
 

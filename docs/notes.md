@@ -44,3 +44,7 @@ npm run test:e2e:ui - Opens the interactive Playwright UI for debugging.
 
 Backend
 
+
+
+including the applicants navigation too
+also when i click the students navigation it says that i have no  access here as registrar

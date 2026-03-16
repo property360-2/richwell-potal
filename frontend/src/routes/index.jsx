@@ -166,7 +166,7 @@ const AppRoutes = () => {
         </Route>
 
         {/* Redirects to maintain consistency and handle legacy routes */}
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'DEAN']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'DEAN']} />}>
           <Route path="/academics" element={<Navigate to="/admin/academics" replace />} />
           <Route path="/academics/programs" element={<Navigate to="/admin/academics" replace />} />
           <Route path="/users" element={<Navigate to="/admin/staff" replace />} />

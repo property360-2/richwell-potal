@@ -32,16 +32,22 @@ const getNavItems = (role, isSuperUser = false) => {
 
   const normalizedRole = role?.toUpperCase() || (isSuperUser ? 'ADMIN' : '');
 
-  if (['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
+  if (normalizedRole === 'ADMIN') {
     items.push({ path: '/admin/staff', label: 'User Management', icon: Users });
     items.push({ path: '/admin/academics', label: 'Academics', icon: BookOpen });
     items.push({ path: '/admin/terms', label: 'Terms', icon: Calendar });
     items.push({ path: '/admin/faculty', label: 'Faculty', icon: Briefcase });
+  }
+
+  if (['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
     items.push({ path: '/registrar/grades', label: 'Grades', icon: ClipboardList });
   }
 
-  if (['ADMISSION', 'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
+  if (['ADMISSION', 'ADMIN'].includes(normalizedRole)) {
     items.push({ path: '/admission/applicants', label: 'Applicants', icon: Users });
+  }
+
+  if (['ADMISSION', 'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
     items.push({ path: '/students', label: 'Students', icon: GraduationCap });
   }
 

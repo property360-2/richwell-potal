@@ -121,14 +121,14 @@ class ChangePasswordView(generics.UpdateAPIView):
                 return Response({"old_password": ["Wrong password."]}, status=status.HTTP_400_BAD_REQUEST)
             
             user.set_password(serializer.validated_data.get("new_password"))
+            user.must_change_password = False
             user.save()
             return Response({"detail": "Password updated successfully."}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class StaffManagementViewSet(viewsets.ModelViewSet):
-    from core.permissions import IsStaff
-    permission_classes = [IsAuthenticated, IsStaff]
+    permission_classes = [IsAuthenticated, IsAdmin]
     
     def get_queryset(self):
         queryset = User.objects.exclude(role='STUDENT').order_by('id')
