@@ -129,6 +129,7 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 from core.permissions import IsAdmin, IsHeadRegistrar
 from rest_framework.exceptions import PermissionDenied
+from .services.user_service import UserService
 
 class StaffManagementViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdmin | IsHeadRegistrar]
@@ -153,16 +154,7 @@ class StaffManagementViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def perform_create(self, serializer):
-        user = self.request.user
-        target_role = serializer.validated_data.get('role')
-        
-        if user.role == 'HEAD_REGISTRAR' and target_role not in ['REGISTRAR', 'HEAD_REGISTRAR']:
-            raise PermissionDenied("Head Registrars can only create other Registrar accounts.")
-            
-        new_user = serializer.save()
-        initial_password = f"{new_user.username}1234"
-        new_user.set_password(initial_password)
-        new_user.save()
+        UserService.create_staff(serializer, self.request.user)
 
     def perform_update(self, serializer):
         # We don't want to update password here, only staff roles and active status.
@@ -171,7 +163,5 @@ class StaffManagementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='reset-password')
     def reset_password(self, request, pk=None):
         user = self.get_object()
-        initial_password = f"{user.username}1234"
-        user.set_password(initial_password)
-        user.save()
+        UserService.reset_password(user)
         return Response({"detail": "Password has been reset to the default format."}, status=status.HTTP_200_OK)
