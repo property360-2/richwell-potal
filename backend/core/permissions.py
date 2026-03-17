@@ -73,7 +73,15 @@ class IsAdminOrRegistrar(BasePermission):
     """Allow access to ADMIN or REGISTRAR roles."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and (request.user.role in ('ADMIN', 'REGISTRAR') or request.user.is_superuser)
+        return request.user.is_authenticated and (request.user.role in ('ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR') or request.user.is_superuser)
+
+
+class IsAdmissionOrRegistrar(BasePermission):
+    """Allow access to ADMISSION, REGISTRAR, or ADMIN roles."""
+
+    def has_permission(self, request, view):
+        staff_roles = ('ADMISSION', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN')
+        return request.user.is_authenticated and (request.user.role in staff_roles or request.user.is_superuser)
 
 
 class IsStaff(BasePermission):

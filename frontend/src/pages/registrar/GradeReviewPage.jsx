@@ -61,7 +61,7 @@ const GradeReviewPage = () => {
     
     try {
       setIsFinalizing(true);
-      await gradesApi.finalizeGrades({
+      await gradesApi.finalizeSection({
         term: termId,
         subject: subjectId,
         section: sectionId

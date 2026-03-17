@@ -1,39 +1,57 @@
-# Grade Management Testing Procedures
+# Grade Management & System Testing Procedures
 
-Bro, here's how to verify the new Grade Management features (Windows, Locking, and Historical Encoding) across the stack.
+Bro, here's how to verify the system across the stack. I've updated this list to include all core system tests.
 
 ## 1. Backend Automated Tests
 
-We have implemented two main test levels to ensure data integrity and window enforcement.
+We use Django's testing framework. You can run all tests with `python manage.py test`.
 
-### Unit Tests (Grading Refinements)
+### Core Functional Tests
 Focuses on individual constraints like windows and locking.
-- **File**: `apps/grades/tests/test_grading_refinements.py`
-- **Command**:
-  ```bash
-  python manage.py test apps.grades.tests.test_grading_refinements
-  ```
-- **What it verifies**:
-  - Professors are blocked outside the `Term` grading windows.
-  - Registrar can bypass window checks with the `override` flag.
-  - Finalized grades are immutable (Locked).
-  - Auto-INC logic safely filters unsubmitted students only.
+- **Grades (Windows/Locking)**: `apps.grades.tests.test_grading_refinements`
+- **Grades (Year Level)**: `apps.grades.tests.test_year_level_logic`
+- **User Service**: `apps.accounts.tests.test_user_service`
+- **Scheduling**: `apps.scheduling.tests.test_scheduling_service`
+- **Sectioning**: `apps.sections.tests.test_sectioning_service`
 
-### E2E Integration Workflow
-Simulates a full student academic lifecycle.
+### API & Permission Tests
+Located in the root `tests/` directory.
+- **Authentication**: `tests.test_authentication`
+- **Permissions**: `tests.test_permissions`
+- **Security**: `tests.test_security`
+- **Grades API**: `tests.test_grades_api`
+- **Sections API**: `tests.test_sections_api`
+- **Terms API**: `tests.test_terms_api`
+
+### E2E Integration Workflow (Backend)
+Simulates a full student academic lifecycle via services.
 - **File**: `apps/grades/tests/test_integration_workflow.py`
 - **Command**:
   ```bash
   python manage.py test apps.grades.tests.test_integration_workflow
   ```
-- **What it verifies**:
-  - Full flow: Enrollment -> Grade Submission -> Global Term Locking.
-  - Historical Backfill triggers automatic Year Level and Regularity updates.
-  - Audit logs are preserved across complex state changes.
 
 ---
 
-## 2. Frontend Manual Verification
+## 2. Frontend Automated Tests (E2E)
+
+We use Playwright for browser-based testing.
+- **Location**: `frontend/tests/`
+- **Command**:
+  ```bash
+  cd frontend
+  npm run test:e2e
+  ```
+
+### Available Specs:
+- **`auth.spec.js`**: Login/Logout and session persistence.
+- **`admin.spec.js`**: User management and dashboard controls.
+- **`grade_management.spec.js`**: Historical Encoding and Global Lock safety.
+- **`flows/academic_flow.spec.js`**: Full Academic Cycle (Professor -> Registrar -> Student).
+
+---
+
+## 3. Frontend Manual Verification
 
 ### Historical TOR Encoding
 - **Route**: `/registrar/historical-encode`

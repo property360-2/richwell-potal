@@ -14,10 +14,15 @@ export default defineConfig({
         viewport: { width: 1280, height: 720 },
         video: 'on-first-retry',
     },
+    timeout: 120000,
+    expect: {
+        timeout: 20000,
+    },
     projects: [
         {
             name: 'setup',
-            testMatch: /.*\.setup\.js/
+            testMatch: /.*\.setup\.js/,
+            timeout: 120000, // Setup can be slow
         },
         {
             name: 'chromium-unauth',

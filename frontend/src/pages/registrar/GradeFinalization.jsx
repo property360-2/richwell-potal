@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronRight, CheckCircle, ShieldAlert, FileCheck, Layers, Filter, Lock, Settings2, AlertTriangle } from 'lucide-react';
+import { Search, ChevronRight, CheckCircle, ShieldAlert, FileCheck, Layers, Filter, Lock, Settings2, AlertTriangle, RotateCcw } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -12,7 +12,7 @@ import { gradesApi } from '../../api/grades';
 import { termsApi } from '../../api/terms';
 import PageHeader from '../../components/shared/PageHeader';
 import SearchBar from '../../components/shared/SearchBar';
-import Modal from '../../components/shared/Modal';
+import Modal from '../../components/ui/Modal';
 import './GradeFinalization.css';
 
 const GradeFinalization = () => {

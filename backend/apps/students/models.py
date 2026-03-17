@@ -81,6 +81,12 @@ class Student(AuditMixin, models.Model):
         if not self.id and self.student_type == 'FRESHMAN':
             self.is_advising_unlocked = True
             
+        # If all submitted documents are verified, unlock advising automatically
+        if self.document_checklist:
+            submitted_docs = [d for d in self.document_checklist.values() if d.get('submitted')]
+            if submitted_docs and all(d.get('verified') for d in submitted_docs):
+                self.is_advising_unlocked = True
+
         super().save(*args, **kwargs)
 
 

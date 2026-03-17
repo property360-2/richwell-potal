@@ -5,37 +5,64 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const authFile = path.join(__dirname, 'playwright/.auth/user.json');
+const registrarFile = path.join(__dirname, 'playwright/.auth/registrar.json');
+const professorFile = path.join(__dirname, 'playwright/.auth/professor.json');
+const studentFile = path.join(__dirname, 'playwright/.auth/student.json');
+const enrolleeFile = path.join(__dirname, 'playwright/.auth/enrollee.json');
+const programHeadFile = path.join(__dirname, 'playwright/.auth/program-head.json');
+const adminFile = path.join(__dirname, 'playwright/.auth/user.json');
 
-setup('authenticate as admin', async ({ page }) => {
-    // Navigate to login
+async function loginAs(page, username, password, targetUrl, savePath) {
+    console.log(`[E2E] Starting login for ${username}...`);
     await page.goto('/login');
+    // Ensure page loaded
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('h1')).toContainText('Welcome Back');
 
-    // Fill in credentials
-    await page.fill('input[name="username"]', 'admin');
-    await page.fill('input[name="password"]', 'admin');
+    await page.fill('input[name="username"]', username);
+    await page.fill('input[name="password"]', password);
 
-    // Submit form and wait for the login response
-    console.log('Submitting login form...');
+    console.log(`[E2E] Submitting for ${username}...`);
+    const [response] = await Promise.all([
+        page.waitForResponse(response =>
+            response.url().includes('accounts/auth/login/') && response.request().method() === 'POST',
+            { timeout: 60000 }
+        ),
+        page.click('button[type="submit"]')
+    ]);
 
-    // Set up response promise before clicking
-    const responsePromise = page.waitForResponse(response => response.url().includes('accounts/auth/login/') && response.request().method() === 'POST');
-    await page.click('button[type="submit"]');
-
-    console.log('Waiting for API response...');
-    const response = await responsePromise;
-    console.log('Login API response status:', response.status());
-
+    console.log(`[E2E] Response for ${username}: ${response.status()}`);
     if (response.status() !== 200) {
         const body = await response.json().catch(() => ({}));
-        throw new Error(`Login API failed: ${response.status()} - ${JSON.stringify(body)}`);
+        throw new Error(`Login failed for ${username}: ${response.status()} - ${JSON.stringify(body)}`);
     }
 
-    // Simple wait for URL
-    console.log('Waiting for redirect to /admin...');
-    await page.waitForURL(/.*\/admin/, { timeout: 15000 });
+    console.log(`[E2E] Waiting for redirect to ${targetUrl}...`);
+    await page.waitForURL(new RegExp(`.*${targetUrl}`), { timeout: 60000 });
+    await page.context().storageState({ path: savePath });
+    console.log(`[E2E] Login successful, saved state for ${username} to ${savePath}`);
+}
 
-    console.log('Login successful, saving state...');
-    // Save the authentication state (cookies/localStorage)
-    await page.context().storageState({ path: authFile });
+setup('authenticate as admin', async ({ page }) => {
+    await loginAs(page, 'admin', 'admin', '/admin', adminFile);
+});
+
+setup('authenticate as registrar', async ({ page }) => {
+    await loginAs(page, 'registrar_e2e', 'password123', '/registrar', registrarFile);
+});
+
+setup('authenticate as professor', async ({ page }) => {
+    await loginAs(page, 'professor_e2e', 'password123', '/professor', professorFile);
+});
+
+setup('authenticate as student', async ({ page }) => {
+    await loginAs(page, 'student_e2e', 'password123', '/student', studentFile);
+});
+
+setup('authenticate as enrollee', async ({ page }) => {
+    await loginAs(page, 'enrollee_e2e', 'password123', '/student', enrolleeFile);
+});
+
+setup('authenticate as program head', async ({ page }) => {
+    await loginAs(page, 'program_head_e2e', 'password123', '/program-head', programHeadFile);
 });

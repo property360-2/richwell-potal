@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, F
-from core.permissions import IsAdmin, IsAdmission, IsRegistrar
+from core.permissions import IsAdmin, IsAdmission, IsRegistrar, IsAdmissionOrRegistrar
 
 from .models import Student, StudentEnrollment
 from .serializers import StudentSerializer, StudentApplicationSerializer, StudentEnrollmentSerializer
@@ -29,7 +29,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         if self.action == 'apply':
             return [permissions.AllowAny()]
         if self.action in ['update', 'partial_update', 'destroy', 'approve', 'unlock_advising', 'toggle_regularity', 'manual_add']:
-            return [IsAdmission() | IsRegistrar()]
+            return [IsAdmissionOrRegistrar()]
         return [permissions.IsAuthenticated()]
 
     @action(detail=False, methods=['post'], url_path='apply')

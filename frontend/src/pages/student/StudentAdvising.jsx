@@ -82,7 +82,7 @@ const StudentAdvising = () => {
   const handleAutoAdvise = async () => {
     try {
       setLoading(true);
-      await api.post('grades/advising/auto_advise/');
+      await api.post('grades/advising/auto-advise/');
       fetchInitialData();
     } catch (error) {
       alert(error.response?.data?.error || "Auto-advising failed");
@@ -94,7 +94,7 @@ const StudentAdvising = () => {
   const handleManualAdvise = async () => {
     try {
       setLoading(true);
-      await api.post('grades/advising/manual_advise/', {
+      await api.post('grades/advising/manual-advise/', {
         subject_ids: selectedSubjectIds
       });
       fetchInitialData();
