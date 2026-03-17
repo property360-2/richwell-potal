@@ -145,7 +145,12 @@ class ReportViewSet(viewsets.ViewSet):
                             "grade": str(g.final_grade) if g.final_grade else g.get_grade_status_display(),
                             "status": g.get_grade_status_display(),
                             "status_code": g.grade_status,
-                            "term_code": g.term.code if g.term else "N/A"
+                            "term_code": g.term.code if g.term else "N/A",
+                            "resolution_status": g.resolution_status,
+                            "resolution_requested_by_name": g.resolution_requested_by.get_full_name() if g.resolution_requested_by else None,
+                            "resolution_approved_by_name": g.resolution_approved_by.get_full_name() if g.resolution_approved_by else None,
+                            "resolution_reason": g.resolution_reason,
+                            "resolution_new_grade": str(g.resolution_new_grade) if g.resolution_new_grade else None,
                         })
                         if g.final_grade:
                             s_grade_points += g.final_grade * s.total_units

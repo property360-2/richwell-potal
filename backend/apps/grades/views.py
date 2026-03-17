@@ -2,6 +2,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from django.db.models import F, Exists, OuterRef
 from apps.grades.models import Grade
 from apps.grades.serializers import GradeSerializer, AdvisingSubmitSerializer, CreditingSerializer
 from apps.grades.services.advising_service import AdvisingService
@@ -14,12 +15,31 @@ from django_filters.rest_framework import DjangoFilterBackend
 from core.permissions import IsStudent, IsProgramHead, IsRegistrar, IsAdmin, IsProfessor
 
 
+import django_filters
+
+class GradeFilter(django_filters.FilterSet):
+    grade_status__in = django_filters.BaseInFilter(field_name='grade_status', lookup_expr='in')
+    finalized_at__isnull = django_filters.BooleanFilter(field_name='finalized_at', lookup_expr='isnull')
+    resolution_requested_at__isnull = django_filters.BooleanFilter(field_name='resolution_requested_at', lookup_expr='isnull')
+    resolution_approved_at__isnull = django_filters.BooleanFilter(field_name='resolution_approved_at', lookup_expr='isnull')
+
+    class Meta:
+        model = Grade
+        fields = {
+            'student': ['exact'],
+            'is_credited': ['exact'],
+            'term': ['exact'],
+            'advising_status': ['exact'],
+            'grade_status': ['exact'],
+            'resolution_status': ['exact'],
+        }
+
 class AdvisingViewSet(viewsets.ModelViewSet):
     # ... (existing code remains same)
     serializer_class = GradeSerializer
-    permission_classes = [IsStudent | IsProgramHead | IsRegistrar | IsAdmin]
+    permission_classes = [IsStudent | IsProgramHead | IsRegistrar | IsAdmin | IsProfessor]
     filter_backends = (DjangoFilterBackend,)
-    filterset_fields = ['student', 'is_credited', 'term', 'advising_status']
+    filterset_class = GradeFilter
 
     def get_queryset(self):
         user = self.request.user
@@ -34,6 +54,16 @@ class AdvisingViewSet(viewsets.ModelViewSet):
             
         elif user.role in ['ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR']:
             return queryset
+            
+        elif user.role == 'PROFESSOR':
+            from apps.scheduling.models import Schedule
+            matching_schedules = Schedule.objects.filter(
+                term=OuterRef('term'),
+                section=OuterRef('section'),
+                subject=OuterRef('subject'),
+                professor__user=user
+            )
+            return queryset.filter(Exists(matching_schedules))
             
         return queryset.none()
 

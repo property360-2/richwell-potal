@@ -20,18 +20,14 @@ const GradeReviewPage = () => {
   const [meta, setMeta] = useState({
     sectionName: 'Loading...',
     subjectName: 'Loading...',
-    subjectCode: '...'
+    subjectCode: '...',
+    professorName: '...'
   });
 
   const fetchRoster = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await gradesApi.getGrades({ 
-        term: termId,
-        section: sectionId,
-        subject: subjectId
-      });
-      
+      const res = await gradesApi.getSectionStudents(sectionId, subjectId);
       const students = res.data?.results || res.data || [];
       setRoster(students);
 
@@ -40,15 +36,17 @@ const GradeReviewPage = () => {
         setMeta({
           sectionName: first.section_details?.name || `Section ${sectionId}`,
           subjectName: first.subject_details?.name || 'Subject',
-          subjectCode: first.subject_details?.code || ''
+          subjectCode: first.subject_details?.code || '',
+          professorName: first.professor_name || 'TBA'
         });
       }
     } catch (error) {
+      console.error('Failed to load grade roster.', error);
       showToast('error', 'Failed to load grade roster');
     } finally {
       setLoading(false);
     }
-  }, [termId, sectionId, subjectId, showToast]);
+  }, [sectionId, subjectId, showToast]);
 
   useEffect(() => {
     fetchRoster();
@@ -77,17 +75,20 @@ const GradeReviewPage = () => {
 
   const columns = [
     { 
-      header: 'Student', 
+      header: 'ID Number', 
       render: (r) => (
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-            <User size={14} />
+        <div className="flex items-center gap-3 py-1">
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+            <User size={18} />
           </div>
-          <div>
-            <div className="font-bold text-slate-900">{r.student_name}</div>
-            <div className="text-[10px] text-slate-400 font-mono tracking-tighter">{r.student_idn}</div>
-          </div>
+          <span className="font-mono text-sm text-slate-600 uppercase tracking-tight">{r.student_idn}</span>
         </div>
+      )
+    },
+    { 
+      header: 'Name', 
+      render: (r) => (
+        <span className="font-bold text-slate-900 text-sm">{r.student_name}</span>
       )
     },
     { 
@@ -143,7 +144,17 @@ const GradeReviewPage = () => {
 
       <PageHeader
         title={`${meta.subjectCode}: ${meta.subjectName}`}
-        description={`Final review of student grades for ${meta.sectionName}`}
+        description={
+          <div className="flex flex-col gap-1">
+            <div className="text-slate-500">
+              Final review of student grades for <span className="font-bold text-slate-700">{meta.sectionName}</span>
+            </div>
+            <div className="flex items-center gap-2 text-primary font-medium text-sm">
+               <User size={14} />
+               <span>Professor: {meta.professorName}</span>
+            </div>
+          </div>
+        }
         badge={<div className="p-3 bg-primary/10 text-primary rounded-xl"><FileText size={24} /></div>}
         actions={
           <div className="flex gap-3">

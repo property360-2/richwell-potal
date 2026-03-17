@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, ChevronRight, Save, AlertCircle, CheckCircle2, MoreHorizontal } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -9,6 +9,31 @@ import { useToast } from '../../components/ui/Toast';
 import { gradesApi } from '../../api/grades';
 import Select from '../../components/ui/Select';
 import './GradeEntry.css';
+
+const GRADE_SCALE = [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 5.0];
+
+const MIDTERM_OPTIONS = [
+  { value: '', label: '--' },
+  ...GRADE_SCALE.map((value) => {
+    const label = value.toFixed(2);
+    return { value: label, label };
+  })
+];
+
+const FINAL_OPTIONS = [
+  ...MIDTERM_OPTIONS,
+  { value: 'INC', label: 'INC' },
+  { value: 'NG', label: 'NG' }
+];
+
+const normalizeOptionValue = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+  return Number(value).toFixed(2);
+};
+
+const isEditableStatus = (status) => ['ENROLLED', 'ADVISING'].includes(status);
 
 const GradeEntry = () => {
   const { addToast } = useToast();
@@ -24,21 +49,22 @@ const GradeEntry = () => {
   const [resGrade, setResGrade] = useState(null);
   const [resReason, setResReason] = useState('');
 
-  useEffect(() => {
-    fetchMySections();
-  }, []);
-
-  const fetchMySections = async () => {
+  const fetchMySections = useCallback(async () => {
     try {
       setLoading(true);
       const res = await gradesApi.getProfessorSections();
       setSections(res.data);
     } catch (error) {
+      console.error('Failed to load assigned sections.', error);
       addToast('error', 'Failed to load assigned sections.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [addToast]);
+
+  useEffect(() => {
+    fetchMySections();
+  }, [fetchMySections]);
 
   const handleSelectPair = async (pair) => {
     setSelectedPair(pair);
@@ -47,39 +73,66 @@ const GradeEntry = () => {
       const res = await gradesApi.getSectionStudents(pair.section.id, pair.subject.id);
       setStudents(res.data.results || res.data);
     } catch (error) {
+      console.error('Failed to load student roster.', error);
       addToast('error', 'Failed to load student roster.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGradeUpdate = async (gradeId, type, value, isInc = false) => {
+  const patchStudentRow = (updatedGrade) => {
+    if (!updatedGrade) return;
+    setStudents((prev) =>
+      prev.map((student) =>
+        student.id === updatedGrade.id ? { ...student, ...updatedGrade } : student
+      )
+    );
+  };
+
+  const handleGradeUpdate = async (gradeId, type, value, isInc = false, isResolution = false) => {
+    if (!selectedPair) return;
     try {
       setSaving(gradeId);
-      if (type === 'midterm') {
-        await gradesApi.submitMidterm(gradeId, value);
+      let response;
+      if (isResolution) {
+        response = await gradesApi.submitResolvedGrade(gradeId, value);
+      } else if (type === 'midterm') {
+        response = await gradesApi.submitMidterm(gradeId, value);
       } else {
-        await gradesApi.submitFinal(gradeId, value, isInc);
+        response = await gradesApi.submitFinal(gradeId, value, isInc);
       }
-      addToast('success', 'Grade updated successfully.');
-      // Refresh roster
-      handleSelectPair(selectedPair);
+      patchStudentRow(response?.data);
+      addToast('success', isResolution ? 'Resolution grade submitted for review.' : 'Grade updated successfully.');
     } catch (error) {
+      console.error('Failed to update grade.', error);
       addToast('error', error.response?.data?.error || 'Failed to update grade.');
     } finally {
       setSaving(null);
     }
   };
 
-  const getGradeValue = (val) => val === null || val === undefined ? '' : val;
+  const isRowEditable = (row) => {
+    if (isEditableStatus(row.grade_status)) return true;
+    if (row.grade_status === 'INC' && row.resolution_status === 'APPROVED') return true;
+    return false;
+  };
 
   const columns = [
     {
-      header: 'Student',
+      header: 'ID Number',
+      render: (row) => (
+        <div className="font-mono text-xs text-slate-500 uppercase tracking-wide">
+          {row.student_idn}
+        </div>
+      )
+    },
+    {
+      header: 'Student Name',
       render: (row) => (
         <div className="py-1">
-          <div className="font-semibold text-slate-900">{row.student_name}</div>
-          <div className="text-xs text-slate-500 font-mono uppercase">{row.student_idn}</div>
+          <div className="font-semibold text-slate-900 text-sm">
+            {row.student_name || 'Unnamed Student'}
+          </div>
         </div>
       )
     },
@@ -87,21 +140,17 @@ const GradeEntry = () => {
       header: 'Midterm',
       render: (row) => (
         <div className="flex items-center gap-2">
-            <Input 
-              type="number" 
-              step="0.25" 
-              min="1.0" 
-              max="5.0"
-              className="w-20 text-center font-bold"
-              defaultValue={getGradeValue(row.midterm_grade)}
-              onBlur={(e) => {
-                const val = parseFloat(e.target.value);
-                if (!isNaN(val) && val !== row.midterm_grade) {
-                    handleGradeUpdate(row.id, 'midterm', val);
-                }
-              }}
-              disabled={row.grade_status !== 'ENROLLED' && row.grade_status !== 'ADVISING'}
-            />
+          <Select
+            className="w-24 font-bold"
+            value={normalizeOptionValue(row.midterm_grade)}
+            onChange={(e) => {
+              const val = e.target.value;
+              const parsed = val ? parseFloat(val) : null;
+              handleGradeUpdate(row.id, 'midterm', parsed);
+            }}
+            disabled={(!isRowEditable(row)) || saving === row.id || row.resolution_status === 'APPROVED'}
+            options={MIDTERM_OPTIONS}
+          />
         </div>
       )
     },
@@ -111,24 +160,28 @@ const GradeEntry = () => {
         <div className="flex items-center gap-2">
              <Select 
                 className="w-24 font-bold"
-                value={row.grade_status === 'INC' ? 'INC' : row.grade_status === 'NO_GRADE' ? 'NG' : getGradeValue(row.final_grade)}
+                value={
+                  row.grade_status === 'INC'
+                    ? 'INC'
+                    : row.grade_status === 'NO_GRADE'
+                    ? 'NG'
+                    : normalizeOptionValue(row.final_grade)
+                }
                 onChange={(e) => {
                     const val = e.target.value;
+                    const isResolution = row.grade_status === 'INC' && row.resolution_status === 'APPROVED';
+                    
                     if (val === 'INC') {
                         handleGradeUpdate(row.id, 'final', null, true);
                     } else if (val === 'NG') {
                         handleGradeUpdate(row.id, 'final', null, false);
                     } else {
-                        handleGradeUpdate(row.id, 'final', parseFloat(val), false);
+                        handleGradeUpdate(row.id, 'final', val ? parseFloat(val) : null, false, isResolution);
                     }
                 }}
-                disabled={row.grade_status !== 'ENROLLED' && row.grade_status !== 'ADVISING'}
-                options={[
-                    { value: '', label: '--' },
-                    ...[1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 5.0].map(v => ({ value: v, label: v.toFixed(2) })),
-                    { value: 'INC', label: 'INC' },
-                    { value: 'NG', label: 'NG' }
-                ]}
+                disabled={(!isRowEditable(row)) || saving === row.id}
+                options={row.resolution_status === 'APPROVED' ? MIDTERM_OPTIONS : FINAL_OPTIONS}
+                style={row.resolution_status === 'APPROVED' ? { backgroundColor: '#eff6ff', borderColor: '#3b82f6' } : {}}
              />
         </div>
       )
@@ -136,13 +189,37 @@ const GradeEntry = () => {
     {
       header: 'Status',
       render: (row) => (
-        <Badge variant={
-            row.grade_status === 'PASSED' ? 'success' : 
-            row.grade_status === 'FAILED' ? 'danger' : 
-            row.grade_status === 'INC' ? 'warning' : 'info'
-        }>
-          {row.grade_status_display}
-        </Badge>
+        <div className="flex flex-col gap-1">
+          <Badge variant={
+              row.grade_status === 'PASSED' ? 'success' : 
+              row.grade_status === 'FAILED' ? 'danger' : 
+              row.grade_status === 'INC' ? 'warning' : 'info'
+          }>
+            {row.grade_status_display}
+          </Badge>
+          {row.resolution_status && (
+            <div className="flex flex-col mt-1 border-t border-slate-100 pt-1">
+              <span style={{ fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', padding: '2px 0', borderRadius: '2px', backgroundColor:
+                row.resolution_status === 'COMPLETED' ? '#ecfdf5' :
+                row.resolution_status === 'APPROVED' ? '#eff6ff' :
+                row.resolution_status === 'SUBMITTED' ? '#eef2ff' :
+                '#f8fafc',
+                color:
+                row.resolution_status === 'COMPLETED' ? '#059669' :
+                row.resolution_status === 'APPROVED' ? '#2563eb' :
+                row.resolution_status === 'SUBMITTED' ? '#4f46e5' :
+                '#64748b'
+              }}>
+                Res: {row.resolution_status}
+              </span>
+              {row.resolution_approved_by_name && (
+                <span style={{ fontSize: '7px', color: '#16a34a', fontWeight: 'bold', marginTop: '2px', opacity: '0.8' }}>
+                   {row.resolution_approved_by_name} Approved
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       )
     },
     {
@@ -304,6 +381,7 @@ const GradeEntry = () => {
                         setIsResModalOpen(false);
                         handleSelectPair(selectedPair);
                      } catch (e) {
+                        console.error('Failed to submit resolution request.', e);
                         addToast('error', 'Failed to submit request.');
                      }
                    }}

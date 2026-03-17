@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronRight, CheckCircle, ShieldAlert, FileCheck, Layers, Filter, Lock, Settings2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ChevronRight, ShieldAlert, FileCheck, Layers, Settings2, AlertTriangle } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -24,9 +24,6 @@ const GradeFinalization = () => {
   const [pendingSections, setPendingSections] = useState([]);
   const [resolutions, setResolutions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showLockModal, setShowLockModal] = useState(false);
-  const [lockConfirmText, setLockConfirmText] = useState('');
-  const [countdown, setCountdown] = useState(0);
 
   useEffect(() => {
     fetchInitialData();
@@ -50,7 +47,7 @@ const GradeFinalization = () => {
         const res = await gradesApi.getGrades({ 
           term: term.id, 
           finalized_at__isnull: 'true',
-          grade_status__isnull: 'false' // grades already entered
+          grade_status__in: 'ENROLLED,PASSED,FAILED,INC,NO_GRADE'
         });
         
         // Group by section and subject
@@ -65,8 +62,16 @@ const GradeFinalization = () => {
                     subject_id: g.subject,
                     subject_code: g.subject_details?.code,
                     subject_name: g.subject_details?.name,
+                    professor_name: g.professor_name || 'TBA',
                     pending_count: 0
                 };
+            }
+            if (
+              grouped[key].professor_name === 'TBA' &&
+              g.professor_name &&
+              g.professor_name !== 'TBA'
+            ) {
+                grouped[key].professor_name = g.professor_name;
             }
             grouped[key].pending_count++;
         });
@@ -74,14 +79,13 @@ const GradeFinalization = () => {
       } else {
         const res = await gradesApi.getGrades({ 
           grade_status: 'INC',
-          is_resolution_requested: 'true',
-          is_resolution_approved: 'false'
+          resolution_status: 'REQUESTED'
         });
         setResolutions(res.data?.results || []);
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      addToast('error', 'Failed to load data.');
+      addToast('error', error.response?.data?.error || 'Failed to load data.');
     } finally {
       setLoading(false);
     }
@@ -102,9 +106,13 @@ const GradeFinalization = () => {
       )
     },
     { header: 'Section', accessor: 'section_name' },
-    { 
-       header: 'Pending Grades', 
-       render: (row) => <Badge variant="info">{row.pending_count} Students</Badge>
+    {
+      header: 'Professor',
+      render: (row) => (
+        <div className="text-sm text-slate-700 font-medium">
+          {row.professor_name || 'TBA'}
+        </div>
+      )
     },
     {
        header: 'Action',
@@ -145,7 +153,7 @@ const GradeFinalization = () => {
                   addToast('info', 'Resolution request has been unlocked for the professor.');
                   fetchInitialData();
                 } catch (e) {
-                  addToast('error', 'Action failed.');
+                  addToast('error', e.response?.data?.error || 'Action failed.');
                 } finally {
                   setLoading(false);
                 }
@@ -157,55 +165,48 @@ const GradeFinalization = () => {
     }
   ];
 
-  const handleGlobalLock = async () => {
-    if (lockConfirmText !== 'CONFIRM') return;
-    try {
-      setLoading(true);
-      const res = await gradesApi.finalizeTerm(activeTerm.id);
-      addToast('success', res.data.message || 'Global lock applied successfully.');
-      setShowLockModal(false);
-      fetchInitialData();
-    } catch (e) {
-      addToast('error', e.response?.data?.error || 'Failed to apply global lock.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [gradingDates, setGradingDates] = useState({
+    midterm_grade_start: '',
+    midterm_grade_end: '',
+    final_grade_start: '',
+    final_grade_end: ''
+  });
 
-  const handleAutoINC = async (periodType) => {
-    if (!window.confirm(`Are you sure you want to mark all unsubmitted ${periodType} grades as INC? This cannot be undone.`)) return;
-    try {
-      setLoading(true);
-      const res = await gradesApi.closeGradingPeriod(activeTerm.id, periodType);
-      addToast('success', res.data.message || 'Grading period closed successfully.');
-      fetchInitialData();
-    } catch (e) {
-      addToast('error', e.response?.data?.error || 'Action failed.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startLockCountdown = () => {
-    setShowLockModal(true);
-    setCountdown(5);
-    setLockConfirmText('');
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
+  useEffect(() => {
+    if (activeTerm) {
+      setGradingDates({
+        midterm_grade_start: activeTerm.midterm_grade_start || '',
+        midterm_grade_end: activeTerm.midterm_grade_end || '',
+        final_grade_start: activeTerm.final_grade_start || '',
+        final_grade_end: activeTerm.final_grade_end || ''
       });
-    }, 1000);
+    }
+  }, [activeTerm]);
+
+  const handleUpdateDates = async () => {
+    try {
+      setLoading(true);
+      await termsApi.updateTerm(activeTerm.id, gradingDates);
+      addToast('success', 'Grading window dates updated successfully.');
+      fetchInitialData();
+    } catch (e) {
+      addToast('error', e.response?.data?.error || 'Failed to update dates.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isWindowOpen = (start, end) => {
+    if (!start || !end) return false;
+    const now = new Date();
+    return new Date(start) <= now && now <= new Date(end);
   };
 
   return (
     <div className="grade-finalization-container p-6 animate-in fade-in duration-500">
       <PageHeader 
         title="Grade Management Console"
-        description="Term-level grading controls and finalization queue."
+        description="Monitor submitted grades and manage grading window schedules."
         badge={<Settings2 className="text-primary" size={32} />}
         actions={
           <div className="flex items-center gap-4">
@@ -221,52 +222,125 @@ const GradeFinalization = () => {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <Card className="lg:col-span-2 p-6 flex flex-col md:flex-row items-center gap-6 bg-gradient-to-br from-white to-blue-50/30 border-blue-100">
-             <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                <Lock size={32} />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="lg:col-span-3 p-6 bg-slate-900 text-white border-none shadow-xl overflow-hidden relative">
+             <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-bl-full pointer-events-none"></div>
+             <div className="flex justify-between items-start mb-6">
+                <h3 className="font-bold text-sm tracking-wider uppercase text-slate-400 flex items-center gap-2">
+                   <Settings2 size={16} />
+                   Grading Window Management
+                </h3>
+                <div className="flex gap-2 relative z-20">
+                    <Button 
+                      variant="primary" 
+                      size="sm" 
+                      className="bg-blue-600 hover:bg-blue-700" 
+                      icon={<FileCheck size={16} />}
+                      onClick={handleUpdateDates}
+                      loading={loading}
+                    >
+                        Save Configuration
+                    </Button>
+                </div>
              </div>
-             <div className="flex-1">
-                <h3 className="font-bold text-slate-800">Global Term Finalization</h3>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                   Permanently lock all grades for <strong>{activeTerm?.name}</strong>. This will prevent any further edits by professors or staff. Use ONLY when the term is officially closed.
-                </p>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                {/* Midterm Window */}
+                <div className="space-y-4">
+                   <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-200">MIDTERM WINDOW</span>
+                      {gradingDates.midterm_grade_start && gradingDates.midterm_grade_end ? (
+                         isWindowOpen(gradingDates.midterm_grade_start, gradingDates.midterm_grade_end) ? (
+                            <Badge variant="success" className="bg-emerald-500/20 text-emerald-400 border-none text-[10px]">OPEN</Badge>
+                         ) : (
+                            <Badge variant="ghost" className="bg-slate-800 text-slate-500 border-none text-[10px]">CLOSED</Badge>
+                         )
+                      ) : (
+                         <Badge variant="ghost" className="bg-slate-800 text-slate-500 border-none text-[10px]">NOT SET</Badge>
+                      )}
+                   </div>
+                   
+                   <div className="grid grid-cols-2 gap-4">
+                      <div>
+                         <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Start Date</label>
+                         <Input 
+                           type="date"
+                           value={gradingDates.midterm_grade_start}
+                           onChange={(e) => setGradingDates(prev => ({ ...prev, midterm_grade_start: e.target.value }))}
+                           className="bg-slate-800/50 border-slate-700 text-slate-200 text-sm h-9"
+                         />
+                      </div>
+                      <div>
+                         <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">End Date</label>
+                         <Input 
+                           type="date"
+                           value={gradingDates.midterm_grade_end}
+                           onChange={(e) => setGradingDates(prev => ({ ...prev, midterm_grade_end: e.target.value }))}
+                           className="bg-slate-800/50 border-slate-700 text-slate-200 text-sm h-9"
+                         />
+                      </div>
+                   </div>
+                </div>
+
+                {/* Finals Window */}
+                <div className="space-y-4">
+                   <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-200">FINALS WINDOW</span>
+                      {gradingDates.final_grade_start && gradingDates.final_grade_end ? (
+                         isWindowOpen(gradingDates.final_grade_start, gradingDates.final_grade_end) ? (
+                            <Badge variant="success" className="bg-emerald-500/20 text-emerald-400 border-none text-[10px]">OPEN</Badge>
+                         ) : (
+                            <Badge variant="ghost" className="bg-slate-800 text-slate-500 border-none text-[10px]">CLOSED</Badge>
+                         )
+                      ) : (
+                         <Badge variant="ghost" className="bg-slate-800 text-slate-500 border-none text-[10px]">NOT SET</Badge>
+                      )}
+                   </div>
+                   
+                   <div className="grid grid-cols-2 gap-4">
+                      <div>
+                         <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Start Date</label>
+                         <Input 
+                           type="date"
+                           value={gradingDates.final_grade_start}
+                           onChange={(e) => setGradingDates(prev => ({ ...prev, final_grade_start: e.target.value }))}
+                           className="bg-slate-800/50 border-slate-700 text-slate-200 text-sm h-9"
+                         />
+                      </div>
+                      <div>
+                         <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">End Date</label>
+                         <Input 
+                           type="date"
+                           value={gradingDates.final_grade_end}
+                           onChange={(e) => setGradingDates(prev => ({ ...prev, final_grade_end: e.target.value }))}
+                           className="bg-slate-800/50 border-slate-700 text-slate-200 text-sm h-9"
+                         />
+                      </div>
+                   </div>
+                </div>
              </div>
-             <Button 
-               variant="primary" 
-               className="bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-200"
-               icon={<Lock size={16} />}
-               onClick={startLockCountdown}
-             >
-                Global Lock
-             </Button>
+             
+             <div className="mt-8 pt-4 border-t border-slate-800 flex items-center justify-between text-slate-500">
+                <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                   <AlertTriangle size={14} className="text-amber-500" />
+                   Term: {activeTerm?.code}
+                </div>
+             </div>
           </Card>
 
-          <Card className="p-6 bg-slate-900 text-white border-none shadow-xl">
-             <h3 className="font-bold text-sm tracking-wider uppercase text-slate-400 mb-4">Grading Window Actions</h3>
-             <div className="space-y-3">
-                <Button 
-                   variant="ghost" 
-                   className="w-full justify-start border border-slate-700 text-slate-300 hover:bg-slate-800"
-                   size="sm"
-                   icon={<RotateCcw size={16} />}
-                   onClick={() => handleAutoINC('MIDTERM')}
-                >
-                   Close Midterm / Auto-INC
-                </Button>
-                <Button 
-                   variant="ghost" 
-                   className="w-full justify-start border border-slate-700 text-slate-300 hover:bg-slate-800"
-                   size="sm"
-                   icon={<RotateCcw size={16} />}
-                   onClick={() => handleAutoINC('FINAL')}
-                >
-                   Close Finals / Auto-INC
-                </Button>
+          <Card className="p-6 bg-blue-600 text-white border-none shadow-xl flex flex-col justify-between overflow-hidden relative">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-bl-full pointer-events-none"></div>
+             <div>
+                <Layers className="text-blue-100 mb-4" size={32} />
+                <h3 className="font-bold text-sm tracking-wider uppercase text-blue-100">Live Roster</h3>
+                <p className="text-[10px] text-blue-100 mt-2 leading-tight">
+                   Sections currently awaiting grade finalization.
+                </p>
              </div>
-             <p className="text-[10px] text-slate-500 mt-4 italic">
-                * Closes the window for professors and marks unsubmitted grades as INC.
-             </p>
+             <div className="mt-4 pt-4 border-t border-blue-500/50">
+                <div className="text-4xl font-black">{pendingSections.length}</div>
+                <div className="text-[10px] font-bold uppercase text-blue-200">Active Sections</div>
+             </div>
           </Card>
       </div>
 
@@ -281,7 +355,7 @@ const GradeFinalization = () => {
                 </div>
                 <div className="flex items-center gap-2">
                    <SearchBar 
-                     placeholder="Search..." 
+                     placeholder="Search subjects, sections, or professors..." 
                      onSearch={setSearchTerm}
                    />
                 </div>
@@ -294,51 +368,6 @@ const GradeFinalization = () => {
             />
           </Card>
       </div>
-
-      <Modal
-        isOpen={showLockModal}
-        onClose={() => setShowLockModal(false)}
-        title="CRITICAL: Global Term Lock"
-        maxWidth="max-w-md"
-      >
-        <div className="p-2">
-           <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl flex gap-3 mb-6">
-              <AlertTriangle className="text-rose-500 shrink-0" size={24} />
-              <div>
-                 <h4 className="font-bold text-rose-800 text-sm">Experimental Warning</h4>
-                 <p className="text-xs text-rose-700 leading-relaxed mt-1">
-                    This action will <strong>PERMANENTLY LOCK</strong> all academic records for this term. Professors will no longer be able to submit or edit grades.
-                 </p>
-              </div>
-           </div>
-
-           <div className="mb-6">
-              <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">
-                 Type <span className="text-slate-900 font-mono">CONFIRM</span> to proceed
-              </label>
-              <Input 
-                value={lockConfirmText}
-                onChange={(e) => setLockConfirmText(e.target.value)}
-                placeholder="CONFIRM"
-                className="font-mono"
-                disabled={countdown > 0}
-              />
-           </div>
-
-           <div className="flex gap-3">
-              <Button variant="ghost" className="flex-1" onClick={() => setShowLockModal(false)}>Cancel</Button>
-              <Button 
-                variant="danger" 
-                className="flex-[2]" 
-                disabled={lockConfirmText !== 'CONFIRM' || countdown > 0}
-                loading={loading}
-                onClick={handleGlobalLock}
-              >
-                 {countdown > 0 ? `Unlocking Button in ${countdown}s...` : 'Finalize & Lock Term'}
-              </Button>
-           </div>
-        </div>
-      </Modal>
     </div>
   );
 };

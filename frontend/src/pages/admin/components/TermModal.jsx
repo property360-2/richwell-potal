@@ -25,6 +25,10 @@ const TermModal = ({ isOpen, onClose, onSuccess, term }) => {
         enrollment_end: '',
         advising_start: '',
         advising_end: '',
+        midterm_grade_start: '',
+        midterm_grade_end: '',
+        final_grade_start: '',
+        final_grade_end: '',
         is_active: false
       });
     }
@@ -99,6 +103,16 @@ const TermModal = ({ isOpen, onClose, onSuccess, term }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <Input label="Advising Start" type="date" {...register('advising_start', { required: true })} />
              <Input label="Advising End" type="date" {...register('advising_end', { required: true })} />
+          </div>
+        </div>
+
+        <div className="border-t border-slate-100 pt-4">
+          <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Grading Periods</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <Input label="Midterm Grading Start" type="date" {...register('midterm_grade_start')} />
+             <Input label="Midterm Grading End" type="date" {...register('midterm_grade_end')} />
+             <Input label="Final Grading Start" type="date" {...register('final_grade_start')} />
+             <Input label="Final Grading End" type="date" {...register('final_grade_end')} />
           </div>
         </div>
 

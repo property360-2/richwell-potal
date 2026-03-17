@@ -186,15 +186,19 @@ class SectionViewSet(viewsets.ModelViewSet):
             return Response({"error": "User does not have a professor profile."}, status=status.HTTP_400_BAD_REQUEST)
         
         professor = request.user.professor_profile
-        active_term = Term.objects.filter(is_active=True).first()
+        term_id = request.query_params.get('term_id')
+        if term_id:
+            term = Term.objects.filter(id=term_id).first()
+        else:
+            term = Term.objects.filter(is_active=True).first()
         
-        if not active_term:
-            return Response({"error": "No active term found."}, status=status.HTTP_400_BAD_REQUEST)
+        if not term:
+            return Response({"error": "No specified or active term found."}, status=status.HTTP_400_BAD_REQUEST)
 
         from apps.scheduling.models import Schedule
         schedules = Schedule.objects.filter(
             professor=professor,
-            term=active_term
+            term=term
         ).select_related('section', 'subject', 'room')
 
         results = []
@@ -226,16 +230,20 @@ class SectionViewSet(viewsets.ModelViewSet):
             return Response({"error": "User does not have a professor profile."}, status=status.HTTP_400_BAD_REQUEST)
         
         professor = request.user.professor_profile
-        active_term = Term.objects.filter(is_active=True).first()
+        term_id = request.query_params.get('term_id')
+        if term_id:
+            term = Term.objects.filter(id=term_id).first()
+        else:
+            term = Term.objects.filter(is_active=True).first()
         
-        if not active_term:
-            return Response({"error": "No active term found."}, status=status.HTTP_400_BAD_REQUEST)
+        if not term:
+            return Response({"error": "No specified or active term found."}, status=status.HTTP_400_BAD_REQUEST)
 
         from apps.scheduling.models import Schedule
         # Get unique (section, subject) pairs from schedules assigned to this professor
         schedules = Schedule.objects.filter(
             professor=professor,
-            term=active_term
+            term=term
         ).select_related('section', 'subject')
 
         results = []

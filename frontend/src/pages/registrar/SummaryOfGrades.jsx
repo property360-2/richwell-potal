@@ -196,7 +196,40 @@ const SummaryOfGrades = ({ isStudent = false }) => {
                   { 
                     header: 'Status', 
                     align: 'center',
-                    render: (row) => getStatusBadge(row.status_code)
+                    render: (row) => (
+                      <div className="flex flex-col items-center gap-1">
+                        {getStatusBadge(row.status_code)}
+                        {row.resolution_status && (
+                          <div className="flex flex-col items-center mt-1">
+                            <span style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '-0.025em', padding: '2px 8px', borderRadius: '4px', backgroundColor: 
+                                row.resolution_status === 'COMPLETED' ? '#dcfce7' :
+                                row.resolution_status === 'APPROVED' ? '#dbeafe' :
+                                row.resolution_status === 'SUBMITTED' ? '#e0e7ff' :
+                                '#f1f5f9',
+                                color:
+                                row.resolution_status === 'COMPLETED' ? '#166534' :
+                                row.resolution_status === 'APPROVED' ? '#1d4ed8' :
+                                row.resolution_status === 'SUBMITTED' ? '#4338ca' :
+                                '#475569'
+                            }}>
+                                {row.resolution_status}
+                            </span>
+                            <div className="flex flex-col gap-0.5 mt-1 items-center">
+                                {row.resolution_requested_by_name && (
+                                    <span style={{ fontSize: '8px', color: '#94a3b8', lineHeight: '1' }}>
+                                        Req: {row.resolution_requested_by_name}
+                                    </span>
+                                )}
+                                {row.resolution_approved_by_name && (
+                                    <span style={{ fontSize: '8px', color: '#16a34a', fontWeight: 'bold', lineHeight: '1' }}>
+                                        App: {row.resolution_approved_by_name}
+                                    </span>
+                                )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
                   }
                 ]}
                 data={sem.grades}

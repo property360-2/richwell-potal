@@ -30,12 +30,11 @@ const ResolutionApproval = () => {
       setLoading(true);
       // Fetch grades with SUBMITTED status (pending Head approval)
       const res = await gradesApi.getGrades({ 
-        grade_status: 'SUBMITTED',
-        is_resolution_approved: 'true'
+        resolution_status: 'SUBMITTED'
       });
       setPendingResolutions(res.data.results || res.data);
     } catch (error) {
-      addToast('error', 'Failed to load resolution queue.');
+      addToast('error', error.response?.data?.error || 'Failed to load resolution queue.');
     } finally {
       setLoading(false);
     }
@@ -48,7 +47,7 @@ const ResolutionApproval = () => {
       addToast('success', 'Grade resolution approved.');
       fetchPendingResolutions();
     } catch (error) {
-      addToast('error', 'Approval failed.');
+      addToast('error', error.response?.data?.error || 'Approval failed.');
     } finally {
       setLoading(false);
     }
@@ -68,7 +67,7 @@ const ResolutionApproval = () => {
       setRejectReason('');
       fetchPendingResolutions();
     } catch (error) {
-      addToast('error', 'Rejection failed.');
+      addToast('error', error.response?.data?.error || 'Rejection failed.');
     } finally {
       setLoading(false);
     }

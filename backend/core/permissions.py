@@ -106,3 +106,16 @@ class IsAdminOrReadOnly(BasePermission):
         if request.method in SAFE_METHODS:
             return True
         return request.user.is_authenticated and (request.user.role == 'ADMIN' or request.user.is_superuser)
+
+
+class IsAdminOrRegistrarOrReadOnly(BasePermission):
+    """
+    The request is authenticated as an admin or registrar, or is a read-only request.
+    Use for objects that anyone can view but only admins/registrars can modify.
+    """
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        staff_roles = ('ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR')
+        return request.user.is_authenticated and (request.user.role in staff_roles or request.user.is_superuser)

@@ -24,7 +24,7 @@ const PageHeader = ({
                 <h2>{title}</h2>
                 {badge && <div>{badge}</div>}
             </div>
-            {description && <p className="text-slate-500 text-sm">{description}</p>}
+            {description && <div className="text-slate-500 text-sm">{description}</div>}
         </div>
         
         {actions && (

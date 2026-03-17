@@ -14,8 +14,7 @@ python manage.py seed_advising          # Enrolled students
       - Username: 270001, Password: 2700010202 (DOB: 2005-02-02)
       - Username: 270002, Password: 2700020303 (DOB: 2005-03-03)
       - Username: 270003, Password: 2700030404 (DOB: 2005-04-04)
-      - Username: 270004, Password: 2700040505 (DOB: 2005-05-05)
-      - Username: 270005, Password: 2700050606 (DOB: 2005-06-06)
+      - Student login format: Username (IDN), Password (IDN + MMDD of DOB)
 
     Professors:
       - Username: prof1, Password: EMP0010101 (DOB: 1985-01-01)
@@ -24,11 +23,27 @@ python manage.py seed_advising          # Enrolled students
       - Username: prof4, Password: EMP0040210 (DOB: 1988-02-10)
       - Username: prof5, Password: EMP0050320 (DOB: 1989-03-20)
 
-python manage.py seed_grade_submission  # Professors submit grades
+
+python manage.py seed_grade_submission  # Grade submissions & INC Resolution scenarios
+  Generates:
+    - 40 Students (Current term, ready for grading)
+    - 20 Students (Past term, distributed INC resolution stages)
+    - Consolidated context for professor grading + registrar resolution.
+  
+  Login Credentials & Scenarios:
+    - Professors (Role: PROFESSOR):
+        - prof1 / EMP0010101 -> Scenario: CAN CLICK "Resolve INC" for Student 41 (READY)
+        - prof1 / EMP0010101 -> Scenario: Tracking Resolution for Student 51 (REQUESTED)
+        - prof2 / EMP0020515 -> Scenario: Has completed resolution for Student 60 (COMPLETED)
+    - Students (Role: STUDENT):
+        - 270041 / 2700410107 -> Scenario: Has INC (Ready for prof to request)
+        - 270051 / 2700510424 -> Scenario: Tracking pending resolution in SOG
+        - 270060 / 2700600105 -> Scenario: Viewing finished approval chain in SOG
+    - Staff (Password: password123):
+        - registrar -> Scenario: Approving resolution requests
+        - programhead -> Scenario: Finalizing submitted resolutions
 
 python manage.py seed_grading           # Registrar finalize grades
-
-python manage.py seed_resolution        # INC resolution workflow
 
 python manage.py seed_full_cycle        # Everything (100 students)
 

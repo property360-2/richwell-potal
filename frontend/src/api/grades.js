@@ -19,6 +19,9 @@ export const gradesApi = {
     finalizeTerm: (termId) => api.post('grades/submission/finalize-term/', { term_id: termId }),
     closeGradingPeriod: (termId, periodType) => api.post('grades/submission/close-grading-period/', { term_id: termId, period_type: periodType }),
     registrarApproveResolution: (gradeId) => api.post(`grades/resolution/${gradeId}/registrar-approve/`),
+    submitResolvedGrade: (gradeId, newGrade) => api.post(`grades/resolution/${gradeId}/submit-grade/`, { new_grade: newGrade }),
+    headApproveResolution: (gradeId) => api.post(`grades/resolution/${gradeId}/head-approve/`),
+    headRejectResolution: (gradeId, reason) => api.post(`grades/resolution/${gradeId}/head-reject/`, { reason }),
     bulkHistoricalEncode: (studentId, creditData, source) => api.post('grades/crediting/bulk-historical-encode/', {
         student_id: studentId,
         credit_data: creditData,
