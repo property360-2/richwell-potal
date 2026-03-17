@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, FileCheck, CheckCircle, FileText, Table, Award, Layers, Search } from 'lucide-react';
+import { Users, FileCheck, CheckCircle, FileText, Table, Award, Layers, Search, History } from 'lucide-react';
 import { reportsApi } from '../../api/reports';
 import Card from '../../components/ui/Card';
 import '../shared/Dashboard.css';
@@ -41,6 +41,8 @@ const RegistrarDashboard = () => {
         { title: 'Doc Verification', desc: 'Verify student credentials for enrollment.', icon: <FileCheck className="text-amber-500" />, path: '/registrar/verification', color: 'bg-amber-50' },
         { title: 'Section Management', desc: 'Create and assign students to sections.', icon: <Layers className="text-purple-500" />, path: '/registrar/sections', color: 'bg-purple-50' },
         { title: 'Grade Finalization', desc: 'Review and lock semester grades.', icon: <CheckCircle className="text-emerald-500" />, path: '/registrar/grades', color: 'bg-emerald-50' },
+        { title: 'Subject Crediting', desc: 'Credit subjects for transferee students.', icon: <Award className="text-cyan-500" />, path: '/registrar/crediting', color: 'bg-cyan-50' },
+        { title: 'Historical TOR Encoding', desc: 'Backfill academic history for legacy students.', icon: <History className="text-amber-600" />, path: '/registrar/historical-encode', color: 'bg-amber-100' },
         { title: 'Masterlist Export', desc: 'Download comprehensive term reports.', icon: <Table className="text-blue-500" />, path: '/registrar/reports/masterlist', color: 'bg-blue-50' },
         { title: 'COR Issuance', desc: 'Preview and download student CORs.', icon: <FileText className="text-indigo-500" />, path: '/registrar/reports/cor', color: 'bg-indigo-50' },
         { title: 'Graduation Audit', desc: 'Check eligibility and mark graduates.', icon: <Award className="text-rose-500" />, path: '/registrar/reports/graduation', color: 'bg-rose-50' },

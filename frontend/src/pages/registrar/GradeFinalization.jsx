@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronRight, CheckCircle, ShieldAlert, FileCheck, Layers, Filter } from 'lucide-react';
+import { Search, ChevronRight, CheckCircle, ShieldAlert, FileCheck, Layers, Filter, Lock, Settings2, AlertTriangle } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -12,6 +12,7 @@ import { gradesApi } from '../../api/grades';
 import { termsApi } from '../../api/terms';
 import PageHeader from '../../components/shared/PageHeader';
 import SearchBar from '../../components/shared/SearchBar';
+import Modal from '../../components/shared/Modal';
 import './GradeFinalization.css';
 
 const GradeFinalization = () => {
@@ -23,6 +24,9 @@ const GradeFinalization = () => {
   const [pendingSections, setPendingSections] = useState([]);
   const [resolutions, setResolutions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showLockModal, setShowLockModal] = useState(false);
+  const [lockConfirmText, setLockConfirmText] = useState('');
+  const [countdown, setCountdown] = useState(0);
 
   useEffect(() => {
     fetchInitialData();
@@ -153,23 +157,118 @@ const GradeFinalization = () => {
     }
   ];
 
+  const handleGlobalLock = async () => {
+    if (lockConfirmText !== 'CONFIRM') return;
+    try {
+      setLoading(true);
+      const res = await gradesApi.finalizeTerm(activeTerm.id);
+      addToast('success', res.data.message || 'Global lock applied successfully.');
+      setShowLockModal(false);
+      fetchInitialData();
+    } catch (e) {
+      addToast('error', e.response?.data?.error || 'Failed to apply global lock.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAutoINC = async (periodType) => {
+    if (!window.confirm(`Are you sure you want to mark all unsubmitted ${periodType} grades as INC? This cannot be undone.`)) return;
+    try {
+      setLoading(true);
+      const res = await gradesApi.closeGradingPeriod(activeTerm.id, periodType);
+      addToast('success', res.data.message || 'Grading period closed successfully.');
+      fetchInitialData();
+    } catch (e) {
+      addToast('error', e.response?.data?.error || 'Action failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startLockCountdown = () => {
+    setShowLockModal(true);
+    setCountdown(5);
+    setLockConfirmText('');
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   return (
     <div className="grade-finalization-container p-6 animate-in fade-in duration-500">
       <PageHeader 
-        title="Grade Management Dashboard"
-        description={`Review and finalize student grades for ${activeTerm?.name || 'Active Term'}`}
-        badge={<Layers className="text-primary" size={32} />}
+        title="Grade Management Console"
+        description="Term-level grading controls and finalization queue."
+        badge={<Settings2 className="text-primary" size={32} />}
         actions={
-          <Tabs 
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            tabs={[
-              { id: 'pending', label: 'Finalization Queue' },
-              { id: 'resolutions', label: 'Resolution Requests' }
-            ]}
-          />
+          <div className="flex items-center gap-4">
+            <Tabs 
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              tabs={[
+                { id: 'pending', label: 'Finalization Queue' },
+                { id: 'resolutions', label: 'Resolution Requests' }
+              ]}
+            />
+          </div>
         }
       />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <Card className="lg:col-span-2 p-6 flex flex-col md:flex-row items-center gap-6 bg-gradient-to-br from-white to-blue-50/30 border-blue-100">
+             <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                <Lock size={32} />
+             </div>
+             <div className="flex-1">
+                <h3 className="font-bold text-slate-800">Global Term Finalization</h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                   Permanently lock all grades for <strong>{activeTerm?.name}</strong>. This will prevent any further edits by professors or staff. Use ONLY when the term is officially closed.
+                </p>
+             </div>
+             <Button 
+               variant="primary" 
+               className="bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-200"
+               icon={<Lock size={16} />}
+               onClick={startLockCountdown}
+             >
+                Global Lock
+             </Button>
+          </Card>
+
+          <Card className="p-6 bg-slate-900 text-white border-none shadow-xl">
+             <h3 className="font-bold text-sm tracking-wider uppercase text-slate-400 mb-4">Grading Window Actions</h3>
+             <div className="space-y-3">
+                <Button 
+                   variant="ghost" 
+                   className="w-full justify-start border border-slate-700 text-slate-300 hover:bg-slate-800"
+                   size="sm"
+                   icon={<RotateCcw size={16} />}
+                   onClick={() => handleAutoINC('MIDTERM')}
+                >
+                   Close Midterm / Auto-INC
+                </Button>
+                <Button 
+                   variant="ghost" 
+                   className="w-full justify-start border border-slate-700 text-slate-300 hover:bg-slate-800"
+                   size="sm"
+                   icon={<RotateCcw size={16} />}
+                   onClick={() => handleAutoINC('FINAL')}
+                >
+                   Close Finals / Auto-INC
+                </Button>
+             </div>
+             <p className="text-[10px] text-slate-500 mt-4 italic">
+                * Closes the window for professors and marks unsubmitted grades as INC.
+             </p>
+          </Card>
+      </div>
 
       <div className="grid grid-cols-1 gap-6">
           <Card>
@@ -195,6 +294,51 @@ const GradeFinalization = () => {
             />
           </Card>
       </div>
+
+      <Modal
+        isOpen={showLockModal}
+        onClose={() => setShowLockModal(false)}
+        title="CRITICAL: Global Term Lock"
+        maxWidth="max-w-md"
+      >
+        <div className="p-2">
+           <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl flex gap-3 mb-6">
+              <AlertTriangle className="text-rose-500 shrink-0" size={24} />
+              <div>
+                 <h4 className="font-bold text-rose-800 text-sm">Experimental Warning</h4>
+                 <p className="text-xs text-rose-700 leading-relaxed mt-1">
+                    This action will <strong>PERMANENTLY LOCK</strong> all academic records for this term. Professors will no longer be able to submit or edit grades.
+                 </p>
+              </div>
+           </div>
+
+           <div className="mb-6">
+              <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">
+                 Type <span className="text-slate-900 font-mono">CONFIRM</span> to proceed
+              </label>
+              <Input 
+                value={lockConfirmText}
+                onChange={(e) => setLockConfirmText(e.target.value)}
+                placeholder="CONFIRM"
+                className="font-mono"
+                disabled={countdown > 0}
+              />
+           </div>
+
+           <div className="flex gap-3">
+              <Button variant="ghost" className="flex-1" onClick={() => setShowLockModal(false)}>Cancel</Button>
+              <Button 
+                variant="danger" 
+                className="flex-[2]" 
+                disabled={lockConfirmText !== 'CONFIRM' || countdown > 0}
+                loading={loading}
+                onClick={handleGlobalLock}
+              >
+                 {countdown > 0 ? `Unlocking Button in ${countdown}s...` : 'Finalize & Lock Term'}
+              </Button>
+           </div>
+        </div>
+      </Modal>
     </div>
   );
 };

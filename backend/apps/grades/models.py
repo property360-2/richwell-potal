@@ -86,6 +86,8 @@ class Grade(AuditMixin, models.Model):
 
     is_credited = models.BooleanField(default=False)
     is_retake = models.BooleanField(default=False)
+    is_historical = models.BooleanField(default=False, help_text="Manually encoded from the student's previous TOR.")
+    historical_source = models.CharField(max_length=255, null=True, blank=True, help_text="Reference to the physical TOR or source document.")
     
     submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='submitted_grades')
     midterm_submitted_at = models.DateTimeField(null=True, blank=True)

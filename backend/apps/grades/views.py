@@ -176,6 +176,29 @@ class SubjectCreditingViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['post'], url_path='bulk-historical-encode')
+    def bulk_historical_encode(self, request):
+        """
+        Registrar encodes TOR for legacy students.
+        """
+        student_id = request.data.get('student_id')
+        credit_data = request.data.get('credit_data', []) # List of {subject_id, final_grade}
+        source = request.data.get('source')
+        
+        try:
+            student = Student.objects.get(pk=student_id)
+            active_term = Term.objects.get(is_active=True)
+            
+            results = AdvisingService.bulk_historical_encoding(
+                student, active_term, credit_data, request.user, source=source
+            )
+            return Response({
+                "message": f"Encoded {len(results)} historical records.",
+                "student_id": student.idn
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class GradeSubmissionViewSet(viewsets.ViewSet):
     """
@@ -188,14 +211,10 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
     def submit_midterm(self, request, pk=None):
         grade_id = pk
         value = request.data.get('value')
+        override = request.data.get('override_grading_window', False)
         
         try:
-            grade = Grade.objects.get(pk=grade_id)
-            # Term transition rule: Can submit if within term grading period
-            if timezone.now().date() > grade.term.final_grade_end:
-                 return Response({"error": "Grading period for this term has ended."}, status=status.HTTP_400_BAD_REQUEST)
-            
-            updated_grade = self.service.submit_midterm(grade_id, value, request.user)
+            updated_grade = self.service.submit_midterm(grade_id, value, request.user, override_window=override)
             return Response(GradeSerializer(updated_grade).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -205,15 +224,13 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         grade_id = pk
         value = request.data.get('value')
         is_inc = request.data.get('is_inc', False)
+        override = request.data.get('override_grading_window', False)
         
         try:
             grade = Grade.objects.get(pk=grade_id)
-            if timezone.now().date() > grade.term.final_grade_end:
-                 return Response({"error": "Grading period for this term has ended."}, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Use a mock/internal flag for INC if needed, or pass it to service
+            # Use a mock/internal flag for INC
             grade._is_inc = is_inc
-            updated_grade = self.service.submit_final(grade_id, value, request.user)
+            updated_grade = self.service.submit_final(grade_id, value, request.user, override_window=override)
             return Response(GradeSerializer(updated_grade).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -248,8 +265,8 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         
         return Response(GradeSerializer(grades, many=True).data)
 
-    @action(detail=False, methods=['post'])
-    def finalize(self, request):
+    @action(detail=False, methods=['post'], url_path='finalize-section')
+    def finalize_section(self, request):
         term_id = request.data.get('term_id')
         subject_id = request.data.get('subject_id')
         section_id = request.data.get('section_id')
@@ -263,10 +280,44 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
             subject = Subject.objects.get(pk=subject_id)
             section = Section.objects.get(pk=section_id)
             
-            finalized_grades = self.service.finalize_grades(term, subject, section, request.user)
+            finalized_grades = self.service.finalize_section_grades(term, subject, section, request.user)
             return Response({"message": f"Finalized {finalized_grades.count()} grades."}, status=status.HTTP_200_OK)
         except Exception as e:
              return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='finalize-term')
+    def finalize_term(self, request):
+        """
+        Registrar level global lock for an entire term.
+        """
+        term_id = request.data.get('term_id')
+        if not term_id:
+            return Response({"error": "term_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            term = Term.objects.get(pk=term_id)
+            count = self.service.finalize_term_grades(term, request.user)
+            return Response({"message": f"Global lock applied. Finalized {count} grades."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='close-grading-period')
+    def close_grading_period(self, request):
+        """
+        Auto-INC logic for unsubmitted grades.
+        """
+        term_id = request.data.get('term_id')
+        period_type = request.data.get('period_type') # 'MIDTERM' or 'FINAL'
+        
+        if not all([term_id, period_type]):
+            return Response({"error": "term_id and period_type are required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            term = Term.objects.get(pk=term_id)
+            count = self.service.mark_unsubmitted_as_inc(term, period_type, request.user)
+            return Response({"message": f"Grading period closed. {count} unsubmitted grades marked as INC."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ResolutionViewSet(viewsets.ViewSet):

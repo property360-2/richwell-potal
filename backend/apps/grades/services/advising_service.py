@@ -316,3 +316,55 @@ class AdvisingService:
             enrollment.is_regular = AdvisingService.check_student_regularity(student, term)
             enrollment.year_level = AdvisingService.get_year_level(student)
             enrollment.save()
+
+    @classmethod
+    @transaction.atomic
+    def bulk_historical_encoding(cls, student, term, credit_data, user, source=None):
+        """
+        Registrar encodes TOR for legacy students.
+        Bypasses Program Head approval and transitions.
+        Sets historical_source for audit tracking.
+        """
+        from apps.grades.models import Grade
+        from django.utils import timezone
+        results = []
+        
+        for item in credit_data:
+            subject_id = item.get('subject_id')
+            final_grade = item.get('final_grade')
+            
+            if not subject_id or not final_grade:
+                continue
+                
+            grade, created = Grade.objects.update_or_create(
+                student=student,
+                subject_id=subject_id,
+                term=term,
+                defaults={
+                    'final_grade': final_grade,
+                    'grade_status': Grade.STATUS_PASSED if float(final_grade) <= 3.0 else Grade.STATUS_FAILED,
+                    'advising_status': 'APPROVED',
+                    'is_historical': True,
+                    'is_credited': True,
+                    'historical_source': source,
+                    'submitted_by': user,
+                    'finalized_by': user,
+                    'finalized_at': timezone.now()
+                }
+            )
+            results.append(grade)
+            
+        # Trigger recalculation of year level and regularity
+        cls.recalculate_student_standing(student, term)
+        return results
+
+    @classmethod
+    def recalculate_student_standing(cls, student, term):
+        """
+        Recalculates and updates a student's regularity and year level for a given term.
+        """
+        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
+        if enrollment:
+            enrollment.is_regular = cls.check_student_regularity(student, term)
+            enrollment.year_level = cls.get_year_level(student)
+            enrollment.save()

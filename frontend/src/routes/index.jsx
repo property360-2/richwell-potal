@@ -46,6 +46,7 @@ const SubjectCrediting = lazy(() => import('../pages/registrar/SubjectCrediting'
 const SectioningDashboard = lazy(() => import('../pages/registrar/SectioningDashboard'));
 const GradeFinalization = lazy(() => import('../pages/registrar/GradeFinalization'));
 const GradeReviewPage = lazy(() => import('../pages/registrar/GradeReviewPage'));
+const HistoricalEncoding = lazy(() => import('../pages/registrar/HistoricalEncoding'));
 const CORPreview = lazy(() => import('../pages/registrar/reports/CORPreview'));
 const MasterlistExport = lazy(() => import('../pages/registrar/reports/MasterlistExport'));
 const GraduationAudit = lazy(() => import('../pages/registrar/reports/GraduationAudit'));
@@ -196,6 +197,7 @@ const AppRoutes = () => {
           <Route element={<PageWrapper title="Grade Management" />}>
             <Route path="/registrar/grades" element={<GradeFinalization />} />
             <Route path="/registrar/grades/review/:termId/:sectionId/:subjectId" element={<GradeReviewPage />} />
+            <Route path="/registrar/historical-encode" element={<HistoricalEncoding />} />
           </Route>
           <Route element={<PageWrapper title="Reports" />}>
             <Route path="/registrar/reports/cor" element={<CORPreview />} />
