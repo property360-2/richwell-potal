@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from apps.scheduling.models import Schedule
 from apps.scheduling.serializers import ScheduleSerializer
 from apps.scheduling.services.scheduling_service import SchedulingService
@@ -130,23 +131,25 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         session = request.data.get('session')
         
         if not all([term_id, session]):
-            return Response({"error": "term_id and session are required"}, status=status.HTTP_400_BAD_REQUEST)
-            
+            raise ValidationError({'detail': 'term_id and session are required.'})
+        if request.user.role != 'STUDENT':
+            raise PermissionDenied("Only students can pick schedules.")
+
+        student = request.user.student_profile
         try:
-            student = request.user.student_profile
             term = Term.objects.get(id=term_id)
-            section, redirected = self.picking_service.pick_schedule_regular(student, term, session)
-            
-            schedules = Schedule.objects.filter(section=section)
-            return Response({
-                "message": f"Successfully assigned to {section.name}.",
-                "redirected": redirected,
-                "section_id": section.id,
-                "section_name": section.name,
-                "schedules": self.get_serializer(schedules, many=True).data
-            })
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Term.DoesNotExist as exc:
+            raise ValidationError({'detail': 'Term not found.'}) from exc
+        section, redirected = self.picking_service.pick_schedule_regular(student, term, session)
+        
+        schedules = Schedule.objects.filter(section=section)
+        return Response({
+            "message": f"Successfully assigned to {section.name}.",
+            "redirected": redirected,
+            "section_id": section.id,
+            "section_name": section.name,
+            "schedules": self.get_serializer(schedules, many=True).data
+        })
 
     @action(detail=False, methods=['POST'], url_path='pick-irregular')
     def pick_irregular(self, request):
@@ -157,15 +160,17 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         selections = request.data.get('selections', []) # [{subject_id, section_id}, ...]
         
         if not term_id:
-            return Response({"error": "term_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-            
+            raise ValidationError({'detail': 'term_id is required.'})
+        if request.user.role != 'STUDENT':
+            raise PermissionDenied("Only students can pick schedules.")
+
+        student = request.user.student_profile
         try:
-            student = request.user.student_profile
             term = Term.objects.get(id=term_id)
-            self.picking_service.pick_schedule_irregular(student, term, selections)
-            return Response({"message": "Successfully picked schedules."})
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Term.DoesNotExist as exc:
+            raise ValidationError({'detail': 'Term not found.'}) from exc
+        self.picking_service.pick_schedule_irregular(student, term, selections)
+        return Response({"message": "Successfully picked schedules."})
 
     @action(detail=False, methods=['GET'], url_path='status-matrix')
     def status_matrix(self, request):

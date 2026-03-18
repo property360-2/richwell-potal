@@ -1,94 +1,120 @@
-# Accounts & Authentication API
+# Accounts and Authentication API
 
-## Overview
-The authentication system uses JWT (JSON Web Tokens) stored in HttpOnly cookies for security.
-
-## Endpoints
+## Auth Endpoints
 
 ### `POST /api/accounts/auth/login/`
-Authenticate a user and set access/refresh tokens in cookies.
+Authenticates the user and sets the browser auth cookies.
 
-**Auth required:** No
+Auth required: No
 
-#### Request body
+Request body:
 ```json
 {
-  "username": "string (required)",
-  "password": "string (required)"
+  "username": "admin",
+  "password": "password123"
 }
 ```
 
-#### Success response `200 OK`
+Success response:
 ```json
 {
-  "access": "string",
-  "refresh": "string",
   "user": {
     "id": 1,
     "username": "admin",
     "email": "admin@example.com",
-    "role": "ADMIN",
     "first_name": "System",
     "last_name": "Admin",
+    "role": "ADMIN",
+    "is_active": true,
+    "headed_programs": [],
+    "is_superuser": false,
     "must_change_password": false
   }
 }
 ```
 
----
+Notes:
+- `access` and `refresh` are intentionally not returned in the JSON body.
+- The browser session is established through `Set-Cookie`.
+
+### `POST /api/accounts/auth/refresh/`
+Refreshes the access cookie using the refresh cookie.
+
+Auth required: Refresh cookie present
+
+Success response:
+```json
+{}
+```
+
+Notes:
+- This endpoint is cookie-refresh only.
+- It does not return a raw access token in the body.
 
 ### `POST /api/accounts/auth/logout/`
-Clear authentication cookies.
+Clears the auth cookies.
 
-**Auth required:** Yes
-
----
+Auth required: Yes
 
 ### `GET /api/accounts/auth/me/`
-Return the current authenticated user's profile.
+Returns the current authenticated user.
 
-**Auth required:** Yes
-
----
+Auth required: Yes
 
 ### `POST /api/accounts/auth/change-password/`
-Change the current user's password.
+Changes the current user's password.
 
-**Auth required:** Yes
+Auth required: Yes
 
-#### Request body
+Request body:
 ```json
 {
-  "old_password": "string (required)",
-  "new_password": "string (required)"
+  "old_password": "old-secret",
+  "new_password": "new-secret",
+  "confirm_password": "new-secret"
 }
 ```
 
----
+## Staff Management
 
-### Staff Management (`/api/accounts/staff/`)
-Endpoints for Admins and Head Registrars to manage staff accounts.
+Base path: `/api/accounts/staff/`
 
-#### `GET /api/accounts/staff/`
-List staff members. 
-- Admins see all staff.
-- Head Registrars see only Registrars.
+Allowed roles:
+- `ADMIN`: can manage all non-student staff accounts.
+- `HEAD_REGISTRAR`: can manage registrar accounts only.
 
-#### `POST /api/accounts/staff/`
-Create a new staff member.
+### `GET /api/accounts/staff/`
+Lists staff users in scope for the caller.
 
-#### `POST /api/accounts/staff/{id}/reset-password/`
-Reset a staff member's password to the default format.
+### `POST /api/accounts/staff/`
+Creates a new staff user.
 
-## Roles
-| Role | Description |
-|------|-------------|
-| ADMIN | Full system access |
-| HEAD_REGISTRAR | Manages registrars and academic records |
-| REGISTRAR | Manages student records and scheduling |
-| ADMISSION | Handles applicant processing |
-| CASHIER | Manages payments and finance |
-| DEAN | Oversees specific colleges |
-| PROGRAM_HEAD | Oversees specific academic programs |
-| PROFESSOR | Manages grades and class schedules |
-| STUDENT | Self-service portal access |
+Rules:
+- Admin can create any supported staff role.
+- Head Registrar can create `REGISTRAR` only.
+
+### `PATCH /api/accounts/staff/{id}/`
+Updates a staff user.
+
+Rules:
+- Head Registrar cannot update or promote non-registrar accounts.
+- Role escalation through Head Registrar updates is blocked.
+
+### `POST /api/accounts/staff/{id}/reset-password/`
+Resets the target user's password to the system's current default formula.
+
+Rules:
+- Head Registrar can reset registrar accounts only.
+
+## Role Reference
+| Role | Purpose |
+|------|---------|
+| `ADMIN` | Full administrative access |
+| `HEAD_REGISTRAR` | Registrar supervision and registrar-only staff management |
+| `REGISTRAR` | Academic records and grade finalization |
+| `ADMISSION` | Applicant processing and admissions workflows |
+| `CASHIER` | Payments and permit checks |
+| `DEAN` | Scheduling and faculty allocation |
+| `PROGRAM_HEAD` | Program-scoped advising approvals and resolution review |
+| `PROFESSOR` | Assigned-section grading only |
+| `STUDENT` | Self-service only |

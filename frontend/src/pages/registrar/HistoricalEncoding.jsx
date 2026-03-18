@@ -24,7 +24,7 @@ import Table from '../../components/ui/Table';
 import { useToast } from '../../components/ui/Toast';
 import PageHeader from '../../components/shared/PageHeader';
 import SearchBar from '../../components/shared/SearchBar';
-import Modal from '../../components/shared/Modal';
+import Modal from '../../components/ui/Modal';
 
 const HistoricalEncoding = () => {
   const { addToast } = useToast();

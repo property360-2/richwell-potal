@@ -28,7 +28,9 @@ class TestAuthAPI:
         url = reverse('login')
         resp = api_client.post(url, {'username': user.username, 'password': 'testpass123'}, format='json')
         assert resp.status_code == status.HTTP_200_OK
-        assert 'access' in resp.data
+        assert 'access' not in resp.data
+        assert 'refresh' not in resp.data
+        assert 'user' in resp.data
 
     def test_me(self, api_client, admin_user):
         url = reverse('me')

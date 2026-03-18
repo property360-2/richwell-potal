@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 from django.db.models import F, Exists, OuterRef
 from apps.grades.models import Grade
@@ -11,6 +12,7 @@ from apps.grades.services.resolution_service import ResolutionService
 from apps.students.models import Student, StudentEnrollment
 from apps.terms.models import Term
 from apps.academics.models import Subject
+from django.core.exceptions import ObjectDoesNotExist
 from django_filters.rest_framework import DjangoFilterBackend
 from core.permissions import IsStudent, IsProgramHead, IsRegistrar, IsAdmin, IsProfessor
 
@@ -44,6 +46,8 @@ class AdvisingViewSet(viewsets.ModelViewSet):
 
     Permissions: IsStudent | IsProgramHead | IsRegistrar | IsAdmin | IsProfessor
     """
+    serializer_class = GradeSerializer
+    filterset_class = GradeFilter
 
     def get_queryset(self):
         user = self.request.user
@@ -88,11 +92,9 @@ class AdvisingViewSet(viewsets.ModelViewSet):
             serializer = GradeSerializer(grades, many=True)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Term.DoesNotExist:
-            return Response({"error": "No active term found."}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({'detail': 'No active term found.'})
         except StudentEnrollment.DoesNotExist:
-            return Response({"error": "Student not enrolled for the active term."}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({'detail': 'Student not enrolled for the active term.'})
 
     @action(detail=False, methods=['post'], url_path='manual-advise')
     def manual_advise(self, request):
@@ -100,23 +102,22 @@ class AdvisingViewSet(viewsets.ModelViewSet):
         Irregular student submits manual subject selection.
         """
         serializer = AdvisingSubmitSerializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                student = self.request.user.student_profile
-                active_term = Term.objects.get(is_active=True)
-                
-                # Ensure student is enrolled for the term
-                enrollment = StudentEnrollment.objects.get(student=student, term=active_term)
-                
-                grades = AdvisingService.manual_advise_irregular(
-                    student, 
-                    active_term, 
-                    serializer.validated_data['subject_ids']
-                )
-                return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        try:
+            student = self.request.user.student_profile
+            active_term = Term.objects.get(is_active=True)
+            StudentEnrollment.objects.get(student=student, term=active_term)
+        except Term.DoesNotExist as exc:
+            raise ValidationError({'detail': 'No active term found.'}) from exc
+        except StudentEnrollment.DoesNotExist as exc:
+            raise ValidationError({'detail': 'Student not enrolled for the active term.'}) from exc
+        
+        grades = AdvisingService.manual_advise_irregular(
+            student, 
+            active_term, 
+            serializer.validated_data['subject_ids']
+        )
+        return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
 
 
 class AdvisingApprovalViewSet(viewsets.ViewSet):
@@ -127,13 +128,17 @@ class AdvisingApprovalViewSet(viewsets.ViewSet):
         """
         Program Head batch approves all regular student advising for their program.
         """
-        active_term = Term.objects.get(is_active=True)
-        # In a real scenario, we'd filter by the Program Head's specific programs.
+        try:
+            active_term = Term.objects.get(is_active=True)
+        except Term.DoesNotExist as exc:
+            raise ValidationError({'detail': 'No active term found.'}) from exc
         pending_enrollments = StudentEnrollment.objects.filter(
             term=active_term,
             advising_status='PENDING',
             is_regular=True
         )
+        if request.user.role == 'PROGRAM_HEAD':
+            pending_enrollments = pending_enrollments.filter(student__program__program_head=request.user)
         
         count = 0
         for enrollment in pending_enrollments:
@@ -147,12 +152,11 @@ class AdvisingApprovalViewSet(viewsets.ViewSet):
         """
         Approve an individual student enrollment.
         """
-        try:
-            enrollment = StudentEnrollment.objects.get(pk=pk)
-            AdvisingService.approve_advising(enrollment, request.user)
-            return Response({"message": "Advising approved."}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        enrollment = StudentEnrollment.objects.get(pk=pk)
+        if request.user.role == 'PROGRAM_HEAD' and enrollment.student.program.program_head_id != request.user.id:
+            raise PermissionDenied("You do not manage this student's program.")
+        AdvisingService.approve_advising(enrollment, request.user)
+        return Response({"message": "Advising approved."}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
@@ -160,16 +164,21 @@ class AdvisingApprovalViewSet(viewsets.ViewSet):
         Reject an individual student enrollment.
         """
         reason = request.data.get('reason', 'No reason provided')
-        try:
-            enrollment = StudentEnrollment.objects.get(pk=pk)
-            AdvisingService.reject_advising(enrollment, reason)
-            return Response({"message": "Advising rejected."}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        enrollment = StudentEnrollment.objects.get(pk=pk)
+        if request.user.role == 'PROGRAM_HEAD' and enrollment.student.program.program_head_id != request.user.id:
+            raise PermissionDenied("You do not manage this student's program.")
+        AdvisingService.reject_advising(enrollment, reason)
+        return Response({"message": "Advising rejected."}, status=status.HTTP_200_OK)
 
 
 class SubjectCreditingViewSet(viewsets.ViewSet):
     permission_classes = [IsRegistrar | IsAdmin]
+
+    @staticmethod
+    def _raise_crediting_error(exc):
+        if isinstance(exc, ObjectDoesNotExist):
+            raise ValidationError({'detail': 'Referenced student, subject, or active term was not found.'}) from exc
+        raise ValidationError({'detail': 'Unable to complete the crediting request.'}) from exc
 
     @action(detail=False, methods=['post'])
     def credit(self, request):
@@ -189,8 +198,8 @@ class SubjectCreditingViewSet(viewsets.ViewSet):
                 student, subject, active_term, request.user, final_grade
             )
             return Response(GradeSerializer(grade).data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            self._raise_crediting_error(exc)
 
     @action(detail=False, methods=['post'])
     def uncredit(self, request):
@@ -207,8 +216,8 @@ class SubjectCreditingViewSet(viewsets.ViewSet):
             
             AdvisingService.uncredit_subject(student, subject, active_term)
             return Response({"status": "Credit removed"}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            self._raise_crediting_error(exc)
 
     @action(detail=False, methods=['post'], url_path='bulk-historical-encode')
     def bulk_historical_encode(self, request):
@@ -230,8 +239,8 @@ class SubjectCreditingViewSet(viewsets.ViewSet):
                 "message": f"Encoded {len(results)} historical records.",
                 "student_id": student.idn
             }, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            self._raise_crediting_error(exc)
 
 
 class GradeSubmissionViewSet(viewsets.ViewSet):
@@ -248,11 +257,8 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         is_inc = request.data.get('is_inc', False)
         override = request.data.get('override_grading_window', False)
         
-        try:
-            updated_grade = self.service.submit_midterm(grade_id, value, request.user, is_inc=is_inc, override_window=override)
-            return Response(GradeSerializer(updated_grade).data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        updated_grade = self.service.submit_midterm(grade_id, value, request.user, is_inc=is_inc, override_window=override)
+        return Response(GradeSerializer(updated_grade).data)
 
     @action(detail=True, methods=['post'], url_path='submit-final')
     def submit_final(self, request, pk=None):
@@ -261,14 +267,10 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         is_inc = request.data.get('is_inc', False)
         override = request.data.get('override_grading_window', False)
         
-        try:
-            grade = Grade.objects.get(pk=grade_id)
-            # Use a mock/internal flag for INC
-            grade._is_inc = is_inc
-            updated_grade = self.service.submit_final(grade_id, value, request.user, override_window=override)
-            return Response(GradeSerializer(updated_grade).data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        grade = Grade.objects.get(pk=grade_id)
+        grade._is_inc = is_inc
+        updated_grade = self.service.submit_final(grade_id, value, request.user, override_window=override)
+        return Response(GradeSerializer(updated_grade).data)
 
     @action(detail=False, methods=['get'])
     def roster(self, request):
@@ -309,16 +311,13 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         if not all([term_id, subject_id, section_id]):
             return Response({"error": "term_id, subject_id, and section_id are required."}, status=status.HTTP_400_BAD_REQUEST)
             
-        try:
-            from apps.sections.models import Section
-            term = Term.objects.get(pk=term_id)
-            subject = Subject.objects.get(pk=subject_id)
-            section = Section.objects.get(pk=section_id)
-            
-            finalized_grades = self.service.finalize_section_grades(term, subject, section, request.user)
-            return Response({"message": f"Finalized {finalized_grades.count()} grades."}, status=status.HTTP_200_OK)
-        except Exception as e:
-             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.sections.models import Section
+        term = Term.objects.get(pk=term_id)
+        subject = Subject.objects.get(pk=subject_id)
+        section = Section.objects.get(pk=section_id)
+        
+        finalized_grades = self.service.finalize_section_grades(term, subject, section, request.user)
+        return Response({"message": f"Finalized {finalized_grades.count()} grades."}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='finalize-term')
     def finalize_term(self, request):
@@ -329,12 +328,9 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         if not term_id:
             return Response({"error": "term_id is required."}, status=status.HTTP_400_BAD_REQUEST)
             
-        try:
-            term = Term.objects.get(pk=term_id)
-            count = self.service.finalize_term_grades(term, request.user)
-            return Response({"message": f"Global lock applied. Finalized {count} grades."}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        term = Term.objects.get(pk=term_id)
+        count = self.service.finalize_term_grades(term, request.user)
+        return Response({"message": f"Global lock applied. Finalized {count} grades."}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='close-grading-period')
     def close_grading_period(self, request):
@@ -347,12 +343,9 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         if not all([term_id, period_type]):
             return Response({"error": "term_id and period_type are required."}, status=status.HTTP_400_BAD_REQUEST)
             
-        try:
-            term = Term.objects.get(pk=term_id)
-            count = self.service.mark_unsubmitted_as_inc(term, period_type, request.user)
-            return Response({"message": f"Grading period closed. {count} unsubmitted grades marked as INC."}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        term = Term.objects.get(pk=term_id)
+        count = self.service.mark_unsubmitted_as_inc(term, period_type, request.user)
+        return Response({"message": f"Grading period closed. {count} unsubmitted grades marked as INC."}, status=status.HTTP_200_OK)
 
 
 class ResolutionViewSet(viewsets.ViewSet):
@@ -365,58 +358,37 @@ class ResolutionViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'], url_path='request-resolution')
     def request_resolution(self, request, pk=None):
         reason = request.data.get('reason')
-        try:
-            grade = self.service.request_resolution(pk, request.user, reason)
-            return Response(GradeSerializer(grade).data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        grade = self.service.request_resolution(pk, request.user, reason)
+        return Response(GradeSerializer(grade).data)
 
     @action(detail=True, methods=['post'], url_path='registrar-approve')
     def registrar_approve(self, request, pk=None):
-        try:
-            grade = self.service.registrar_approve_request(pk, request.user)
-            return Response(GradeSerializer(grade).data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        grade = self.service.registrar_approve_request(pk, request.user)
+        return Response(GradeSerializer(grade).data)
 
     @action(detail=True, methods=['post'], url_path='registrar-reject')
     def registrar_reject(self, request, pk=None):
         reason = request.data.get('reason')
-        try:
-            grade = self.service.registrar_reject_request(pk, request.user, reason)
-            return Response(GradeSerializer(grade).data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        grade = self.service.registrar_reject_request(pk, request.user, reason)
+        return Response(GradeSerializer(grade).data)
 
     @action(detail=True, methods=['post'], url_path='submit-grade')
     def submit_grade(self, request, pk=None):
         new_grade = request.data.get('new_grade')
-        try:
-            grade = self.service.submit_resolved_grade(pk, request.user, new_grade)
-            return Response(GradeSerializer(grade).data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        grade = self.service.submit_resolved_grade(pk, request.user, new_grade)
+        return Response(GradeSerializer(grade).data)
 
     @action(detail=True, methods=['post'], url_path='head-approve')
     def head_approve(self, request, pk=None):
-        try:
-            grade = self.service.head_approve_resolution(pk, request.user)
-            return Response(GradeSerializer(grade).data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        grade = self.service.head_approve_resolution(pk, request.user)
+        return Response(GradeSerializer(grade).data)
 
     @action(detail=True, methods=['post'], url_path='head-reject')
     def head_reject(self, request, pk=None):
         reason = request.data.get('reason')
-        try:
-            grade = self.service.head_reject_resolution(pk, reason)
-            return Response(GradeSerializer(grade).data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        grade = self.service.head_reject_resolution(pk, request.user, reason)
+        return Response(GradeSerializer(grade).data)
     @action(detail=True, methods=['post'], url_path='registrar-finalize')
     def registrar_finalize(self, request, pk=None):
-        try:
-            grade = self.service.registrar_finalize_resolution(pk, request.user)
-            return Response(GradeSerializer(grade).data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        grade = self.service.registrar_finalize_resolution(pk, request.user)
+        return Response(GradeSerializer(grade).data)

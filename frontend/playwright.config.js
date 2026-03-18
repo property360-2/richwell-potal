@@ -1,7 +1,13 @@
 /* global process */
 import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export default defineConfig({
+    globalSetup: './tests/global.setup.js',
     testDir: './tests',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
@@ -39,10 +45,20 @@ export default defineConfig({
             dependencies: ['setup'],
         },
     ],
-    webServer: {
-        command: 'npm run dev',
-        url: 'http://localhost:5173',
-        reuseExistingServer: !process.env.CI,
-        timeout: 120 * 1000,
-    },
+    webServer: [
+        {
+            command: 'python manage.py runserver 127.0.0.1:8000',
+            url: 'http://127.0.0.1:8000/api/accounts/auth/csrf/',
+            cwd: path.resolve(__dirname, '../backend'),
+            reuseExistingServer: !process.env.CI,
+            timeout: 120 * 1000,
+        },
+        {
+            command: 'npm run dev',
+            url: 'http://localhost:5173',
+            cwd: __dirname,
+            reuseExistingServer: !process.env.CI,
+            timeout: 120 * 1000,
+        },
+    ],
 });

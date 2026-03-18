@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckSquare, ShieldCheck, AlertCircle, ChevronRight, Info, Calendar } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
+import { Clock, CheckSquare, ShieldCheck, Info } from 'lucide-react';
 import api from '../../api/axios';
 import { schedulingApi } from '../../api/scheduling';
 import Card from '../../components/ui/Card';
@@ -13,7 +12,6 @@ import { useToast } from '../../components/ui/Toast';
 import './SchedulePicking.css';
 
 const SchedulePicking = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [enrollment, setEnrollment] = useState(null);
@@ -52,11 +50,14 @@ const SchedulePicking = () => {
 
           // For irregular students, fetch sections for each subject
           if (!enrollRes.data.is_regular) {
+              const sectionResponses = await Promise.all(
+                approved.map((grade) => api.get(`sections/?term_id=${term.id}&subject_id=${grade.subject}`))
+              );
               const sectionsMap = {};
-              for (const grade of approved) {
-                  const sRes = await api.get(`sections/?term_id=${term.id}&subject_id=${grade.subject}`);
-                  sectionsMap[grade.subject] = sRes.data.results || sRes.data;
-              }
+              approved.forEach((grade, index) => {
+                const responseData = sectionResponses[index].data;
+                sectionsMap[grade.subject] = responseData.results || responseData;
+              });
               setSubjectSections(sectionsMap);
           }
         }
@@ -86,53 +87,13 @@ const SchedulePicking = () => {
       }
       fetchData();
     } catch (err) {
-      showToast('error', err.response?.data?.error || 'Failed to pick schedule');
+      showToast('error', err.response?.data?.message || err.response?.data?.error || 'Failed to pick schedule');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const [conflicts, setConflicts] = useState({}); // { subjectId: true/false }
-
-  const checkConflicts = (selections) => {
-    const newConflicts = {};
-    const scheduleList = [];
-
-    // Collect all schedules for selected sections
-    Object.entries(selections).forEach(([subId, secId]) => {
-      const section = (subjectSections[subId] || []).find(s => s.id === secId);
-      if (section && section.schedules) {
-        section.schedules.forEach(sch => {
-          scheduleList.push({ ...sch, subjectId: subId });
-        });
-      }
-    });
-
-    // Check overlaps
-    for (let i = 0; i < scheduleList.length; i++) {
-      for (let j = i + 1; j < scheduleList.length; j++) {
-        const s1 = scheduleList[i];
-        const s2 = scheduleList[j];
-
-        // Same day check
-        const commonDays = s1.days.filter(d => s2.days.includes(d));
-        if (commonDays.length > 0) {
-          // Time overlap check (s1.start < s2.end && s2.start < s1.end)
-          if (s1.start < s2.end && s2.start < s1.end) {
-            newConflicts[s1.subjectId] = true;
-            newConflicts[s2.subjectId] = true;
-          }
-        }
-      }
-    }
-    setConflicts(newConflicts);
-  };
-
   const handlePickIrregular = async () => {
-    if (Object.keys(conflicts).length > 0) {
-        return showToast('error', 'Please resolve schedule conflicts before finalizing.');
-    }
-    
     const selections = Object.entries(selectedSections).map(([subjectId, sectionId]) => ({
         subject_id: parseInt(subjectId),
         section_id: parseInt(sectionId)
@@ -151,17 +112,11 @@ const SchedulePicking = () => {
         showToast('success', 'Schedule picked successfully');
         fetchData();
     } catch (err) {
-        showToast('error', err.response?.data?.error || 'Failed to pick schedules');
+        showToast('error', err.response?.data?.message || err.response?.data?.error || 'Failed to pick schedules');
     } finally {
         setIsProcessing(false);
     }
   };
-
-  useEffect(() => {
-    if (!isRegular && Object.keys(selectedSections).length > 0) {
-      checkConflicts(selectedSections);
-    }
-  }, [selectedSections, isRegular]);
 
   if (loading && !enrollment) return <div className="p-8 h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
 
@@ -178,8 +133,6 @@ const SchedulePicking = () => {
     );
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  
   const pickingBlocked = enrollment.is_schedule_picked;
 
   if (pickingBlocked && activeTerm) {
@@ -243,7 +196,7 @@ const SchedulePicking = () => {
             <div style={{ marginTop: 'var(--space-6)', padding: 'var(--space-6)', backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', display: 'flex', gap: 'var(--space-4)' }}>
               <Info size={24} style={{ color: 'var(--color-info)', flexShrink: 0 }} />
               <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
-                  Sections are capped at 40 students. If your preferred session is full, the system will automatically assign you to the available slot.
+                  Section availability follows the live capacity configured by the registrar. If your preferred session is full, the system will automatically assign you to the next available slot.
               </p>
             </div>
           </div>
@@ -328,9 +281,6 @@ const SchedulePicking = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
                        <Badge variant="neutral" style={{ fontWeight: 700 }}>{grade.subject_details?.code}</Badge>
                        <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text)' }}>{grade.subject_details?.description}</span>
-                       {conflicts[grade.subject] && (
-                         <Badge variant="error" style={{ fontSize: '9px', marginLeft: 'auto' }}>TIME CONFLICT</Badge>
-                       )}
                     </div>
                     
                     <div className="section-grid">
@@ -373,11 +323,6 @@ const SchedulePicking = () => {
               <div className="picking-footer">
                 <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
                     Selection: <span style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedSections).length} / {approvedGrades.length}</span> Subjects Selected
-                    {Object.keys(conflicts).length > 0 && (
-                      <span style={{ color: 'var(--color-error)', marginLeft: 'var(--space-4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <AlertCircle size={14} /> Schedule Conflict Detected
-                      </span>
-                    )}
                 </div>
                 <Button 
                   variant="primary" 

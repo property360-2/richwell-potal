@@ -9,7 +9,10 @@ const registrarFile = path.join(__dirname, 'playwright/.auth/registrar.json');
 const professorFile = path.join(__dirname, 'playwright/.auth/professor.json');
 const studentFile = path.join(__dirname, 'playwright/.auth/student.json');
 const enrolleeFile = path.join(__dirname, 'playwright/.auth/enrollee.json');
+const irregularFile = path.join(__dirname, 'playwright/.auth/irregular.json');
+const blockedStudentFile = path.join(__dirname, 'playwright/.auth/blocked-student.json');
 const programHeadFile = path.join(__dirname, 'playwright/.auth/program-head.json');
+const cashierFile = path.join(__dirname, 'playwright/.auth/cashier.json');
 const adminFile = path.join(__dirname, 'playwright/.auth/user.json');
 
 async function loginAs(page, username, password, targetUrl, savePath) {
@@ -63,6 +66,18 @@ setup('authenticate as enrollee', async ({ page }) => {
     await loginAs(page, 'enrollee_e2e', 'password123', '/student', enrolleeFile);
 });
 
+setup('authenticate as irregular student', async ({ page }) => {
+    await loginAs(page, 'irregular_e2e', 'password123', '/student', irregularFile);
+});
+
+setup('authenticate as blocked student', async ({ page }) => {
+    await loginAs(page, 'blocked_student_e2e', 'password123', '/student', blockedStudentFile);
+});
+
 setup('authenticate as program head', async ({ page }) => {
     await loginAs(page, 'program_head_e2e', 'password123', '/program-head', programHeadFile);
+});
+
+setup('authenticate as cashier', async ({ page }) => {
+    await loginAs(page, 'cashier_e2e', 'password123', '/cashier', cashierFile);
 });

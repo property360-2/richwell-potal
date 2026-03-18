@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.urls import reverse
+from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
@@ -36,16 +37,30 @@ class AuthenticationTests(APITestCase):
         data = {'username': 'admin', 'password': 'testpassword123'}
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('access', response.data)
-        self.assertIn('refresh', response.data)
+        self.assertNotIn('access', response.data)
+        self.assertNotIn('refresh', response.data)
         self.assertIn('user', response.data)
         self.assertEqual(response.data['user']['role'], 'ADMIN')
+        self.assertIn('access_token', response.cookies)
+        self.assertIn('refresh_token', response.cookies)
 
     def test_login_failure(self):
         url = reverse('login')
         data = {'username': 'admin', 'password': 'wrongpassword'}
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_refresh_success_hides_raw_tokens(self):
+        login = self.client.post(reverse('login'), {'username': 'admin', 'password': 'testpassword123'}, format='json')
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+
+        self.client.cookies['refresh_token'] = login.cookies['refresh_token'].value
+        response = self.client.post(reverse('token_refresh'), {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn('access', response.data)
+        self.assertNotIn('refresh', response.data)
+        self.assertIn('access_token', response.cookies)
 
     def test_me_endpoint_requires_auth(self):
         url = reverse('me')
@@ -54,9 +69,7 @@ class AuthenticationTests(APITestCase):
 
     def test_me_endpoint_returns_user_data(self):
         url = reverse('me')
-        # Login to get token
-        login_response = self.client.post(reverse('login'), {'username': 'registrar', 'password': 'testpassword123'}, format='json')
-        access_token = login_response.data['access']
+        access_token = str(RefreshToken.for_user(self.staff_user).access_token)
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + access_token)
         
         response = self.client.get(url)
@@ -66,9 +79,7 @@ class AuthenticationTests(APITestCase):
 
     def test_change_password(self):
         url = reverse('change_password')
-        # Login to get token
-        login_response = self.client.post(reverse('login'), {'username': 'registrar', 'password': 'testpassword123'}, format='json')
-        access_token = login_response.data['access']
+        access_token = str(RefreshToken.for_user(self.staff_user).access_token)
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + access_token)
         
         data = {
@@ -97,8 +108,7 @@ class StaffManagementTests(APITestCase):
         )
         
     def test_admin_can_access_staff_list(self):
-        # login as admin
-        token = self.client.post(reverse('login'), {'username': 'admin', 'password': 'pwd'}).data['access']
+        token = str(RefreshToken.for_user(self.admin).access_token)
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
         
         url = reverse('staff-list')
@@ -107,8 +117,7 @@ class StaffManagementTests(APITestCase):
         self.assertGreaterEqual(len(response.data['results']), 2)
 
     def test_registrar_cannot_access_staff_list(self):
-        # login as registrar
-        token = self.client.post(reverse('login'), {'username': 'reg', 'password': 'pwd'}).data['access']
+        token = str(RefreshToken.for_user(self.registrar).access_token)
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
         
         url = reverse('staff-list')

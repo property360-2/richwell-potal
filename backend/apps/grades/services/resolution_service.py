@@ -1,11 +1,35 @@
 from django.db import transaction
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
 from apps.grades.models import Grade
 from apps.notifications.services.notification_service import NotificationService
 from apps.notifications.models import Notification
 from apps.accounts.models import User
 
 class ResolutionService:
+    @staticmethod
+    def _assert_professor_can_manage_grade(grade, professor):
+        if professor.role != 'PROFESSOR':
+            return
+
+        from apps.scheduling.models import Schedule
+
+        is_assigned = Schedule.objects.filter(
+            term=grade.term,
+            section=grade.section,
+            subject=grade.subject,
+            professor__user=professor
+        ).exists()
+        if not is_assigned:
+            raise PermissionDenied("You are not assigned to manage this grade.")
+
+    @staticmethod
+    def _assert_program_head_can_manage_grade(grade, program_head):
+        if program_head.role != 'PROGRAM_HEAD':
+            return
+        if grade.student.program.program_head_id != program_head.id:
+            raise PermissionDenied("You do not manage the program for this grade.")
+
     @transaction.atomic
     def request_resolution(self, grade_id, professor, reason):
         """
@@ -13,6 +37,7 @@ class ResolutionService:
         Status: INC -> RESOLUTION_REQUESTED
         """
         grade = Grade.objects.select_for_update().get(id=grade_id)
+        self._assert_professor_can_manage_grade(grade, professor)
         
         if grade.grade_status != Grade.STATUS_INC:
             raise ValueError("Only INC grades can be resolved.")
@@ -43,6 +68,7 @@ class ResolutionService:
         Status: RESOLUTION_REQUESTED -> RESOLUTION_APPROVED
         """
         grade = Grade.objects.select_for_update().get(id=grade_id)
+        self._assert_professor_can_manage_grade(grade, professor)
         
         if grade.resolution_status != 'REQUESTED':
             raise ValueError("No pending resolution request found.")
@@ -69,6 +95,7 @@ class ResolutionService:
         Status: RESOLUTION_REQUESTED -> None (reverted)
         """
         grade = Grade.objects.select_for_update().get(id=grade_id)
+        self._assert_program_head_can_manage_grade(grade, program_head)
         
         if grade.resolution_status != 'REQUESTED':
             raise ValueError("No pending resolution request found.")
@@ -179,12 +206,13 @@ class ResolutionService:
         return grade
 
     @transaction.atomic
-    def head_reject_resolution(self, grade_id, reason):
+    def head_reject_resolution(self, grade_id, program_head, reason):
         """
         Program Head rejects the resolution. Professor must re-submit grade.
         Status: RESOLUTION_SUBMITTED -> RESOLUTION_APPROVED (back to entry state)
         """
         grade = Grade.objects.select_for_update().get(id=grade_id)
+        self._assert_program_head_can_manage_grade(grade, program_head)
         
         if grade.resolution_status != 'SUBMITTED':
             raise ValueError("No submitted resolution grade to reject.")

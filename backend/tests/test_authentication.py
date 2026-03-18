@@ -15,8 +15,11 @@ class TestAuthentication:
             'password': 'testpass123',
         }, format='json')
         assert response.status_code == status.HTTP_200_OK
-        assert 'access' in response.data
-        assert 'refresh' in response.data
+        assert 'access' not in response.data
+        assert 'refresh' not in response.data
+        assert 'user' in response.data
+        assert 'access_token' in response.cookies
+        assert 'refresh_token' in response.cookies
 
     def test_login_failure_wrong_password(self, api_client):
         user = AdminUserFactory()
@@ -26,6 +29,22 @@ class TestAuthentication:
             'password': 'wrongpassword',
         }, format='json')
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_refresh_success_uses_cookie_only_contract(self, api_client):
+        user = AdminUserFactory()
+        login_response = api_client.post(reverse('login'), {
+            'username': user.username,
+            'password': 'testpass123',
+        }, format='json')
+        assert login_response.status_code == status.HTTP_200_OK
+
+        api_client.cookies['refresh_token'] = login_response.cookies['refresh_token'].value
+        response = api_client.post(reverse('token_refresh'), {}, format='json')
+
+        assert response.status_code == status.HTTP_200_OK
+        assert 'access' not in response.data
+        assert 'refresh' not in response.data
+        assert 'access_token' in response.cookies
 
     def test_me_requires_authentication(self, api_client):
         url = reverse('me')

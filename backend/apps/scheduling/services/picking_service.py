@@ -1,19 +1,55 @@
 from django.db import transaction, models
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from apps.sections.models import Section, SectionStudent
 from apps.grades.models import Grade
 from apps.students.models import StudentEnrollment
+from apps.scheduling.models import Schedule
+from core.exceptions import ConflictError
 
 class PickingService:
     @staticmethod
     def validate_picking_period(term):
         """
         Validates that schedule picking is allowed for this term.
-        Checks that sections are generated for this term.
+        Checks that sections are generated, published, and inside the picking window.
         """
-        from apps.sections.models import Section
         if not Section.objects.filter(term=term).exists():
-            raise ValueError("Sections have not been generated yet for this term. Please wait for the Dean to set up the classes.")
+            raise ValidationError({'detail': 'Sections have not been generated yet for this term. Please wait for the Dean to set up the classes.'})
+        if not term.schedule_published:
+            raise PermissionDenied("Schedule picking is not yet open for this term.")
+
+        today = timezone.now().date()
+        if not term.schedule_picking_start or not term.schedule_picking_end:
+            raise ValidationError({'detail': 'Schedule picking window is not configured for this term.'})
+        if not (term.schedule_picking_start <= today <= term.schedule_picking_end):
+            raise PermissionDenied("Schedule picking is closed for this term.")
+
+    @staticmethod
+    def _ensure_student_can_pick(student, term):
+        enrollment = StudentEnrollment.objects.select_for_update().filter(student=student, term=term).first()
+        if not enrollment:
+            raise ValidationError({'detail': 'Student enrollment not found for this term.'})
+        if enrollment.advising_status != 'APPROVED':
+            raise PermissionDenied("Approved advising is required before schedule picking.")
+        return enrollment
+
+    @staticmethod
+    def _schedule_to_ranges(schedule):
+        if not schedule.start_time or not schedule.end_time:
+            return []
+        start = schedule.start_time.hour * 60 + schedule.start_time.minute
+        end = schedule.end_time.hour * 60 + schedule.end_time.minute
+        return [(day, start, end) for day in schedule.days]
+
+    @classmethod
+    def _has_conflict(cls, candidate_schedules, existing_ranges):
+        for schedule in candidate_schedules:
+            for day, start, end in cls._schedule_to_ranges(schedule):
+                for existing_day, existing_start, existing_end in existing_ranges:
+                    if day == existing_day and start < existing_end and existing_start < end:
+                        return True
+        return False
 
 
     @transaction.atomic
@@ -26,27 +62,24 @@ class PickingService:
         self.validate_picking_period(term)
 
         # 1. Get student's enrollment info
-        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        if not enrollment:
-            raise ValueError("Student enrollment not found for this term.")
+        enrollment = self._ensure_student_can_pick(student, term)
             
         # Check if already picked for this term
-        from apps.sections.models import SectionStudent
-        if SectionStudent.objects.filter(student=student, section__term=term).exists():
-            raise ValueError("Your schedule for this term has already been picked and locked.")
+        if SectionStudent.objects.select_for_update().filter(student=student, section__term=term).exists():
+            raise ConflictError("Your schedule for this term has already been picked and locked.")
 
         if not enrollment.is_regular:
-            raise ValueError("Student is classified as Irregular. Please use the individual schedule picker.")
+            raise ValidationError({'detail': 'Student is classified as Irregular. Please use the individual schedule picker.'})
 
         # 2. Find available sections for the preferred session
-        sections = Section.objects.filter(
+        sections = Section.objects.select_for_update().filter(
             term=term, 
             program=student.program, 
             year_level=enrollment.year_level,
             session=preferred_session
         ).annotate(
             current_students=models.Count('student_assignments')
-        ).filter(current_students__lt=40).order_by('current_students')
+        ).filter(current_students__lt=models.F('max_students')).order_by('current_students', 'id')
 
         target_section = sections.first()
         redirected = False
@@ -54,24 +87,28 @@ class PickingService:
         # 3. If preferred session is full, try the alternative
         if not target_section:
             alt_session = 'PM' if preferred_session == 'AM' else 'AM'
-            target_section = Section.objects.filter(
+            target_section = Section.objects.select_for_update().filter(
                 term=term, 
                 program=student.program, 
                 year_level=enrollment.year_level,
                 session=alt_session
             ).annotate(
                 current_students=models.Count('student_assignments')
-            ).filter(current_students__lt=40).order_by('current_students').first()
+            ).filter(current_students__lt=models.F('max_students')).order_by('current_students', 'id').first()
             redirected = True
 
         if not target_section:
-            raise ValueError("All available sections for your program and year level are currently full. Please contact the Registrar.")
+            raise ConflictError("All available sections for your program and year level are currently full. Please contact the Registrar.")
 
         # 4. Assign student to this section for ALL their subjects in this term
-        Grade.objects.filter(student=student, term=term).update(section=target_section)
+        Grade.objects.filter(
+            student=student,
+            term=term,
+            advising_status=Grade.ADVISING_APPROVED
+        ).update(section=target_section)
         
         # 5. Set Home Section assignment
-        existing = SectionStudent.objects.filter(
+        existing = SectionStudent.objects.select_for_update().filter(
             student=student,
             section__term=term
         ).first()
@@ -98,30 +135,72 @@ class PickingService:
         selections: list of {'subject_id': id, 'section_id': id}
         """
         self.validate_picking_period(term)
+        enrollment = self._ensure_student_can_pick(student, term)
 
-        from apps.sections.models import SectionStudent
-        if SectionStudent.objects.filter(student=student, section__term=term).exists():
-            raise ValueError("Your schedule for this term has already been picked and locked.")
+        if enrollment.is_regular:
+            raise ValidationError({'detail': 'Student is classified as Regular. Please use the regular schedule picker.'})
+
+        if SectionStudent.objects.select_for_update().filter(student=student, section__term=term).exists():
+            raise ConflictError("Your schedule for this term has already been picked and locked.")
+
+        if not selections:
+            raise ValidationError({'detail': 'At least one schedule selection is required.'})
+
+        approved_grades = Grade.objects.select_for_update().filter(
+            student=student,
+            term=term,
+            advising_status=Grade.ADVISING_APPROVED
+        ).select_related('subject')
+        approved_grade_map = {grade.subject_id: grade for grade in approved_grades}
+
+        existing_ranges = []
+        selected_sections = {}
 
         for item in selections:
             subject_id = item.get('subject_id')
             section_id = item.get('section_id')
+            if subject_id not in approved_grade_map:
+                raise PermissionDenied("You can only pick sections for approved subjects in this term.")
             
-            section = Section.objects.get(id=section_id)
-            if section.student_assignments.count() >= 40:
-                raise ValueError(f"Section {section.name} is full.")
-                
-            Grade.objects.filter(
-                student=student, 
-                subject_id=subject_id, 
-                term=term
-            ).update(section=section)
+            try:
+                section = Section.objects.select_for_update().get(id=section_id, term=term)
+            except Section.DoesNotExist as exc:
+                raise ValidationError({'detail': 'Selected section is invalid for this term.'}) from exc
+            current_students = section.student_assignments.select_for_update().count()
+            if current_students >= section.max_students:
+                raise ConflictError(f"Section {section.name} is full.")
+
+            matching_schedules = list(Schedule.objects.filter(
+                term=term,
+                section=section,
+                subject_id=subject_id
+            ))
+            if not matching_schedules:
+                raise ValidationError({'detail': f"Section {section.name} does not offer the selected subject in this term."})
+
+            if self._has_conflict(matching_schedules, existing_ranges):
+                raise ConflictError(f"Section {section.name} conflicts with another selected subject.")
+
+            existing_ranges.extend(
+                time_range
+                for schedule in matching_schedules
+                for time_range in self._schedule_to_ranges(schedule)
+            )
+            selected_sections[subject_id] = section
 
         # For irregulars, 'home section' is less strict, but we can assign them to one 
         # of their chosen sections for administrative grouping.
+        for subject_id, section in selected_sections.items():
+            Grade.objects.filter(
+                student=student,
+                subject_id=subject_id,
+                term=term,
+                advising_status=Grade.ADVISING_APPROVED
+            ).update(section=section)
+
         if selections:
-            first_section = Section.objects.get(id=selections[0]['section_id'])
-            existing = SectionStudent.objects.filter(
+            first_section = selected_sections[selections[0]['subject_id']]
+            existing = SectionStudent.objects.select_for_update().filter(
                 student=student,
                 section__term=term
             ).first()

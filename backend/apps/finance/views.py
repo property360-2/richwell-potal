@@ -1,10 +1,12 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from .models import Payment
 from .serializers import PaymentSerializer, StudentPermitsSerializer
 from .services.payment_service import PaymentService
+from core.permissions import IsAdminOrCashier
 
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
@@ -14,14 +16,31 @@ class PaymentViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'adjust']:
             from core.permissions import IsCashier
             return [IsCashier()]
+        if self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
         return super().get_permissions()
+
+    def _assert_read_access(self):
+        role = getattr(self.request.user, 'role', None)
+        if role in ('STUDENT', 'CASHIER', 'ADMIN') or self.request.user.is_superuser:
+            return
+        raise PermissionDenied("You do not have permission to access finance records.")
     
     def get_queryset(self):
         user = self.request.user
         if user.role == 'STUDENT':
             return self.queryset.filter(student__user=user)
-        # Cashiers/Admin see all
-        return self.queryset
+        if user.role in ('CASHIER', 'ADMIN') or user.is_superuser:
+            return self.queryset
+        return self.queryset.none()
+
+    def list(self, request, *args, **kwargs):
+        self._assert_read_access()
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        self._assert_read_access()
+        return super().retrieve(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         # We delegate the core logic to the service for validation
@@ -73,6 +92,9 @@ class PermitViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['GET'])
     def status(self, request):
+        if not IsAdminOrCashier().has_permission(request, self):
+            raise PermissionDenied("Only cashier and admin users can check permit status for arbitrary students.")
+
         student_id = request.query_params.get('student_id')
         term_id = request.query_params.get('term_id')
         

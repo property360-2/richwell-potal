@@ -3,38 +3,35 @@ import { test, expect } from '@playwright/test';
 test.describe('Grade Management E2E', () => {
     test.beforeEach(async ({ page }) => {
         // Assuming auth setup handles login for REGISTRAR
-        await page.goto('/registrar/dashboard');
+        await page.goto('/registrar');
     });
 
     test('should navigate to Historical TOR Encoding and see workspace', async ({ page }) => {
         await page.click('text=Historical TOR Encoding');
         await expect(page).toHaveURL(/\/registrar\/historical-encode/);
-        await expect(page.locator('h1')).toContainText('Historical TOR Encoding');
+        await expect(page.locator('h2')).toContainText('Historical TOR Encoding');
 
         // Test search functionality (UI only)
         await page.fill('input[placeholder="Search by IDN or Name..."]', '1001');
         await page.click('button:has-text("Load Student")');
     });
 
-    test('should show safety modal with countdown for Global Lock', async ({ page }) => {
+    test('should display Grade Management Console with tabs and grading window', async ({ page }) => {
         await page.goto('/registrar/grades');
-        await expect(page.locator('h1')).toContainText('Grade Management Console');
+        await expect(page.locator('h2').first()).toContainText('Grade Management Console');
 
-        await page.click('button:has-text("Global Lock")');
+        // Verify tabs are visible
+        await expect(page.getByRole('tab', { name: 'Finalization Queue' })).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Resolution Requests' })).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Resolution Finalization' })).toBeVisible();
 
-        // Check if modal appears
-        await expect(page.locator('text=CRITICAL: Global Term Lock')).toBeVisible();
+        // Verify grading window management section
+        await expect(page.locator('text=Grading Window Management')).toBeVisible();
+        await expect(page.locator('button:has-text("Save Configuration")')).toBeVisible();
 
-        // Check for countdown (initially disabled)
-        const lockButton = page.locator('button:has-text("Unlocking Button")');
-        await expect(lockButton).toBeDisabled();
-
-        // Wait for countdown to finish (approx 5s)
-        await page.waitForTimeout(6000);
-
-        // Challenge box
-        await page.fill('input[placeholder="CONFIRM"]', 'CONFIRM');
-        await expect(page.locator('button:has-text("Finalize & Lock Term")')).toBeEnabled();
+        // Switch to Resolution Requests tab
+        await page.getByRole('tab', { name: 'Resolution Requests' }).click();
+        await expect(page.locator('text=INC Resolution Initial Requests')).toBeVisible();
     });
 
     test('should allow adding/removing rows in Historical Encoding', async ({ page }) => {

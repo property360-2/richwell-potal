@@ -12,6 +12,11 @@ class TermViewSet(viewsets.ModelViewSet):
     filterset_fields = ['is_active', 'semester_type', 'academic_year']
     search_fields = ['code', 'academic_year']
 
+    def get_permissions(self):
+        if self.action in ['activate', 'close']:
+            return [IsAdmin()]
+        return super().get_permissions()
+
     def partial_update(self, request, *args, **kwargs):
         user = request.user
         if user.role in ['REGISTRAR', 'HEAD_REGISTRAR'] and not user.is_superuser:

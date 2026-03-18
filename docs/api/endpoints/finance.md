@@ -1,37 +1,61 @@
 # Finance API
 
-## Overview
-The finance system tracks student payments and computes exam permit eligibility (Chapter/Midterm/Final). It follows an **append-only** record-keeping policy for integrity.
+## Payments
 
-## Endpoints
+Base path: `/api/finance/payments/`
 
-### Payments (`/api/finance/payments/`)
-Record and list student payments.
+Read scope:
+- `STUDENT`: own payments only
+- `CASHIER`, `ADMIN`: all payments
+- other authenticated roles: forbidden
 
-#### `POST /api/finance/payments/`
-Record a new payment.
-- **Auth required**: Yes (Cashier)
-- **Fields**: student, term, month (1-6), amount, is_promissory, remarks.
+Write scope:
+- `CASHIER` only for payment creation and adjustment
 
-#### `POST /api/finance/payments/adjust/`
-Record a negative adjustment for corrections.
-- **Auth required**: Yes (Cashier)
+### `GET /api/finance/payments/`
+Lists payments visible to the caller.
 
----
+### `GET /api/finance/payments/{id}/`
+Returns one payment in scope for the caller.
 
-### Permits (`/api/finance/permits/`)
-Check if a student is cleared for exams.
+### `POST /api/finance/payments/`
+Records a payment.
 
-#### `GET /api/finance/permits/status/?student_id={id}&term_id={id}`
-Returns the clearance status for Midterm and Final exams.
-- **Logic**: Clearance is based on the student's `monthly_commitment` and total payments for specific target months.
+Request body:
+```json
+{
+  "student": 1,
+  "term": 2,
+  "month": 1,
+  "amount": "3500.00",
+  "is_promissory": false,
+  "remarks": "Initial payment"
+}
+```
 
-#### `GET /api/finance/permits/my-permits/?term_id={id}`
-Student-facing endpoint to check their own permit status.
+### `POST /api/finance/payments/adjust/`
+Records a negative adjustment. Payment records remain append-only.
 
-## Exam Permit Rules
+## Permit Status
+
+Base path: `/api/finance/permits/`
+
+### `GET /api/finance/permits/status/?student_id={id}&term_id={id}`
+Returns permit and clearance status for the specified student and term.
+
+Allowed roles:
+- `CASHIER`
+- `ADMIN`
+
+### `GET /api/finance/permits/my-permits/?term_id={id}`
+Returns the current student's own permit status.
+
+Allowed role:
+- `STUDENT`
+
+## Permit Rules
 | Permit | Target Month | Required Amount |
 |--------|--------------|-----------------|
-| Chapter 1 | Month 1 | Commitment x 1 |
-| Midterm | Month 3 | Commitment x 3 |
-| Final | Month 5 | Commitment x 5 |
+| Chapter 1 | 1 | Monthly commitment x 1 |
+| Midterm | 3 | Monthly commitment x 3 |
+| Final | 5 | Monthly commitment x 5 |

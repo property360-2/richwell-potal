@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
 from dateutil.relativedelta import relativedelta
 from apps.grades.models import Grade
 from apps.notifications.services.notification_service import NotificationService
@@ -7,6 +8,22 @@ from apps.notifications.models import Notification
 from apps.accounts.models import User
 
 class GradingService:
+    @staticmethod
+    def _assert_professor_can_manage_grade(grade, professor):
+        if professor.role != 'PROFESSOR':
+            return
+
+        from apps.scheduling.models import Schedule
+
+        is_assigned = Schedule.objects.filter(
+            term=grade.term,
+            section=grade.section,
+            subject=grade.subject,
+            professor__user=professor
+        ).exists()
+        if not is_assigned:
+            raise PermissionDenied("You are not assigned to manage this grade.")
+
     @transaction.atomic
     def submit_midterm(self, grade_id, value, professor, is_inc=False, override_window=False):
         """
@@ -14,6 +31,7 @@ class GradingService:
         Strict check for grading window unless override_window is True.
         """
         grade = Grade.objects.select_for_update().get(id=grade_id)
+        self._assert_professor_can_manage_grade(grade, professor)
         
         # 1. Check if finalized (Global Lock)
         if grade.finalized_at:
@@ -65,6 +83,7 @@ class GradingService:
         Strict check for grading window unless override_window is True.
         """
         grade = Grade.objects.select_for_update().get(id=grade_id)
+        self._assert_professor_can_manage_grade(grade, professor)
         
         # 1. Check if finalized (Global Lock)
         if grade.finalized_at:

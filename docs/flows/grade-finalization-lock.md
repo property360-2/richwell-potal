@@ -1,36 +1,28 @@
-# Grade Finalization & Global Lock Flow
+# Grade Finalization and Term Lock Flow
 
 ## Summary
-Term deadline reaches -> Global lock enabled -> All grades must be final -> Locked by Registrar.
+Professor submits grades for assigned loads, Registrar finalizes them, and Admin controls term activation or closure.
 
-### State Transitions
-| From Status | Action | To Status | Role |
-|-------------|--------|-----------|------|
-| `ENROLLED` | `submit-midterm` | `SUBMITTED` (Midterm) | Professor |
-| `SUBMITTED` | `submit-final` | `SUBMITTED` (Final) | Professor |
-| `SUBMITTED` | `finalize-section` | `FINALIZED` | Registrar |
-| `FINALIZED` | `close-term` | `LOCKED` (Global) | Registrar |
+## Workflow
 
-## Step-by-step
+### 1. Grade Entry
+- Professors submit midterm and final grades during the configured grading windows.
+- Ownership is checked against the actual section-subject-term schedule assignment before the grade is mutated.
 
-### 1. Grading Window (Active Term)
-- Professors input grades during the defined term period.
-- Grades can be updated freely while in `SUBMITTED` status.
+### 2. Section Finalization
+- Registrar or Admin calls `POST /api/grades/submission/finalize-section/`.
+- Finalized grades are locked against further professor edits.
 
-### 2. Finalization (Section-by-Section)
-- Once a professor is done, they submit the grades.
-- Registrar triggers `POST /api/grades/grading/finalize-section/`.
-- **Effect**: `finalized_at` is set, and the `grade_status` is locked.
-- **Lock**: Once finalized, professors can no longer edit the grade.
+### 3. INC Resolution
+- Professor requests resolution for the owned load.
+- Registrar approves or rejects the request.
+- Program Head approves or rejects only for grades within owned programs.
+- Registrar finalizes the completed resolution.
 
-### 3. Global Lock (Term End)
-- At the end of the term, the Registrar can "Lock the Term".
-- This prevents ANY further edits across ALL sections for that term.
-- All student results are then considered permanent and can be exported for reports.
+### 4. Term Lock
+- Registrar can finalize grades and close grading periods.
+- Term activation and closure are Admin-only actions at the term API boundary.
 
-## Files involved
-| File | Role |
-|------|------|
-| `test_bugs.py` | Contains reproduction for section-level locking |
-| `GradingService` | Logic for verifying lock status before any edit |
-| `Grade` | `finalized_at` field used for per-record locking |
+## Failure Rules
+- `403` if the caller is outside the assignment or program boundary
+- `409` if the transition conflicts with the grade's current workflow state

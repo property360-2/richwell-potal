@@ -34,7 +34,7 @@ test.describe('Academic Cycle E2E Flow', () => {
 
         // Select "1.25" from the Final Grade dropdown
         // The Select component uses a native <select> or something similar
-        await studentRow.locator('select').selectOption({ label: '1.25' });
+        await studentRow.locator('select').nth(1).selectOption({ label: '1.25' });
 
         // Verify auto-save toast
         await expect(profPage.locator('text=Grade updated successfully')).toBeVisible();

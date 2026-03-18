@@ -3,10 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import make_password
 
 from core.permissions import IsAdmin
 from .serializers import (
@@ -15,8 +15,6 @@ from .serializers import (
     ChangePasswordSerializer,
     StaffCreateSerializer
 )
-
-from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 
@@ -62,9 +60,8 @@ class LoginView(TokenObtainPairView):
             )
             
             # Optionally remove tokens from response body if you want pure cookie auth
-            # but usually we keep them for non-web clients or if frontend needs some data from them (e.g. CSRF/XSS safety)
-            # del response.data['access']
-            # del response.data['refresh']
+            response.data.pop('access', None)
+            response.data.pop('refresh', None)
             
         return response
 
@@ -87,6 +84,8 @@ class TokenRefreshCookieView(TokenRefreshView):
                 samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
                 path=settings.SIMPLE_JWT['AUTH_COOKIE_PATH'],
             )
+            response.data.pop('access', None)
+            response.data.pop('refresh', None)
         return response
 
 class LogoutView(APIView):
@@ -128,7 +127,6 @@ class ChangePasswordView(generics.UpdateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 from core.permissions import IsAdmin, IsHeadRegistrar
-from rest_framework.exceptions import PermissionDenied
 from .services.user_service import UserService
 
 class StaffManagementViewSet(viewsets.ModelViewSet):
@@ -139,8 +137,7 @@ class StaffManagementViewSet(viewsets.ModelViewSet):
         queryset = User.objects.exclude(role='STUDENT').order_by('id')
         
         if user.role == 'HEAD_REGISTRAR':
-            # Head Registrar can only see and manage other Registrars (including other Head Registrars)
-            queryset = queryset.filter(role__in=['REGISTRAR', 'HEAD_REGISTRAR'])
+            queryset = queryset.filter(role='REGISTRAR')
             
         role = self.request.query_params.get('role')
         if role:
@@ -157,11 +154,12 @@ class StaffManagementViewSet(viewsets.ModelViewSet):
         UserService.create_staff(serializer, self.request.user)
 
     def perform_update(self, serializer):
-        # We don't want to update password here, only staff roles and active status.
-        serializer.save()
+        UserService.update_staff(serializer, self.get_object(), self.request.user)
 
     @action(detail=True, methods=['post'], url_path='reset-password')
     def reset_password(self, request, pk=None):
         user = self.get_object()
+        if request.user.role == 'HEAD_REGISTRAR' and user.role != 'REGISTRAR':
+            raise PermissionDenied("Head Registrars can only reset registrar accounts.")
         UserService.reset_password(user)
         return Response({"detail": "Password has been reset to the default format."}, status=status.HTTP_200_OK)

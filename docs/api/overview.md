@@ -1,49 +1,63 @@
 # API Overview
 
 ## Base URL
-```
-Development:  http://localhost:8000/api/
-Production:   https://yourapp.com/api/
+```text
+Development: http://localhost:8000/api/
+Production:  https://yourapp.com/api/
 ```
 
 ## Authentication
-## Authentication
-The system uses **JWT stored in HttpOnly cookies** for security.
+Browser authentication is cookie-based.
 
-1. **Login**: `POST /api/accounts/auth/login/` with `username` and `password`.
-2. **Persistence**: The server sends a `Set-Cookie` header with the token.
-3. **Automatic Handling**: Browser automatically includes the cookie in all subsequent requests to the same domain. 
-   - **No manual Authorization header is required** from the frontend.
-   - **CSRF Protection**: Non-GET requests require an `X-CSRFToken` header, obtained via `GET /api/accounts/auth/csrf/`.
+1. `POST /api/accounts/auth/login/` validates the credentials and sets the access and refresh cookies.
+2. The frontend does not read raw JWTs from the JSON body.
+3. The browser sends the auth cookies automatically on same-origin API calls.
+4. Non-GET requests must include `X-CSRFToken`. Fetch it first with `GET /api/accounts/auth/csrf/`.
 
-> [!NOTE]
-> If you are using a tool like Postman, ensure "Cookie jar" or "Follow Set-Cookie" is enabled.
+For browser clients, treat the cookies as the session contract. Do not build new frontend logic that depends on `access` or `refresh` appearing in the JSON response body.
 
-## Response format
-All responses return JSON. Successful responses follow this shape:
+## Success Responses
+Successful responses are serializer payloads or action payloads. Common shapes include:
+
 ```json
 {
-  "data": { ... },
-  "message": "optional human-readable string"
+  "id": 123,
+  "name": "Example"
 }
 ```
 
-## Error format
 ```json
 {
-  "error": "short_error_code",
-  "message": "Human-readable description",
-  "details": { "field": ["error detail"] }
+  "message": "Operation completed."
 }
 ```
 
-## HTTP status codes used
+## Error Responses
+API errors are normalized by the DRF exception handler:
+
+```json
+{
+  "error": true,
+  "message": "Human-readable explanation",
+  "details": {
+    "field_name": ["Validation message"]
+  }
+}
+```
+
+Notes:
+- `details` is present for field-level validation errors.
+- Authorization failures return `403`.
+- Conflict-style business rule failures return `409`.
+
+## Status Codes
 | Code | Meaning |
 |------|---------|
-| 200  | OK — request succeeded |
-| 201  | Created — resource was created |
-| 400  | Bad Request — validation failed |
-| 401  | Unauthorized — missing or invalid token |
-| 403  | Forbidden — authenticated but not allowed |
-| 404  | Not Found |
-| 500  | Server Error |
+| 200 | Request succeeded |
+| 201 | Resource created |
+| 400 | Validation or malformed request |
+| 401 | Missing or invalid authentication |
+| 403 | Authenticated, but not allowed |
+| 404 | Resource not found |
+| 409 | Business rule conflict |
+| 500 | Unhandled server error |

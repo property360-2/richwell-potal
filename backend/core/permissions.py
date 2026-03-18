@@ -76,6 +76,13 @@ class IsAdminOrRegistrar(BasePermission):
         return request.user.is_authenticated and (request.user.role in ('ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR') or request.user.is_superuser)
 
 
+class IsAdminOrCashier(BasePermission):
+    """Allow access only to ADMIN or CASHIER roles."""
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (request.user.role in ('ADMIN', 'CASHIER') or request.user.is_superuser)
+
+
 class IsAdmissionOrRegistrar(BasePermission):
     """Allow access to ADMISSION, REGISTRAR, or ADMIN roles."""
 
@@ -94,6 +101,15 @@ class IsStaff(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in self.STAFF_ROLES or request.user.is_superuser)
+
+
+class IsStudentRecordsStaff(BasePermission):
+    """Allow access to student-record management roles."""
+
+    ALLOWED_ROLES = {'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMISSION'}
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (request.user.role in self.ALLOWED_ROLES or request.user.is_superuser)
 
 
 class IsAdminOrReadOnly(BasePermission):
