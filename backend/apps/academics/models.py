@@ -63,6 +63,8 @@ class SubjectPrerequisite(models.Model):
         ('YEAR_STANDING', 'Year Standing'),
         ('ALL_MAJOR', 'All Major Subjects'),
         ('PROGRAM_PERCENTAGE', 'Program Percentage'),
+        ('GROUP', 'Subject Group'),
+        ('PERCENTAGE', 'Units Percentage'),
     )
 
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='prerequisites')
@@ -75,6 +77,8 @@ class SubjectPrerequisite(models.Model):
         related_name='is_prerequisite_for'
     )
     standing_year = models.PositiveIntegerField(null=True, blank=True)
+    min_units = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    min_subjects = models.PositiveIntegerField(null=True, blank=True)
     description = models.CharField(max_length=200, null=True, blank=True)
 
     def __str__(self):

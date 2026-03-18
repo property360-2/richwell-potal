@@ -42,4 +42,15 @@ class TermViewSet(viewsets.ModelViewSet):
         term = self.get_object()
         term.is_active = True
         term.save()  # logic in model.save handles deactivating others
-        return Response({'status': 'Term activated'}, status=status.HTTP_200_OK)
+        return Response({'status': f'Term {term.code} activated'}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        """
+        Closes the term and locks all grades.
+        """
+        term = self.get_object()
+        term.is_grades_locked = True
+        term.is_active = False # Deactivate on close
+        term.save()
+        return Response({'status': f'Term {term.code} closed and grades locked.'}, status=status.HTTP_200_OK)

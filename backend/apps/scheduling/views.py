@@ -194,8 +194,16 @@ class ScheduleViewSet(viewsets.ModelViewSet):
                 "session": s.session,
                 "current": s.current_students,
                 "max": s.max_students,
-                "is_full": s.current_students >= s.max_students
-            } for s in sections
+                "is_full": s.current_students >= s.max_students,
+                "schedules": [
+                    {
+                        "subject": sch.subject.code,
+                        "days": sch.days,
+                        "start": sch.start_time.strftime("%H:%M") if sch.start_time else None,
+                        "end": sch.end_time.strftime("%H:%M") if sch.end_time else None
+                    } for sch in s.schedules.all()
+                ]
+            } for s in sections.prefetch_related('schedules', 'schedules__subject')
         ])
 
     @action(detail=False, methods=['GET'], url_path='available-slots')

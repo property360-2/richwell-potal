@@ -3,6 +3,16 @@
 ## Summary
 Professor requests resolution for an INC grade → Registrar approves request → Professor submits new grade → Program Head approves/finalizes (transitions to COMPLETED).
 
+### State Transitions
+| From Status | Action | To Status | Role |
+|-------------|--------|-----------|------|
+| `INC` | `request-resolution` | `REQUESTED` | Professor |
+| `REQUESTED` | `registrar-approve` | `APPROVED` | Registrar |
+| `REQUESTED` | `registrar-reject` | `INC` (Reverted) | Registrar |
+| `APPROVED` | `submit-grade` | `SUBMITTED` | Professor |
+| `SUBMITTED` | `head-approve` | `COMPLETED` | Program Head |
+| `SUBMITTED` | `head-reject` | `APPROVED` | Program Head |
+
 ## Step-by-step
 
 ### 1. Request (Professor)

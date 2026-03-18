@@ -1,12 +1,11 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
-import { useToast } from '../components/ui/Toast';
 
 export const useIdleTimer = (timeoutMinutes = 30, warningMinutes = 25) => {
     const { isAuthenticated, logout } = useAuth();
     const navigate = useNavigate();
-    const { addToast } = useToast();
+    const [showWarning, setShowWarning] = useState(false);
 
     const timeoutId = useRef(null);
     const warningId = useRef(null);
@@ -14,21 +13,23 @@ export const useIdleTimer = (timeoutMinutes = 30, warningMinutes = 25) => {
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const warningMs = warningMinutes * 60 * 1000;
 
-    const resetTimer = () => {
+    const resetTimer = useCallback(() => {
         if (!isAuthenticated) return;
 
         if (timeoutId.current) clearTimeout(timeoutId.current);
         if (warningId.current) clearTimeout(warningId.current);
 
+        setShowWarning(false);
+
         warningId.current = setTimeout(() => {
-            addToast(`For your security, you will be logged out in ${timeoutMinutes - warningMinutes} minutes due to inactivity.`, 'warning', 30000);
+            setShowWarning(true);
         }, warningMs);
 
         timeoutId.current = setTimeout(() => {
             logout();
             navigate('/login?reason=idle');
         }, timeoutMs);
-    };
+    }, [isAuthenticated, logout, navigate, timeoutMs, warningMs]);
 
     useEffect(() => {
         if (!isAuthenticated) return;
@@ -36,15 +37,18 @@ export const useIdleTimer = (timeoutMinutes = 30, warningMinutes = 25) => {
         resetTimer();
 
         const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
-
-        // Use a throttled version for performance if needed, 
-        // but clearing timeouts is cheap enough for standard use
         let lastActivity = Date.now();
+
         const handleUserActivity = () => {
             const now = Date.now();
             if (now - lastActivity > 1000) { // Throttle to once per second
                 lastActivity = now;
-                resetTimer();
+                // Only auto-reset if the warning is NOT showing.
+                // If warning is showing, we want explicit user interaction with the modal.
+                setShowWarning(prev => {
+                    if (!prev) resetTimer();
+                    return prev;
+                });
             }
         };
 
@@ -55,10 +59,15 @@ export const useIdleTimer = (timeoutMinutes = 30, warningMinutes = 25) => {
         return () => {
             if (timeoutId.current) clearTimeout(timeoutId.current);
             if (warningId.current) clearTimeout(warningId.current);
-
             events.forEach(event => {
                 window.removeEventListener(event, handleUserActivity);
             });
         };
-    }, [isAuthenticated, timeoutMinutes, warningMinutes]);
+    }, [isAuthenticated, resetTimer]);
+
+    return {
+        showWarning,
+        extendSession: resetTimer,
+        timeLeft: timeoutMinutes - warningMinutes
+    };
 };

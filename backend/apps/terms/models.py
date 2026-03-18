@@ -30,8 +30,10 @@ class Term(models.Model):
     
     final_grade_start = models.DateField(null=True, blank=True)
     final_grade_end = models.DateField(null=True, blank=True)
+    grade_submission_deadline = models.DateTimeField(null=True, blank=True, help_text="Hard deadline for all grade submissions")
     
     is_active = models.BooleanField(default=False)
+    is_grades_locked = models.BooleanField(default=False, help_text="Global lock: No more grade edits allowed for this term")
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

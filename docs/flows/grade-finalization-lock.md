@@ -3,6 +3,14 @@
 ## Summary
 Term deadline reaches -> Global lock enabled -> All grades must be final -> Locked by Registrar.
 
+### State Transitions
+| From Status | Action | To Status | Role |
+|-------------|--------|-----------|------|
+| `ENROLLED` | `submit-midterm` | `SUBMITTED` (Midterm) | Professor |
+| `SUBMITTED` | `submit-final` | `SUBMITTED` (Final) | Professor |
+| `SUBMITTED` | `finalize-section` | `FINALIZED` | Registrar |
+| `FINALIZED` | `close-term` | `LOCKED` (Global) | Registrar |
+
 ## Step-by-step
 
 ### 1. Grading Window (Active Term)

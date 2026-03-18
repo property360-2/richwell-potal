@@ -6,6 +6,9 @@ class AuditLog(models.Model):
         ('CREATE', 'Create'),
         ('UPDATE', 'Update'),
         ('DELETE', 'Delete'),
+        ('LOGIN', 'Login'),
+        ('LOGOUT', 'Logout'),
+        ('LOGIN_FAILED', 'Login Failed'),
     ]
 
     user = models.ForeignKey(
@@ -15,7 +18,7 @@ class AuditLog(models.Model):
         blank=True,
         related_name='audit_logs'
     )
-    action = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    action = models.CharField(max_length=15, choices=ACTION_CHOICES)
     model_name = models.CharField(max_length=100)
     object_id = models.CharField(max_length=255)
     object_repr = models.CharField(max_length=255, blank=True)

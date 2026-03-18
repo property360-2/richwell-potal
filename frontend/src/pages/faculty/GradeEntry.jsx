@@ -64,6 +64,17 @@ const GradeEntry = () => {
     fetchMySections();
   }, [fetchMySections]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (saving !== null) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saving]);
+
   const handleSelectPair = async (pair) => {
     setSelectedPair(pair);
     try {

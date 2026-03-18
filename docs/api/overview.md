@@ -7,11 +7,17 @@ Production:   https://yourapp.com/api/
 ```
 
 ## Authentication
-All protected endpoints require a token in the `Authorization` header:
-```
-Authorization: Bearer <your_token>
-```
-Tokens are obtained via `POST /api/accounts/login/`.
+## Authentication
+The system uses **JWT stored in HttpOnly cookies** for security.
+
+1. **Login**: `POST /api/accounts/auth/login/` with `username` and `password`.
+2. **Persistence**: The server sends a `Set-Cookie` header with the token.
+3. **Automatic Handling**: Browser automatically includes the cookie in all subsequent requests to the same domain. 
+   - **No manual Authorization header is required** from the frontend.
+   - **CSRF Protection**: Non-GET requests require an `X-CSRFToken` header, obtained via `GET /api/accounts/auth/csrf/`.
+
+> [!NOTE]
+> If you are using a tool like Postman, ensure "Cookie jar" or "Follow Set-Cookie" is enabled.
 
 ## Response format
 All responses return JSON. Successful responses follow this shape:

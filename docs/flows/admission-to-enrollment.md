@@ -3,6 +3,15 @@
 ## Summary
 Applicant submits form -> Admission staff approves -> Enrollment record created -> Student is ready for Advising.
 
+### State Transitions
+| From Status | Action | To Status | Role |
+|-------------|--------|-----------|------|
+| (None) | `apply` | `APPLICANT` | Public |
+| `APPLICANT` | `approve` | `ENROLLED / PENDING` | Admission Staff |
+| `PENDING` | `auto/manual-advise` | `ADVISING_PENDING` | Student |
+| `ADVISING_PENDING` | `approve-advising` | `ENROLLED` | Program Head |
+| `ADVISING_PENDING` | `reject-advising` | `REJECTED` | Program Head |
+
 ## Step-by-step
 
 ### 1. Application (Public)

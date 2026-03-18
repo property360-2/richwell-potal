@@ -185,6 +185,32 @@ class AdvisingService:
                 elif prereq.prerequisite_type == 'YEAR_STANDING':
                     if current_enrollment and current_enrollment.year_level < prereq.standing_year:
                         raise ValidationError(f"{subject.code} requires Year {prereq.standing_year} standing.")
+                
+                elif prereq.prerequisite_type == 'GROUP':
+                    # Check if student has passed X subjects in a specific group (labeled in description)
+                    # For now, we use a simple set of subject codes or tags if available, 
+                    # but here we'll assume the description contains the required group name
+                    passed_count = Grade.objects.filter(
+                        student=student,
+                        grade_status=Grade.STATUS_PASSED,
+                        subject__description__icontains=prereq.description # Mock group check
+                    ).count()
+                    if passed_count < (prereq.min_subjects or 0):
+                        raise ValidationError(f"Missing group prerequisite for {subject.code}: Needs {prereq.min_subjects} subjects from '{prereq.description}'.")
+
+                elif prereq.prerequisite_type == 'PERCENTAGE':
+                    # Check if student has passed X% of total units in their curriculum
+                    from django.db.models import Sum
+                    total_curriculum_units = Subject.objects.filter(curriculum=student.curriculum).aggregate(total=Sum('total_units'))['total'] or 0
+                    passed_units = Grade.objects.filter(
+                        student=student,
+                        grade_status=Grade.STATUS_PASSED
+                    ).aggregate(total=Sum('subject__total_units'))['total'] or 0
+                    
+                    if total_curriculum_units > 0:
+                        percent_passed = (passed_units / total_curriculum_units) * 100
+                        if percent_passed < (prereq.min_units or 0): # min_units used as percentage threshold
+                            raise ValidationError(f"Missing units prerequisite for {subject.code}: Needs {prereq.min_units}% completion (Current: {percent_passed:.1f}%).")
 
         grades = []
         for subject in subjects:

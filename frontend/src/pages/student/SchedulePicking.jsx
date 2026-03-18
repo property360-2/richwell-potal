@@ -92,7 +92,47 @@ const SchedulePicking = () => {
     }
   };
 
+  const [conflicts, setConflicts] = useState({}); // { subjectId: true/false }
+
+  const checkConflicts = (selections) => {
+    const newConflicts = {};
+    const scheduleList = [];
+
+    // Collect all schedules for selected sections
+    Object.entries(selections).forEach(([subId, secId]) => {
+      const section = (subjectSections[subId] || []).find(s => s.id === secId);
+      if (section && section.schedules) {
+        section.schedules.forEach(sch => {
+          scheduleList.push({ ...sch, subjectId: subId });
+        });
+      }
+    });
+
+    // Check overlaps
+    for (let i = 0; i < scheduleList.length; i++) {
+      for (let j = i + 1; j < scheduleList.length; j++) {
+        const s1 = scheduleList[i];
+        const s2 = scheduleList[j];
+
+        // Same day check
+        const commonDays = s1.days.filter(d => s2.days.includes(d));
+        if (commonDays.length > 0) {
+          // Time overlap check (s1.start < s2.end && s2.start < s1.end)
+          if (s1.start < s2.end && s2.start < s1.end) {
+            newConflicts[s1.subjectId] = true;
+            newConflicts[s2.subjectId] = true;
+          }
+        }
+      }
+    }
+    setConflicts(newConflicts);
+  };
+
   const handlePickIrregular = async () => {
+    if (Object.keys(conflicts).length > 0) {
+        return showToast('error', 'Please resolve schedule conflicts before finalizing.');
+    }
+    
     const selections = Object.entries(selectedSections).map(([subjectId, sectionId]) => ({
         subject_id: parseInt(subjectId),
         section_id: parseInt(sectionId)
@@ -116,6 +156,12 @@ const SchedulePicking = () => {
         setIsProcessing(false);
     }
   };
+
+  useEffect(() => {
+    if (!isRegular && Object.keys(selectedSections).length > 0) {
+      checkConflicts(selectedSections);
+    }
+  }, [selectedSections, isRegular]);
 
   if (loading && !enrollment) return <div className="p-8 h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
 
@@ -282,6 +328,9 @@ const SchedulePicking = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
                        <Badge variant="neutral" style={{ fontWeight: 700 }}>{grade.subject_details?.code}</Badge>
                        <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text)' }}>{grade.subject_details?.description}</span>
+                       {conflicts[grade.subject] && (
+                         <Badge variant="error" style={{ fontSize: '9px', marginLeft: 'auto' }}>TIME CONFLICT</Badge>
+                       )}
                     </div>
                     
                     <div className="section-grid">
@@ -324,6 +373,11 @@ const SchedulePicking = () => {
               <div className="picking-footer">
                 <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
                     Selection: <span style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedSections).length} / {approvedGrades.length}</span> Subjects Selected
+                    {Object.keys(conflicts).length > 0 && (
+                      <span style={{ color: 'var(--color-error)', marginLeft: 'var(--space-4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertCircle size={14} /> Schedule Conflict Detected
+                      </span>
+                    )}
                 </div>
                 <Button 
                   variant="primary" 
