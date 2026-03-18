@@ -58,6 +58,19 @@ jobs:
         python manage.py create_admin
         # Generate CSRF for tests
         python manage.py runserver 8000 &
+
+    - name: Run Backend Unit/Integration Tests
+      working-directory: ./backend
+      env:
+        DB_HOST: localhost
+        DB_USER: postgres
+        DB_PASSWORD: postgres
+        DB_NAME: richwell_portal
+        DJANGO_SETTINGS_MODULE: config.settings.test
+        SECRET_KEY: testing-secret-key-123
+      run: |
+        pip install -r requirements-test.txt
+        pytest --tb=short -q
         
     # -----------------------------
     # Frontend Setup

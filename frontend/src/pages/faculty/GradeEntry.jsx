@@ -12,16 +12,13 @@ import './GradeEntry.css';
 
 const GRADE_SCALE = [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 5.0];
 
-const MIDTERM_OPTIONS = [
+const GRADE_OPTIONS = [
   { value: '', label: '--' },
   ...GRADE_SCALE.map((value) => {
     const label = value.toFixed(2);
-    return { value: label, label };
-  })
-];
-
-const FINAL_OPTIONS = [
-  ...MIDTERM_OPTIONS,
+    const finalLabel = value === 5.0 ? `${label} (Failed)` : label;
+    return { value: label, label: finalLabel };
+  }),
   { value: 'INC', label: 'INC' },
   { value: 'NG', label: 'NG' }
 ];
@@ -43,6 +40,7 @@ const GradeEntry = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(null); // ID of student being saved
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'student_name', direction: 'asc' });
 
   // Resolution modal state
   const [isResModalOpen, setIsResModalOpen] = useState(false);
@@ -97,9 +95,9 @@ const GradeEntry = () => {
       if (isResolution) {
         response = await gradesApi.submitResolvedGrade(gradeId, value);
       } else if (type === 'midterm') {
-        response = await gradesApi.submitMidterm(gradeId, value);
+        response = await gradesApi.submitMidterm(gradeId, value === 'NG' ? null : value, isInc);
       } else {
-        response = await gradesApi.submitFinal(gradeId, value, isInc);
+        response = await gradesApi.submitFinal(gradeId, value === 'NG' ? null : value, isInc);
       }
       patchStudentRow(response?.data);
       addToast('success', isResolution ? 'Resolution grade submitted for review.' : 'Grade updated successfully.');
@@ -117,9 +115,19 @@ const GradeEntry = () => {
     return false;
   };
 
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const columns = [
     {
       header: 'ID Number',
+      accessor: 'student_idn',
+      sortable: true,
       render: (row) => (
         <div className="font-mono text-xs text-slate-500 uppercase tracking-wide">
           {row.student_idn}
@@ -128,6 +136,8 @@ const GradeEntry = () => {
     },
     {
       header: 'Student Name',
+      accessor: 'student_name',
+      sortable: true,
       render: (row) => (
         <div className="py-1">
           <div className="font-semibold text-slate-900 text-sm">
@@ -138,24 +148,39 @@ const GradeEntry = () => {
     },
     {
       header: 'Midterm',
+      accessor: 'midterm_grade',
+      sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2">
           <Select
             className="w-24 font-bold"
-            value={normalizeOptionValue(row.midterm_grade)}
+            value={
+              row.grade_status === 'INC' && row.midterm_grade === null
+                ? 'INC'
+                : row.grade_status === 'NO_GRADE' && row.midterm_grade === null
+                ? 'NG'
+                : normalizeOptionValue(row.midterm_grade)
+            }
             onChange={(e) => {
               const val = e.target.value;
-              const parsed = val ? parseFloat(val) : null;
-              handleGradeUpdate(row.id, 'midterm', parsed);
+              if (val === 'INC') {
+                handleGradeUpdate(row.id, 'midterm', null, true);
+              } else if (val === 'NG') {
+                handleGradeUpdate(row.id, 'midterm', 'NG', false);
+              } else {
+                handleGradeUpdate(row.id, 'midterm', val ? parseFloat(val) : null, false);
+              }
             }}
             disabled={(!isRowEditable(row)) || saving === row.id || row.resolution_status === 'APPROVED'}
-            options={MIDTERM_OPTIONS}
+            options={GRADE_OPTIONS}
           />
         </div>
       )
     },
     {
       header: 'Final Grade',
+      accessor: 'final_grade',
+      sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2">
              <Select 
@@ -174,13 +199,13 @@ const GradeEntry = () => {
                     if (val === 'INC') {
                         handleGradeUpdate(row.id, 'final', null, true);
                     } else if (val === 'NG') {
-                        handleGradeUpdate(row.id, 'final', null, false);
+                        handleGradeUpdate(row.id, 'final', 'NG', false);
                     } else {
                         handleGradeUpdate(row.id, 'final', val ? parseFloat(val) : null, false, isResolution);
                     }
                 }}
                 disabled={(!isRowEditable(row)) || saving === row.id}
-                options={row.resolution_status === 'APPROVED' ? MIDTERM_OPTIONS : FINAL_OPTIONS}
+                options={row.resolution_status === 'APPROVED' ? GRADE_OPTIONS.filter(o => !['INC', 'NG'].includes(o.value)) : GRADE_OPTIONS}
                 style={row.resolution_status === 'APPROVED' ? { backgroundColor: '#eff6ff', borderColor: '#3b82f6' } : {}}
              />
         </div>
@@ -188,34 +213,69 @@ const GradeEntry = () => {
     },
     {
       header: 'Status',
+      accessor: 'grade_status',
+      sortable: true,
       render: (row) => (
         <div className="flex flex-col gap-1">
           <Badge variant={
               row.grade_status === 'PASSED' ? 'success' : 
               row.grade_status === 'FAILED' ? 'danger' : 
-              row.grade_status === 'INC' ? 'warning' : 'info'
+              row.grade_status === 'INC' ? 'warning' : 
+              row.grade_status === 'NO_GRADE' ? 'ghost' : 'info'
           }>
             {row.grade_status_display}
           </Badge>
+          
           {row.resolution_status && (
-            <div className="flex flex-col mt-1 border-t border-slate-100 pt-1">
-              <span style={{ fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', padding: '2px 0', borderRadius: '2px', backgroundColor:
-                row.resolution_status === 'COMPLETED' ? '#ecfdf5' :
-                row.resolution_status === 'APPROVED' ? '#eff6ff' :
-                row.resolution_status === 'SUBMITTED' ? '#eef2ff' :
-                '#f8fafc',
+            <div className="flex flex-col mt-1 border-t border-slate-100 pt-1 space-y-1">
+              <span style={{ 
+                fontSize: '9px', 
+                fontWeight: '800', 
+                textTransform: 'uppercase', 
+                textAlign: 'center', 
+                padding: '2px 4px', 
+                borderRadius: '4px', 
+                backgroundColor:
+                    row.resolution_status === 'COMPLETED' ? '#ecfdf5' :
+                    row.resolution_status === 'APPROVED' ? '#eff6ff' :
+                    row.resolution_status === 'SUBMITTED' ? '#f5f3ff' :
+                    row.resolution_status === 'HEAD_APPROVED' ? '#fff7ed' :
+                    row.resolution_status === 'REQUESTED' ? '#fffbeb' :
+                    '#f8fafc',
                 color:
-                row.resolution_status === 'COMPLETED' ? '#059669' :
-                row.resolution_status === 'APPROVED' ? '#2563eb' :
-                row.resolution_status === 'SUBMITTED' ? '#4f46e5' :
-                '#64748b'
+                    row.resolution_status === 'COMPLETED' ? '#059669' :
+                    row.resolution_status === 'APPROVED' ? '#2563eb' :
+                    row.resolution_status === 'SUBMITTED' ? '#7c3aed' :
+                    row.resolution_status === 'HEAD_APPROVED' ? '#c2410c' :
+                    row.resolution_status === 'REQUESTED' ? '#d97706' :
+                    '#64748b',
+                border: '1px solid currentColor',
+                borderOpacity: '0.2'
               }}>
-                Res: {row.resolution_status}
+                {row.resolution_status === 'REQUESTED' ? 'Awaiting Registrar' :
+                 row.resolution_status === 'APPROVED' ? 'Ready for Entry' :
+                 row.resolution_status === 'SUBMITTED' ? 'Awaiting Head' :
+                 row.resolution_status === 'HEAD_APPROVED' ? 'Awaiting Registrar (Final)' :
+                 row.resolution_status === 'COMPLETED' ? 'Resolved' : 
+                 `Res: ${row.resolution_status}`}
               </span>
-              {row.resolution_approved_by_name && (
-                <span style={{ fontSize: '7px', color: '#16a34a', fontWeight: 'bold', marginTop: '2px', opacity: '0.8' }}>
+              
+              {row.resolution_approved_by_name && row.resolution_status === 'APPROVED' && (
+                <span style={{ fontSize: '8px', color: '#2563eb', fontWeight: '600', textAlign: 'center' }}>
+                   Approved by Registrar
+                </span>
+              )}
+              
+              {row.resolution_status === 'COMPLETED' && row.resolution_approved_by_name && (
+                <span style={{ fontSize: '8px', color: '#059669', fontWeight: '600', textAlign: 'center' }}>
                    {row.resolution_approved_by_name} Approved
                 </span>
+              )}
+
+              {row.rejection_reason && row.resolution_status === null && (
+                <div className="p-1 bg-red-50 rounded border border-red-100 text-[8px] text-red-600 italic">
+                  Rejected: {row.rejection_reason}
+                </div>
               )}
             </div>
           )}
@@ -243,10 +303,37 @@ const GradeEntry = () => {
     }
   ];
 
-  const filteredStudents = students.filter(s => 
-    s.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.student_idn.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStudents = students
+    .filter(s => 
+      s.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.student_idn.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+        if (!sortConfig.key) return 0;
+        
+        let valA = a[sortConfig.key];
+        let valB = b[sortConfig.key];
+        
+        // Handle special values for grades
+        if (sortConfig.key === 'midterm_grade' || sortConfig.key === 'final_grade') {
+            // Nulls (INC/NG) should go to the end or start depending on direction
+            if (valA === null && valB === null) return 0;
+            if (valA === null) return 1;
+            if (valB === null) return -1;
+            
+            return sortConfig.direction === 'asc' 
+                ? Number(valA) - Number(valB)
+                : Number(valB) - Number(valA);
+        }
+        
+        // Default string comparison
+        valA = String(valA || '').toLowerCase();
+        valB = String(valB || '').toLowerCase();
+        
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
 
   return (
     <div className="grade-entry-container p-6 animate-in fade-in duration-500">
@@ -331,6 +418,8 @@ const GradeEntry = () => {
                    columns={columns}
                    data={filteredStudents}
                    loading={loading}
+                   sortConfig={sortConfig}
+                   onSort={handleSort}
                 />
               </Card>
             </>

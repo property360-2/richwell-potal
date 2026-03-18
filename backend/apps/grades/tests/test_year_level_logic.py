@@ -43,10 +43,13 @@ def setup_data(db):
     s2_2 = Subject.objects.create(curriculum=curriculum, code='S2-2', description='Subj 2-2', year_level=2, semester='2', total_units=3)
     s2_3 = Subject.objects.create(curriculum=curriculum, code='S2-3', description='Subj 2-3', year_level=2, semester='1', total_units=3)
     
+    registrar = User.objects.create(username='registrar', role='REGISTRAR')
+    
     return {
         'student': student,
         'term': term,
-        'subjects': [s1_1, s1_2, s2_1, s2_2, s2_3]
+        'subjects': [s1_1, s1_2, s2_1, s2_2, s2_3],
+        'registrar': registrar
     }
 
 @pytest.mark.django_db
@@ -134,3 +137,25 @@ def test_regularity_new_transferee(setup_data):
     # No grades yet
     is_regular = AdvisingService.check_student_regularity(student, term)
     assert is_regular is False, "New transferee without credited subjects should be Irregular by default."
+
+@pytest.mark.django_db
+def test_regularity_transferee_after_crediting(setup_data):
+    student = setup_data['student']
+    term = setup_data['term']
+    student.student_type = 'TRANSFEREE'
+    student.save()
+    
+    # 1. Start: Irregular (no grades)
+    assert AdvisingService.check_student_regularity(student, term) is False
+    
+    # 2. Credit a Year 2 subject (but Student is still Year 1 or missing Year 1 subjects)
+    subject_y2 = setup_data['subjects'][2] # Year 2 Subj
+    AdvisingService.credit_subject(student, subject_y2, term, setup_data['registrar'])
+    
+    # 3. They are still Irregular because they haven't passed the YEAR 1 subjects 
+    # and they also have no back subjects yet if we consider them Year 1.
+    # Actually if they passed a Year 2 subject, get_year_level(student) returns 2.
+    # Then it finds Year 1 subjects as Back Subjects. 
+    # Since they haven't passed Year 1 subjects, they are Irregular! Perfect!
+    assert AdvisingService.get_year_level(student) == 2
+    assert AdvisingService.check_student_regularity(student, term) is False

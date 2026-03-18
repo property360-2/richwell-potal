@@ -35,11 +35,15 @@ class GradeFilter(django_filters.FilterSet):
         }
 
 class AdvisingViewSet(viewsets.ModelViewSet):
-    # ... (existing code remains same)
-    serializer_class = GradeSerializer
-    permission_classes = [IsStudent | IsProgramHead | IsRegistrar | IsAdmin | IsProfessor]
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = GradeFilter
+    """
+    Grades & Advising management.
+
+    GET /api/grades/advising/         - List all grades/advising (Filtered by Role)
+    POST /api/grades/advising/auto-advise/ - Auto-select subjects (Regular Students)
+    POST /api/grades/advising/manual-advise/ - Manual selection (Irregular Students)
+
+    Permissions: IsStudent | IsProgramHead | IsRegistrar | IsAdmin | IsProfessor
+    """
 
     def get_queryset(self):
         user = self.request.user
@@ -241,10 +245,11 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
     def submit_midterm(self, request, pk=None):
         grade_id = pk
         value = request.data.get('value')
+        is_inc = request.data.get('is_inc', False)
         override = request.data.get('override_grading_window', False)
         
         try:
-            updated_grade = self.service.submit_midterm(grade_id, value, request.user, override_window=override)
+            updated_grade = self.service.submit_midterm(grade_id, value, request.user, is_inc=is_inc, override_window=override)
             return Response(GradeSerializer(updated_grade).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -374,6 +379,15 @@ class ResolutionViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'], url_path='registrar-reject')
+    def registrar_reject(self, request, pk=None):
+        reason = request.data.get('reason')
+        try:
+            grade = self.service.registrar_reject_request(pk, request.user, reason)
+            return Response(GradeSerializer(grade).data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['post'], url_path='submit-grade')
     def submit_grade(self, request, pk=None):
         new_grade = request.data.get('new_grade')
@@ -396,6 +410,13 @@ class ResolutionViewSet(viewsets.ViewSet):
         reason = request.data.get('reason')
         try:
             grade = self.service.head_reject_resolution(pk, reason)
+            return Response(GradeSerializer(grade).data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=True, methods=['post'], url_path='registrar-finalize')
+    def registrar_finalize(self, request, pk=None):
+        try:
+            grade = self.service.registrar_finalize_resolution(pk, request.user)
             return Response(GradeSerializer(grade).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

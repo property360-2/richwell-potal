@@ -23,6 +23,15 @@
     border-bottom: 1px solid var(--color-border);
 }
 
+.table-header-sortable {
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.table-header-sortable:hover {
+    background-color: var(--color-border) !important;
+    color: var(--color-text-primary);
+}
+
 .table td {
     padding: var(--space-3) var(--space-4);
     font-size: var(--font-size-sm);

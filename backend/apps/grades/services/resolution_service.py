@@ -61,6 +61,33 @@ class ResolutionService:
         
         return grade
 
+
+    @transaction.atomic
+    def registrar_reject_request(self, grade_id, registrar, reason):
+        """
+        Registrar rejects the resolution request.
+        Status: RESOLUTION_REQUESTED -> None (reverted)
+        """
+        grade = Grade.objects.select_for_update().get(id=grade_id)
+        
+        if grade.resolution_status != 'REQUESTED':
+            raise ValueError("No pending resolution request found.")
+            
+        grade.resolution_status = None
+        grade.rejection_reason = reason
+        grade.save()
+
+        # Notify Professor
+        NotificationService.notify(
+            recipient=grade.resolution_requested_by,
+            notification_type=Notification.NotificationType.GRADE,
+            title="Resolution Request Rejected",
+            message=f"Registrar rejected your resolution request for {grade.student.idn} - {grade.subject.code}.",
+            link_url="/professor/grading"
+        )
+        
+        return grade
+
     @transaction.atomic
     def submit_resolved_grade(self, grade_id, professor, new_grade):
         """
@@ -81,31 +108,62 @@ class ResolutionService:
     @transaction.atomic
     def head_approve_resolution(self, grade_id, program_head):
         """
-        Program Head approves the new grade.
-        Status: RESOLUTION_SUBMITTED -> RESOLUTION_FINAL_PENDING
-        Updates the main grade value but keeps status for final Registrar action.
+        Program Head gives final approval for the resolved grade.
+        Status: RESOLUTION_SUBMITTED -> COMPLETED
         """
         grade = Grade.objects.select_for_update().get(id=grade_id)
         
         if grade.resolution_status != 'SUBMITTED':
             raise ValueError("No submitted resolution grade to approve.")
             
+        # Commit the grade
         grade.final_grade = grade.resolution_new_grade
+        grade.grade_status = Grade.STATUS_PASSED if grade.final_grade <= 3.0 else Grade.STATUS_FAILED
         grade.resolution_status = 'COMPLETED'
+        
         grade.resolution_approved_by = program_head
         grade.resolution_approved_at = timezone.now()
         
-        # Once approved by Head, it's ready for finalization by Registrar 
-        # (who finalized the original INC)
-        # We transition grade_status to PASSED or FAILED based on new_grade
+        # Also mark as finalized for records
+        grade.finalized_by = program_head
+        grade.finalized_at = timezone.now()
         grade.save()
+
+        # Notify Registrar
+        registrars = User.objects.filter(role='REGISTRAR')
+        for registrar in registrars:
+            NotificationService.notify(
+                recipient=registrar,
+                notification_type=Notification.NotificationType.GRADE,
+                title="Resolution Finalized",
+                message=f"{program_head.get_full_name()} finalized the resolved grade for {grade.student.idn} - {grade.subject.code}.",
+                link_url="/registrar/grades"
+            )
+
+        # Notify Student
+        NotificationService.notify(
+            recipient=grade.student.user,
+            notification_type=Notification.NotificationType.GRADE,
+            title="Grade Resolved",
+            message=f"Your INC grade for {grade.subject.code} has been officially finalized.",
+            link_url="/student/grades"
+        )
+
+        return grade
+
+    @transaction.atomic
+    def registrar_finalize_resolution(self, grade_id, registrar):
+        """
+        [DEPRECATED] Moved to head_approve_resolution.
+        """
+        return self.head_approve_resolution(grade_id, registrar)
 
         # Notify Professor
         NotificationService.notify(
             recipient=grade.resolution_requested_by,
             notification_type=Notification.NotificationType.GRADE,
-            title="Resolution Completed",
-            message=f"Program Head approved the resolved grade for {grade.student.idn} - {grade.subject.code}.",
+            title="Resolution Finalized",
+            message=f"Registrar finalized the resolved grade for {grade.student.idn} - {grade.subject.code}.",
             link_url="/professor/grading"
         )
 
@@ -114,7 +172,7 @@ class ResolutionService:
             recipient=grade.student.user,
             notification_type=Notification.NotificationType.GRADE,
             title="Grade Resolved",
-            message=f"Your INC grade for {grade.subject.code} has been resolved and updated.",
+            message=f"Your INC grade for {grade.subject.code} has been officially finalized.",
             link_url="/student/grades"
         )
         

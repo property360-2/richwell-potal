@@ -18,12 +18,17 @@ import './GradeFinalization.css';
 const GradeFinalization = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'resolutions'
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending', 'resolutions', or 'finalization'
   const [loading, setLoading] = useState(false);
   const [activeTerm, setActiveTerm] = useState(null);
   const [pendingSections, setPendingSections] = useState([]);
   const [resolutions, setResolutions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Rejection modal context
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [selectedRes, setSelectedRes] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     fetchInitialData();
@@ -76,10 +81,15 @@ const GradeFinalization = () => {
             grouped[key].pending_count++;
         });
         setPendingSections(Object.values(grouped));
-      } else {
+      } else if (activeTab === 'resolutions') {
         const res = await gradesApi.getGrades({ 
           grade_status: 'INC',
           resolution_status: 'REQUESTED'
+        });
+        setResolutions(res.data?.results || []);
+      } else if (activeTab === 'finalization') {
+        const res = await gradesApi.getGrades({ 
+          resolution_status: 'HEAD_APPROVED'
         });
         setResolutions(res.data?.results || []);
       }
@@ -135,32 +145,110 @@ const GradeFinalization = () => {
         </div>
       )
     },
-    { header: 'Subject', render: (row) => row.subject_details?.code },
+    { 
+        header: 'Requested By', 
+        render: (row) => (
+            <div className="text-xs">
+                <div className="font-semibold text-slate-700">{row.professor_name || 'Professor'}</div>
+                <div className="text-slate-400">Faculty</div>
+            </div>
+        )
+    },
     { 
         header: 'Reason', 
-        render: (row) => <div className="max-w-xs text-xs italic text-slate-600 truncate" title={row.rejection_reason}>{row.rejection_reason || 'No reason provided'}</div> 
+        render: (row) => <div className="max-w-xs text-xs italic text-slate-600 truncate" title={row.resolution_reason}>{row.resolution_reason || 'No reason provided'}</div> 
     },
     {
         header: 'Actions',
         align: 'right',
         render: (row) => (
-            <Button 
-              size="sm" 
-              onClick={async () => {
-                try {
-                  setLoading(true);
-                  await gradesApi.registrarApproveResolution(row.id);
-                  addToast('info', 'Resolution request has been unlocked for the professor.');
-                  fetchInitialData();
-                } catch (e) {
-                  addToast('error', e.response?.data?.error || 'Action failed.');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-            >
-                Approve Request
-            </Button>
+            <div className="flex gap-2 justify-end">
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  className="text-red-600 hover:bg-red-50"
+                  onClick={() => {
+                    setSelectedRes(row);
+                    setIsRejectModalOpen(true);
+                  }}
+                >
+                    Reject
+                </Button>
+                <Button 
+                  size="sm" 
+                  onClick={async () => {
+                    try {
+                      setLoading(true);
+                      await gradesApi.registrarApproveResolution(row.id);
+                      addToast('info', 'Resolution request has been unlocked for the professor.');
+                      fetchInitialData();
+                    } catch (e) {
+                      addToast('error', e.response?.data?.error || 'Action failed.');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                >
+                    Approve
+                </Button>
+            </div>
+        )
+    }
+  ];
+
+  const finalizationColumns = [
+    {
+      header: 'Student',
+      render: (row) => (
+        <div>
+          <div className="font-bold">{row.student_name}</div>
+          <div className="text-xs text-slate-500 font-mono">{row.student_idn}</div>
+        </div>
+      )
+    },
+    {
+       header: 'Resolved Grade',
+       render: (row) => <Badge variant="success" className="text-sm font-bold">{Number(row.resolution_new_grade || 0).toFixed(2)}</Badge>
+    },
+    { 
+        header: 'Program Review', 
+        render: (row) => (
+            <div className="text-xs">
+                <div className="font-semibold text-slate-700">{row.resolution_approved_by_name || 'Program Head'}</div>
+                <div className="text-blue-500 font-medium">Head Approved</div>
+            </div>
+        )
+    },
+    { 
+        header: 'Reason', 
+        render: (row) => <div className="max-w-xs text-xs italic text-slate-600 truncate" title={row.resolution_reason}>{row.resolution_reason || 'No reason provided'}</div> 
+    },
+    {
+        header: 'Actions',
+        align: 'right',
+        render: (row) => (
+            <div className="flex gap-2 justify-end">
+                <Button 
+                  size="sm" 
+                  variant="primary"
+                  className="bg-green-600 hover:bg-green-700"
+                  icon={<FileCheck size={16} />}
+                  onClick={async () => {
+                    try {
+                      setLoading(true);
+                      await gradesApi.registrarFinalizeResolution(row.id);
+                      addToast('success', 'Grade resolution finalized and committed.');
+                      fetchInitialData();
+                    } catch (e) {
+                      addToast('error', e.response?.data?.error || 'Finalization failed.');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                >
+                    Finalize Result
+                </Button>
+            </div>
         )
     }
   ];
@@ -215,7 +303,8 @@ const GradeFinalization = () => {
               onTabChange={setActiveTab}
               tabs={[
                 { id: 'pending', label: 'Finalization Queue' },
-                { id: 'resolutions', label: 'Resolution Requests' }
+                { id: 'resolutions', label: 'Resolution Requests' },
+                { id: 'finalization', label: 'Resolution Finalization' }
               ]}
             />
           </div>
@@ -348,9 +437,13 @@ const GradeFinalization = () => {
           <Card>
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                   {activeTab === 'pending' ? <FileCheck className="text-blue-500" /> : <ShieldAlert className="text-amber-500" />}
+                   {activeTab === 'pending' ? <FileCheck className="text-blue-500" /> : 
+                    activeTab === 'resolutions' ? <ShieldAlert className="text-amber-500" /> :
+                    <FileCheck className="text-green-500" />}
                    <h2 className="font-bold text-slate-800 uppercase tracking-wider text-sm">
-                      {activeTab === 'pending' ? 'Sections Pending Finalization' : 'INC Resolution Queue'}
+                      {activeTab === 'pending' ? 'Sections Pending Finalization' : 
+                       activeTab === 'resolutions' ? 'INC Resolution Initial Requests' :
+                       'Final Resolution Approvals'}
                    </h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -361,13 +454,80 @@ const GradeFinalization = () => {
                 </div>
             </div>
             <Table 
-              columns={activeTab === 'pending' ? pendingColumns : resolutionColumns}
-              data={activeTab === 'pending' ? pendingSections : resolutions}
+              columns={
+                activeTab === 'pending' ? pendingColumns : 
+                activeTab === 'resolutions' ? resolutionColumns : 
+                finalizationColumns
+              }
+              data={(() => {
+                const data = activeTab === 'pending' ? pendingSections : resolutions;
+                if (!searchTerm) return data;
+                const searchLower = searchTerm.toLowerCase();
+                return data.filter(item => 
+                  (item.subject_code?.toLowerCase().includes(searchLower)) ||
+                  (item.subject_name?.toLowerCase().includes(searchLower)) ||
+                  (item.professor_name?.toLowerCase().includes(searchLower)) ||
+                  (item.student_name?.toLowerCase().includes(searchLower)) ||
+                  (item.student_idn?.toLowerCase().includes(searchLower))
+                );
+              })()}
               loading={loading}
-              emptyMessage={activeTab === 'pending' ? "No sections found with pending grades." : "No active resolution requests."}
+              emptyMessage={
+                activeTab === 'pending' ? "No sections found with pending grades." : 
+                activeTab === 'resolutions' ? "No active resolution requests." :
+                "No resolutions awaiting final approval."
+              }
             />
           </Card>
       </div>
+      {/* Rejection Modal */}
+      <Modal
+        isOpen={isRejectModalOpen}
+        onClose={() => {
+            setIsRejectModalOpen(false);
+            setSelectedRes(null);
+            setRejectReason('');
+        }}
+        title="Reject Resolution Request"
+      >
+        <div className="space-y-4 p-4">
+          <p className="text-sm text-slate-500">
+            Please provide a reason for rejecting the resolution request for <strong>{selectedRes?.student_name}</strong>.
+          </p>
+          <Input
+            multiline
+            placeholder="Reason for rejection..."
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            style={{ height: '120px' }}
+          />
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="ghost" onClick={() => setIsRejectModalOpen(false)}>Cancel</Button>
+            <Button 
+              variant="danger" 
+              onClick={async () => {
+                if (!rejectReason) {
+                  addToast('warning', 'Please provide a reason.');
+                  return;
+                }
+                try {
+                  setLoading(true);
+                  await gradesApi.registrarRejectResolution(selectedRes.id, rejectReason);
+                  addToast('info', 'Resolution request rejected.');
+                  setIsRejectModalOpen(false);
+                  fetchInitialData();
+                } catch (e) {
+                  addToast('error', 'Action failed.');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Confirm Rejection
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

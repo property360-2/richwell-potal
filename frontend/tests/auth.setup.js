@@ -44,7 +44,7 @@ async function loginAs(page, username, password, targetUrl, savePath) {
 }
 
 setup('authenticate as admin', async ({ page }) => {
-    await loginAs(page, 'admin', 'admin', '/admin', adminFile);
+    await loginAs(page, 'admin', 'password123', '/admin', adminFile);
 });
 
 setup('authenticate as registrar', async ({ page }) => {

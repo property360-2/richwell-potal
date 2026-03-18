@@ -49,6 +49,14 @@ const ProgramHeadDashboard = () => {
                                     Pending Advising
                                 </Button>
                                 <Button
+                                    variant="ghost"
+                                    className="w-full justify-between"
+                                    icon={<ArrowRight size={16} />}
+                                    onClick={() => navigate('/program-head/resolutions')}
+                                >
+                                    Grade Resolutions
+                                </Button>
+                                <Button
                                     variant="secondary"
                                     className="w-full justify-between"
                                     icon={<ArrowRight size={16} />}

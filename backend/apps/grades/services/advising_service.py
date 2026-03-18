@@ -20,6 +20,10 @@ class AdvisingService:
         if Grade.objects.filter(student=student, grade_status=Grade.STATUS_INC).exists():
             return False
 
+        # 1.1 New transferee without any credits yet is Irregular
+        if student.student_type == 'TRANSFEREE' and not Grade.objects.filter(student=student).exists():
+            return False
+
         # 2. Check for Failed Prerequisites
         from apps.academics.models import SubjectPrerequisite
         failed_subject_ids = Grade.objects.filter(

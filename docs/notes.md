@@ -56,8 +56,12 @@ Tests:
 Frontend
 npm run test:e2e - Runs all E2E tests in the background.
 npm run test:e2e:ui - Opens the interactive Playwright UI for debugging.
-
 Backend
+
+
+Run Unit Tests: cd frontend; npm run test:unit
+Run Backend Tests: cd backend; pytest
+Run E2E Tests: cd frontend; npm run test:e2e
 
 
 payments: 

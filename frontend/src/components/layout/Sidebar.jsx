@@ -78,6 +78,7 @@ const getNavItems = (role, isSuperUser = false) => {
 
   if (normalizedRole === 'PROGRAM_HEAD') {
     items.push({ path: '/program-head/advising', label: 'Advising Approval', icon: CheckCircle });
+    items.push({ path: '/program-head/resolutions', label: 'Grade Resolutions', icon: ClipboardList });
     items.push({ path: '/program-head/sections', label: 'Section Management', icon: Users });
   }
 

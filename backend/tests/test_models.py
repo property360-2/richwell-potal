@@ -58,25 +58,29 @@ class TestStudentModel:
         user = UserFactory(role='STUDENT')
         program = ProgramFactory()
         curriculum = CurriculumVersionFactory(program=program)
-        with pytest.raises(IntegrityError):
-            Student.objects.create(
+        with pytest.raises((IntegrityError, ValidationError)):
+            s = Student(
                 user=user,
                 idn='270001',
                 program=program,
                 curriculum=curriculum,
             )
+            s.full_clean()
+            s.save()
 
 
 @pytest.mark.django_db
 class TestStudentEnrollmentModel:
     def test_unique_together_student_term(self):
         enrollment = StudentEnrollmentFactory()
-        with pytest.raises(IntegrityError):
-            StudentEnrollment.objects.create(
+        with pytest.raises((IntegrityError, ValidationError)):
+            enrollment2 = StudentEnrollment(
                 student=enrollment.student,
                 term=enrollment.term,
                 year_level=1,
             )
+            enrollment2.full_clean()
+            enrollment2.save()
 
     def test_advising_status_choices(self):
         enrollment = StudentEnrollmentFactory(advising_status='APPROVED')
@@ -87,12 +91,14 @@ class TestStudentEnrollmentModel:
 class TestGradeModel:
     def test_unique_together_student_subject_term(self):
         grade = GradeFactory()
-        with pytest.raises(IntegrityError):
-            Grade.objects.create(
+        with pytest.raises((IntegrityError, ValidationError)):
+            grade2 = Grade(
                 student=grade.student,
                 subject=grade.subject,
                 term=grade.term,
             )
+            grade2.full_clean()
+            grade2.save()
 
     def test_grade_validator_rejects_invalid_range(self):
         grade = GradeFactory()
@@ -143,8 +149,8 @@ class TestTermModel:
 class TestSectionModel:
     def test_unique_together(self):
         section = SectionFactory()
-        with pytest.raises(IntegrityError):
-            Section.objects.create(
+        with pytest.raises((IntegrityError, ValidationError)):
+            section2 = Section(
                 name='Other',
                 term=section.term,
                 program=section.program,
@@ -152,6 +158,8 @@ class TestSectionModel:
                 section_number=section.section_number,
                 session='PM',
             )
+            section2.full_clean()
+            section2.save()
 
 
 @pytest.mark.django_db

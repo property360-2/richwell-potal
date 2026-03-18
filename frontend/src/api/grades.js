@@ -8,7 +8,7 @@ export const gradesApi = {
     getSectionStudents: (sectionId, subjectId) => api.get('grades/submission/roster/', {
         params: { section_id: sectionId, subject_id: subjectId }
     }),
-    submitMidterm: (gradeId, value, override = false) => api.post(`grades/submission/${gradeId}/submit-midterm/`, { value, override_grading_window: override }),
+    submitMidterm: (gradeId, value, isInc = false, override = false) => api.post(`grades/submission/${gradeId}/submit-midterm/`, { value, is_inc: isInc, override_grading_window: override }),
     submitFinal: (gradeId, value, isInc = false, override = false) => api.post(`grades/submission/${gradeId}/submit-final/`, { value, is_inc: isInc, override_grading_window: override }),
     requestResolution: (gradeId, reason) => api.post(`grades/resolution/${gradeId}/request-resolution/`, { reason }),
     finalizeSection: (data) => api.post('grades/submission/finalize-section/', {
@@ -19,9 +19,11 @@ export const gradesApi = {
     finalizeTerm: (termId) => api.post('grades/submission/finalize-term/', { term_id: termId }),
     closeGradingPeriod: (termId, periodType) => api.post('grades/submission/close-grading-period/', { term_id: termId, period_type: periodType }),
     registrarApproveResolution: (gradeId) => api.post(`grades/resolution/${gradeId}/registrar-approve/`),
+    registrarRejectResolution: (gradeId, reason) => api.post(`grades/resolution/${gradeId}/registrar-reject/`, { reason }),
     submitResolvedGrade: (gradeId, newGrade) => api.post(`grades/resolution/${gradeId}/submit-grade/`, { new_grade: newGrade }),
     headApproveResolution: (gradeId) => api.post(`grades/resolution/${gradeId}/head-approve/`),
     headRejectResolution: (gradeId, reason) => api.post(`grades/resolution/${gradeId}/head-reject/`, { reason }),
+    registrarFinalizeResolution: (gradeId) => api.post(`grades/resolution/${gradeId}/registrar-finalize/`),
     bulkHistoricalEncode: (studentId, creditData, source) => api.post('grades/crediting/bulk-historical-encode/', {
         student_id: studentId,
         credit_data: creditData,

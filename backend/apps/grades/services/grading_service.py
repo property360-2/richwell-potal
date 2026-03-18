@@ -8,7 +8,7 @@ from apps.accounts.models import User
 
 class GradingService:
     @transaction.atomic
-    def submit_midterm(self, grade_id, value, professor, override_window=False):
+    def submit_midterm(self, grade_id, value, professor, is_inc=False, override_window=False):
         """
         Professors submit midterm grades. No status change, just updates value.
         Strict check for grading window unless override_window is True.
@@ -30,6 +30,19 @@ class GradingService:
         
         grade.midterm_grade = value
         grade.midterm_submitted_at = timezone.now()
+
+        # Same status logic as FINAL for NG and INC
+        if value is None:
+             grade.grade_status = Grade.STATUS_NO_GRADE
+        
+        # Special INC handling for midterms
+        if is_inc or value == 'INC':
+            grade.grade_status = Grade.STATUS_INC
+            # Set INC deadline if missing
+            if not grade.inc_deadline:
+                months = 6 if grade.subject.is_major else 12
+                grade.inc_deadline = (timezone.now() + relativedelta(months=months)).date()
+
         grade.save()
 
         # Notify Registrar

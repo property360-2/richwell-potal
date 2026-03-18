@@ -93,17 +93,28 @@ const ResolutionApproval = () => {
       )
     },
     {
-      header: 'New Grade',
+      header: 'Proposed Upgrade',
       render: (row) => (
         <div className="flex items-center gap-2">
-            <Badge variant="success" className="text-lg px-3 py-1">{row.final_grade?.toFixed(2)}</Badge>
-            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Previously INC</div>
+            <Badge variant="success" className="text-lg px-3 py-1 font-bold">{Number(row.resolution_new_grade || 0).toFixed(2)}</Badge>
+            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter leading-tight">
+               Previously<br/>INC
+            </div>
         </div>
       )
     },
     {
-      header: 'Requested Reason',
-      render: (row) => <div className="max-w-xs text-xs italic text-slate-500 line-clamp-2">{row.rejection_reason || 'N/A'}</div>
+      header: 'Requested By',
+      render: (row) => (
+        <div className="text-xs">
+           <div className="font-semibold text-slate-700">{row.professor_name || 'Professor'}</div>
+           <div className="text-slate-400">Instructor</div>
+        </div>
+      )
+    },
+    {
+      header: 'Reason',
+      render: (row) => <div className="max-w-xs text-xs italic text-slate-500 line-clamp-2" title={row.resolution_reason}>{row.resolution_reason || 'No reason provided'}</div>
     },
     {
       header: 'Actions',

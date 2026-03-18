@@ -55,7 +55,7 @@ class TestBugReproducing:
             term=term,
             section=section,
         )
-        url = reverse('grade-submission-finalize')
+        url = reverse('grade-submission-finalize-section')
         resp = api_client.post(
             url,
             {
