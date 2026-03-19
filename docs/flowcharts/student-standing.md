@@ -1,21 +1,27 @@
 # Student Standing Recalculation Flowchart
 
-Logic for calculating year level and regularity.
+Logic for calculating year level and determining if a student is "Regular".
 
 ```mermaid
 graph TD
-    Start([Trigger Event]) --> GetPassed[Get All Passed Subjects]
-    GetPassed --> CalcUnits[Sum Up Total Passed Units]
+    Start([Recalc Event]) --> CalcYear[Calculate Highest Year Level with Passed Subjects]
+    CalcYear --> Regularity{Check Regularity Logic}
     
-    CalcUnits --> MapYearLevel[Map Units to Curriculum Year Sequence]
-    MapYearLevel --> HighestYear{Identify Highest Passed Year}
+    Regularity -- "Has UNRESOLVED INC" --> Irregular[Status: IRREGULAR]
+    Regularity -- "New Transferee (0 Credits)" --> Irregular
+    Regularity -- "Failed a Prerequisite" --> Irregular
     
-    HighestYear --> RegularityCheck{Has back subjects from previous years?}
-    RegularityCheck -- "Yes" --> SetIrregular[Status: IRREGULAR]
-    RegularityCheck -- "No" --> SetRegular[Status: REGULAR]
+    Regularity -- "Standard Checks" --> BackSubjectCheck{Missing Back Subjects?}
+    BackSubjectCheck -- "Yes" --> Irregular
+    BackSubjectCheck -- "No" --> Regular[Status: REGULAR]
     
-    SetIrregular --> SaveStanding[Update StudentEnrollment Status]
-    SetRegular --> SaveStanding
+    Irregular --> Save[Update StudentEnrollment]
+    Regular --> Save
     
-    SaveStanding --> End([Student Standing Updated])
+    Save --> End([Standing & Regularity Updated])
 ```
+
+#### Regularity Rules (Backend)
+- **Back Subjects**: Subjects from previous years or previous semesters that have not been passed.
+- **Prerequisites**: Failing a subject that blocks other subjects immediately flags the student as irregular.
+- **Transferees**: Start as irregular by default until their previous credits are encoded in the system.

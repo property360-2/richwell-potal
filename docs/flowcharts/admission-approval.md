@@ -4,18 +4,29 @@ Logical activation of students from `APPLICANT` status.
 
 ```mermaid
 graph TD
-    Start([Staff Review]) --> ApproveBtn[Click Approve]
-    ApproveBtn --> IDNGen[Generate Unique IDN Sequence]
+    Start([Admission Staff Action]) --> ApproveBtn[Click Approve]
+    ApproveBtn --> InputCheck{Input: Monthly Commitment?}
+    InputCheck -- "Missing" --> ShowError[ValidationError: Required Field]
     
-    IDNGen --> ActivateUser[Activate User Account with IDN as Login]
-    ActivateUser --> SetPass[Set Default Password: IDN + Birthdate]
+    InputCheck -- "Provided" --> TermCheck{Active Term Check}
+    TermCheck -- "No Term" --> ShowError[ValidationError: No Active Term]
     
-    SetPass --> CreateEnrollment[Create StudentEnrollment Record for Active Term]
-    CreateEnrollment --> CheckType{Freshman or Transferee?}
+    TermCheck -- "Found" --> Transaction[Transaction: Start Processing]
+    Transaction --> IDNGen[Generate Unique IDN: YYXXXX format]
     
-    CheckType -- "Freshman" --> UnlockAdvising[Set is_advising_unlocked = true]
-    CheckType -- "Transferee" --> PendingCredit[Wait for Registrar Subject Crediting]
+    IDNGen --> ActivateUser[Activate User: Username=IDN, is_active=True]
+    ActivateUser --> SetPass[Set Password: IDN + Birthdate (MMDD)]
     
-    UnlockAdvising --> End([Ready for Advising])
-    PendingCredit --> End
+    SetPass --> CreateEnrollment[Create StudentEnrollment Record]
+    CreateEnrollment --> CalcStanding[Calculate Standing & Regularity]
+    
+    CalcStanding --> SetEnrolledBy[Record Enrolled By & Commitment]
+    SetEnrolledBy --> EnrollmentComplete[Status: APPROVED]
+    
+    EnrollmentComplete --> End([Credentials Returned to Staff])
 ```
+
+#### Backend Reference
+- Handled by `StudentViewSet.approve` in `/api/students/students/{id}/approve/`.
+- Validates **Monthly Commitment** (Required for Registrar/Finance records).
+- IDN is generated based on the current year prefix (e.g., `240001`).

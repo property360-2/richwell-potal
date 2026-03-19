@@ -1,25 +1,30 @@
 # Automatic Advising Flow (Regular Students)
 
-Process for automatically assigning subjects to students in the next year level and semester.
+Process for automatically selecting subjects for students on a standard schedule.
 
 ```mermaid
 graph TD
-    Start([Check Eligibility]) --> CurrentEnrollment{Already Enrolled?}
-    CurrentEnrollment -- "Yes" --> ShowError[Advising already submitted]
-    CurrentEnrollment -- "No" --> CalcStatus[Calculate Next Year Level]
+    Start([Check Eligibility]) --> CurrentEnrollment{Already PENDING/APPROVED?}
+    CurrentEnrollment -- "Yes" --> ShowError[ValidationError: Advising exists]
+    CurrentEnrollment -- "No" --> CalcStatus[Calculate Highest Passed Year Level]
     
-    CalcStatus --> GetSem[Check Current Semester]
-    GetSem --> MatchSubjects[Match Subjects from Curriculum]
+    CalcStatus --> MatchSubjects[Match Subjects from Curriculum]
+    MatchSubjects --> SkipSummer[Exclude Summer Subjects (Semester 'S')]
     
-    MatchSubjects --> FilterPassed[Skip Passed or Credited Subjects]
-    FilterPassed --> IdentifyRetakes[Identify Previously Failed Subjects]
+    SkipSummer --> FilterPassed[Skip ALL subjects already Passed or INC]
+    FilterPassed --> DetectRetakes[Check for previously Failed/Dropped subjects]
     
-    IdentifyRetakes --> LoopSubjects{Loop: Process each subject}
-    LoopSubjects -- "Finished" --> SetPending[Enrollment Status set to PENDING]
-    LoopSubjects -- "Subject" --> CreateGrade[Create Academic Record]
+    DetectRetakes --> LoopSubjects{Loop: Process each eligible subject}
+    LoopSubjects -- "Finished" --> SetPending[Enrollment Advising status: PENDING]
+    LoopSubjects -- "Subject" --> CreateGrade[Get or Create Grade Record]
     
-    CreateGrade --> SetRetakeFlag[Mark as Retake if applicable]
+    CreateGrade --> SetRetakeFlag[Mark as 'is_retake' if Failed/Dropped before]
     SetRetakeFlag --> LoopSubjects
     
     SetPending --> End([Ready for Program Head Review])
 ```
+
+#### Backend Reference
+- Logic in `AdvisingService.auto_advise_regular`.
+- **Summer Subjects**: Explicitly excluded from automatic advising.
+- **Failures**: Any previously failed/dropped subject is automatically flagged as a **Retake**.
