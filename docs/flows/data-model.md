@@ -35,3 +35,12 @@ erDiagram
 ### Grades
 - **Grade**: Central record for a student's performance in a subject. 
 - Tracks `midterm_grade`, `final_grade`, and `resolution_status` for INCs.
+
+### Finance
+- **Payment**: Central finance record.
+    - `month`: Target month (1-6).
+    - `amount`: Transaction value.
+    - `is_promissory`: Manual permit override flag.
+    - `notes`: Collection details (OR number, etc.).
+    - `reference_number`: System-generated unique ID (`PAY-YYYYMMDD-XXXX`).
+    - `processed_by`: Reference to the Cashier.

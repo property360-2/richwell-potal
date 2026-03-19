@@ -78,8 +78,17 @@ const CashierDashboard = () => {
       )
     },
     {
-        header: 'Date',
-        render: (row) => <div className="text-xs text-slate-400">{new Date(row.created_at).toLocaleDateString()}</div>
+        header: 'Completed At',
+        render: (row) => (
+          <div className="flex flex-col">
+            <div className="text-xs text-slate-600 font-bold">{new Date(row.created_at).toLocaleDateString()}</div>
+            <div className="text-[10px] text-slate-400 font-mono italic">{new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+          </div>
+        )
+    },
+    {
+      header: 'Cashier',
+      render: (row) => <div className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{row.processed_by_name}</div>
     }
   ];
 

@@ -37,8 +37,16 @@
         - prof1 / EMP0010101 -> Scenario: Tracking Resolution for Student 51 (REQUESTED)
         - prof2 / EMP0020515 -> Scenario: Has completed resolution for Student 60 (COMPLETED)
     - Students (Role: STUDENT):
-        - 270041 / 2700410107 -> Scenario: Has INC (Ready for prof to request)
+        - 270041 / 2700410614 -> Scenario: Has INC (Subject: IS123)
+        - 270042 / 2700420715 -> Scenario: Has INC (Subject: CC123)
+        - 270043 / 2700430816 -> Scenario: Has INC (Subject: Eng 123) 
+        - 270044 / 2700440917 -> Scenario: Has INC (Subject: Hum123)
+        - 270045 / 2700451018 -> Scenario: Has INC (Subject: Fil 123) / 
         - 270051 / 2700510424 -> Scenario: Tracking pending resolution in SOG
+        - 270052 / 2700520525 -> Scenario: Has INC (Subject: Eng 123)
+        - 270053 / 2700530626 -> Scenario: Has INC (Subject: Hum123)
+        - 270057 / 2700571002 -> Scenario: Has INC (Subject: NSTP2)
+        - 270058 / 2700581103 -> Scenario: Has INC (Subject: PATH Fit 2)
         - 270060 / 2700600105 -> Scenario: Viewing finished approval chain in SOG
     - Staff (Password: password123):
         - registrar -> Scenario: Approving resolution requests
@@ -48,6 +56,9 @@
 
 ## python manage.py seed_full_cycle        # Everything (100 students)
 
+
+sabi sa No resolutions awaiting final approval.
+even though i think meron, kasi kaka-approved ko lang by the head
 
 
 

@@ -15,6 +15,8 @@ class GradeSerializer(serializers.ModelSerializer):
     professor_name = serializers.SerializerMethodField()
     resolution_requested_by_name = serializers.SerializerMethodField()
     resolution_approved_by_name = serializers.SerializerMethodField()
+    term_details = serializers.SerializerMethodField()
+    remaining_days = serializers.SerializerMethodField()
 
     def get_section_details(self, obj):
         if not obj.section:
@@ -44,12 +46,29 @@ class GradeSerializer(serializers.ModelSerializer):
     def get_resolution_approved_by_name(self, obj):
         return obj.resolution_approved_by.get_full_name() if obj.resolution_approved_by else None
     
+    def get_term_details(self, obj):
+        if not obj.term:
+            return None
+        return {
+            "id": obj.term.id,
+            "code": obj.term.code,
+            "name": str(obj.term)
+        }
+
+    def get_remaining_days(self, obj):
+        if not obj.inc_deadline:
+            return None
+        from django.utils import timezone
+        now = timezone.now().date()
+        diff = obj.inc_deadline - now
+        return max(0, diff.days)
+    
     class Meta:
         model = Grade
         fields = [
             'id', 'student', 'student_name', 'student_idn', 
             'subject', 'subject_details', 'term', 'section', 'section_details',
-            'professor_name',
+            'professor_name', 'term_details', 'remaining_days',
             'advising_status', 'advising_status_display',
             'grade_status', 'grade_status_display',
             'midterm_grade', 'final_grade',

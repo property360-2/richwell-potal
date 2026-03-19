@@ -52,27 +52,23 @@ class PaymentViewSet(viewsets.ModelViewSet):
             amount=data['amount'],
             is_promissory=data.get('is_promissory', False),
             processed_by=self.request.user,
-            remarks=data.get('remarks')
+            notes=data.get('notes')
         )
 
-    @action(detail=False, methods=['POST'])
-    def adjust(self, request):
-        """
-        Record a negative adjustment for correction.
-        """
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
+    @action(detail=False, methods=['GET'], url_path='next-payment')
+    def next_payment(self, request):
+        student_id = request.query_params.get('student_id')
+        term_id = request.query_params.get('term_id')
         
-        adjustment = PaymentService.record_adjustment(
-            student=data['student'],
-            term=data['term'],
-            month=data['month'],
-            amount=data['amount'],
-            processed_by=request.user,
-            remarks=data.get('remarks')
-        )
-        return Response(self.get_serializer(adjustment).data, status=status.HTTP_201_CREATED)
+        if not student_id or not term_id:
+            return Response({'detail': 'student_id and term_id are required.'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        from apps.students.models import Student
+        student = get_object_or_404(Student, id=student_id)
+        
+        data = PaymentService.get_next_payment_info(student, term_id)
+        return Response(data)
 
     # Disable Update/Delete for Append-Only record-keeping
     def update(self, request, *args, **kwargs):

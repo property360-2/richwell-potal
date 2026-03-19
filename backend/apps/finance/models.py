@@ -15,8 +15,8 @@ class Payment(AuditMixin, models.Model):
     entry_type = models.CharField(max_length=20, choices=EntryType.choices, default=EntryType.PAYMENT)
     
     is_promissory = models.BooleanField(default=False)
-    remarks = models.TextField(blank=True, null=True)
-    
+    notes = models.TextField(blank=True, null=True)
+    reference_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
     processed_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, related_name='processed_payments')
     created_at = models.DateTimeField(auto_now_add=True)
 

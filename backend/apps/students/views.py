@@ -30,7 +30,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         queryset = Student.objects.all().order_by('-updated_at')
         if user.is_authenticated and user.role == 'STUDENT':
             return queryset.filter(user=user)
-        if user.is_authenticated and user.role in ('ADMISSION', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN'):
+        if user.is_authenticated and user.role in ('ADMISSION', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN', 'CASHIER'):
             return queryset
         if user.is_authenticated:
             return queryset.none()
@@ -43,7 +43,7 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     def _assert_read_access(self):
         role = getattr(self.request.user, 'role', None)
-        if role in ('STUDENT', 'ADMISSION', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN') or self.request.user.is_superuser:
+        if role in ('STUDENT', 'ADMISSION', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN', 'CASHIER') or self.request.user.is_superuser:
             return
         raise PermissionDenied("You do not have permission to access student records.")
     

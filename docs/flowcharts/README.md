@@ -11,5 +11,5 @@ Guide for grade submission window, finalization, and the INC resolution workflow
 ## 3. [Student & Admission Lifecycle](./admission-student-lifecycle.md)
 End-to-end flow from initial application to account activation and standing recalculation.
 
-## 4. [System Infrastructure](./system-infrastructure.md)
-Governance flows including term management, scheduling, audit logging, and notifications.
+## 5. [Payment & Permit Issuance](./payment-permit-master.md)
+Complete guide to the 6-month cumulative balance model and automated collection workflow.
