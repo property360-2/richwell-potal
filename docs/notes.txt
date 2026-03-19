@@ -1,6 +1,6 @@
-python manage.py seed_applicants        # Admission pipeline
+## python manage.py seed_applicants        # Admission pipeline
 
-python manage.py seed_advising          # Enrolled students
+## python manage.py seed_advising          # Enrolled students
   Generates:
     - 150 Students (ENROLLED status, advising APPROVED)
     - 8 Professors (assigned to Y1S1 subjects, varied availabilities)
@@ -24,7 +24,8 @@ python manage.py seed_advising          # Enrolled students
       - Username: prof5, Password: EMP0050320 (DOB: 1989-03-20)
 
 
-python manage.py seed_grade_submission  # Grade submissions & INC Resolution scenarios
+## python manage.py seed_grade_submission  # Grade submissions & INC Resolution scenarios
+
   Generates:
     - 40 Students (Current term, ready for grading)
     - 20 Students (Past term, distributed INC resolution stages)
@@ -43,9 +44,9 @@ python manage.py seed_grade_submission  # Grade submissions & INC Resolution sce
         - registrar -> Scenario: Approving resolution requests
         - programhead -> Scenario: Finalizing submitted resolutions
 
-python manage.py seed_grading           # Registrar finalize grades
+## python manage.py seed_grading           # Registrar finalize grades
 
-python manage.py seed_full_cycle        # Everything (100 students)
+## python manage.py seed_full_cycle        # Everything (100 students)
 
 
 
