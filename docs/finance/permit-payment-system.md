@@ -16,6 +16,15 @@ Permits are dynamically granted based on the settlement (clearpnce) of specific 
 
 ## 2. Automated Payment Features
 
+### Cumulative Balance Model
+The system uses a **Cumulative Balance** requirement to determine eligibility. Permits are not cleared per-payment, but rather when the **Total All-Time Payments** for the term reach the threshold for that month index.
+
+**Logic:**
+1. System calculates `total_paid` for the student for the active term.
+2. Permit for Month `m` is granted if `total_paid >= (monthly_commitment * m)`.
+3. Overpayments for Month 1 automatically clear Month 2, Month 3, etc., as their respective cumulative thresholds are met.
+4. Partial payments are held in the ledger until the next threshold is crossed.
+
 ### Automated Month Detection
 The system automatically assigns payments to the **earliest unpaid month** (1 through 6). This simplifies the cashier's workflow by removing manual dropdown selection.
 

@@ -26,7 +26,12 @@ Enrollment fee -> Monthly commitments (1-6) -> Automated Permit generation.
 - Financial staff can override a payment requirement by flagging a month as **is_promissory**.
 - **Rule**: A promissory note for Month 2 or later requires that Month 1 has at least one recorded payment.
 
-### 4. Append-Only Auditing
+### 4. Student Retrieval (Self-Service)
+- Students can access their permits via the **Financial Summary** dashboard.
+- **E-Permit Retrieval**: If a permit status is `PAID` or `PROMISSORY`, a download button is enabled.
+- **Verification**: The system generates a text-based e-permit containing student credentials and a verification ID.
+
+### 5. Append-Only Auditing
 - Payments cannot be edited or deleted once saved. This ensures a permanent audit trail.
 
 ## Files involved
