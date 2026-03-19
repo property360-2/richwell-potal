@@ -32,7 +32,7 @@ graph TD
     Transaction --> IDNGen[Generate Unique IDN: YYXXXX format]
     
     IDNGen --> ActivateUser[Activate User: Username=IDN, is_active=True]
-    ActivateUser --> SetPass[Set Password: IDN + Birthdate (MMDD)]
+    ActivateUser --> SetPass[Set Password: IDN plus Birthdate MMDD]
     
     SetPass --> CreateEnrollment[Create StudentEnrollment Record]
     CreateEnrollment --> CalcStanding[Calculate Standing & Regularity]

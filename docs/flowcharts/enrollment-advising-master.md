@@ -13,7 +13,7 @@ graph TD
     CurrentEnrollment -- "No" --> CalcStatus[Calculate Highest Passed Year Level]
     
     CalcStatus --> MatchSubjects[Match Subjects from Curriculum]
-    MatchSubjects --> SkipSummer[Exclude Summer Subjects (Semester 'S')]
+    MatchSubjects --> SkipSummer[Exclude Summer Subjects Semester S]
     
     SkipSummer --> FilterPassed[Skip ALL subjects already Passed or INC]
     FilterPassed --> DetectRetakes[Check for previously Failed/Dropped subjects]
@@ -62,7 +62,7 @@ graph TD
     Decision -- "Reject" --> RejectAdvising[Staff/Student Notified to Re-submit]
     Decision -- "Approve" --> ApproveAdvising[Set Advising Status to APPROVED]
     
-    ApproveAdvising --> SchedUnlock[Unlock "Schedule Picking" for Student]
+    ApproveAdvising --> SchedUnlock[Unlock Schedule Picking for Student]
     SchedUnlock --> NotifyStudent[Notify Student to Pick Schedule]
     
     RejectAdvising --> End([Process Ends])
