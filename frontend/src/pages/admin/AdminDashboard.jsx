@@ -51,7 +51,7 @@ const AdminDashboard = () => {
     return (
         <div className="dashboard-container">
             <PageHeader 
-                title="Admin Command Center" 
+                title="Admin Dashboard" 
                 description="Global oversight and system configuration." 
                 className="mb-8"
             />
@@ -70,25 +70,6 @@ const AdminDashboard = () => {
                 ))}
             </div>
 
-            <h2 className="section-title mb-6 font-bold text-slate-800">Quick Operations</h2>
-            <div className="quick-links-grid">
-                {quickLinks.map((link, i) => (
-                    <div 
-                        key={i} 
-                        className="link-card animate-in fade-in slide-in-from-right-4" 
-                        style={{ animationDelay: `${400 + (i * 100)}ms` }}
-                        onClick={() => navigate(link.path)}
-                    >
-                        <div className={`link-icon ${link.color}`}>
-                            {link.icon}
-                        </div>
-                        <div className="link-content">
-                            <h3>{link.title}</h3>
-                            <p>{link.desc}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
         </div>
     );
 };
