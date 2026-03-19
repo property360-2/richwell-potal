@@ -1,24 +1,25 @@
-# auto_advise_regular Flowchart
+# Automatic Advising Flow (Regular Students)
+
+Process for automatically assigning subjects to students in the next year level and semester.
 
 ```mermaid
 graph TD
-    Start([Start]) --> CheckEnrollment{Check Existing Enrollment}
-    CheckEnrollment -- "PENDING or APPROVED" --> RaiseError[Raise ValidationError]
-    CheckEnrollment -- "None or Other Status" --> GetYearLevel[Calculate Year Level]
+    Start([Check Eligibility]) --> CurrentEnrollment{Already Enrolled?}
+    CurrentEnrollment -- "Yes" --> ShowError[Advising already submitted]
+    CurrentEnrollment -- "No" --> CalcStatus[Calculate Next Year Level]
     
-    GetYearLevel --> GetSemester[Determine Semester from Term]
-    GetSemester --> GetSubjects[Filter Subjects from Curriculum]
+    CalcStatus --> GetSem[Check Current Semester]
+    GetSem --> MatchSubjects[Match Subjects from Curriculum]
     
-    GetSubjects --> ExcludePassed[Exclude Passed/Credited Subjects]
-    ExcludePassed --> DetectRetakes[Identify Retake Subjects]
+    MatchSubjects --> FilterPassed[Skip Passed or Credited Subjects]
+    FilterPassed --> IdentifyRetakes[Identify Previously Failed Subjects]
     
-    DetectRetakes --> LoopStart{Loop: For Each Subject}
-    LoopStart -- "Finished" --> UpdateEnrollment[Update Enrollment Status to PENDING]
-    LoopStart -- "Subject" --> GetOrCreateGrade[Get or Create Grade Record]
+    IdentifyRetakes --> LoopSubjects{Loop: Process each subject}
+    LoopSubjects -- "Finished" --> SetPending[Enrollment Status set to PENDING]
+    LoopSubjects -- "Subject" --> CreateGrade[Create Academic Record]
     
-    GetOrCreateGrade --> SetRetake[Set is_retake Status]
-    SetRetake --> AppendGrade[Append to Result List]
-    AppendGrade --> LoopStart
+    CreateGrade --> SetRetakeFlag[Mark as Retake if applicable]
+    SetRetakeFlag --> LoopSubjects
     
-    UpdateEnrollment --> End([Return Grade List])
+    SetPending --> End([Ready for Program Head Review])
 ```

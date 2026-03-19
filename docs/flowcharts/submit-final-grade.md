@@ -1,25 +1,27 @@
-# submit_final Flowchart
+# Grade Submission System Logic
+
+Detailed logic for processing final grade submissions.
 
 ```mermaid
 graph TD
-    Start([Start]) --> LockCheck{Is Grade Finalized?}
-    LockCheck -- "Yes" --> RaiseLockError[Raise ValueError]
-    LockCheck -- "No" --> WindowCheck{Within Grading Window?}
+    Start([Submission Start]) --> Finalized{Grade Locked?}
+    Finalized -- "Yes" --> LockError[Show Record Locked Error]
+    Finalized -- "No" --> WindowCheck{Grading Window Open?}
     
-    WindowCheck -- "No" --> RaiseWindowError[Raise ValueError]
-    WindowCheck -- "Yes" --> SetGrade[Update Grade Value & Timestamp]
+    WindowCheck -- "No" --> WindowError[Show Window Closed Error]
+    WindowCheck -- "Yes" --> UpdateRecord[Record Grade and Timestamp]
     
-    SetGrade --> StatusLogic{Determine Grade Status}
-    StatusLogic -- "value <= 3.0" --> Passed[Status: PASSED]
-    StatusLogic -- "value == 5.0" --> Failed[Status: FAILED]
-    StatusLogic -- "value == INC" --> INC[Status: INC]
+    UpdateRecord --> GradingScale{Calculate Status}
+    GradingScale -- "1.0 - 3.0" --> Passed[Status: PASSED]
+    GradingScale -- "5.0" --> Failed[Status: FAILED]
+    GradingScale -- "INC" --> Incomplete[Status: INC]
     
-    INC --> SetDeadline[Set INC Deadline: 6/12 Months]
+    Incomplete --> CalcDeadline[Apply 6/12 Month Resolution Window]
     
-    Passed --> Save[Save Grade Record]
+    Passed --> Save[Save and Lock for Review]
     Failed --> Save
-    SetDeadline --> Save
+    CalcDeadline --> Save
     
-    Save --> NotifyRegistrar[Notify Registrar]
-    NotifyRegistrar --> End([Return Grade Record])
+    Save --> Notify[Notify Registrar for Finalization]
+    Notify --> End([Process Complete])
 ```

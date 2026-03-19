@@ -1,22 +1,24 @@
-# head_approve_resolution Flowchart
+# INC Resolution Finalization Logic
+
+Backend process for finalizing a submitted INC grade resolution.
 
 ```mermaid
 graph TD
-    Start([Start]) --> StatusCheck{Is Status SUBMITTED?}
-    StatusCheck -- "No" --> RaiseStatusError[Raise ValueError]
-    StatusCheck -- "Yes" --> CommitGrade[Commit Resolution Grade]
+    Start([Finalization Start]) --> CheckSubmission{Is Grade Submitted?}
+    CheckSubmission -- "No" --> StatusError[No pending grade to finalize]
+    CheckSubmission -- "Yes" --> CopyGrade[Move Resolution Grade to Final Record]
     
-    CommitGrade --> StatusLogic{Determine Grade Status}
-    StatusLogic -- "grade <= 3.0" --> Passed[Status: PASSED]
-    StatusLogic -- "grade > 3.0" --> Failed[Status: FAILED]
+    CopyGrade --> FinalStatus{Passed or Failed?}
+    FinalStatus -- "grade <= 3.0" --> Passed[Status: PASSED]
+    FinalStatus -- "grade > 3.0" --> Failed[Status: FAILED]
     
-    Passed --> SetMetadata[Update Resolution Metadata & Status: COMPLETED]
-    Failed --> SetMetadata
+    Passed --> UpdateStatus[Resolution Status set to COMPLETED]
+    Failed --> UpdateStatus
     
-    SetMetadata --> Finalize[Mark as Finalized & Locked]
-    Finalize --> Save[Save Grade Record]
+    UpdateStatus --> ApplyLock[Lock Academic Record for History]
+    ApplyLock --> Save[Commit Changes to Database]
     
-    Save --> NotifyRegistrar[Notify Registrar]
-    NotifyRegistrar --> NotifyStudent[Notify Student]
-    NotifyStudent --> End([Return Grade Record])
+    Save --> NotifyRegistrar[Notify Registrar Office]
+    NotifyRegistrar --> NotifyStudent[Notify Student of Result]
+    NotifyStudent --> End([Flow Completed])
 ```

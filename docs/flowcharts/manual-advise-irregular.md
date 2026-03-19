@@ -1,24 +1,22 @@
-# manual_advise_irregular Flowchart
+# Manual Advising Flow (Irregular Students)
+
+Validation rules for students manually selecting their own subjects.
 
 ```mermaid
 graph TD
-    Start([Start]) --> CheckEnrollment{Check Existing Enrollment}
-    CheckEnrollment -- "PENDING or APPROVED" --> RaiseError[Raise ValidationError]
-    CheckEnrollment -- "None or Other Status" --> CalcUnits[Calculate Total Term Units]
+    Start([Selection Start]) --> AlreadySubmitted{Advising Pending?}
+    AlreadySubmitted -- "Yes" --> Error[Show Already Submitted Message]
+    AlreadySubmitted -- "No" --> CalcUnits[Calculate Total Selected Units]
     
-    CalcUnits --> UnitCapCheck{Units > 30?}
-    UnitCapCheck -- "Yes" --> RaiseUnitError[Raise ValidationError]
-    UnitCapCheck -- "No" --> LoopPrereq{Loop: For Each Subject}
+    CalcUnits --> UnitLimit{Exceeds 30 units?}
+    UnitLimit -- "Yes" --> LimitError[Show Unit Limit Error]
+    UnitLimit -- "No" --> CheckRules{Loop: Validate each subject}
     
-    LoopPrereq -- "Finished" --> CreateGrades[Create Grade Records]
-    LoopPrereq -- "Subject" --> CheckPrereqs{Check Prerequisites}
+    CheckRules -- "Prerequisite missing" --> RuleError[Show Requirement Error]
+    CheckRules -- "Year standing missing" --> RuleError
+    CheckRules -- "Group requirement missing" --> RuleError
+    CheckRules -- "Passed" --> CreateRecords[Create Grade Records]
     
-    CheckPrereqs -- "SPECIFIC failed" --> RaisePrereqError[Raise ValidationError]
-    CheckPrereqs -- "YEAR_STANDING failed" --> RaisePrereqError
-    CheckPrereqs -- "GROUP failed" --> RaisePrereqError
-    CheckPrereqs -- "PERCENTAGE failed" --> RaisePrereqError
-    CheckPrereqs -- "Passed" --> LoopPrereq
-    
-    CreateGrades --> SetStatus[Update Enrollment Status to PENDING]
-    SetStatus --> End([Return Grade List])
+    CreateRecords --> UpdateStatus[Set Advising status to PENDING]
+    UpdateStatus --> End([Ready for Program Head Review])
 ```
