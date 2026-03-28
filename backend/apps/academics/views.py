@@ -13,13 +13,15 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 
-from .models import Program, CurriculumVersion, Subject
-from .serializers import ProgramSerializer, CurriculumVersionSerializer, SubjectSerializer
+from .models import Program, CurriculumVersion, Subject, SubjectPrerequisite
+from .serializers import (
+    ProgramSerializer, 
+    CurriculumVersionSerializer, 
+    SubjectSerializer,
+    SubjectPrerequisiteSerializer
+)
 from .services import process_bulk_subjects_csv
 
-/**
- * ViewSet for managing Programs.
- */
 class ProgramViewSet(viewsets.ModelViewSet):
     """
     Handles standard CRUD operations for Program instances.
@@ -28,20 +30,17 @@ class ProgramViewSet(viewsets.ModelViewSet):
     serializer_class = ProgramSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     
-    /**
-     * Retrieves the list of active programs.
-     * @returns {Response}
-     */
     def get_queryset(self):
+        """
+        Retrieves the list of active programs.
+        @returns {Response}
+        """
         queryset = super().get_queryset()
         is_active = self.request.query_params.get('is_active')
         if is_active:
             queryset = queryset.filter(is_active=(is_active.lower() == 'true'))
         return queryset
 
-/**
- * ViewSet for managing Curriculum Versions.
- */
 class CurriculumVersionViewSet(viewsets.ModelViewSet):
     """
     Handles CRUD for specific versions of a Program's curriculum.
@@ -50,11 +49,11 @@ class CurriculumVersionViewSet(viewsets.ModelViewSet):
     serializer_class = CurriculumVersionSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     
-    /**
-     * Filters configurations based on program and active status.
-     * @returns {Response}
-     */
     def get_queryset(self):
+        """
+        Filters configurations based on program and active status.
+        @returns {Response}
+        """
         queryset = super().get_queryset()
         program_id = self.request.query_params.get('program')
         is_active = self.request.query_params.get('is_active')
@@ -65,9 +64,6 @@ class CurriculumVersionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_active=(is_active.lower() == 'true'))
         return queryset
 
-/**
- * ViewSet for managing Subjects.
- */
 class SubjectViewSet(viewsets.ModelViewSet):
     """
     Core ViewSet for Subject management, including a custom bulk_upload action.
@@ -76,11 +72,11 @@ class SubjectViewSet(viewsets.ModelViewSet):
     serializer_class = SubjectSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     
-    /**
-     * Filters subjects by curriculum, year level, and semester.
-     * @returns {Response}
-     */
     def get_queryset(self):
+        """
+        Filters subjects by curriculum, year level, and semester.
+        @returns {Response}
+        """
         queryset = super().get_queryset()
         curr_id = self.request.query_params.get('curriculum')
         year_level = self.request.query_params.get('year_level')
@@ -95,15 +91,15 @@ class SubjectViewSet(viewsets.ModelViewSet):
             
         return queryset.order_by('year_level', 'semester', 'code')
 
-    /**
-     * Custom endpoint for bulk processing subjects from a CSV file.
-     * Uses atomic transactions for data integrity.
-     * 
-     * @param {Request} request - DRF request containing the uploaded 'file'.
-     * @returns {Response} - Summary of the bulk operations or error report.
-     */
     @action(detail=False, methods=['POST'], url_path='bulk-upload')
     def bulk_upload(self, request):
+        """
+        Custom endpoint for bulk processing subjects from a CSV file.
+        Uses atomic transactions for data integrity.
+        
+        @param {Request} request - DRF request containing the uploaded 'file'.
+        @returns {Response} - Summary of the bulk operations or error report.
+        """
         file_obj = request.FILES.get('file')
         if not file_obj:
             return Response(
@@ -131,12 +127,12 @@ class SubjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    /**
-     * Returns a static mapping of school locations for the frontend.
-     * @returns {Response}
-     */
     @action(detail=False, methods=['GET'], url_path='locations', permission_classes=[AllowAny])
     def locations(self, request):
+        """
+        Returns a static mapping of school locations for the frontend.
+        @returns {Response}
+        """
         data = {
             "BALAGTAS": ["Balagtas A", "Balagtas B", "Balagtas C"],
             "BOCAUE": ["Bocaue A", "Bocaue B", "Bocaue C"],
@@ -144,3 +140,25 @@ class SubjectViewSet(viewsets.ModelViewSet):
             "PLACIDEL": ["Plaridel A", "Plaridel B", "Plaridel C"]
         }
         return Response(data)
+
+class SubjectPrerequisiteViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Subject Prerequisites.
+    Handles listing and retrieving prerequisites for specific subjects.
+    """
+    queryset = SubjectPrerequisite.objects.all()
+    serializer_class = SubjectPrerequisiteSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    
+    def get_queryset(self):
+        """
+        Filters prerequisites by a specific subject.
+        @returns {Response}
+        """
+        queryset = super().get_queryset()
+        subject_id = self.request.query_params.get('subject')
+        
+        if subject_id:
+            queryset = queryset.filter(subject_id=subject_id)
+            
+        return queryset

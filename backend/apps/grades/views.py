@@ -16,27 +16,26 @@ import django_filters
 from core.permissions import IsStudent, IsProgramHead, IsRegistrar, IsAdmin, IsProfessor
 from apps.grades.models import Grade
 from apps.grades.serializers import GradeSerializer, AdvisingSubmitSerializer
+from apps.students.serializers import StudentEnrollmentSerializer
 from apps.grades.services.advising_service import AdvisingService
 from apps.grades.services.grading_service import GradingService
 from apps.grades.services.resolution_service import ResolutionService
-from apps.students.models import StudentEnrollment
+from apps.students.models import Student, StudentEnrollment
 from apps.terms.models import Term
 from apps.academics.models import Subject
 
-/**
- * Filter set for Grade records.
- */
 class GradeFilter(django_filters.FilterSet):
+    """
+    Filter set for Grade records.
+    """
     grade_status__in = django_filters.BaseInFilter(field_name='grade_status', lookup_expr='in')
     class Meta:
         model = Grade
         fields = {'student':['exact'], 'is_credited':['exact'], 'term':['exact'], 'advising_status':['exact']}
 
-/**
- * ViewSet for managing student advising and subject selection.
- */
 class AdvisingViewSet(viewsets.ModelViewSet):
     """
+    ViewSet for managing student advising and subject selection.
     Handles auto-advising for regular students and manual selection for irregular ones.
     """
     serializer_class = GradeSerializer
@@ -73,11 +72,51 @@ class AdvisingViewSet(viewsets.ModelViewSet):
         grades = AdvisingService.manual_advise_irregular(student, active_term, serializer.validated_data['subject_ids'])
         return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
 
-/**
- * Helper ViewSet for Registrar to credit subjects manually.
- */
+class AdvisingApprovalViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for administrative approval of student advising.
+    Allows Program Heads and Registrars to review and finalize subject selections.
+    """
+    queryset = StudentEnrollment.objects.all()
+    serializer_class = StudentEnrollmentSerializer
+    permission_classes = [IsProgramHead | IsRegistrar | IsAdmin]
+
+    def get_queryset(self):
+        """
+        Filters pending advising requests based on the user's role and assigned program.
+        """
+        user = self.request.user
+        queryset = StudentEnrollment.objects.filter(advising_status='PENDING')
+        
+        if user.role == 'PROGRAM_HEAD':
+            return queryset.filter(student__program__program_head=user)
+        return queryset
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """
+        Finalizes a student's advising, transitioning them to officially enrolled in their subjects.
+        """
+        enrollment = self.get_object()
+        AdvisingService.approve_advising(enrollment, request.user)
+        return Response({"status": "Advising approved and student enrolled."})
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """
+        Rejects a student's advising request with a mandatory reason.
+        """
+        reason = request.data.get('reason')
+        if not reason:
+            raise ValidationError({"reason": "A reason for rejection is required."})
+            
+        enrollment = self.get_object()
+        AdvisingService.reject_advising(enrollment, reason)
+        return Response({"status": "Advising rejected."})
+
 class SubjectCreditingViewSet(viewsets.ViewSet):
     """
+    Helper ViewSet for Registrar to credit subjects manually.
     Handles crediting of external subjects and historical encoding for TOR.
     """
     permission_classes = [IsRegistrar | IsAdmin]
@@ -95,11 +134,9 @@ class SubjectCreditingViewSet(viewsets.ViewSet):
         AdvisingService.bulk_historical_encoding(student, active_term, request.data.get('credit_data', []), request.user)
         return Response({"message": "Encoded successfully"}, status=status.HTTP_201_CREATED)
 
-/**
- * ViewSet for Professor grade submissions.
- */
 class GradeSubmissionViewSet(viewsets.ViewSet):
     """
+    ViewSet for Professor grade submissions.
     Handles midterm/final grade submission and section-wide finalization.
     """
     permission_classes = [IsProfessor | IsRegistrar | IsAdmin]
@@ -128,11 +165,9 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         self.service.finalize_section_grades(term, subject, section, request.user)
         return Response({"status": "Finalized"})
 
-/**
- * Workflow ViewSet for resolving INC (Incomplete) grades.
- */
 class ResolutionViewSet(viewsets.ViewSet):
     """
+    Workflow ViewSet for resolving INC (Incomplete) grades.
     Handles a multi-step workflow from request to final Registrar finalization.
     """
     permission_classes = [IsProfessor | IsRegistrar | IsProgramHead | IsAdmin]

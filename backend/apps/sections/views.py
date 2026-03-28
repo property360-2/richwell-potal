@@ -17,9 +17,6 @@ from apps.terms.models import Term
 from apps.academics.models import Program
 from apps.students.models import Student, StudentEnrollment
 
-/**
- * ViewSet for managing Academic Sections.
- */
 class SectionViewSet(viewsets.ModelViewSet):
     """
     Handles section management, enrollment statistics, and professor schedules.

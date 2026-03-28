@@ -13,9 +13,6 @@ from rest_framework.response import Response
 from .services.report_service import ReportService
 from apps.students.models import Student
 
-/**
- * ViewSet for generating and downloading Academic Reports.
- */
 class ReportViewSet(viewsets.ViewSet):
     """
     Handles PDF/Excel generation and real-time dashboard stats.

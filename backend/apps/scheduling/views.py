@@ -23,9 +23,6 @@ from apps.faculty.models import Professor
 from apps.facilities.models import Room
 from apps.terms.models import Term
 
-/**
- * ViewSet for managing the Academic Schedule.
- */
 class ScheduleViewSet(viewsets.ModelViewSet):
     """
     Handles scheduling, conflict detection, and student slot management.
@@ -62,11 +59,11 @@ class ScheduleViewSet(viewsets.ModelViewSet):
             if val := q_params.get(field): queryset = queryset.filter(**{field: val})
         return queryset
 
-    /**
-     * Deans use this to manually assign professor, room, and time.
-     */
     @action(detail=False, methods=['POST'])
     def assign(self, request):
+        """
+        Deans use this to manually assign professor, room, and time.
+        """
         try:
             sch = Schedule.objects.get(id=request.data.get('id'))
             prof = Professor.objects.get(id=request.data.get('professor_id')) if request.data.get('professor_id') else None
@@ -79,56 +76,56 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    /**
-     * Automatically randomizes Day/Time assignments for a whole section.
-     */
     @action(detail=False, methods=['POST'])
     def randomize(self, request):
+        """
+        Automatically randomizes Day/Time assignments for a whole section.
+        """
         term, section = Term.objects.get(id=request.data.get('term_id')), Section.objects.get(id=request.data.get('section_id'))
         updated = SchedulingService.randomize_section_schedule(term, section, respect_professor=request.data.get('respect_professor', False), respect_room=request.data.get('respect_room', False))
         return Response(self.get_serializer(updated, many=True).data)
 
-    /**
-     * Regular students pick their session preference (AM/PM).
-     */
     @action(detail=False, methods=['POST'], url_path='pick-regular')
     def pick_regular(self, request):
+        """
+        Regular students pick their session preference (AM/PM).
+        """
         if request.user.role != 'STUDENT': raise PermissionDenied("Unauthorized")
         term, student = Term.objects.get(id=request.data.get('term_id')), request.user.student_profile
         section, redirected = self.picking_service.pick_schedule_regular(student, term, request.data.get('session'))
         return Response({"message": f"Successfully assigned to {section.name}.", "redirected": redirected, "section_id": section.id, "schedules": self.get_serializer(Schedule.objects.filter(section=section), many=True).data})
 
-    /**
-     * Returns sections with real-time slot counts.
-     */
     @action(detail=False, methods=['GET'], url_path='status-matrix')
     def status_matrix(self, request):
+        """
+        Returns sections with real-time slot counts.
+        """
         q = self.request.query_params
         sections = Section.objects.filter(term_id=q.get('term_id'), program_id=q.get('program_id'), year_level=q.get('year_level')).annotate(current_students=models.Count('student_assignments')).order_by('section_number')
         return Response([{"id": s.id, "name": s.name, "session": s.session, "current": s.current_students, "max": s.max_students, "is_full": s.current_students >= s.max_students, "schedules": [{"subject": sch.subject.code, "days": sch.days, "start": sch.start_time.strftime("%H:%M") if sch.start_time else None} for sch in s.schedules.all()]} for s in sections.prefetch_related('schedules', 'schedules__subject')])
 
-    /**
-     * Dean publishes the entire term schedule.
-     */
     @action(detail=False, methods=['POST'])
     def publish(self, request):
+        """
+        Dean publishes the entire term schedule.
+        """
         term = Term.objects.get(id=request.data.get('term_id'))
         SchedulingService.publish_schedule(term)
         return Response({"message": f"Schedule Published for {term.code}"})
 
-    /**
-     * Reporting: Faculty loading analytics.
-     */
     @action(detail=False, methods=['GET'], url_path='faculty-load-report')
     def faculty_load_report(self, request):
+        """
+        Reporting: Faculty loading analytics.
+        """
         term = Term.objects.get(id=request.query_params.get('term_id'))
         return Response(self.report_service.get_faculty_load_report(term))
 
-    /**
-     * Validates a hypothetical slot configuration for conflicts.
-     */
     @action(detail=False, methods=['POST'], url_path='validate-slot')
     def validate_slot(self, request):
+        """
+        Validates a hypothetical slot configuration for conflicts.
+        """
         d = request.data
         st, et = datetime.strptime(d.get('start_time'), "%H:%M").time(), datetime.strptime(d.get('end_time'), "%H:%M").time()
         term, professor, room, section = Term.objects.get(id=d.get('term_id')), Professor.objects.get(id=d.get('professor_id')) if d.get('professor_id') else None, Room.objects.get(id=d.get('room_id')) if d.get('room_id') else None, Section.objects.get(id=d.get('section_id')) if d.get('section_id') else None
@@ -139,11 +136,11 @@ class ScheduleViewSet(viewsets.ModelViewSet):
                 if err: return Response(err, status=status.HTTP_409_CONFLICT)
         return Response({"status": "ok"})
 
-    /**
-     * Batch check for resource availability at a given time.
-     */
     @action(detail=False, methods=['POST'], url_path='resource-availability')
     def resource_availability(self, request):
+        """
+        Batch check for resource availability at a given time.
+        """
         d = request.data
         st, et = datetime.strptime(d.get('start_time'), "%H:%M").time(), datetime.strptime(d.get('end_time'), "%H:%M").time()
         term = Term.objects.get(id=d.get('term_id'))

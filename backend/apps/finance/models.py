@@ -8,9 +8,9 @@ Student Payments, Adjustments, and Promissory tracking for per-term tuition.
 from django.db import models
 from apps.auditing.mixins import AuditMixin
 
-/**
- * Model representing a single financial transaction or adjustment for a student.
- */
+"""
+Model representing a single financial transaction or adjustment for a student.
+"""
 class Payment(AuditMixin, models.Model):
     """
     Stores payment details, adjustments, and promissory markers for student accounts.

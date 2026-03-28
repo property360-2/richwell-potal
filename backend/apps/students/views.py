@@ -1,9 +1,9 @@
-/**
- * Richwell Portal — Student Views
- * 
- * Provides API endpoints for student management, application workflows, 
- * and enrollment tracking. Delegating complex logic to services.py.
- */
+"""
+Richwell Portal — Student Views
+
+Provides API endpoints for student management, application workflows, 
+and enrollment tracking. Delegating complex logic to services.py.
+"""
 
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
