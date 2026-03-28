@@ -1,3 +1,13 @@
+/**
+ * Richwell Portal — Public Student Application Page
+ * 
+ * This page serves as the entry point for prospective students to apply online. 
+ * It features a multi-step form progress interface including personal, 
+ * contact, academic, and guardian information, with a final review step.
+ * 
+ * @module pages/PublicApplication
+ */
+
 import React, { useState, useEffect } from 'react';
 import { 
   User, Mail, Phone, MapPin, GraduationCap, ShieldCheck, Send,
@@ -5,11 +15,17 @@ import {
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
-import Select from '../components/ui/Select';
 import { useToast } from '../components/ui/Toast';
 import { academicsApi } from '../api/academics';
 import { studentsApi } from '../api/students';
+
+// Split components for each step — satisfied Rule 7 & 12
+import PersonalInfoStep from './admission/components/application/PersonalInfoStep';
+import ContactStep from './admission/components/application/ContactStep';
+import AcademicStep from './admission/components/application/AcademicStep';
+import GuardianStep from './admission/components/application/GuardianStep';
+import ReviewStep from './admission/components/application/ReviewStep';
+
 import './PublicApplication.css';
 
 const STEPS = [
@@ -20,7 +36,9 @@ const STEPS = [
   { label: 'Review', icon: Send },
 ];
 
-// Fields required per step (for per-step validation)
+/**
+ * Maps specific fields to steps to support partial form validation before proceeding.
+ */
 const STEP_FIELDS = {
   1: ['first_name', 'last_name', 'date_of_birth', 'gender', 'student_type'],
   2: ['email', 'contact_number', 'address_municipality', 'address_barangay'],
@@ -29,6 +47,9 @@ const STEP_FIELDS = {
   5: [],
 };
 
+/**
+ * Main application form component. Uses react-hook-form for state management.
+ */
 const PublicApplication = () => {
   const { register, handleSubmit, watch, setValue, trigger, getValues, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
@@ -49,12 +70,14 @@ const PublicApplication = () => {
   const selectedMunicipality = watch('address_municipality');
   const studentType = watch('student_type');
 
-  // SEO
+  // SEO Update
   useEffect(() => {
     document.title = "Apply Now — Richwell Colleges Online Enrollment";
   }, []);
 
-  // Fetch programs + locations on mount
+  /**
+   * Initial data fetch for available programs and geographic location data.
+   */
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -71,7 +94,9 @@ const PublicApplication = () => {
     fetchData();
   }, []);
 
-  // Auto-pick curriculum when program changes
+  /**
+   * Fetches curricula whenever the selected program changes and auto-assigns the first one.
+   */
   useEffect(() => {
     if (selectedProgramId) {
       const fetchCurriculums = async () => {
@@ -90,16 +115,19 @@ const PublicApplication = () => {
     }
   }, [selectedProgramId]);
 
-  // Update barangays when municipality changes
+  /**
+   * Filters the available barangay options based on the chosen municipality.
+   */
   useEffect(() => {
     if (selectedMunicipality && locations) {
       setBarangays(locations[selectedMunicipality] || []);
     }
   }, [selectedMunicipality, locations]);
 
-  // Validate current step and advance
+  /**
+   * Validates mandated fields for the current step before advancing to the next step.
+   */
   const handleNext = async () => {
-    // For transferees, also validate previous_school in step 1
     const fieldsToValidate = [...STEP_FIELDS[currentStep]];
     if (currentStep === 1 && studentType === 'TRANSFEREE') {
       fieldsToValidate.push('previous_school');
@@ -112,11 +140,18 @@ const PublicApplication = () => {
     }
   };
 
+  /**
+   * Returns the user to the previous form step.
+   */
   const handleBack = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  /**
+   * Final form submission handler.
+   * @param {Object} data - Processed form data ready for the students API.
+   */
   const onSubmit = async (data) => {
     try {
       await studentsApi.apply(data);
@@ -133,12 +168,16 @@ const PublicApplication = () => {
     }
   };
 
-  // Helper: strip non-digits from phone input
+  /**
+   * Removes non-numeric characters and limits length for phone number fields.
+   */
   const handlePhoneInput = (e) => {
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11);
   };
 
-  // Look up display text for select values
+  /**
+   * Resolves a program ID into a human-readable string (Code + Name).
+   */
   const getProgramName = (id) => {
     const p = programs.find(p => String(p.id) === String(id));
     return p ? `${p.code} - ${p.name}` : id || '—';
@@ -167,10 +206,10 @@ const PublicApplication = () => {
 
   const values = getValues();
 
-  // --- MAIN FORM ---
+  // --- MAIN FORM RENDER ---
   return (
     <div className="apply-page">
-      {/* Hero */}
+      {/* Hero Header */}
       <div className="apply-hero">
         <div className="hero-badge">
           <GraduationCap size={14} />
@@ -180,7 +219,7 @@ const PublicApplication = () => {
         <p>Online Student Application Form</p>
       </div>
 
-      {/* Stepper */}
+      {/* Visual Stepper Progress Bar */}
       <div className="apply-stepper">
         {STEPS.map((step, i) => {
           const stepNum = i + 1;
@@ -200,289 +239,40 @@ const PublicApplication = () => {
         })}
       </div>
 
-      {/* Form */}
+      {/* Main Form Scaffolding */}
       <div className="apply-form-container">
         <form onSubmit={handleSubmit(onSubmit)}>
           <input type="hidden" {...register('curriculum')} />
 
-          {/* Step 1: Personal Information */}
+          {/* Render Step Components - Rule 7 & 12 Implementation */}
           {currentStep === 1 && (
-            <div className="apply-step-card" key="step-1">
-              <div className="step-header">
-                <div className="step-header-icon"><User size={20} /></div>
-                <div>
-                  <h2>Personal Information</h2>
-                  <p>Tell us about yourself</p>
-                </div>
-              </div>
-
-              <div className="form-grid-3">
-                <Input 
-                  label="First Name" 
-                  placeholder="Juan"
-                  {...register('first_name', { required: 'First name is required' })} 
-                  error={errors.first_name?.message} 
-                />
-                <Input 
-                  label="Middle Name" 
-                  placeholder="Santos (Optional)"
-                  {...register('middle_name')} 
-                />
-                <Input 
-                  label="Last Name" 
-                  placeholder="Dela Cruz"
-                  {...register('last_name', { required: 'Last name is required' })} 
-                  error={errors.last_name?.message} 
-                />
-              </div>
-
-              <div className="form-grid-3 form-row">
-                <Input 
-                  label="Date of Birth" 
-                  type="date" 
-                  {...register('date_of_birth', { required: 'Date of birth is required' })} 
-                  error={errors.date_of_birth?.message} 
-                />
-                <Select 
-                  label="Gender" 
-                  {...register('gender', { required: 'Gender is required' })} 
-                  options={[
-                    { value: 'MALE', label: 'Male' },
-                    { value: 'FEMALE', label: 'Female' },
-                    { value: 'OTHER', label: 'Other' }
-                  ]}
-                  error={errors.gender?.message}
-                />
-                <Select 
-                  label="Student Type" 
-                  {...register('student_type', { required: 'Student type is required' })} 
-                  options={[
-                    { value: 'FRESHMAN', label: 'Freshman' },
-                    { value: 'TRANSFEREE', label: 'Transferee' }
-                  ]}
-                  error={errors.student_type?.message}
-                />
-              </div>
-
-              {studentType === 'TRANSFEREE' && (
-                <div className="form-row">
-                  <Input 
-                    label="Previous School / University" 
-                    placeholder="e.g., Bulacan State University"
-                    icon={<GraduationCap size={16} />}
-                    {...register('previous_school', { required: 'Previous school is required for transferees' })} 
-                    error={errors.previous_school?.message} 
-                  />
-                </div>
-              )}
-            </div>
+            <PersonalInfoStep register={register} errors={errors} studentType={studentType} />
           )}
 
-          {/* Step 2: Contact & Address */}
           {currentStep === 2 && (
-            <div className="apply-step-card" key="step-2">
-              <div className="step-header">
-                <div className="step-header-icon"><Mail size={20} /></div>
-                <div>
-                  <h2>Contact & Address</h2>
-                  <p>How can we reach you?</p>
-                </div>
-              </div>
-
-              <div className="form-grid-2">
-                <Input 
-                  label="Email Address" 
-                  type="email" 
-                  placeholder="you@email.com"
-                  icon={<Mail size={16} />} 
-                  {...register('email', { 
-                    required: 'Email is required',
-                    pattern: {
-                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: "Enter a valid email address"
-                    }
-                  })} 
-                  error={errors.email?.message} 
-                />
-                <Input 
-                  label="Contact Number" 
-                  placeholder="09XXXXXXXXX"
-                  icon={<Phone size={16} />} 
-                  maxLength={11}
-                  onInput={handlePhoneInput}
-                  {...register('contact_number', { 
-                    required: 'Contact number is required',
-                    pattern: {
-                      value: /^09\d{9}$/,
-                      message: "Must be 11 digits starting with 09"
-                    }
-                  })} 
-                  error={errors.contact_number?.message} 
-                />
-              </div>
-
-              <div className="form-grid-2 form-row">
-                <Select 
-                  label="Municipality (Bulacan)" 
-                  placeholder="Select Municipality"
-                  icon={<MapPin size={16} />}
-                  {...register('address_municipality', { required: 'Municipality is required' })} 
-                  options={locations ? Object.keys(locations).map(name => ({ value: name, label: name })) : []}
-                  error={errors.address_municipality?.message}
-                />
-                <Select 
-                  label="Barangay" 
-                  placeholder="Select Barangay"
-                  {...register('address_barangay', { required: 'Barangay is required' })} 
-                  options={barangays.map(b => ({ value: b, label: b }))}
-                  disabled={!selectedMunicipality}
-                  error={errors.address_barangay?.message}
-                />
-              </div>
-
-              <div className="form-row">
-                <Input 
-                  label="Full Address (Street, House No.)" 
-                  placeholder="e.g., 123 Rizal St."
-                  {...register('address_full')} 
-                />
-              </div>
-            </div>
+            <ContactStep 
+              register={register} 
+              errors={errors} 
+              locations={locations} 
+              barangays={barangays}
+              selectedMunicipality={selectedMunicipality}
+              handlePhoneInput={handlePhoneInput}
+            />
           )}
 
-          {/* Step 3: Academic Preference */}
           {currentStep === 3 && (
-            <div className="apply-step-card" key="step-3">
-              <div className="step-header">
-                <div className="step-header-icon"><GraduationCap size={20} /></div>
-                <div>
-                  <h2>Academic Preference</h2>
-                  <p>Choose the program you want to pursue</p>
-                </div>
-              </div>
-
-              <Select 
-                label="Preferred Program" 
-                placeholder="Select a Program"
-                {...register('program', { required: 'Program selection is required' })} 
-                options={programs.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))}
-                error={errors.program?.message}
-                fullWidth
-              />
-
-              {curriculums.length > 0 && (
-                <div className="form-row" style={{ padding: '12px 16px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #dcfce7' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <CheckCircle2 size={16} style={{ color: '#16a34a' }} />
-                    <span style={{ fontSize: '13px', fontWeight: '600', color: '#166534' }}>
-                      Curriculum auto-assigned: {curriculums[0]?.name || curriculums[0]?.code}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+            <AcademicStep register={register} errors={errors} programs={programs} curriculums={curriculums} />
           )}
 
-          {/* Step 4: Guardian Information */}
           {currentStep === 4 && (
-            <div className="apply-step-card" key="step-4">
-              <div className="step-header">
-                <div className="step-header-icon"><ShieldCheck size={20} /></div>
-                <div>
-                  <h2>Guardian Information</h2>
-                  <p>Parent or guardian details</p>
-                </div>
-              </div>
-
-              <div className="form-grid-2">
-                <Input 
-                  label="Guardian / Parent Name" 
-                  placeholder="Full name"
-                  {...register('guardian_name', { required: 'Guardian name is required' })} 
-                  error={errors.guardian_name?.message} 
-                />
-                <Input 
-                  label="Guardian Contact Number" 
-                  placeholder="09XXXXXXXXX"
-                  icon={<Phone size={16} />} 
-                  maxLength={11}
-                  onInput={handlePhoneInput}
-                  {...register('guardian_contact', { 
-                    required: 'Guardian contact is required',
-                    pattern: {
-                      value: /^09\d{9}$/,
-                      message: "Must be 11 digits starting with 09"
-                    }
-                  })} 
-                  error={errors.guardian_contact?.message} 
-                />
-              </div>
-            </div>
+            <GuardianStep register={register} errors={errors} handlePhoneInput={handlePhoneInput} />
           )}
 
-          {/* Step 5: Review & Submit */}
           {currentStep === 5 && (
-            <div className="apply-step-card" key="step-5">
-              <div className="step-header">
-                <div className="step-header-icon"><Send size={20} /></div>
-                <div>
-                  <h2>Review & Submit</h2>
-                  <p>Please verify all information before submitting</p>
-                </div>
-              </div>
-
-              <div className="review-section">
-                <div className="review-section-title">Personal Information</div>
-                <div className="review-grid">
-                  <ReviewItem label="First Name" value={values.first_name} />
-                  <ReviewItem label="Middle Name" value={values.middle_name} />
-                  <ReviewItem label="Last Name" value={values.last_name} />
-                  <ReviewItem label="Date of Birth" value={values.date_of_birth} />
-                  <ReviewItem label="Gender" value={values.gender} />
-                  <ReviewItem label="Student Type" value={values.student_type} />
-                  {values.student_type === 'TRANSFEREE' && (
-                    <ReviewItem label="Previous School" value={values.previous_school} />
-                  )}
-                </div>
-              </div>
-
-              <div className="review-section">
-                <div className="review-section-title">Contact & Address</div>
-                <div className="review-grid">
-                  <ReviewItem label="Email" value={values.email} />
-                  <ReviewItem label="Contact Number" value={values.contact_number} />
-                  <ReviewItem label="Municipality" value={values.address_municipality} />
-                  <ReviewItem label="Barangay" value={values.address_barangay} />
-                  <ReviewItem label="Full Address" value={values.address_full} />
-                </div>
-              </div>
-
-              <div className="review-section">
-                <div className="review-section-title">Academic Preference</div>
-                <div className="review-grid">
-                  <ReviewItem label="Program" value={getProgramName(values.program)} />
-                </div>
-              </div>
-
-              <div className="review-section">
-                <div className="review-section-title">Guardian Information</div>
-                <div className="review-grid">
-                  <ReviewItem label="Guardian Name" value={values.guardian_name} />
-                  <ReviewItem label="Guardian Contact" value={values.guardian_contact} />
-                </div>
-              </div>
-
-              <div className="certification-card">
-                <p>
-                  By submitting this application, I certify that all information provided is 
-                  <strong> true and correct</strong>. I understand that any false information 
-                  may be grounds for rejection of my application.
-                </p>
-              </div>
-            </div>
+            <ReviewStep values={values} getProgramName={getProgramName} />
           )}
 
-          {/* Navigation */}
+          {/* Form Navigation Controls */}
           <div className="apply-nav">
             <span className="step-counter">Step {currentStep} of 5</span>
             <div className="nav-buttons">
@@ -522,15 +312,5 @@ const PublicApplication = () => {
     </div>
   );
 };
-
-// Small helper component for the review step
-const ReviewItem = ({ label, value }) => (
-  <div className="review-item">
-    <div className="review-label">{label}</div>
-    <div className={`review-value ${!value ? 'empty' : ''}`}>
-      {value || 'Not provided'}
-    </div>
-  </div>
-);
 
 export default PublicApplication;

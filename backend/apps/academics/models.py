@@ -1,8 +1,19 @@
+"""
+Richwell Portal — Academics Models
+
+This module defines the core academic data structures including Programs, 
+Curriculum Versions, Subjects, and their Prerequisite relationships.
+"""
+
 from django.db import models
 from django.conf import settings
 from core.mixins import TimestampMixin
 
 class Program(TimestampMixin):
+    """
+    Represents an Academic Program (e.g., BS Information Systems).
+    Tracks the program head, versioning, and whether it includes summer terms.
+    """
     code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=200)
     effective_year = models.CharField(max_length=50, null=True, blank=True)
@@ -21,6 +32,10 @@ class Program(TimestampMixin):
 
 
 class CurriculumVersion(models.Model):
+    """
+    Groups subjects into a specific version for a program. 
+    Only one version should typically be active at a time for a program.
+    """
     program = models.ForeignKey(Program, on_delete=models.CASCADE, related_name='curriculum_versions')
     version_name = models.CharField(max_length=50)
     is_active = models.BooleanField(default=True)
@@ -34,6 +49,10 @@ class CurriculumVersion(models.Model):
 
 
 class Subject(models.Model):
+    """
+    Represents a specific subject/course within a curriculum version.
+    Tracks units, hours, and whether it's a major/practicum.
+    """
     curriculum = models.ForeignKey(CurriculumVersion, on_delete=models.CASCADE, related_name='subjects')
     code = models.CharField(max_length=30)
     description = models.CharField(max_length=300)
@@ -58,6 +77,10 @@ class Subject(models.Model):
 
 
 class SubjectPrerequisite(models.Model):
+    """
+    Defines requirements for taking a specific subject. 
+    Can be another specific subject, a year standing, or percentage of units.
+    """
     PREREQ_TYPES = (
         ('SPECIFIC', 'Specific Subject'),
         ('YEAR_STANDING', 'Year Standing'),

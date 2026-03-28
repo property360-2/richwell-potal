@@ -1,9 +1,22 @@
+/**
+ * Richwell Portal — Frontend API Client
+ * 
+ * This file configures a centralized Axios instance with NProgress support, 
+ * CSRF token handling, and automatic token refresh logic using HttpOnly cookies.
+ * 
+ * @module api/axios
+ */
+
 import axios from 'axios';
 import NProgress from 'nprogress';
 
 // Configure NProgress (optional, e.g., turn off spinner)
 NProgress.configure({ showSpinner: false });
 
+/**
+ * Central API instance with base configuration.
+ * Uses environment variables for the API URL with a local fallback.
+ */
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/',
     withCredentials: true, // Crucial for sending cookies
@@ -11,7 +24,10 @@ const api = axios.create({
     xsrfHeaderName: 'X-CSRFToken',
 });
 
-// Request interceptor to start NProgress
+/**
+ * Global API interceptors for handling NProgress lifecycle,
+ * token refreshes on 401 errors, and clean error messaging globally.
+ */
 api.interceptors.request.use(
     (config) => {
         NProgress.start();

@@ -1,13 +1,13 @@
+/**
+ * Richwell Portal — Student Advising Page
+ * 
+ * Main entry point for students to pick their subjects for the current term.
+ * Supports automated selection for regular students and manual catalog 
+ * selection for irregular students.
+ */
+
 import React, { useState, useEffect } from 'react';
-import { 
-  ClipboardList, 
-  CheckCircle2, 
-  AlertCircle, 
-  Search, 
-  Filter, 
-  ChevronRight,
-  Info
-} from 'lucide-react';
+import { ClipboardList, AlertCircle, Filter, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../api/axios';
@@ -17,12 +17,14 @@ import Badge from '../../components/ui/Badge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import PageHeader from '../../components/shared/PageHeader';
 import SearchBar from '../../components/shared/SearchBar';
-import Table from '../../components/ui/Table';
+
+// Sub-components
+import SelectedSubjectsTable from './components/advising/SelectedSubjectsTable';
+import SubjectSelectionList from './components/advising/SubjectSelectionList';
+import AdvisingSummaryCard from './components/advising/AdvisingSummaryCard';
 import './StudentAdvising.css';
 
-
 const StudentAdvising = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [enrolled, setEnrolled] = useState(false);
@@ -30,401 +32,116 @@ const StudentAdvising = () => {
   const [grades, setGrades] = useState([]);
   const [activeTerm, setActiveTerm] = useState(null);
   const [isRegular, setIsRegular] = useState(true);
-  
-  // For irregular selection
   const [availableSubjects, setAvailableSubjects] = useState([]);
   const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
   const [passedSubjectIds, setPassedSubjectIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
+  useEffect(() => { fetchInitialData(); }, []);
 
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      
-      const termRes = await api.get('terms/?is_active=true');
-      const term = termRes.data.results[0];
+      const { data: terms } = await api.get('terms/?is_active=true');
+      const term = terms.results[0];
       setActiveTerm(term);
+      if (!term) return;
 
-      if (term) {
-        const enrollmentRes = await api.get(`students/enrollments/me/?term=${term.id}`);
-        const enrollData = enrollmentRes.data;
-        
-        if (enrollData) {
-          setEnrolled(true);
-          setEnrollment(enrollData);
-          setIsRegular(enrollData.is_regular);
-          
-          const gradesRes = await api.get(`grades/advising/?term=${term.id}&is_credited=false&page_size=100`);
-          setGrades(gradesRes.data.results || []);
-
-          // Fetch ALL passed subjects for prerequisite checking
-          const passedRes = await api.get(`grades/advising/?grade_status=PASSED&page_size=300`);
-          setPassedSubjectIds(passedRes.data.results.map(g => g.subject) || []);
-          
-          if (!enrollData.is_regular && (!gradesRes.data.results || gradesRes.data.results.length === 0)) {
-             // Fetch ALL subjects for the student's CURRICULUM (excluding semester filter)
-             const subjectsRes = await api.get(`academics/subjects/?curriculum=${enrollData.student_details?.curriculum}&page_size=200`);
-             setAvailableSubjects(subjectsRes.data.results || []);
-          }
-        }
+      const { data: enrollData } = await api.get(`students/enrollments/me/?term=${term.id}`);
+      if (!enrollData) return;
+      
+      setEnrolled(true); setEnrollment(enrollData); setIsRegular(enrollData.is_regular);
+      const { data: grRes } = await api.get(`grades/advising/?term=${term.id}&is_credited=false&page_size=100`);
+      setGrades(grRes.results || []);
+      const { data: pRes } = await api.get(`grades/advising/?grade_status=PASSED&page_size=300`);
+      setPassedSubjectIds(pRes.results.map(g => g.subject) || []);
+      
+      if (!enrollData.is_regular && (!grRes.results || grRes.results.length === 0)) {
+         const { data: subRes } = await api.get(`academics/subjects/?curriculum=${enrollData.student_details?.curriculum}&page_size=200`);
+         setAvailableSubjects(subRes.results || []);
       }
-    } catch (error) {
-      console.error("Error fetching advising data:", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error("Data fetch error:", e); } finally { setLoading(false); }
   };
 
-  const handleAutoAdvise = async () => {
+  const handleAction = async (endpoint, data = {}) => {
     try {
       setLoading(true);
-      await api.post('grades/advising/auto-advise/');
-      fetchInitialData();
-    } catch (error) {
-      alert(error.response?.data?.error || "Auto-advising failed");
-    } finally {
-      setLoading(false);
-    }
+      await api.post(`grades/advising/${endpoint}/`, data);
+      await fetchInitialData();
+    } catch (e) { alert(e.response?.data?.error || "Action failed"); } finally { setLoading(false); }
   };
 
-  const handleManualAdvise = async () => {
-    try {
-      setLoading(true);
-      await api.post('grades/advising/manual-advise/', {
-        subject_ids: selectedSubjectIds
-      });
-      fetchInitialData();
-    } catch (error) {
-      alert(error.response?.data?.error || "Manual advising failed");
-    } finally {
-      setLoading(false);
-    }
+  const isOfferedThisTerm = (s) => activeTerm && s.semester === activeTerm.semester_type;
+  const toggleSubject = (s) => {
+    if (!isOfferedThisTerm(s)) return alert("Not offered this term.");
+    const p = checkPrerequisites(s);
+    if (!p.met && !selectedSubjectIds.includes(s.id)) return alert(p.reason);
+    setSelectedSubjectIds(prev => prev.includes(s.id) ? prev.filter(i => i !== s.id) : [...prev, s.id]);
   };
 
-  const isOfferedThisTerm = (subject) => {
-    if (!activeTerm) return false;
-    return subject.semester === activeTerm.semester_type;
-  };
-
-  const toggleSubject = (subject) => {
-    if (!isOfferedThisTerm(subject)) {
-      alert(`Cannot select ${subject.code}: This subject is not offered in the current semester (${activeTerm?.semester_display}).`);
-      return;
-    }
-
-    const prereq = checkPrerequisites(subject);
-    if (!prereq.met && !selectedSubjectIds.includes(subject.id)) {
-      alert(`Cannot select ${subject.code}: ${prereq.reason}`);
-      return;
-    }
-
-    if (selectedSubjectIds.includes(subject.id)) {
-      setSelectedSubjectIds(selectedSubjectIds.filter(sid => sid !== subject.id));
-    } else {
-      setSelectedSubjectIds([...selectedSubjectIds, subject.id]);
-    }
-  };
-
-  const checkPrerequisites = (subject) => {
-    if (!subject.prerequisites || subject.prerequisites.length === 0) return { met: true };
-
-    for (const prereq of subject.prerequisites) {
-      if (prereq.prerequisite_type === 'SPECIFIC') {
-        if (!passedSubjectIds.includes(prereq.prerequisite_subject)) {
-          return { met: false, reason: `Prerequisite ${prereq.prerequisite_subject_code} not passed.` };
-        }
-      } else if (prereq.prerequisite_type === 'YEAR_STANDING') {
-        if ((enrollment?.year_level || 1) < prereq.standing_year) {
-          return { met: false, reason: `Requires at least Year ${prereq.standing_year} standing.` };
-        }
-      }
+  const checkPrerequisites = (s) => {
+    for (const pr of (s.prerequisites || [])) {
+      if (pr.prerequisite_type === 'SPECIFIC' && !passedSubjectIds.includes(pr.prerequisite_subject))
+        return { met: false, reason: `Prerequisite ${pr.prerequisite_subject_code} not passed.` };
+      if (pr.prerequisite_type === 'YEAR_STANDING' && (enrollment?.year_level || 1) < pr.standing_year)
+        return { met: false, reason: `Requires Year ${pr.standing_year} standing.` };
     }
     return { met: true };
   };
 
   const calculateTotalUnits = () => {
-    // Only count subjects being actively advised/enrolled, NOT credited ones
-    const activeAdvisingGrades = grades.filter(g => !g.is_credited);
-    const existingUnits = activeAdvisingGrades.reduce((sum, g) => sum + (g.subject_details?.total_units || 0), 0);
-    const selection = availableSubjects.filter(s => selectedSubjectIds.includes(s.id));
-    const selectedUnits = selection.reduce((sum, s) => sum + (s.total_units || 0), 0);
-    return existingUnits + selectedUnits;
+    const existing = grades.filter(g => !g.is_credited).reduce((sum, g) => sum + (g.subject_details?.total_units || 0), 0);
+    const selected = availableSubjects.filter(s => selectedSubjectIds.includes(s.id)).reduce((sum, s) => sum + (s.total_units || 0), 0);
+    return existing + selected;
   };
 
   if (loading) return <LoadingSpinner size="lg" style={{ marginTop: '80px' }} />;
-
-  if (!enrolled) {
-    return (
-      <div className="max-w-4xl mx-auto mt-10 p-6 text-center">
-        <AlertCircle size={48} className="mx-auto text-amber-500 mb-4" />
-        <h2 className="text-2xl font-bold text-slate-800">Enrollment Required</h2>
-        <p className="text-slate-600 mt-2">You must enroll for the current term before you can proceed to subject advising.</p>
-        <Button className="mt-6" onClick={() => navigate('/student')}>Go to Dashboard</Button>
-      </div>
-    );
-  }
-
-  const enrollmentStatus = enrollment?.advising_status;
-  const enrollingGrades = grades.filter(g => !g.is_credited);
-  const creditedGrades = grades.filter(g => g.is_credited);
-  const hasAdvising = enrollingGrades.length > 0;
-  const hasCredits = creditedGrades.length > 0;
-  const totalUnits = calculateTotalUnits();
-
-  const groupSubjects = (subjects) => {
-    const groups = {};
-    subjects.forEach(subject => {
-      const year = subject.year_level || 1;
-      const sem = subject.semester === '1' ? '1st Semester' : subject.semester === '2' ? '2nd Semester' : 'Summer';
-      const key = `Year ${year} - ${sem}`;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(subject);
-    });
-    return groups;
-  };
-
-  const categorizedSubjects = groupSubjects(
-    availableSubjects
-      .filter(s => !grades.some(g => g.subject === s.id) && !passedSubjectIds.includes(s.id))
-      .filter(s => s.code.toLowerCase().includes(searchTerm.toLowerCase()) || s.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  if (!enrolled) return (
+    <div className="max-w-4xl mx-auto mt-10 p-6 text-center">
+      <AlertCircle size={48} className="mx-auto text-amber-500 mb-4" />
+      <h2 className="text-2xl font-bold text-slate-800">Enrollment Required</h2>
+      <Button className="mt-6" onClick={() => navigate('/student')}>Go to Dashboard</Button>
+    </div>
   );
 
-  return (
-    <div className="student-advising-container" style={{ paddingBottom: '100px' }}>
-      <PageHeader 
-        title="Subject Advising"
-        description={`Pick your subjects for ${activeTerm?.code} (${activeTerm?.semester_display})`}
-        actions={
-          enrollmentStatus && (
-            <div className="status-badge-container flex items-center gap-2">
-              <span className="text-slate-500 font-medium text-sm">Status:</span>
-              <Badge 
-                variant={
-                  enrollmentStatus === 'APPROVED' ? 'success' : 
-                  enrollmentStatus === 'REJECTED' ? 'error' : 
-                  enrollmentStatus === 'DRAFT' ? 'info' : 'warning'
-                }
-              >
-                {enrollmentStatus === 'DRAFT' ? 'OPEN / DRAFT' : enrollmentStatus}
-              </Badge>
-            </div>
-          )
-        }
-      />
+  const enrollingGrades = grades.filter(g => !g.is_credited);
+  const groupSubjects = (subs) => {
+    const g = {};
+    subs.forEach(s => {
+      const key = `Year ${s.year_level || 1} - ${s.semester === '1' ? '1st Sem' : s.semester === '2' ? '2nd Sem' : 'Summer'}`;
+      if (!g[key]) g[key] = []; g[key].push(s);
+    });
+    return g;
+  };
 
-      <div className="advising-grid">
-        <div className="space-y-6">
-          {/* Table for ALREADY ADVISED / CREDITED subjects */}
-          {hasAdvising && (
-            <Card title="Your Selected Subjects" icon={<CheckCircle2 size={18} className="text-success" />}>
-              <div className="table-container" style={{ border: 'none' }}>
-                <Table 
-                   columns={[
-                      { header: 'Code', render: (row) => <span className="font-bold text-slate-800">{row.subject_details?.code}</span> },
-                      { header: 'Description', render: (row) => (
-                           <span className="text-slate-600">
-                             {row.subject_details?.description}
-                             {row.is_retake && <Badge variant="error" size="sm" style={{ marginLeft: '8px' }}>Retake</Badge>}
-                           </span>
-                      ) },
-                      { header: 'Units', align: 'center', render: (row) => <span style={{ textAlign: 'center', display: 'block' }}>{row.subject_details?.total_units}</span> },
-                      { header: 'Status', align: 'center', render: (row) => (
-                           <Badge variant={row.grade_status === 'ENROLLED' ? 'success' : 'warning'}>
-                             {row.grade_status_display}
-                           </Badge>
-                      ) }
-                   ]}
-                   data={enrollingGrades}
-                />
-              </div>
-              
-              {enrollmentStatus === 'REJECTED' && (
-                <div className="mt-6 p-4 bg-red-50 border border-red-100 rounded-lg flex gap-3 text-red-700">
-                  <AlertCircle size={20} className="shrink-0" />
-                  <div>
-                    <p className="font-semibold text-sm">Reason for Rejection:</p>
-                    <p className="text-sm mt-1">{enrollingGrades[0]?.rejection_reason || "No specific reason provided."}</p>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="mt-3 text-red-600 hover:bg-red-100"
-                      onClick={() => setGrades([])}
-                    >
-                      Reset Selection
-                    </Button>
-                  </div>
-                </div>
-              )}
+  const catSubs = groupSubjects(availableSubjects.filter(s => !grades.some(g => g.subject === s.id) && !passedSubjectIds.includes(s.id)).filter(s => s.code.toLowerCase().includes(searchTerm.toLowerCase()) || s.description.toLowerCase().includes(searchTerm.toLowerCase())));
+
+  return (
+    <div className="student-advising-container pb-24">
+      <PageHeader title="Subject Advising" description={`${activeTerm?.code} (${activeTerm?.semester_display})`}
+        actions={<div className="flex items-center gap-2"><Badge variant={enrollment?.advising_status === 'APPROVED' ? 'success' : 'warning'}>{enrollment?.advising_status}</Badge></div>} />
+      <div className="advising-grid grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {enrollingGrades.length > 0 && (
+            <Card title="Current Selection" icon={<AlertCircle size={18} />}>
+              <SelectedSubjectsTable enrollingGrades={enrollingGrades} enrollmentStatus={enrollment?.advising_status} onReset={() => setGrades([])} />
             </Card>
           )}
-
-          {/* LIST for picking subjects */}
-          {isRegular ? (
-            !hasAdvising && (
-              <Card>
-                <div style={{ padding: '60px 0', textAlign: 'center' }}>
-                  <ClipboardList size={64} className="mx-auto text-blue-500 mb-4 opacity-20" />
-                  <h3 className="text-xl font-bold text-slate-800">Ready for Auto-Advising</h3>
-                  
-                  {!enrollment?.student_details?.is_advising_unlocked ? (
-                    <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-lg max-w-sm mx-auto">
-                      <p className="text-amber-800 text-sm font-medium">
-                        Waiting for Registrar Approval
-                      </p>
-                      <p className="text-amber-700 text-xs mt-1">
-                        Please wait for the Registrar to finish crediting your subjects or verifying your documents before you can proceed.
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-slate-500 mt-2 max-w-sm mx-auto">
-                      As a regular student, your curriculum subjects will be automatically selected based on your current year level.
-                    </p>
-                  )}
-
-                  <Button 
-                    className="mt-10" 
-                    size="lg"
-                    loading={loading}
-                    onClick={handleAutoAdvise}
-                    disabled={!enrollment?.student_details?.is_advising_unlocked}
-                  >
-                    Generate Enrollment Slip
-                  </Button>
-                </div>
-              </Card>
-            )
-          ) : (
-            enrollmentStatus !== 'APPROVED' && (
-              <Card title="Selection of Subjects" icon={<Filter size={18} className="text-primary" />}>
-                 <SearchBar 
-                    placeholder="Filter by code or description..."
-                    onSearch={setSearchTerm}
-                 />
-
-                 <div className="subject-selection-list">
-                    {Object.keys(categorizedSubjects).length > 0 ? (
-                      Object.entries(categorizedSubjects).map(([group, subjects]) => (
-                        <div key={group} className="subject-group">
-                           <div className="subject-group-header">
-                             {group}
-                           </div>
-                           {subjects.map(subject => {
-                              const isSelected = selectedSubjectIds.includes(subject.id);
-                              const prereq = checkPrerequisites(subject);
-                              const isOffered = isOfferedThisTerm(subject);
-                              
-                              return (
-                                <div 
-                                  key={subject.id}
-                                  className={`subject-selection-item ${isSelected ? 'selected' : ''} ${(!prereq.met || !isOffered) ? 'opacity-50' : ''}`}
-                                  style={{ cursor: (!prereq.met || !isOffered) ? 'not-allowed' : 'pointer' }}
-                                  onClick={() => toggleSubject(subject)}
-                                >
-                                  <div className="flex-1">
-                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-bold text-slate-800">{subject.code}</span>
-                                        <span className="text-xs text-slate-500">• {subject.total_units} Units</span>
-                                        {!isOffered && (
-                                          <Badge variant="ghost" size="sm" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>
-                                            Not Offered This Term
-                                          </Badge>
-                                        )}
-                                        {!prereq.met && (
-                                          <Badge variant="error" size="sm" icon={<AlertCircle size={10}/>}>
-                                            Missing Prereq
-                                          </Badge>
-                                        )}
-                                     </div>
-                                     <p className="text-sm text-slate-600 mt-1">{subject.description}</p>
-                                     {!prereq.met && (
-                                       <p className="text-[10px] text-red-500 font-medium mt-1">{prereq.reason}</p>
-                                     )}
-                                  </div>
-                                  <div className="selection-checkbox">
-                                     {isSelected && <CheckCircle2 size={16} />}
-                                     {!isSelected && (!prereq.met || !isOffered) && <AlertCircle size={16} className="text-slate-300" />}
-                                  </div>
-                                </div>
-                              );
-                           })}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-10 text-slate-400">
-                        No subjects found matching your curriculum and semester.
-                      </div>
-                    )}
-                 </div>
-              </Card>
-            )
-          )}
+          {isRegular ? ( !enrollingGrades.length && (
+            <Card className="text-center py-20">
+              <ClipboardList size={64} className="mx-auto mb-4 opacity-20" />
+              <Button className="mt-10" loading={loading} onClick={() => handleAction('auto-advise')} disabled={!enrollment?.student_details?.is_advising_unlocked}>Generate Enrollment Slip</Button>
+            </Card>
+          )) : ( enrollment?.advising_status !== 'APPROVED' && (
+            <Card title="Subject Catalog" icon={<Filter size={18} />}>
+              <SearchBar placeholder="Filter catalog..." onSearch={setSearchTerm} />
+              <SubjectSelectionList categorizedSubjects={catSubs} selectedSubjectIds={selectedSubjectIds} toggleSubject={toggleSubject} checkPrerequisites={checkPrerequisites} isOfferedThisTerm={isOfferedThisTerm} />
+            </Card>
+          ))}
         </div>
-
         <div className="space-y-6">
-          <Card title="Advising Summary">
-            <div className="summary-card-content">
-              <div className="summary-item">
-                <span className="summary-label">Student ID</span>
-                <span className="summary-value">{enrollment?.student_details?.idn}</span>
-              </div>
-              <div className="summary-item">
-                <span className="summary-label">Program</span>
-                <span className="summary-value">{enrollment?.student_details?.program_details?.code}</span>
-              </div>
-              <div className="summary-item">
-                <span className="summary-label">Year Level</span>
-                <span className="summary-value">{enrollment?.year_level || '1'}</span>
-              </div>
-              <div className="summary-item">
-                <span className="summary-label">Study Type</span>
-                <Badge variant="ghost">{isRegular ? 'Regular' : 'Irregular'}</Badge>
-              </div>
-              
-              <div className="summary-divider"></div>
-              
-              <div className="total-units-display">
-                <span className="summary-label">Total Units</span>
-                <span className={`total-units-value ${totalUnits > 30 ? 'text-red-600' : 'text-blue-600'}`}>
-                  {totalUnits}
-                </span>
-              </div>
-
-              {totalUnits > 30 && (
-                 <div className="p-3 bg-red-50 text-red-600 text-xs rounded-lg flex gap-2">
-                   <AlertCircle size={14} className="shrink-0" />
-                   Exceeds 30 units limit. Please remove some subjects.
-                 </div>
-              )}
-
-              {enrollmentStatus !== 'APPROVED' && !isRegular && (
-                <Button 
-                  className="w-full mt-2" 
-                  disabled={selectedSubjectIds.length === 0 || totalUnits > 30 || !enrollment?.student_details?.is_advising_unlocked}
-                  onClick={handleManualAdvise}
-                  loading={loading}
-                >
-                  {!enrollment?.student_details?.is_advising_unlocked ? 'Locked by Registrar' : 'Submit for Approval'}
-                </Button>
-              )}
-
-            </div>
-          </Card>
-
-          <Card style={{ backgroundColor: 'var(--color-primary)', color: 'white', border: 'none' }}>
-             <div className="flex gap-3">
-                <Info className="shrink-0" />
-                <div>
-                   <p className="text-sm font-semibold">Advising Tip</p>
-                   <p className="text-xs opacity-80 mt-1">
-                     Regular students get their subjects auto-filled. Irregular students must verify prerequisites before submission.
-                   </p>
-                </div>
-             </div>
-          </Card>
+          <AdvisingSummaryCard enrollment={enrollment} isRegular={isRegular} totalUnits={calculateTotalUnits()} loading={loading} enrollmentStatus={enrollment?.advising_status} selectedSubjectIds={selectedSubjectIds} onSubmit={() => handleAction('manual-advise', { subject_ids: selectedSubjectIds })} />
+          <Card style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}><div className="flex gap-3"><Info /><p className="text-xs opacity-90">Verify prerequisites before submission. Regular students get auto-filled subjects.</p></div></Card>
         </div>
       </div>
     </div>
@@ -432,5 +149,3 @@ const StudentAdvising = () => {
 };
 
 export default StudentAdvising;
-
-
