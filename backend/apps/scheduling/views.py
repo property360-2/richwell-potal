@@ -95,6 +95,16 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         section, redirected = self.picking_service.pick_schedule_regular(student, term, request.data.get('session'))
         return Response({"message": f"Successfully assigned to {section.name}.", "redirected": redirected, "section_id": section.id, "schedules": self.get_serializer(Schedule.objects.filter(section=section), many=True).data})
 
+    @action(detail=False, methods=['POST'], url_path='pick-irregular')
+    def pick_irregular(self, request):
+        """
+        Irregular students pick per-subject schedule slots.
+        """
+        if request.user.role != 'STUDENT': raise PermissionDenied("Unauthorized")
+        term, student = Term.objects.get(id=request.data.get('term_id')), request.user.student_profile
+        self.picking_service.pick_schedule_irregular(student, term, request.data.get('selections', []))
+        return Response({"message": "Schedule picked successfully."})
+
     @action(detail=False, methods=['GET'], url_path='status-matrix')
     def status_matrix(self, request):
         """

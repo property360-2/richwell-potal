@@ -116,7 +116,8 @@ class ReportService:
                     sem_grades.append({
                         "code": s.code, "subject": s.description, "units": s.total_units,
                         "grade": str(g.final_grade) if g and g.final_grade else (g.get_grade_status_display() if g else "--"),
-                        "status": g.get_grade_status_display() if g else "Not Taken"
+                        "status": g.get_grade_status_display() if g else "Not Taken",
+                        "status_code": g.grade_status if g else "NOT_TAKEN"
                     })
                 semesters.append({"title": f"Year {year} - Sem {sem}", "grades": sem_grades})
 

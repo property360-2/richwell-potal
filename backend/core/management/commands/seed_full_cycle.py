@@ -353,7 +353,7 @@ class Command(BaseCommand):
                             'amount': Decimal('5000.00'),
                             'entry_type': 'PAYMENT',
                             'is_promissory': True,
-                            'remarks': 'Promissory note - payment deferred',
+                            'notes': 'Promissory note - payment deferred',
                             'processed_by': cashier,
                         },
                     )

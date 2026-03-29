@@ -12,7 +12,7 @@ export default async function globalSetup() {
         execSync('python manage.py seed_e2e', {
             cwd: backendDir,
             stdio: 'inherit',
-            timeout: 30000,
+            timeout: 120000,
         });
         console.log('[E2E Global Setup] Seed complete.');
     } catch (error) {

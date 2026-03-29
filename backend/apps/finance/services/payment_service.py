@@ -30,7 +30,8 @@ class PaymentService:
         """
         from apps.students.models import StudentEnrollment
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        monthly_commitment = float(enrollment.monthly_commitment) if enrollment else 0.0
+        comm = enrollment.monthly_commitment if enrollment else 0.0
+        monthly_commitment = float(comm) if comm is not None else 0.0
         
         # Calculate total paid all-time for this term
         total_paid_all_time = Payment.objects.filter(
@@ -76,7 +77,8 @@ class PaymentService:
         """
         from apps.students.models import StudentEnrollment
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        monthly_commitment = float(enrollment.monthly_commitment) if enrollment else 0.0
+        comm = enrollment.monthly_commitment if enrollment else 0.0
+        monthly_commitment = float(comm) if comm is not None else 0.0
 
         # Auto-detect month if not provided
         if month is None:
@@ -163,7 +165,8 @@ class PaymentService:
         """
         from apps.students.models import StudentEnrollment
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        monthly_commitment = float(enrollment.monthly_commitment) if enrollment else 0.0
+        comm = enrollment.monthly_commitment if enrollment else 0.0
+        monthly_commitment = float(comm) if comm is not None else 0.0
         
         total_paid_all_time = Payment.objects.filter(
             student=student,

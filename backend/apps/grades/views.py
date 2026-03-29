@@ -13,7 +13,9 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.db.models import Count, Q, F, Exists, OuterRef
 import django_filters
 
-from core.permissions import IsStudent, IsProgramHead, IsRegistrar, IsAdmin, IsProfessor
+from core.permissions import (
+    IsStudent, IsProgramHead, IsRegistrar, IsAdmin, IsProfessor, IsProgramHeadOfStudent
+)
 from apps.grades.models import Grade
 from apps.grades.serializers import GradeSerializer, AdvisingSubmitSerializer
 from apps.students.serializers import StudentEnrollmentSerializer
@@ -79,17 +81,20 @@ class AdvisingApprovalViewSet(viewsets.ModelViewSet):
     """
     queryset = StudentEnrollment.objects.all()
     serializer_class = StudentEnrollmentSerializer
-    permission_classes = [IsProgramHead | IsRegistrar | IsAdmin]
+    permission_classes = [IsAdmin | IsRegistrar | IsProgramHeadOfStudent]
 
     def get_queryset(self):
         """
-        Filters pending advising requests based on the user's role and assigned program.
+        Filters pending advising requests. Visibility (list) is limited to 
+        the program head's program, but other IDs are accessible for 403 checks.
         """
         user = self.request.user
         queryset = StudentEnrollment.objects.filter(advising_status='PENDING')
         
-        if user.role == 'PROGRAM_HEAD':
+        # Limit visibility in the list view
+        if user.role == 'PROGRAM_HEAD' and self.action == 'list':
             return queryset.filter(student__program__program_head=user)
+            
         return queryset
 
     @action(detail=True, methods=['post'])

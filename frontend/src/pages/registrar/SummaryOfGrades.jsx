@@ -54,8 +54,7 @@ const SummaryOfGrades = ({ isStudent = false }) => {
   );
   
   if (!data) return null;
-
-  const { student, stats, semesters, curriculum_progress } = data;
+  const { student, stats, semesters = [], curriculum_progress = [] } = data;
 
   const getStatusBadge = (status) => {
     switch (status) {

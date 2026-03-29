@@ -55,6 +55,37 @@ class IsProgramHead(BasePermission):
         return request.user.is_authenticated and (request.user.role in ('PROGRAM_HEAD', 'DEAN', 'ADMIN') or request.user.is_superuser)
 
 
+from django.contrib.auth import get_user_model
+User = get_user_model()
+
+
+class IsProgramHeadOfStudent(BasePermission):
+    """
+    Object-level permission to only allow Program Heads to manage students 
+    within their own program.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user.is_superuser or user.role in ('ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'):
+            return True
+        
+        # Resolve the student object from common models
+        student = obj
+        if hasattr(obj, 'student'):
+            student = obj.student
+        
+        # If the object is a User (student's user), we can't easily check program 
+        # unless it has a student profile attached.
+        if isinstance(student, User) and hasattr(student, 'student_profile'):
+            student = student.student_profile
+            
+        if hasattr(student, 'program') and student.program:
+            return student.program.program_head == user
+            
+        return False
+
+
 class IsProfessor(BasePermission):
     """Allow access only to users with PROFESSOR or ADMIN role."""
 

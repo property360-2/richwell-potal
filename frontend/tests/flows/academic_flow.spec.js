@@ -70,13 +70,18 @@ test.describe('Academic Cycle E2E Flow', () => {
         // Student dashboard says "Welcome, E2E!"
         await expect(studPage.getByText(/Welcome, E2E/)).toBeVisible();
 
-        // Navigate to Grade Report
-        await studPage.click('text=Grade Report');
+        // Navigate to Grade Report (Label is 'My Grades' in sidebar)
+        await studPage.click('text=My Grades');
+        
+        // Wait for page to load and verify records header
+        await expect(studPage.locator('h1, h2', { hasText: 'Academic Records' }).first()).toBeVisible({ timeout: 15000 });
+        await expect(studPage.locator('table')).toBeVisible();
 
-        // Verify the grade is visible and status is PASSED
-        const gradeRow = studPage.locator('tr').filter({ hasText: 'E2E101' });
+        // Verify the grade is visible and status is Passed (status Badge text)
+        const gradeRow = studPage.locator('tbody tr').filter({ hasText: 'E2E101' });
+        await expect(gradeRow).toBeVisible({ timeout: 15000 });
         await expect(gradeRow).toContainText('1.25');
-        await expect(gradeRow).toContainText(/Passed/i);
+        await expect(gradeRow.locator('td').last()).toContainText(/PASSED|Passed/);
 
         await studContext.close();
     });
