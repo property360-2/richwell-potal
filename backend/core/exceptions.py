@@ -1,5 +1,8 @@
 """
-Custom exception handler for consistent API error responses.
+Richwell Portal — Core Exceptions
+
+This module defines custom API exceptions and a global exception handler 
+to ensure consistent error responses across the entire application.
 """
 
 from rest_framework import status
@@ -8,6 +11,10 @@ from rest_framework.views import exception_handler
 
 
 class ConflictError(APIException):
+    """
+    Exception raised when a request conflicts with the current state of the server.
+    Commonly used for duplicate records or invalid state transitions.
+    """
     status_code = status.HTTP_409_CONFLICT
     default_detail = 'Conflict detected.'
     default_code = 'conflict'
@@ -15,12 +22,21 @@ class ConflictError(APIException):
 
 def custom_exception_handler(exc, context):
     """
-    Wraps DRF's default exception handler to return a consistent error format:
+    Wraps DRF's default exception handler to return a consistent error format.
+    
+    Format:
     {
         "error": true,
-        "message": "...",
-        "details": { ... }  // optional field-level errors
+        "message": "Human readable message",
+        "details": { "field": ["error"] }  // Optional field-level details
     }
+    
+    Args:
+        exc: The exception instance being handled.
+        context: Dictionary containing view and request context.
+        
+    Returns:
+        Response: A DRF Response object with standardized data.
     """
     response = exception_handler(exc, context)
 
@@ -42,7 +58,15 @@ def custom_exception_handler(exc, context):
 
 
 def _get_error_message(response):
-    """Extract a human-readable error message from the response."""
+    """
+    Extracts a human-readable error message from the response data.
+    
+    Args:
+        response: The DRF Response object.
+        
+    Returns:
+        str: A descriptive error message.
+    """
     if isinstance(response.data, dict):
         if 'detail' in response.data:
             return str(response.data['detail'])

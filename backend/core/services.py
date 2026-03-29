@@ -1,13 +1,17 @@
 """
-Base service class for the Richwell Portal.
-Services contain business logic and are called by views.
-Views should never contain business logic directly.
+Richwell Portal — Core Services
+
+This module defines the foundational Service layer for the portal. 
+Services encapsulate business logic, keeping views thin and maintaining 
+a clear separation of concerns.
 """
 
 
 class BaseService:
     """
-    Base class for all service classes.
-    Services encapsulate business logic separate from views and models.
+    Base class for all business logic service classes.
+    
+    Provides a standardized structure for operations that involve multiple models, 
+    external integrations, or complex validation logic.
     """
     pass

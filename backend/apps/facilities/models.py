@@ -1,7 +1,18 @@
+"""
+Richwell Portal — Facilities Models
+
+This module defines the physical assets of the institution, primarily focusing 
+on Room management for scheduling and capacity tracking.
+"""
+
 from django.db import models
 from apps.auditing.mixins import AuditMixin
 
 class Room(AuditMixin, models.Model):
+    """
+    Represents a physical room in the campus. 
+    Tracks room type, capacity, and active status for scheduling purposes.
+    """
     ROOM_TYPES = [
         ('LECTURE', 'Lecture Room'),
         ('COMPUTER_LAB', 'Computer Laboratory'),
@@ -21,4 +32,7 @@ class Room(AuditMixin, models.Model):
         ordering = ['name']
 
     def __str__(self):
+        """
+        Returns a human readable room identifier.
+        """
         return f"{self.name} ({self.get_room_type_display()}) - Cap: {self.capacity}"

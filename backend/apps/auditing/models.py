@@ -1,7 +1,18 @@
+"""
+Richwell Portal — Auditing Models
+
+This module defines the AuditLog model used to track all sensitive data changes 
+and authentication events across the system.
+"""
+
 from django.db import models
 from django.conf import settings
 
 class AuditLog(models.Model):
+    """
+    Stores a single audit entry representing a change or event.
+    Tracks the user, action type, affected model, and specific field changes.
+    """
     ACTION_CHOICES = [
         ('CREATE', 'Create'),
         ('UPDATE', 'Update'),
@@ -31,4 +42,7 @@ class AuditLog(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
+        """
+        Returns a human readable summary of the audit entry.
+        """
         return f"{self.action} on {self.model_name} ({self.object_id}) by {self.user}"

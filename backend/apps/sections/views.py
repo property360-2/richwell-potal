@@ -61,11 +61,17 @@ class SectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['GET'])
     def stats(self, request):
+        """
+        Retrieves real-time enrollment statistics for a specific academic term.
+        """
         if not (tid := request.query_params.get('term_id')): return Response({"error": "term_id required"}, 400)
         return Response(self.service.get_enrollment_stats(Term.objects.get(id=tid)))
 
     @action(detail=False, methods=['POST'])
     def generate(self, request):
+        """
+        Automates the creation of sections for a program and year level based on student counts.
+        """
         d = request.data
         term, prog = Term.objects.get(id=d.get('term_id')), Program.objects.get(id=d.get('program_id'))
         sections = self.service.generate_sections(term, prog, int(d.get('year_level')), num_sections=int(d.get('num_sections')) if d.get('num_sections') else None, auto_schedule=d.get('auto_schedule', False))
@@ -73,6 +79,9 @@ class SectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['POST'], url_path='preview-generation')
     def preview_generation(self, request):
+        """
+        Provides a preview of how many sections will be generated based on currently approved students.
+        """
         d = request.data
         count = StudentEnrollment.objects.filter(term_id=d.get('term_id'), student__program_id=d.get('program_id'), year_level=d.get('year_level'), advising_status='APPROVED').count()
         num_sections = int(d['desired_sections']) if d.get('desired_sections') else math.ceil(count / 40.0)
@@ -80,6 +89,9 @@ class SectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['POST'], url_path='transfer')
     def transfer(self, request, pk=None):
+        """
+        Manually transfers a student from one section to another, with optional capacity overrides.
+        """
         section, sid, tid = self.get_object(), request.data.get('student_id'), request.data.get('term_id')
         override = request.data.get('override', False) or self.request.user.role == 'PROGRAM_HEAD'
         count = self.service.manual_transfer_student(Student.objects.get(id=sid), section, Term.objects.get(id=tid), override_capacity=override)
@@ -87,10 +99,16 @@ class SectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['GET'])
     def roster(self, request, pk=None):
+        """
+        Retrieves the list of students currently assigned to the specified section.
+        """
         return Response(SectionStudentSerializer(SectionStudent.objects.filter(section=self.get_object()), many=True).data)
 
     @action(detail=False, methods=['GET'], url_path='my-schedule')
     def my_schedule(self, request):
+        """
+        Retrieves the teaching schedule for the authenticated professor.
+        """
         if not hasattr(request.user, 'professor_profile'): return Response({"error": "No prof profile"}, 400)
         term = Term.objects.get(id=request.query_params.get('term_id')) if request.query_params.get('term_id') else Term.objects.filter(is_active=True).first()
         from apps.scheduling.models import Schedule
@@ -99,6 +117,9 @@ class SectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['GET'], url_path='my-sections')
     def my_sections(self, request):
+        """
+        Retrieves a list of sections the professor is currently assigned to.
+        """
         if not hasattr(request.user, 'professor_profile'): return Response({"error": "No prof profile"}, 400)
         term = Term.objects.get(id=request.query_params.get('term_id')) if request.query_params.get('term_id') else Term.objects.filter(is_active=True).first()
         from apps.scheduling.models import Schedule

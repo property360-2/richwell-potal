@@ -1,3 +1,10 @@
+"""
+Richwell Portal — Core Models
+
+This module defines system-wide utility models, such as SystemSequence for 
+safe, concurrent generation of unique identifiers (e.g., student IDs).
+"""
+
 from django.db import models
 
 class SystemSequence(models.Model):
@@ -10,6 +17,9 @@ class SystemSequence(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
+        """
+        Returns a human readable sequence summary.
+        """
         return f"{self.key}: {self.last_value}"
 
     class Meta:

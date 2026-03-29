@@ -1,3 +1,11 @@
+"""
+Richwell Portal — Finance Views
+
+This module provides API endpoints for tracking student payments, managing 
+tuition installments, and verifying examination permit eligibility based on 
+financial standing.
+"""
+
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -9,6 +17,10 @@ from .services.payment_service import PaymentService
 from core.permissions import IsAdminOrCashier
 
 class PaymentViewSet(viewsets.ModelViewSet):
+    """
+    Handles payment records and financial adjustments. 
+    Implements append-only logic where updates and deletions are restricted.
+    """
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     
@@ -57,6 +69,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['GET'], url_path='next-payment')
     def next_payment(self, request):
+        """
+        Calculates and returns the next expected payment amount and month 
+        for a student in a specific term.
+        """
         student_id = request.query_params.get('student_id')
         term_id = request.query_params.get('term_id')
         
@@ -84,10 +100,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 class PermitViewSet(viewsets.ViewSet):
+    """
+    Standalone viewset for checking examination permit status.
+    Determines if a student is financially cleared for specific exam periods.
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     @action(detail=False, methods=['GET'])
     def status(self, request):
+        """
+        Allows staff to check the permit status of any student for a 
+        given term and examination period.
+        """
         if not IsAdminOrCashier().has_permission(request, self):
             raise PermissionDenied("Only cashier and admin users can check permit status for arbitrary students.")
 
@@ -106,6 +130,9 @@ class PermitViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['GET'], url_path='my-permits')
     def my_permits(self, request):
+        """
+        Returns the exam permit status for the currently authenticated student.
+        """
         if request.user.role != 'STUDENT':
             return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
         

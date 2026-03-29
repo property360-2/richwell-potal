@@ -38,6 +38,9 @@ class ReportViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def masterlist(self, request):
+        """
+        Generates a master list of students for a specific term, program, and year level in Excel format.
+        """
         if not (tid := request.query_params.get('term_id')): return Response({"error": "term_id required"}, 400)
         excel = self.service.generate_masterlist_excel(tid, request.query_params.get('program_id'), request.query_params.get('year_level'))
         res = HttpResponse(excel, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -46,6 +49,9 @@ class ReportViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def cor(self, request):
+        """
+        Generates a Certificate of Registration (COR) in PDF format for a student.
+        """
         tid = request.query_params.get('term_id')
         sid = request.query_params.get('student_id') or (request.user.student_profile.id if request.user.role == 'STUDENT' else None)
         if not all([tid, sid]): return Response({"error": "term_id and student_id required"}, 400)
@@ -57,15 +63,24 @@ class ReportViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='academic-summary')
     def academic_summary(self, request):
+        """
+        Retrieves a summary of a student's academic performance, including grades and progress.
+        """
         sid = request.query_params.get('student_id') or (request.user.student_profile.id if request.user.role == 'STUDENT' else None)
         if not sid: return Response({"error": "student_id required"}, 400)
         return Response(self.service.get_academic_summary(sid))
 
     @action(detail=False, methods=['get'], url_path='graduation-check')
     def graduation_check(self, request):
+        """
+        Performs a check to determine if a student is eligible for graduation.
+        """
         if not (sid := request.query_params.get('student_id')): return Response({"error": "student_id required"}, 400)
         return Response(self.service.graduation_check(sid))
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
+        """
+        Returns high-level dashboard statistics based on the user's role.
+        """
         return Response(self.service.get_dashboard_stats(request.user))

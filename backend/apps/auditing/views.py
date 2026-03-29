@@ -1,3 +1,10 @@
+"""
+Richwell Portal — Auditing Views
+
+This module provides API endpoints for viewing and exporting system audit logs. 
+Access is restricted to administrative roles to ensure security and compliance.
+"""
+
 import csv
 import json
 from django.http import HttpResponse
@@ -10,6 +17,10 @@ from core.permissions import IsHeadRegistrar
 
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing system audit logs. Supports filtering by user, 
+    action type, and model name.
+    """
     queryset = AuditLog.objects.all()
     serializer_class = AuditLogSerializer
     permission_classes = [IsHeadRegistrar]
@@ -20,6 +31,10 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
+        """
+        Filters logs based on the user's role. Head Registrars can see logs 
+        for all registrar staff.
+        """
         user = self.request.user
         queryset = super().get_queryset()
         if user.role in ('REGISTRAR', 'HEAD_REGISTRAR'):
@@ -29,6 +44,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
     @decorators.action(detail=False, methods=['get'])
     def export_csv(self, request):
+        """
+        Exports the filtered audit logs to a CSV file for offline analysis.
+        """
         queryset = self.filter_queryset(self.get_queryset())
         
         response = HttpResponse(content_type='text/csv')

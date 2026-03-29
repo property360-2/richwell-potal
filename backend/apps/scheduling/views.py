@@ -38,7 +38,7 @@ class ScheduleViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         """
-        Dynamically applies Dean-only permissions for writing actions.
+        Dynamically applies Dean-only permissions for writing and administrative actions.
         """
         dean_actions = ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish', 'randomize', 'pending_slots', 'section_completion', 'faculty_load_report', 'validate_slot', 'resource_availability']
         if self.action in dean_actions:
@@ -48,7 +48,8 @@ class ScheduleViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Filters the schedule by term, section, professor, or room.
+        Filters the schedule queryset by term, section, professor, or room.
+        Restricts Program Heads to their own sections.
         """
         queryset = super().get_queryset()
         if self.request.user.role == 'PROGRAM_HEAD':

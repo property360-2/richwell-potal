@@ -1,55 +1,79 @@
 """
-Role-based permission classes for the Richwell Portal.
-Each class checks the user's role field for authorization.
+Richwell Portal — Core Permissions
+
+This module defines role-based access control (RBAC) permission classes 
+for the Richwell Portal. Each class validates the user's role 
+and authentication status before granting access to views or objects.
 """
 
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
 class IsAdmin(BasePermission):
-    """Allow access only to users with ADMIN role."""
+    """
+    Grants access only to users with the 'ADMIN' role or superuser status.
+    Used for system-wide administrative tasks.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role == 'ADMIN' or request.user.is_superuser)
 
 
 class IsHeadRegistrar(BasePermission):
-    """Allow access only to users with HEAD_REGISTRAR or ADMIN role."""
+    """
+    Grants access to 'HEAD_REGISTRAR', 'ADMIN', or superuser roles.
+    Used for high-level registrar operations and curriculum management.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in ('HEAD_REGISTRAR', 'ADMIN') or request.user.is_superuser)
 
 
 class IsRegistrar(BasePermission):
-    """Allow access only to users with REGISTRAR or ADMIN role."""
+    """
+    Grants access to 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN', or superuser roles.
+    Used for standard student record management and enrollment tasks.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in ('REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN') or request.user.is_superuser)
 
 
 class IsAdmission(BasePermission):
-    """Allow access to users with ADMISSION or ADMIN role."""
+    """
+    Grants access to 'ADMISSION', 'ADMIN', or superuser roles.
+    Focused on prospective student management and initial intake.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in ('ADMISSION', 'ADMIN') or request.user.is_superuser)
 
 
 class IsCashier(BasePermission):
-    """Allow access only to users with CASHIER or ADMIN role."""
+    """
+    Grants access to 'CASHIER', 'ADMIN', or superuser roles.
+    Restricted to financial transactions and payment processing.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in ('CASHIER', 'ADMIN') or request.user.is_superuser)
 
 
 class IsDean(BasePermission):
-    """Allow access only to users with DEAN or ADMIN role."""
+    """
+    Grants access to 'DEAN', 'ADMIN', or superuser roles.
+    Used for college-level oversight and faculty management.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in ('DEAN', 'ADMIN') or request.user.is_superuser)
 
 
 class IsProgramHead(BasePermission):
-    """Allow access only to users with PROGRAM_HEAD, DEAN, or ADMIN role."""
+    """
+    Grants access to 'PROGRAM_HEAD', 'DEAN', 'ADMIN', or superuser roles.
+    Used for program-specific oversight and student record access.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in ('PROGRAM_HEAD', 'DEAN', 'ADMIN') or request.user.is_superuser)
@@ -87,35 +111,47 @@ class IsProgramHeadOfStudent(BasePermission):
 
 
 class IsProfessor(BasePermission):
-    """Allow access only to users with PROFESSOR or ADMIN role."""
+    """
+    Grants access to 'PROFESSOR', 'ADMIN', or superuser roles.
+    Restricted to academic management within assigned sections.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in ('PROFESSOR', 'ADMIN') or request.user.is_superuser)
 
 
 class IsStudent(BasePermission):
-    """Allow access only to users with STUDENT role."""
+    """
+    Grants access strictly to users with the 'STUDENT' role.
+    Used for personal record viewing and enrollment requests.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'STUDENT'
 
 
 class IsAdminOrRegistrar(BasePermission):
-    """Allow access to ADMIN or REGISTRAR roles."""
+    """
+    Composite permission allowing 'ADMIN' or 'REGISTRAR' staff to access.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in ('ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR') or request.user.is_superuser)
 
 
 class IsAdminOrCashier(BasePermission):
-    """Allow access only to ADMIN or CASHIER roles."""
+    """
+    Composite permission allowing 'ADMIN' or 'CASHIER' staff to access.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and (request.user.role in ('ADMIN', 'CASHIER') or request.user.is_superuser)
 
 
 class IsAdmissionOrRegistrar(BasePermission):
-    """Allow access to ADMISSION, REGISTRAR, or ADMIN roles."""
+    """
+    Composite permission allowing 'ADMISSION' or 'REGISTRAR' staff to access.
+    """
 
     def has_permission(self, request, view):
         staff_roles = ('ADMISSION', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMIN')
@@ -123,7 +159,10 @@ class IsAdmissionOrRegistrar(BasePermission):
 
 
 class IsStaff(BasePermission):
-    """Allow access to any non-student role."""
+    """
+    Grants access to any authenticated user with a staff-level role.
+    Excludes students and unauthenticated users.
+    """
 
     STAFF_ROLES = {
         'ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR', 'ADMISSION',
@@ -135,7 +174,10 @@ class IsStaff(BasePermission):
 
 
 class IsStudentRecordsStaff(BasePermission):
-    """Allow access to student-record management roles."""
+    """
+    Grants access to staff roles explicitly authorized to manage 
+    official student records and configurations.
+    """
 
     ALLOWED_ROLES = {'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR', 'ADMISSION'}
 
@@ -145,8 +187,8 @@ class IsStudentRecordsStaff(BasePermission):
 
 class IsAdminOrReadOnly(BasePermission):
     """
-    The request is authenticated as an admin, or is a read-only request.
-    Use for objects that anyone can view but only admins can modify.
+    Grants 'ADMIN' or superuser write access, while allowing 'SAFE_METHODS' 
+    (GET, HEAD, OPTIONS) for any authenticated user.
     """
 
     def has_permission(self, request, view):
@@ -157,8 +199,8 @@ class IsAdminOrReadOnly(BasePermission):
 
 class IsAdminOrRegistrarOrReadOnly(BasePermission):
     """
-    The request is authenticated as an admin or registrar, or is a read-only request.
-    Use for objects that anyone can view but only admins/registrars can modify.
+    Grants 'ADMIN', 'REGISTRAR', or superuser write access, while 
+    allowing 'SAFE_METHODS' for any authenticated user.
     """
 
     def has_permission(self, request, view):

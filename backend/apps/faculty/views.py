@@ -1,3 +1,11 @@
+"""
+Richwell Portal — Faculty Views
+
+This module provides API endpoints for managing faculty profiles, their 
+subject assignments, and availability for scheduling. It handles both 
+individual record management and bulk cross-application assignments.
+"""
+
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -13,6 +21,10 @@ from apps.academics.models import Subject
 User = get_user_model()
 
 class ProfessorViewSet(viewsets.ModelViewSet):
+    """
+    Main ViewSet for managing Professor profiles. 
+    Includes actions for subject assignment and availability tracking.
+    """
     queryset = Professor.objects.all()
     permission_classes = [IsAdmin]
     search_fields = ['employee_id', 'user__first_name', 'user__last_name', 'department']
@@ -76,6 +88,11 @@ class ProfessorViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post', 'get'])
     def subjects(self, request, pk=None):
+        """
+        Manages the list of subjects a professor is qualified to teach.
+        GET: Returns current subjects.
+        POST: Adds new subjects to the list.
+        """
         professor = self.get_object()
         
         if request.method == 'GET':
@@ -108,7 +125,10 @@ class ProfessorViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def assign_subjects(self, request, pk=None):
-        """Full replacement of assigned subjects for a professor"""
+        """
+        Full replacement of assigned subjects for a professor.
+        Removes any existing assignments not included in the request.
+        """
         professor = self.get_object()
         subject_ids = request.data.get('subject_ids', [])
         
@@ -131,6 +151,11 @@ class ProfessorViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get', 'post'])
     def availability(self, request, pk=None):
+        """
+        Manages professor teaching session preferences.
+        GET: Returns current availability slots.
+        POST: Replaces existing availability with new data.
+        """
         professor = self.get_object()
         
         if request.method == 'GET':

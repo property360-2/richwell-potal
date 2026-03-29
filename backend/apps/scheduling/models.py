@@ -1,7 +1,18 @@
+"""
+Richwell Portal — Scheduling Models
+
+This module defines the academic schedule structure, linking terms, sections, 
+subjects, professors, and rooms with specific time slots.
+"""
+
 from django.db import models
 from apps.auditing.mixins import AuditMixin
 
 class Schedule(AuditMixin, models.Model):
+    """
+    Represents a specific academic schedule slot.
+    Handles links between academic entities and physical/temporal resources.
+    """
     COMPONENT_CHOICES = [
         ('LEC', 'Lecture'),
         ('LAB', 'Laboratory'),
@@ -26,5 +37,8 @@ class Schedule(AuditMixin, models.Model):
         unique_together = ('term', 'section', 'subject', 'component_type')
 
     def __str__(self):
+        """
+        Returns a human readable schedule summary.
+        """
         prof_name = self.professor.user.last_name if self.professor else "TBA"
         return f"{self.section.name} - {self.subject.code} ({self.get_component_type_display()}) - {prof_name}"

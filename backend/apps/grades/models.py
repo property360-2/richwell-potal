@@ -1,3 +1,11 @@
+"""
+Richwell Portal — Grades Models
+
+This module defines the Grade data structure, which tracks student academic performance, 
+subject enrollment status, midterm/final scores, and INC (Incomplete) resolution workflows.
+It serves as the central record for transcript generation and advising.
+"""
+
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -5,6 +13,11 @@ from apps.auditing.mixins import AuditMixin
 
 
 class Grade(AuditMixin, models.Model):
+    """
+    Represents a student's performance in a specific subject for a specific term.
+    Tracks advising status, enrollment, and final grades, including support 
+    for historical encoding and INC Resolution.
+    """
     ADVISING_PENDING = 'PENDING'
     ADVISING_APPROVED = 'APPROVED'
     ADVISING_REJECTED = 'REJECTED'
@@ -116,4 +129,8 @@ class Grade(AuditMixin, models.Model):
         ordering = ['student', 'subject', 'term']
 
     def __str__(self):
+        """
+        Returns a human readable representation of the grade record.
+        Format: IDN - Subject Code (Status)
+        """
         return f"{self.student.idn} - {self.subject.code} ({self.grade_status})"

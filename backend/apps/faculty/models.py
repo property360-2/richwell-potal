@@ -1,8 +1,19 @@
+"""
+Richwell Portal — Faculty Models
+
+This module defines faculty-related data structures, including Professor 
+profiles, subject assignments, and availability tracking for scheduling.
+"""
+
 from django.db import models
 from django.conf import settings
 from apps.auditing.mixins import AuditMixin
 
 class Professor(AuditMixin, models.Model):
+    """
+    Core professor profile. Tracks employment status, department, and ID. 
+    Linked to a custom User record for authentication.
+    """
     EMPLOYMENT_STATUS_CHOICES = [
         ('FULL_TIME', 'Full-time'),
         ('PART_TIME', 'Part-time'),
@@ -34,9 +45,16 @@ class Professor(AuditMixin, models.Model):
         verbose_name_plural = "Professors"
 
     def __str__(self):
+        """
+        Returns a human readable professor identifier.
+        Format: Full Name (Employee ID)
+        """
         return f"{self.user.first_name} {self.user.last_name} ({self.employee_id})"
 
 class ProfessorSubject(AuditMixin, models.Model):
+    """
+    Junction model mapping professors to the subjects they are qualified to teach.
+    """
     professor = models.ForeignKey(
         'faculty.Professor', 
         on_delete=models.CASCADE, 
@@ -55,9 +73,17 @@ class ProfessorSubject(AuditMixin, models.Model):
         verbose_name_plural = "Professor Subjects"
 
     def __str__(self):
+        """
+        Returns a human readable mapping summary.
+        Format: Employee ID - Subject Code
+        """
         return f"{self.professor.employee_id} - {self.subject.code}"
 
 class ProfessorAvailability(AuditMixin, models.Model):
+    """
+    Tracks the preferred teaching sessions (AM/PM) for professors per day.
+    Used by the scheduling algorithm to avoid conflicts.
+    """
     DAY_CHOICES = [
         ('M', 'Monday'),
         ('T', 'Tuesday'),
@@ -87,4 +113,8 @@ class ProfessorAvailability(AuditMixin, models.Model):
         verbose_name_plural = "Professor Availabilities"
 
     def __str__(self):
+        """
+        Returns a human readable availability summary.
+        Format: Employee ID: Day - Session
+        """
         return f"{self.professor.employee_id}: {self.get_day_display()} - {self.session}"

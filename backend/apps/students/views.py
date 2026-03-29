@@ -58,6 +58,10 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='apply')
     def apply(self, request):
+        """
+        Public endpoint for prospective students to submit their initial application.
+        Creates a new user and student profile in 'APPLICANT' status.
+        """
         serializer = StudentApplicationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         student = apply_student(serializer.validated_data)
@@ -65,6 +69,10 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdmissionOrRegistrar])
     def approve(self, request, pk=None):
+        """
+        Approves a student's application. Generates their official IDN, 
+        sets their monthly commitment, and creates their login credentials.
+        """
         student = self.get_object()
         monthly = request.data.get('monthly_commitment')
         if not monthly: raise ValidationError({'monthly_commitment': ['Required.']})
@@ -74,6 +82,10 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='unlock-advising')
     def unlock_advising(self, request, pk=None):
+        """
+        Manually allows a student to proceed to the advising/subject selection stage.
+        Typically done after the Registrar verifies physical documents.
+        """
         student = self.get_object()
         student.is_advising_unlocked = True
         student.save()
@@ -81,12 +93,20 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='toggle-regularity')
     def toggle_regularity(self, request, pk=None):
+        """
+        Toggles whether a student is considered 'Regular' for the current term.
+        Affects automatic subject suggestions during advising.
+        """
         is_regular = request.data.get('is_regular', True)
         enrollment, val = toggle_student_regularity(pk, is_regular)
         return Response({'status': 'Regularity status updated', 'is_regular': val})
 
     @action(detail=True, methods=['post'], url_path='returning-student')
     def returning_student(self, request, pk=None):
+        """
+        Processes a returning student's enrollment for a new term.
+        Validates the student status and sets a new monthly commitment.
+        """
         student = self.get_object()
         if not (request.user.role in ('ADMIN', 'ADMISSION', 'REGISTRAR') or request.user == student.user):
             raise PermissionDenied("Unauthorized.")
@@ -98,6 +118,10 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='manual-add')
     def manual_add(self, request):
+        """
+        Allows staff to manually create a student record without going 
+        through the public application pipeline.
+        """
         student, is_regular = manual_add_student_record(request.data, request.user)
         return Response({'student': StudentRecordSerializer(student).data, 'is_regular': is_regular}, status=status.HTTP_201_CREATED)
 
@@ -125,6 +149,10 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def me(self, request):
+        """
+        Returns the enrollment record for the currently authenticated student 
+        for a specific term.
+        """
         term_id = request.query_params.get('term')
         if not term_id: return Response({"error": "Term ID is required"}, status=status.HTTP_400_BAD_REQUEST)
         enrollment = self.get_queryset().filter(term_id=term_id).first()
@@ -132,6 +160,10 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def schedule(self, request):
+        """
+        Computes and returns the class schedule for the authenticated student 
+        in a specific term.
+        """
         term_id = request.query_params.get('term')
         if not term_id: return Response({"error": "Term ID required"}, status=status.HTTP_400_BAD_REQUEST)
         if request.user.role != 'STUDENT': return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)

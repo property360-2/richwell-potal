@@ -1,3 +1,11 @@
+"""
+Richwell Portal — Accounts Views
+
+This module provides API endpoints for user authentication, profile management, 
+and staff administration. It implements JWT -based authentication with 
+HTTP-only cookies for enhanced security.
+"""
+
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.views import APIView
@@ -21,15 +29,23 @@ from django.utils.decorators import method_decorator
 User = get_user_model()
 
 class CsrfTokenView(APIView):
+    """
+    Endpoint to set the CSRF cookie for the client. 
+    Required for secure non-GET requests in some environments.
+    """
     permission_classes = [AllowAny]
     
     @method_decorator(ensure_csrf_cookie)
     def get(self, request):
+        """Sets the CSRF cookie and returns a success message."""
         return Response({"detail": "CSRF cookie set."})
 
 from rest_framework.throttling import AnonRateThrottle
 
 class LoginView(TokenObtainPairView):
+    """
+    Custom login view that issues JWT tokens and sets them as HTTP-only cookies.
+    """
     permission_classes = [AllowAny]
     throttle_classes = [AnonRateThrottle]
     serializer_class = LoginSerializer
@@ -66,6 +82,10 @@ class LoginView(TokenObtainPairView):
         return response
 
 class TokenRefreshCookieView(TokenRefreshView):
+    """
+    Refreshes the access token using the refresh token stored in a cookie.
+    Sets the new access token in an HTTP-only cookie.
+    """
     def post(self, request, *args, **kwargs):
         refresh_token = request.COOKIES.get(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
         if refresh_token:
@@ -89,6 +109,9 @@ class TokenRefreshCookieView(TokenRefreshView):
         return response
 
 class LogoutView(APIView):
+    """
+    Logs out the user by clearing the authentication cookies.
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -98,6 +121,9 @@ class LogoutView(APIView):
         return response
 
 class MeView(generics.RetrieveAPIView):
+    """
+    Returns the profile information of the currently authenticated user.
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = UserSerializer
 
@@ -105,6 +131,10 @@ class MeView(generics.RetrieveAPIView):
         return self.request.user
 
 class ChangePasswordView(generics.UpdateAPIView):
+    """
+    Allows authenticated users to change their own password.
+    Enforces password complexity through the serializer.
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = ChangePasswordSerializer
 
@@ -130,6 +160,10 @@ from core.permissions import IsAdmin, IsHeadRegistrar
 from .services.user_service import UserService
 
 class StaffManagementViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Admin/Head Registrar to manage staff accounts.
+    Allows creating, updating, and resetting passwords for staff.
+    """
     permission_classes = [IsAuthenticated, IsAdmin | IsHeadRegistrar]
     
     def get_queryset(self):
@@ -158,6 +192,10 @@ class StaffManagementViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='reset-password')
     def reset_password(self, request, pk=None):
+        """
+        Resets a user's password to the default format.
+        Admin can reset any non-student; Head Registrar can only reset Registrars.
+        """
         user = self.get_object()
         if request.user.role == 'HEAD_REGISTRAR' and user.role != 'REGISTRAR':
             raise PermissionDenied("Head Registrars can only reset registrar accounts.")

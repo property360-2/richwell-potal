@@ -44,6 +44,14 @@ class AdvisingViewSet(viewsets.ModelViewSet):
     filterset_class = GradeFilter
 
     def get_queryset(self):
+        """
+        Filters the Grade queryset based on the authenticated user's role.
+        
+        - Students: see only their own grades.
+        - Program Heads: see only students in their program.
+        - Professors: see students in subjects they are teaching.
+        - Admin/Registrar: see all records.
+        """
         user = self.request.user
         queryset = Grade.objects.all()
         if user.role == 'STUDENT': return queryset.filter(student__user=user)
@@ -57,6 +65,12 @@ class AdvisingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='auto-advise')
     def auto_advise(self, request):
+        """
+        Auto-generates advising records for regular students based on their 
+        curriculum and current year level/semester.
+        
+        Returns a list of created/updated Grade objects.
+        """
         student = request.user.student_profile
         active_term = Term.objects.filter(is_active=True).first()
         if not active_term: raise ValidationError({'detail': 'No active term.'})
@@ -67,6 +81,12 @@ class AdvisingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='manual-advise')
     def manual_advise(self, request):
+        """
+        Manually creates advising records for irregular students based on a 
+        provided list of subject IDs.
+        
+        Returns the list of Grade objects for the enrolled subjects.
+        """
         serializer = AdvisingSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         student, active_term = request.user.student_profile, Term.objects.filter(is_active=True).first()
@@ -128,6 +148,10 @@ class SubjectCreditingViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'])
     def credit(self, request):
+        """
+        Manually credits a single subject for a student.
+        Used for crediting subjects from external institutions or historical TOR.
+        """
         student, subject = Student.objects.get(pk=request.data.get('student_id')), Subject.objects.get(pk=request.data.get('subject_id'))
         active_term = Term.objects.get(is_active=True)
         grade = AdvisingService.credit_subject(student, subject, active_term, request.user, request.data.get('final_grade'))
@@ -135,6 +159,10 @@ class SubjectCreditingViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='bulk-historical-encode')
     def bulk_historical_encode(self, request):
+        """
+        Encodes multiple historical subjects for a student in one operation.
+        Expects a list of subject data in 'credit_data'.
+        """
         student, active_term = Student.objects.get(pk=request.data.get('student_id')), Term.objects.get(is_active=True)
         AdvisingService.bulk_historical_encoding(student, active_term, request.data.get('credit_data', []), request.user)
         return Response({"message": "Encoded successfully"}, status=status.HTTP_201_CREATED)
@@ -149,22 +177,38 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='submit-midterm')
     def submit_midterm(self, request, pk=None):
+        """
+        Processes the submission of a midterm grade for a specific record.
+        Support flags for marking as an INC (Incomplete) initially.
+        """
         updated = self.service.submit_midterm(pk, request.data.get('value'), request.user, is_inc=request.data.get('is_inc', False))
         return Response(GradeSerializer(updated).data)
 
     @action(detail=True, methods=['post'], url_path='submit-final')
     def submit_final(self, request, pk=None):
+        """
+        Processes the final grade submission. Validates against the midterm 
+        submission state if business rules require it.
+        """
         updated = self.service.submit_final(pk, request.data.get('value'), request.user)
         return Response(GradeSerializer(updated).data)
 
     @action(detail=False, methods=['get'])
     def roster(self, request):
+        """
+        Returns the class roster for a specific section and subject.
+        Used by professors to see a list of students ready for grading.
+        """
         section_id, subject_id = request.query_params.get('section_id'), request.query_params.get('subject_id')
         grades = Grade.objects.filter(section_id=section_id, subject_id=subject_id).select_related('student__user').order_by('student__user__last_name')
         return Response(GradeSerializer(grades, many=True).data)
 
     @action(detail=False, methods=['post'], url_path='finalize-section')
     def finalize_section(self, request):
+        """
+        Finalizes all grades for a specific class section.
+        Locks the record from further professor modification.
+        """
         from apps.sections.models import Section
         term, subject, section = Term.objects.get(pk=request.data.get('term_id')), Subject.objects.get(pk=request.data.get('subject_id')), Section.objects.get(pk=request.data.get('section_id'))
         self.service.finalize_section_grades(term, subject, section, request.user)
@@ -180,16 +224,31 @@ class ResolutionViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='request-resolution')
     def request_resolution(self, request, pk=None):
+        """
+        Initiates a resolution request for an INC grade.
+        Typically called by a Professor or Registrar.
+        """
         return Response(GradeSerializer(self.service.request_resolution(pk, request.user, request.data.get('reason'))).data)
 
     @action(detail=True, methods=['post'], url_path='registrar-approve')
     def registrar_approve(self, request, pk=None):
+        """
+        Approves the resolution request from the Registrar's side.
+        Allows the professor to then submit a replacement grade.
+        """
         return Response(GradeSerializer(self.service.registrar_approve_request(pk, request.user)).data)
 
     @action(detail=True, methods=['post'], url_path='submit-grade')
     def submit_grade(self, request, pk=None):
+        """
+        Allows the professor to submit the alternative grade for the INC resolution.
+        """
         return Response(GradeSerializer(self.service.submit_resolved_grade(pk, request.user, request.data.get('new_grade'))).data)
 
     @action(detail=True, methods=['post'], url_path='registrar-finalize')
     def registrar_finalize(self, request, pk=None):
+        """
+        Final step in the resolution workflow.
+        The Registrar confirms the new grade and officially updates the record.
+        """
         return Response(GradeSerializer(self.service.registrar_finalize_resolution(pk, request.user)).data)

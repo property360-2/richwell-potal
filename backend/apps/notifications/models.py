@@ -1,7 +1,18 @@
+"""
+Richwell Portal — Notifications Models
+
+This module defines the system-wide notification system used to alert users 
+of academic, financial, and administrative updates.
+"""
+
 from django.db import models
 from django.conf import settings
 
 class Notification(models.Model):
+    """
+    Represents an in-app notification for a specific user.
+    Tracks read status, type-based categorization, and optional deep-linking.
+    """
     class NotificationType(models.TextChoices):
         ADVISING = 'ADVISING', 'Advising'
         GRADE = 'GRADE', 'Grade'
@@ -30,4 +41,7 @@ class Notification(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
+        """
+        Returns a human readable notification summary.
+        """
         return f"{self.recipient.username} - {self.title} ({self.type})"

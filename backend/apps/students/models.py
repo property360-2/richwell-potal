@@ -1,3 +1,11 @@
+"""
+Richwell Portal — Student Models
+
+This module defines the core student-related data structures, including the 
+Student profile and term-specific StudentEnrollment records. It handles 
+application status, document tracking, and graduation state.
+"""
+
 from django.db import models
 from django.conf import settings
 from apps.academics.models import Program, CurriculumVersion
@@ -5,6 +13,11 @@ from apps.terms.models import Term
 from apps.auditing.mixins import AuditMixin
 
 class Student(AuditMixin, models.Model):
+    """
+    Core student profile. Maintains personal information, academic program, 
+    and document submission status. Unlocked for advising by the registrar 
+    once prerequisites are met.
+    """
     GENDER_CHOICES = [
         ('MALE', 'Male'),
         ('FEMALE', 'Female'),
@@ -71,6 +84,10 @@ class Student(AuditMixin, models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
+        """
+        Returns a human readable name of the student.
+        Format: [IDN] Full Name
+        """
         return f"[{self.idn}] {self.user.get_full_name()}"
 
     def save(self, *args, **kwargs):
@@ -92,6 +109,10 @@ class Student(AuditMixin, models.Model):
 
 
 class StudentEnrollment(AuditMixin, models.Model):
+    """
+    Represents a student's enrollment for a particular academic term.
+    Tracks advising status, monthly payment commitments, and computed year level.
+    """
     ADVISING_STATUS_CHOICES = [
         ('DRAFT', 'Draft/Open'),
         ('PENDING', 'Pending Approval'),
@@ -118,4 +139,8 @@ class StudentEnrollment(AuditMixin, models.Model):
         ordering = ['-enrollment_date']
 
     def __str__(self):
+        """
+        Returns a human readable enrollment summary.
+        Format: IDN - Term Code
+        """
         return f"{self.student.idn} - {self.term.code}"

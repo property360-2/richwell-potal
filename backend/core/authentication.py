@@ -1,11 +1,24 @@
+"""
+Richwell Portal — Core Authentication
+
+This module defines custom authentication mechanisms for the portal, 
+specifically focusing on cookie-based JWT authentication for enhanced security.
+"""
+
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.conf import settings
 
 class JWTCookieAuthentication(JWTAuthentication):
     """
     Custom authentication class that reads the access token from an httpOnly cookie.
+    Allows for seamless authentication between frontend and backend without 
+    manual header management.
     """
     def authenticate(self, request):
+        """
+        Attempts to authenticate the request using either traditional headers or 
+        secure httpOnly cookies.
+        """
         header = self.get_header(request)
         if header is None:
             # If no header, try to get token from cookie

@@ -29,6 +29,10 @@ class Program(AuditMixin, TimestampMixin):
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
+        """
+        Returns a human readable program identifier.
+        Format: CODE - Full Name
+        """
         return f"{self.code} - {self.name}"
 
 
@@ -46,6 +50,10 @@ class CurriculumVersion(AuditMixin, models.Model):
         unique_together = ('program', 'version_name')
 
     def __str__(self):
+        """
+        Returns a human readable curriculum version identifier.
+        Format: PROGRAM_CODE - Version Name
+        """
         return f"{self.program.code} - {self.version_name}"
 
 
@@ -74,6 +82,10 @@ class Subject(AuditMixin, models.Model):
         ]
 
     def __str__(self):
+        """
+        Returns a human readable subject identifier.
+        Format: SUBJECT_CODE (PROGRAM_CODE)
+        """
         return f"{self.code} ({self.curriculum.program.code})"
 
 
@@ -106,6 +118,9 @@ class SubjectPrerequisite(AuditMixin, models.Model):
     description = models.CharField(max_length=200, null=True, blank=True)
 
     def __str__(self):
+        """
+        Returns a descriptive string explaining the prerequisite requirement.
+        """
         if self.prerequisite_type == 'SPECIFIC' and self.prerequisite_subject:
             return f"{self.subject.code} requires {self.prerequisite_subject.code}"
         elif self.prerequisite_type == 'YEAR_STANDING':

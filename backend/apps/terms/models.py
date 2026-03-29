@@ -1,8 +1,19 @@
+"""
+Richwell Portal — Terms Models
+
+This module defines the academic calendar periods (terms), including 
+enrollment windows, advising periods, and grade submission deadlines.
+"""
+
 from django.db import models
 from django.core.exceptions import ValidationError
 from apps.auditing.mixins import AuditMixin
 
 class Term(AuditMixin, models.Model):
+    """
+    Represents an academic term (e.g., First Semester 2027-2028).
+    Manages all critical dates and global state for the portal during its duration.
+    """
     SEMESTER_CHOICES = [
         ('1', 'First Semester'),
         ('2', 'Second Semester'),
@@ -43,9 +54,15 @@ class Term(AuditMixin, models.Model):
         ordering = ['-academic_year', '-semester_type']
 
     def __str__(self):
+        """
+        Returns a human readable term identifier.
+        """
         return f"{self.academic_year} - {self.get_semester_type_display()} ({self.code})"
 
     def save(self, *args, **kwargs):
+        """
+        Custom save logic to enforce that only one term is active at a time.
+        """
         if self.is_active:
             # Extract audit context to propagate to other terms
             audit_user = kwargs.get('audit_user')
@@ -60,6 +77,9 @@ class Term(AuditMixin, models.Model):
         super().save(*args, **kwargs)
 
     def clean(self):
+        """
+        Validates date ranges and logical constraints for the term.
+        """
         # Basic date validation
         if self.start_date and self.end_date and self.start_date > self.end_date:
             raise ValidationError("Start date cannot be after end date.")
