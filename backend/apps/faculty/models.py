@@ -1,7 +1,8 @@
 from django.db import models
 from django.conf import settings
+from apps.auditing.mixins import AuditMixin
 
-class Professor(models.Model):
+class Professor(AuditMixin, models.Model):
     EMPLOYMENT_STATUS_CHOICES = [
         ('FULL_TIME', 'Full-time'),
         ('PART_TIME', 'Part-time'),
@@ -35,7 +36,7 @@ class Professor(models.Model):
     def __str__(self):
         return f"{self.user.first_name} {self.user.last_name} ({self.employee_id})"
 
-class ProfessorSubject(models.Model):
+class ProfessorSubject(AuditMixin, models.Model):
     professor = models.ForeignKey(
         'faculty.Professor', 
         on_delete=models.CASCADE, 
@@ -56,7 +57,7 @@ class ProfessorSubject(models.Model):
     def __str__(self):
         return f"{self.professor.employee_id} - {self.subject.code}"
 
-class ProfessorAvailability(models.Model):
+class ProfessorAvailability(AuditMixin, models.Model):
     DAY_CHOICES = [
         ('M', 'Monday'),
         ('T', 'Tuesday'),

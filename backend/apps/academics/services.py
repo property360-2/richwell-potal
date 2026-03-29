@@ -9,14 +9,17 @@ import csv
 import io
 import re
 from .models import Program, CurriculumVersion, Subject, SubjectPrerequisite
+from apps.auditing.models import AuditLog
 
-def process_bulk_subjects_csv(file_obj):
+def process_bulk_subjects_csv(file_obj, audit_user=None, audit_ip=None):
     """
     Processes a CSV file containing curriculum and subject data.
     Automatically creates/updates Programs, Curriculums, and Subjects 
     while establishing complex prerequisite relationships.
     
     @param {File} file_obj - The uploaded CSV file object.
+    @param {User} audit_user - The user performing the upload for auditing.
+    @param {str} audit_ip - The IP address of the user for auditing.
     @returns {dict} A summary of processed records and any encountered errors.
     """
     # Use 'utf-8-sig' to automatically handle BOM if present
@@ -50,17 +53,17 @@ def process_bulk_subjects_csv(file_obj):
                 current_year_level = 1
                 last_program_code = program_code
                 
-            program, p_created = Program.objects.get_or_create(
-                code=program_code,
-                defaults={'name': f"Program {program_code}"}
-            )
-            if p_created: programs_created += 1
+            program = Program.objects.filter(code=program_code).first()
+            if not program:
+                program = Program(code=program_code, name=f"Program {program_code}")
+                program.save(skip_audit=True)
+                programs_created += 1
             
-            curriculum, c_created = CurriculumVersion.objects.get_or_create(
-                program=program,
-                version_name='V1'
-            )
-            if c_created: curriculums_created += 1
+            curriculum = CurriculumVersion.objects.filter(program=program, version_name='V1').first()
+            if not curriculum:
+                curriculum = CurriculumVersion(program=program, version_name='V1')
+                curriculum.save(skip_audit=True)
+                curriculums_created += 1
             
             yr_sem = row.get('Year_Semester', '')
             semester = '1'
@@ -69,7 +72,7 @@ def process_bulk_subjects_csv(file_obj):
                 semester = 'S'
                 if not program.has_summer:
                     program.has_summer = True
-                    program.save(update_fields=['has_summer'])
+                    program.save(update_fields=['has_summer'], skip_audit=True)
             else:
                 if '1st Year' in yr_sem: current_year_level = 1
                 elif '2nd Year' in yr_sem: current_year_level = 2
@@ -128,21 +131,22 @@ def process_bulk_subjects_csv(file_obj):
             if hrs_per_week == 0 and total_units > 0:
                 hrs_per_week = float(total_units)
 
-            subject, _ = Subject.objects.update_or_create(
-                curriculum=curriculum,
-                code=subject_code,
-                defaults={
-                    'description': row.get('Subject_Description', ''),
-                    'year_level': current_year_level,
-                    'semester': semester,
-                    'lec_units': lec_units,
-                    'lab_units': lab_units,
-                    'total_units': total_units,
-                    'hrs_per_week': hrs_per_week,
-                    'is_major': is_major,
-                    'is_practicum': is_practicum,
-                }
-            )
+            subject = Subject.objects.filter(curriculum=curriculum, code=subject_code).first()
+            if not subject:
+                subject = Subject(curriculum=curriculum, code=subject_code)
+            
+            subject.description = row.get('Subject_Description', '')
+            subject.year_level = current_year_level
+            subject.semester = semester
+            subject.lec_units = lec_units
+            subject.lab_units = lab_units
+            subject.total_units = total_units
+            subject.hrs_per_week = hrs_per_week
+            subject.is_major = is_major
+            subject.is_practicum = is_practicum
+            
+            subject.save(skip_audit=True)
+            
             subject_map[(curriculum.id, subject_code)] = subject
             subjects_processed += 1
             
@@ -171,22 +175,55 @@ def process_bulk_subjects_csv(file_obj):
             for p_code in prereq_codes:
                 p_subject = Subject.objects.filter(curriculum=curriculum, code=p_code).first()
                 if p_subject:
-                    SubjectPrerequisite.objects.get_or_create(
+                    prereq = SubjectPrerequisite.objects.filter(
                         subject=subject,
                         prerequisite_type='SPECIFIC',
                         prerequisite_subject=p_subject
-                    )
+                    ).first()
+                    if not prereq:
+                        prereq = SubjectPrerequisite(
+                            subject=subject,
+                            prerequisite_type='SPECIFIC',
+                            prerequisite_subject=p_subject
+                        )
+                        prereq.save(skip_audit=True)
                 else:
                     if 'Year Standing' in p_code:
                         match = re.search(r'(\d)', p_code)
                         if match:
-                            SubjectPrerequisite.objects.get_or_create(
+                            prereq = SubjectPrerequisite.objects.filter(
                                 subject=subject,
                                 prerequisite_type='YEAR_STANDING',
                                 standing_year=int(match.group(1))
-                            )
+                            ).first()
+                            if not prereq:
+                                prereq = SubjectPrerequisite(
+                                    subject=subject,
+                                    prerequisite_type='YEAR_STANDING',
+                                    standing_year=int(match.group(1))
+                                )
+                                prereq.save(skip_audit=True)
+
         except Exception:
             pass
+
+    # 3. Create a single summary AuditLog entry
+    if subjects_processed > 0:
+        AuditLog.objects.create(
+            user=audit_user,
+            action='BULK_IMPORT',
+            model_name='Curriculum',
+            object_repr='Bulk Curriculum Upload',
+            changes={
+                "message": "User has bulk uploaded curriculums",
+                "counts": {
+                    "programs": programs_created,
+                    "curriculums": curriculums_created,
+                    "subjects": subjects_processed
+                }
+            },
+            ip_address=audit_ip
+        )
 
     return {
         'programs_created': programs_created,

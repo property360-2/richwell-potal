@@ -7,19 +7,28 @@ class AuditMixin:
     Mixin to automatically log changes to a model.
     To be used with models that want to track CREATE/UPDATE/DELETE.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._original_state = self._get_instance_dict() if self.pk else {}
-
     def _get_instance_dict(self):
         return model_to_dict(self)
 
     def save(self, *args, **kwargs):
         user = kwargs.pop('audit_user', None)
         ip = kwargs.pop('audit_ip', None)
+        skip_audit = kwargs.pop('skip_audit', False)
+        
+        if skip_audit:
+            return super().save(*args, **kwargs)
         
         try:
             is_new = self.pk is None
+            original_state = {}
+            if not is_new:
+                # Fetch only the fields we are tracking
+                try:
+                    original_instance = self.__class__.objects.get(pk=self.pk)
+                    original_state = model_to_dict(original_instance)
+                except self.__class__.DoesNotExist:
+                    original_state = {}
+            
             super().save(*args, **kwargs)
             
             action = 'CREATE' if is_new else 'UPDATE'
@@ -28,7 +37,7 @@ class AuditMixin:
             changes = {}
             if not is_new:
                 for field, value in new_state.items():
-                    old_value = self._original_state.get(field)
+                    old_value = original_state.get(field)
                     if old_value != value:
                         # Serialize to JSON-friendly format
                         changes[field] = {
@@ -49,8 +58,7 @@ class AuditMixin:
                     ip_address=ip
                 )
             
-            # Update state after save
-            self._original_state = new_state
+            # No need to update state, it's captured locally in save()
         except Exception as e:
             # Fallback: create a minimal log or just fail gracefully if it's an audit issue
             # But here we want to see the error, so we'll log it to a file

@@ -1,7 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from apps.auditing.mixins import AuditMixin
 
-class User(AbstractUser):
+class User(AuditMixin, AbstractUser):
     class RoleChoices(models.TextChoices):
         ADMIN = 'ADMIN', 'Admin'
         HEAD_REGISTRAR = 'HEAD_REGISTRAR', 'Head Registrar'
@@ -18,10 +19,6 @@ class User(AbstractUser):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     must_change_password = models.BooleanField(default=False)
-
-    # Added to fix related_name clashes if needed, though they don't typically clash 
-    # unless you have another user model in the project. The default related names 
-    # work fine for AbstractUser if this is AUTH_USER_MODEL.
 
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"

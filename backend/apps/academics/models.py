@@ -8,8 +8,9 @@ Curriculum Versions, Subjects, and their Prerequisite relationships.
 from django.db import models
 from django.conf import settings
 from core.mixins import TimestampMixin
+from apps.auditing.mixins import AuditMixin
 
-class Program(TimestampMixin):
+class Program(AuditMixin, TimestampMixin):
     """
     Represents an Academic Program (e.g., BS Information Systems).
     Tracks the program head, versioning, and whether it includes summer terms.
@@ -31,7 +32,7 @@ class Program(TimestampMixin):
         return f"{self.code} - {self.name}"
 
 
-class CurriculumVersion(models.Model):
+class CurriculumVersion(AuditMixin, models.Model):
     """
     Groups subjects into a specific version for a program. 
     Only one version should typically be active at a time for a program.
@@ -48,7 +49,7 @@ class CurriculumVersion(models.Model):
         return f"{self.program.code} - {self.version_name}"
 
 
-class Subject(models.Model):
+class Subject(AuditMixin, models.Model):
     """
     Represents a specific subject/course within a curriculum version.
     Tracks units, hours, and whether it's a major/practicum.
@@ -76,7 +77,7 @@ class Subject(models.Model):
         return f"{self.code} ({self.curriculum.program.code})"
 
 
-class SubjectPrerequisite(models.Model):
+class SubjectPrerequisite(AuditMixin, models.Model):
     """
     Defines requirements for taking a specific subject. 
     Can be another specific subject, a year standing, or percentage of units.

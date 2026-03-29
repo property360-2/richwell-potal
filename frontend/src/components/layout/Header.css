@@ -69,13 +69,23 @@
 
 .notification-badge {
     position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 8px;
-    height: 8px;
-    background-color: var(--color-error);
-    border-radius: 50%;
-    border: 2px solid var(--color-surface);
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    background-color: #ef4444; /* Standard Red */
+    color: white;
+    border-radius: 10px;
+    border: 2px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .user-profile {

@@ -109,7 +109,15 @@ class SubjectViewSet(viewsets.ModelViewSet):
             
         try:
             with transaction.atomic():
-                result = process_bulk_subjects_csv(file_obj)
+                # Extract audit context
+                audit_user = request.user if request.user.is_authenticated else None
+                audit_ip = request.META.get('REMOTE_ADDR')
+                
+                result = process_bulk_subjects_csv(
+                    file_obj, 
+                    audit_user=audit_user, 
+                    audit_ip=audit_ip
+                )
                 
             return Response({
                 "message": "Bulk upload completed successfully",

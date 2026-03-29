@@ -1,7 +1,8 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from apps.auditing.mixins import AuditMixin
 
-class Term(models.Model):
+class Term(AuditMixin, models.Model):
     SEMESTER_CHOICES = [
         ('1', 'First Semester'),
         ('2', 'Second Semester'),
@@ -46,8 +47,16 @@ class Term(models.Model):
 
     def save(self, *args, **kwargs):
         if self.is_active:
+            # Extract audit context to propagate to other terms
+            audit_user = kwargs.get('audit_user')
+            audit_ip = kwargs.get('audit_ip')
+            
             # Deactivate all other terms if this one is active
-            Term.objects.filter(is_active=True).exclude(pk=self.pk).update(is_active=False)
+            other_active_terms = Term.objects.filter(is_active=True).exclude(pk=self.pk)
+            for term in other_active_terms:
+                term.is_active = False
+                term.save(audit_user=audit_user, audit_ip=audit_ip)
+
         super().save(*args, **kwargs)
 
     def clean(self):

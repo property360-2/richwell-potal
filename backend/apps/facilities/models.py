@@ -1,6 +1,7 @@
 from django.db import models
+from apps.auditing.mixins import AuditMixin
 
-class Room(models.Model):
+class Room(AuditMixin, models.Model):
     ROOM_TYPES = [
         ('LECTURE', 'Lecture Room'),
         ('COMPUTER_LAB', 'Computer Laboratory'),

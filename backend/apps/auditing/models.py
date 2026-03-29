@@ -9,6 +9,7 @@ class AuditLog(models.Model):
         ('LOGIN', 'Login'),
         ('LOGOUT', 'Logout'),
         ('LOGIN_FAILED', 'Login Failed'),
+        ('BULK_IMPORT', 'Bulk Import'),
     ]
 
     user = models.ForeignKey(
