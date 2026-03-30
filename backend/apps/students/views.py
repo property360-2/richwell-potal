@@ -23,7 +23,7 @@ from .serializers import (
 from .filters import StudentFilter
 from .services import (
     apply_student,
-    approve_student_application,
+    admit_student_application,
     enroll_student_for_term,
     manual_add_student_record,
     toggle_student_regularity,
@@ -68,16 +68,16 @@ class StudentViewSet(viewsets.ModelViewSet):
         return Response(StudentSelfSerializer(student).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdmissionOrRegistrar])
-    def approve(self, request, pk=None):
+    def admit(self, request, pk=None):
         """
-        Approves a student's application. Generates their official IDN, 
+        Admits a student's application. Generates their official IDN, 
         sets their monthly commitment, and creates their login credentials.
         """
         student = self.get_object()
         monthly = request.data.get('monthly_commitment')
         if not monthly: raise ValidationError({'monthly_commitment': ['Required.']})
         
-        credentials = approve_student_application(student, monthly, request.user)
+        credentials = admit_student_application(student, monthly, request.user)
         return Response({'student': StudentRecordSerializer(student).data, 'credentials': credentials})
 
     @action(detail=True, methods=['post'], url_path='unlock-advising')

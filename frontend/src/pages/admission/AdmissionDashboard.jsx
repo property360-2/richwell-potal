@@ -10,13 +10,13 @@ const AdmissionDashboard = () => {
     const [stats, setStats] = useState({
         pending_applicants: 12, // Mock or fetch
         today_appointments: 5,
-        approvals_today: 8
+        admissions_today: 8
     });
 
     const statCards = [
         { label: 'Pending Applicants', value: stats.pending_applicants, icon: <UserPlus />, color: 'bg-blue-glass' },
         { label: "Today's Appointments", value: stats.today_appointments, icon: <Calendar />, color: 'bg-purple-glass' },
-        { label: 'Approvals Today', value: stats.approvals_today, icon: <CheckCircle />, color: 'bg-emerald-glass' },
+        { label: 'Admissions Today', value: stats.admissions_today, icon: <CheckCircle />, color: 'bg-emerald-glass' },
     ];
 
     const actions = [

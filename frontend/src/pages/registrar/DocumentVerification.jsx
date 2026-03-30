@@ -25,7 +25,7 @@ const DocumentVerification = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('APPROVED');
+  const [statusFilter, setStatusFilter] = useState('ADMITTED');
   const { addToast } = useToast();
 
   const fetchStudents = async () => {
@@ -146,7 +146,7 @@ const DocumentVerification = () => {
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 options={[
-                  { value: 'APPROVED', label: 'Approved by Admission' },
+                  { value: 'ADMITTED', label: 'Admitted Students (Pending Verification)' },
                   { value: 'ENROLLED', label: 'Officially Enrolled' },
                   { value: '', label: 'All Students' }
                 ]}

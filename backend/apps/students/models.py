@@ -32,7 +32,7 @@ class Student(AuditMixin, models.Model):
 
     STATUS_CHOICES = [
         ('APPLICANT', 'Applicant'),
-        ('APPROVED', 'Approved'),
+        ('ADMITTED', 'Admitted'),
         ('REJECTED', 'Rejected'),
         ('ENROLLED', 'Enrolled'),
         ('INACTIVE', 'Inactive'),

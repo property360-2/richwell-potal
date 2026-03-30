@@ -5,6 +5,7 @@ import {
   FileText, 
   User, 
   MapPin, 
+  Mail,
   GraduationCap,
   ShieldCheck,
   Calendar,
@@ -20,15 +21,15 @@ import { Copy, Printer } from 'lucide-react';
 
 const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
   const [checklist, setChecklist] = useState({});
-  const [approving, setApproving] = useState(false);
+  const [isAdmitting, setIsAdmitting] = useState(false);
   const [monthlyCommitment, setMonthlyCommitment] = useState('');
-  const [approvedCredentials, setApprovedCredentials] = useState(null);
+  const [admissionCredentials, setAdmissionCredentials] = useState(null);
   const { addToast } = useToast();
 
   useEffect(() => {
     if (applicant) {
       setChecklist(applicant.document_checklist || {});
-      setApprovedCredentials(null);
+      setAdmissionCredentials(null);
       setMonthlyCommitment('');
     }
   }, [applicant, isOpen]);
@@ -52,26 +53,26 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
     }
   };
 
-  const handleApprove = async () => {
+  const handleAdmit = async () => {
     if (!monthlyCommitment) {
       addToast('error', 'Please enter the monthly commitment amount');
       return;
     }
-    if (!window.confirm('Approve this applicant? This will generate their Student ID and account.')) return;
+    if (!window.confirm('Admit this applicant? This will generate their Student ID and account.')) return;
     
     try {
-      setApproving(true);
+      setIsAdmitting(true);
       // First save the checklist to be sure
       await studentsApi.updateStudent(applicant.id, { document_checklist: checklist });
-      const res = await studentsApi.approve(applicant.id, { monthly_commitment: monthlyCommitment });
+      const res = await studentsApi.admit(applicant.id, { monthly_commitment: monthlyCommitment });
       
-      setApprovedCredentials(res.data.credentials);
-      addToast('success', `Applicant approved! IDN: ${res.data.credentials.idn}`);
+      setAdmissionCredentials(res.data.credentials);
+      addToast('success', `Student admitted! IDN: ${res.data.credentials.idn}`);
       onSuccess();
     } catch (err) {
-      addToast('error', err.response?.data?.error || 'Failed to approve applicant');
+      addToast('error', err.response?.data?.error || 'Failed to admit student');
     } finally {
-      setApproving(false);
+      setIsAdmitting(false);
     }
   };
 
@@ -92,7 +93,7 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
     addToast('success', `${label} copied to clipboard`);
   };
 
-  if (approvedCredentials) {
+  if (admissionCredentials) {
     return (
       <Modal isOpen={isOpen} onClose={onClose} title="Account Created Successfully" size="md">
         <div className="text-center py-6 space-y-6">
@@ -100,7 +101,7 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
             <CheckCircle2 size={48} />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-slate-800">Application Approved!</h3>
+            <h3 className="text-xl font-bold text-slate-800">Student Admitted!</h3>
             <p className="text-sm text-slate-500 mt-2">The following student account has been generated. Please provide these credentials to the student.</p>
           </div>
 
@@ -108,9 +109,9 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
             <div className="flex flex-col items-center gap-2">
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Student ID (IDN)</span>
               <div className="flex items-center gap-3">
-                <span className="text-3xl font-mono font-bold text-primary select-all">{approvedCredentials.idn}</span>
+                <span className="text-3xl font-mono font-bold text-primary select-all">{admissionCredentials.idn}</span>
                 <button 
-                  onClick={() => copyToClipboard(approvedCredentials.idn, 'Student ID')}
+                  onClick={() => copyToClipboard(admissionCredentials.idn, 'Student ID')}
                   className="p-1.5 text-slate-400 hover:text-primary hover:bg-white rounded-md transition-colors border border-transparent hover:border-slate-100"
                 >
                   <Copy size={16} />
@@ -123,9 +124,9 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
             <div className="flex flex-col items-center gap-2">
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Default Password</span>
               <div className="flex items-center gap-3">
-                <span className="text-3xl font-mono font-bold text-slate-700 select-all">{approvedCredentials.password}</span>
+                <span className="text-3xl font-mono font-bold text-slate-700 select-all">{admissionCredentials.password}</span>
                 <button 
-                  onClick={() => copyToClipboard(approvedCredentials.password, 'Password')}
+                  onClick={() => copyToClipboard(admissionCredentials.password, 'Password')}
                   className="p-1.5 text-slate-400 hover:text-primary hover:bg-white rounded-md transition-colors border border-transparent hover:border-slate-100"
                 >
                   <Copy size={16} />
@@ -155,157 +156,206 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
       size="xl"
     >
       <div className="space-y-8">
-        {/* Header Info */}
-        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
-           <div className="flex items-center gap-4">
-             <div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center font-bold text-xl">
-                {applicant.user.first_name[0]}{applicant.user.last_name[0]}
-             </div>
-             <div>
-                <h3 className="text-lg font-bold text-slate-800">{applicant.user.first_name} {applicant.user.last_name}</h3>
-                <p className="text-sm text-slate-500">{applicant.user.email}</p>
-             </div>
-           </div>
-           <Badge variant="warning">Pending Admission</Badge>
+        {/* Enhanced Identity Header */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 overflow-hidden relative">
+          {/* Subtle Background Accent */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -mr-16 -mt-16 pointer-events-none"></div>
+          
+          <div className="flex items-center gap-5 relative z-10">
+            <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary-hover text-white rounded-2xl flex items-center justify-center font-bold text-2xl shadow-lg transform rotate-3 hover:rotate-0 transition-transform duration-300">
+               {applicant.user.first_name[0]}{applicant.user.last_name[0]}
+            </div>
+            <div>
+               <div className="flex items-center gap-3">
+                 <h3 className="text-2xl font-bold text-slate-800 tracking-tight">
+                   {applicant.user.first_name} {applicant.user.last_name}
+                 </h3>
+                 <Badge variant="warning" className="px-3 py-1 font-bold text-[10px] uppercase">Pending Admission</Badge>
+               </div>
+               <div className="flex items-center gap-2 text-sm text-slate-500 mt-1">
+                 <Mail size={14} className="text-slate-400" />
+                 <span>{applicant.user.email}</span>
+               </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 relative z-10">
+            <div className="flex flex-col items-center px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[100px]">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status</span>
+              <span className="text-sm font-bold text-warning-light-contrast">Applicant</span>
+            </div>
+            <div className="flex flex-col items-center px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[100px]">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Applied</span>
+              <span className="text-sm font-bold text-slate-700">{new Date(applicant.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-           {/* Left Column: Details */}
-           <div className="space-y-6">
-              <section>
-                 <h4 className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">
-                    <User size={16} /> Personal Info
-                 </h4>
-                 <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                       <span className="block text-slate-400">Gender</span>
-                       <span className="font-medium">{applicant.gender}</span>
-                    </div>
-                    <div>
-                       <span className="block text-slate-400">Birthdate</span>
-                       <span className="font-medium">{applicant.date_of_birth}</span>
-                    </div>
-                    <div>
-                       <span className="block text-slate-400">Municipality</span>
-                       <span className="font-medium">{applicant.address_municipality}</span>
-                    </div>
-                    <div>
-                       <span className="block text-slate-400">Contact</span>
-                       <span className="font-medium">{applicant.contact_number}</span>
-                    </div>
-                 </div>
-              </section>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+           {/* Left/Main Column: Information Summary */}
+           <div className="lg:col-span-2 space-y-8">
+              {/* Detailed Information Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <section className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-200 transition-colors shadow-sm">
+                   <h4 className="flex items-center gap-2 text-[11px] font-extrabold text-slate-400 uppercase tracking-[0.1em] mb-5 pb-3 border-b border-slate-50">
+                      <User size={14} className="text-primary" /> Personal Information
+                   </h4>
+                   <div className="space-y-4">
+                      <DataRow label="Gender" value={applicant.gender} />
+                      <DataRow label="Birthdate" value={new Date(applicant.date_of_birth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} />
+                      <DataRow label="Municipality" value={applicant.address_municipality} />
+                      <DataRow label="Contact" value={applicant.contact_number} />
+                   </div>
+                </section>
 
-              <section>
-                 <h4 className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">
-                    <GraduationCap size={16} /> Program & Type
-                 </h4>
-                 <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="col-span-2">
-                       <span className="block text-slate-400">Preferred Program</span>
-                       <span className="font-medium">{applicant.program_details?.code} - {applicant.program_details?.name}</span>
-                    </div>
-                    <div>
-                       <span className="block text-slate-400">Curriculum</span>
-                       <span className="font-medium">{applicant.curriculum_details?.version_name}</span>
-                    </div>
-                    <div>
-                       <span className="block text-slate-400">Student Type</span>
-                       <span className="font-medium">{applicant.student_type}</span>
-                    </div>
-                 </div>
-              </section>
+                <section className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-200 transition-colors shadow-sm">
+                   <h4 className="flex items-center gap-2 text-[11px] font-extrabold text-slate-400 uppercase tracking-[0.1em] mb-5 pb-3 border-b border-slate-50">
+                      <GraduationCap size={14} className="text-primary" /> Academic Profile
+                   </h4>
+                   <div className="space-y-4">
+                      <div className="pb-3 border-b border-slate-50 last:border-0 last:pb-0">
+                         <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-tight mb-1">Preferred Program</span>
+                         <span className="block font-bold text-slate-700">{applicant.program_details?.code}</span>
+                         <span className="text-xs text-slate-500 leading-tight block mt-0.5">{applicant.program_details?.name}</span>
+                      </div>
+                      <DataRow label="Curriculum" value={applicant.curriculum_details?.version_name || 'V1 (Auto)'} />
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Student Type</span>
+                        <Badge variant={applicant.student_type === 'FRESHMAN' ? 'info' : 'warning'} className="font-bold">{applicant.student_type}</Badge>
+                      </div>
+                   </div>
+                </section>
+              </div>
 
-              <section className="bg-primary/5 p-4 rounded-lg border border-primary/10">
-                 <h4 className="flex items-center gap-2 text-sm font-bold text-primary uppercase tracking-wider mb-4">
-                    <ShieldCheck size={16} /> Admission Step
-                 </h4>
-                 <Input 
-                   label="Monthly Payment Commitment" 
-                   type="number" 
-                   placeholder="e.g. 5000"
-                   value={monthlyCommitment}
-                   onChange={(e) => setMonthlyCommitment(e.target.value)}
-                   helperText="This amount is required to approve the application."
-                 />
+              {/* Admission Approval Step */}
+              <section className="bg-gradient-to-r from-primary/10 to-primary/5 p-6 rounded-3xl border border-primary/20 shadow-sm relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-10">
+                   <ShieldCheck size={80} />
+                 </div>
+                 
+                 <div className="relative z-10">
+                   <h4 className="flex items-center gap-2 text-[11px] font-extrabold text-primary uppercase tracking-[0.2em] mb-4">
+                      <CheckCircle2 size={16} /> Final Review & Admission
+                   </h4>
+                   <p className="text-sm text-slate-600 mb-6 max-w-md">
+                     Verify all documents below before admitting. You must specify the <strong>Monthly Payment Commitment</strong> for the financial agreement.
+                   </p>
+                   
+                   <div className="max-w-sm">
+                      <Input 
+                        label="Monthly Payment Commitment" 
+                        type="number" 
+                        placeholder="e.g. 5000"
+                        value={monthlyCommitment}
+                        onChange={(e) => setMonthlyCommitment(e.target.value)}
+                        icon={<span className="text-slate-400 font-bold">₱</span>}
+                        className="bg-white border-2 border-primary/10 focus-within:border-primary transition-all rounded-xl"
+                      />
+                   </div>
+                 </div>
               </section>
            </div>
 
-           {/* Right Column: Document Checklist */}
-           <section className="bg-slate-50 p-6 rounded-lg border border-slate-100 h-fit">
-              <div className="flex items-center justify-between mb-6">
-                <h4 className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-wider">
-                   <FileText size={16} /> Document Checklist
-                </h4>
-                <div className="flex gap-2">
-                  <button 
-                    type="button"
-                    onClick={() => markAll(true)}
-                    className="text-[10px] font-bold text-primary hover:text-primary-hover uppercase tracking-tight"
-                  >
-                    Mark All
-                  </button>
-                  <span className="text-slate-300">|</span>
-                  <button 
-                    type="button"
-                    onClick={() => markAll(false)}
-                    className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase tracking-tight"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2">
-                 {Object.keys(checklist).map(key => (
-                    <label 
-                      key={key} 
-                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${
-                        checklist[key].submitted 
-                        ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-sm' 
-                        : 'bg-white border-slate-100 hover:border-slate-300 text-slate-600'
-                      }`}
+           {/* Right Column: Interactive Checklist */}
+           <div className="lg:col-span-1">
+             <section className="bg-slate-50 p-6 rounded-3xl border border-slate-200 h-full shadow-inner shadow-slate-100">
+                <div className="flex items-center justify-between mb-8">
+                  <h4 className="flex items-center gap-2 text-[11px] font-extrabold text-slate-500 uppercase tracking-[0.1em]">
+                     <FileText size={14} className="text-primary" /> Document Tracking
+                  </h4>
+                  <div className="flex gap-3">
+                    <button 
+                      type="button"
+                      onClick={() => markAll(true)}
+                      className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tight"
                     >
-                       <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all flex-shrink-0 ${
-                         checklist[key].submitted 
-                         ? 'bg-blue-600 border-blue-600 text-white' 
-                         : 'bg-white border-slate-300 group-hover:border-slate-400'
-                       }`}>
-                          {checklist[key].submitted && <Check size={14} strokeWidth={4} />}
-                       </div>
+                      All
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => markAll(false)}
+                      className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase tracking-tight"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
 
-                       <span className={`text-[11px] font-bold uppercase tracking-tight transition-colors ${
-                         checklist[key].submitted ? 'text-blue-900' : 'text-slate-600'
-                       }`}>
-                          {key.replace(/_/g, ' ')}
-                       </span>
+                <div className="space-y-2.5">
+                   {Object.keys(checklist).map(key => (
+                      <label 
+                        key={key} 
+                        className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all duration-300 group ${
+                          checklist[key].submitted 
+                          ? 'bg-primary text-white border-primary shadow-md transform scale-[1.02]' 
+                          : 'bg-white border-slate-100 hover:border-primary/30 text-slate-600 hover:bg-white hover:shadow-sm'
+                        }`}
+                      >
+                         <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+                           checklist[key].submitted 
+                           ? 'bg-white/20 border-white/20 text-white' 
+                           : 'bg-slate-100 border-slate-200 group-hover:border-primary/20'
+                         }`}>
+                            {checklist[key].submitted && <Check size={14} strokeWidth={4} />}
+                         </div>
 
-                       <input 
-                         type="checkbox" 
-                         checked={checklist[key].submitted} 
-                         onChange={() => toggleDocument(key)}
-                         className="hidden"
-                       />
-                    </label>
-                 ))}
-              </div>
-           </section>
+                         <span className={`text-[11px] font-bold uppercase tracking-wide flex-1 ${
+                           checklist[key].submitted ? 'text-white' : 'text-slate-700'
+                         }`}>
+                            {key.replace(/_/g, ' ')}
+                         </span>
+
+                         {checklist[key].submitted && (
+                            <div className="text-[9px] font-bold bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-widest text-white/90">
+                              Verified
+                            </div>
+                         )}
+
+                         <input 
+                           type="checkbox" 
+                           checked={checklist[key].submitted} 
+                           onChange={() => toggleDocument(key)}
+                           className="hidden"
+                         />
+                      </label>
+                   ))}
+                </div>
+                
+                <div className="mt-8">
+                  <Button 
+                    variant="ghost" 
+                    fullWidth 
+                    className="text-primary font-bold border-2 border-primary/20 hover:border-primary/40 bg-white" 
+                    onClick={handleUpdateChecklist}
+                  >
+                    Save Progress Only
+                  </Button>
+                </div>
+             </section>
+           </div>
         </div>
 
-        <div className="flex justify-between items-center pt-6 border-t border-slate-100">
-          <Button variant="ghost" onClick={handleUpdateChecklist}>
-            Save Checklist Only
+        {/* Sticky Footer */}
+        <div className="flex justify-between items-center pt-8 border-t border-slate-200 mt-4 relative z-20">
+          <Button 
+            variant="ghost" 
+            className="text-slate-400 hover:text-slate-600" 
+            onClick={onClose}
+          >
+            Cancel Review
           </Button>
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={onClose}>Close</Button>
+          
+          <div className="flex gap-4">
             <Button 
               variant="primary" 
-              onClick={handleApprove} 
-              loading={approving}
-              icon={<ShieldCheck size={18} />}
+              size="lg"
+              className="px-8 shadow-lg shadow-primary/20"
+              onClick={handleAdmit} 
+              loading={isAdmitting}
+              icon={<ShieldCheck size={20} />}
               disabled={!monthlyCommitment}
             >
-              Approve & Create Account
+              Admit & Finalize Registration
             </Button>
           </div>
         </div>
@@ -313,5 +363,15 @@ const ApplicantDetailsModal = ({ isOpen, onClose, onSuccess, applicant }) => {
     </Modal>
   );
 };
+
+/**
+ * DataRow - Visual helper for labeled information
+ */
+const DataRow = ({ label, value }) => (
+  <div className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 last:pb-0">
+    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{label}</span>
+    <span className="text-sm font-bold text-slate-700">{value || 'N/A'}</span>
+  </div>
+);
 
 export default ApplicantDetailsModal;

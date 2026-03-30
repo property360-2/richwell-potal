@@ -26,15 +26,16 @@ const ContactStep = ({
   locations, 
   barangays, 
   selectedMunicipality, 
-  handlePhoneInput 
+  handlePhoneInput,
+  watch
 }) => {
   return (
     <div className="apply-step-card" key="step-2">
       <div className="step-header">
-        <div className="step-header-icon"><Mail size={20} /></div>
+        <div className="step-header-icon"><Mail size={24} /></div>
         <div>
-          <h2>Contact & Address</h2>
-          <p>How can we reach you?</p>
+          <h2>Contact & Residence</h2>
+          <p>How should we keep in touch with you?</p>
         </div>
       </div>
 
@@ -43,7 +44,7 @@ const ContactStep = ({
           label="Email Address" 
           type="email" 
           placeholder="you@email.com"
-          icon={<Mail size={16} />} 
+          icon={<Mail size={18} className="text-primary/50" />} 
           {...register('email', { 
             required: 'Email is required',
             pattern: {
@@ -56,7 +57,7 @@ const ContactStep = ({
         <Input 
           label="Contact Number" 
           placeholder="09XXXXXXXXX"
-          icon={<Phone size={16} />} 
+          icon={<Phone size={18} className="text-primary/50" />} 
           maxLength={11}
           onInput={handlePhoneInput}
           {...register('contact_number', { 
@@ -70,31 +71,40 @@ const ContactStep = ({
         />
       </div>
 
-      <div className="form-grid-2 form-row">
-        <Select 
-          label="Municipality (Bulacan)" 
-          placeholder="Select Municipality"
-          icon={<MapPin size={16} />}
-          {...register('address_municipality', { required: 'Municipality is required' })} 
-          options={locations ? Object.keys(locations).map(name => ({ value: name, label: name })) : []}
-          error={errors.address_municipality?.message}
-        />
-        <Select 
-          label="Barangay" 
-          placeholder="Select Barangay"
-          {...register('address_barangay', { required: 'Barangay is required' })} 
-          options={barangays.map(b => ({ value: b, label: b }))}
-          disabled={!selectedMunicipality}
-          error={errors.address_barangay?.message}
-        />
-      </div>
+      <div className="pt-6 border-t border-slate-50 mt-8">
+        <h4 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+          <MapPin size={14} className="text-primary" /> Permanent Address
+        </h4>
 
-      <div className="form-row">
-        <Input 
-          label="Full Address (Street, House No.)" 
-          placeholder="e.g., 123 Rizal St."
-          {...register('address_full')} 
-        />
+        <div className="form-grid-2">
+          <Select 
+            label="Municipality" 
+            placeholder="Select Municipality"
+            icon={<MapPin size={16} />}
+            {...register('address_municipality', { required: 'Municipality is required' })} 
+            options={locations ? Object.keys(locations).map(name => ({ value: name, label: name })) : []}
+            error={errors.address_municipality?.message}
+            value={watch('address_municipality')}
+          />
+          <Select 
+            label="Barangay" 
+            placeholder="Select Barangay"
+            {...register('address_barangay', { required: 'Barangay is required' })} 
+            options={barangays.map(b => ({ value: b, label: b }))}
+            disabled={!selectedMunicipality}
+            error={errors.address_barangay?.message}
+            value={watch('address_barangay')}
+          />
+        </div>
+
+        <div className="form-row">
+          <Input 
+            label="Street / House Number / Landmark" 
+            placeholder="e.g., 123 Rizal St. near Central Plaza"
+            {...register('address_full', { required: 'Street address is required' })} 
+            error={errors.address_full?.message}
+          />
+        </div>
       </div>
     </div>
   );

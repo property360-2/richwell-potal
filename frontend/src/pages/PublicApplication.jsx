@@ -36,12 +36,9 @@ const STEPS = [
   { label: 'Review', icon: Send },
 ];
 
-/**
- * Maps specific fields to steps to support partial form validation before proceeding.
- */
 const STEP_FIELDS = {
   1: ['first_name', 'last_name', 'date_of_birth', 'gender', 'student_type'],
-  2: ['email', 'contact_number', 'address_municipality', 'address_barangay'],
+  2: ['email', 'contact_number', 'address_municipality', 'address_barangay', 'address_full'],
   3: ['program'],
   4: ['guardian_name', 'guardian_contact'],
   5: [],
@@ -126,8 +123,13 @@ const PublicApplication = () => {
 
   /**
    * Validates mandated fields for the current step before advancing to the next step.
+   * Added a small lock check to prevent double-click skips to Step 5 submission.
    */
+  const [isNavigating, setIsNavigating] = useState(false);
+
   const handleNext = async () => {
+    if (isNavigating) return;
+    
     const fieldsToValidate = [...STEP_FIELDS[currentStep]];
     if (currentStep === 1 && studentType === 'TRANSFEREE') {
       fieldsToValidate.push('previous_school');
@@ -135,8 +137,13 @@ const PublicApplication = () => {
 
     const valid = await trigger(fieldsToValidate);
     if (valid) {
+      setIsNavigating(true);
       setCurrentStep(prev => Math.min(prev + 1, 5));
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      // Brief debounce to prevent accidental double-tap on Step 4 'Continue' 
+      // from hitting Step 5 'Submit' button in the same position.
+      setTimeout(() => setIsNavigating(false), 500);
     }
   };
 
@@ -153,6 +160,9 @@ const PublicApplication = () => {
    * @param {Object} data - Processed form data ready for the students API.
    */
   const onSubmit = async (data) => {
+    // Prevent premature submissions from 'Enter' keypresses
+    if (currentStep !== 5) return;
+
     try {
       await studentsApi.apply(data);
       setSubmitted(true);
@@ -241,7 +251,15 @@ const PublicApplication = () => {
 
       {/* Main Form Scaffolding */}
       <div className="apply-form-container">
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form 
+          onSubmit={handleSubmit(onSubmit)} 
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && currentStep < 5) {
+              e.preventDefault();
+              handleNext();
+            }
+          }}
+        >
           <input type="hidden" {...register('curriculum')} />
 
           {/* Render Step Components - Rule 7 & 12 Implementation */}
@@ -257,6 +275,7 @@ const PublicApplication = () => {
               barangays={barangays}
               selectedMunicipality={selectedMunicipality}
               handlePhoneInput={handlePhoneInput}
+              watch={watch}
             />
           )}
 
@@ -269,7 +288,13 @@ const PublicApplication = () => {
           )}
 
           {currentStep === 5 && (
-            <ReviewStep values={values} getProgramName={getProgramName} />
+            <ReviewStep 
+              values={watch()} 
+              getProgramName={(id) => {
+                const program = programs.find(p => p.id === id || p.id === parseInt(id));
+                return program ? program.name : id;
+              }}
+            />
           )}
 
           {/* Form Navigation Controls */}
@@ -291,6 +316,7 @@ const PublicApplication = () => {
                   variant="primary" 
                   type="button"
                   onClick={handleNext}
+                  disabled={isNavigating}
                 >
                   Continue
                   <ChevronRight size={18} style={{ marginLeft: '4px' }} />
@@ -300,6 +326,7 @@ const PublicApplication = () => {
                   variant="primary" 
                   type="submit" 
                   loading={isSubmitting}
+                  disabled={isNavigating}
                   icon={<Send size={18} />}
                 >
                   Submit Application

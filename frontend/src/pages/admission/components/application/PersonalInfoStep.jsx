@@ -20,28 +20,28 @@ const PersonalInfoStep = ({ register, errors, studentType }) => {
   return (
     <div className="apply-step-card" key="step-1">
       <div className="step-header">
-        <div className="step-header-icon"><User size={20} /></div>
+        <div className="step-header-icon"><User size={24} /></div>
         <div>
           <h2>Personal Information</h2>
-          <p>Tell us about yourself</p>
+          <p>Provide your legal identity as it appears on official documents</p>
         </div>
       </div>
 
       <div className="form-grid-3">
         <Input 
           label="First Name" 
-          placeholder="Juan"
+          placeholder="e.g. Juan"
           {...register('first_name', { required: 'First name is required' })} 
           error={errors.first_name?.message} 
         />
         <Input 
           label="Middle Name" 
-          placeholder="Santos (Optional)"
+          placeholder="e.g. Santos (Optional)"
           {...register('middle_name')} 
         />
         <Input 
           label="Last Name" 
-          placeholder="Dela Cruz"
+          placeholder="e.g. Dela Cruz"
           {...register('last_name', { required: 'Last name is required' })} 
           error={errors.last_name?.message} 
         />
@@ -76,11 +76,11 @@ const PersonalInfoStep = ({ register, errors, studentType }) => {
       </div>
 
       {studentType === 'TRANSFEREE' && (
-        <div className="form-row">
+        <div className="form-row pt-4 border-t border-slate-50 mt-6">
           <Input 
             label="Previous School / University" 
-            placeholder="e.g., Bulacan State University"
-            icon={<GraduationCap size={16} />}
+            placeholder="Name of last institution attended"
+            icon={<GraduationCap size={18} className="text-primary/50" />}
             {...register('previous_school', { required: 'Previous school is required for transferees' })} 
             error={errors.previous_school?.message} 
           />

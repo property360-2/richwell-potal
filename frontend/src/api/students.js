@@ -5,7 +5,7 @@ export const studentsApi = {
     getStudent: (id) => api.get(`students/${id}/`),
     updateStudent: (id, data) => api.patch(`students/${id}/`, data),
     apply: (data) => api.post('students/apply/', data),
-    approve: (id, data) => api.post(`students/${id}/approve/`, data),
+    admit: (id, data) => api.post(`students/${id}/admit/`, data),
     returningStudent: (id, data) => api.post(`students/${id}/returning-student/`, data),
 
     // Enrollments

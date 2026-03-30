@@ -36,7 +36,7 @@ const Select = forwardRef(({
           id={selectId}
           ref={ref}
           disabled={disabled}
-          className={`select-field ${hasError ? 'select-error' : ''} ${(placeholder && !props.value) ? 'select-unselected' : ''} ${Icon ? 'has-icon-left' : ''}`}
+          className={`select-field ${hasError ? 'select-error' : ''} ${Icon ? 'has-icon-left' : ''} ${className}`}
           aria-invalid={hasError}
           aria-describedby={hasError ? `${selectId}-error` : undefined}
           {...props}

@@ -20,32 +20,33 @@ const AcademicStep = ({ register, errors, programs, curriculums }) => {
   return (
     <div className="apply-step-card" key="step-3">
       <div className="step-header">
-        <div className="step-header-icon"><GraduationCap size={20} /></div>
+        <div className="step-header-icon"><GraduationCap size={24} /></div>
         <div>
           <h2>Academic Preference</h2>
           <p>Choose the program you want to pursue</p>
         </div>
       </div>
 
-      <Select 
-        label="Preferred Program" 
-        placeholder="Select a Program"
-        {...register('program', { required: 'Program selection is required' })} 
-        options={programs.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))}
-        error={errors.program?.message}
-        fullWidth
-      />
+      <div className="space-y-6">
+        <Select 
+          label="Preferred Program" 
+          placeholder="Search or select a program"
+          {...register('program', { required: 'Program selection is required' })} 
+          options={programs.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))}
+          error={errors.program?.message}
+          fullWidth
+        />
 
-      {curriculums.length > 0 && (
-        <div className="form-row" style={{ padding: '12px 16px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #dcfce7' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckCircle2 size={16} style={{ color: '#16a34a' }} />
-            <span style={{ fontSize: '13px', fontWeight: '600', color: '#166534' }}>
-              Curriculum auto-assigned: {curriculums[0]?.name || curriculums[0]?.code}
-            </span>
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-3">
+          <CheckCircle2 size={18} className="text-primary mt-0.5" />
+          <div>
+            <p className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Curriculum Assignment</p>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Based on your selection, the latest relevant curriculum will be automatically assigned to your profile for the upcoming academic year.
+            </p>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; padding: 32px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        h1 { color: #0f172a; font-size: 24px; font-weight: 700; margin-bottom: 16px; border-bottom: 2px solid #2563eb; padding-bottom: 8px;}
+        p { font-size: 15px; line-height: 1.6; color: #475569; margin-bottom: 16px; }
+        .highlight { background: #eff6ff; color: #1d4ed8; padding: 12px; border-radius: 8px; font-weight: 500; text-align: center; border: 1px dashed #bfdbfe; }
+        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #f1f5f9; font-size: 13px; color: #94a3b8; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Application Received</h1>
+        <p>Dear {{ applicant_name }},</p>
+        <p>Thank you for submitting your application to <strong>Richwell Colleges</strong>. We have received your application successfully.</p>
+        
+        <div class="highlight">
+            Your chosen program: {{ program_name }}<br/>
+            Term: {{ term_name }}
+        </div>
+        
+        <p>Please wait for further instructions regarding your document verification appointment. Our admissions team will get back to you shortly.</p>
+        <p>Best regards,<br/><strong>Richwell Colleges Admissions Team</strong></p>
+        
+        <div class="footer">
+            &copy; {% now "Y" %} Richwell Colleges. All rights reserved.
+        </div>
+    </div>
+</body>
+</html>

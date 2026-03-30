@@ -81,7 +81,7 @@ const UIDemo = () => {
           </div>
           <h3 className="text-sm font-semibold mb-2">StatusBadge Shared Component</h3>
           <div className="flex flex-wrap gap-2">
-            <StatusBadge status="APPROVED" />
+            <StatusBadge status="ADMITTED" />
             <StatusBadge status="PENDING" />
             <StatusBadge status="REJECTED" />
             <StatusBadge status="ON_LEAVE" />

@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 
 from .models import Student, StudentEnrollment
 from core.models import SystemSequence
+from apps.notifications.services.email_service import EmailService
 
 User = get_user_model()
 
@@ -56,20 +57,41 @@ def apply_student(data):
             student_type=data['student_type'],
             status='APPLICANT'
         )
+
+        # Send Confirmation Email
+        try:
+            from apps.academics.models import Program
+            from apps.terms.models import Term
+            program = Program.objects.filter(id=student.program_id).first()
+            active_term = Term.objects.filter(is_active=True).first()
+            
+            EmailService.send_html_email(
+                subject="Application Received - Richwell Colleges",
+                template_name="emails/application_confirmation.html",
+                context={
+                    'applicant_name': f"{student.user.first_name} {student.user.last_name}",
+                    'program_name': program.name if program else "Selected Program",
+                    'term_name': active_term.name if active_term else "Upcoming Term"
+                },
+                recipient_list=[email]
+            )
+        except Exception:
+            pass # Don't block application if email fails
+            
         return student
 
-def approve_student_application(student, monthly_commitment, approved_by):
+def admit_student_application(student, monthly_commitment, admitted_by):
     """
-    Approves a student's application, generates an IDN, activates the user account,
+    Admits a student's application, generates an IDN, activates the user account,
     and sets up initial enrollment for the active term.
     
-    @param {Student} student - The applicant to approve.
+    @param {Student} student - The applicant to admit.
     @param {float} monthly_commitment - The agreed monthly payment.
-    @param {User} approved_by - The staff user performing the approval.
-    @returns {dict} Approval details including generated credentials.
+    @param {User} admitted_by - The staff user performing the admission.
+    @returns {dict} Admission details including generated credentials.
     """
     if student.status != 'APPLICANT':
-        raise ValidationError({'detail': 'Only applicants can be approved.'})
+        raise ValidationError({'detail': 'Only applicants can be admitted.'})
         
     # Get active term
     from apps.terms.models import Term
@@ -95,7 +117,7 @@ def approve_student_application(student, monthly_commitment, approved_by):
         
         # Update User and Student
         student.idn = idn
-        student.status = 'APPROVED'
+        student.status = 'ADMITTED'
         student.user.username = idn
         student.user.is_active = True
         
@@ -115,11 +137,28 @@ def approve_student_application(student, monthly_commitment, approved_by):
             defaults={
                 'monthly_commitment': monthly_commitment,
                 'year_level': year_level,
-                'enrolled_by': approved_by,
+                'enrolled_by': admitted_by,
                 'is_regular': AdvisingService.check_student_regularity(student, active_term)
             }
         )
         
+        
+        # Send Account Verified Email
+        try:
+            EmailService.send_html_email(
+                subject="Application Verified - Richwell Colleges",
+                template_name="emails/account_verified.html",
+                context={
+                    'student_name': f"{student.user.first_name} {student.user.last_name}",
+                    'idn': idn,
+                    'password': generated_password,
+                    'login_url': "http://localhost:5173/login" # Should use a setting in production
+                },
+                recipient_list=[student.user.email]
+            )
+        except Exception:
+            pass
+
         return {
             'idn': idn,
             'password': generated_password,
@@ -136,7 +175,7 @@ def enroll_student_for_term(student, monthly_commitment, enrolled_by):
     @returns {StudentEnrollment} The created or updated enrollment record.
     """
     if student.status in ['APPLICANT', 'REJECTED']:
-        raise ValidationError({'detail': 'Only approved students can be enrolled.'})
+        raise ValidationError({'detail': 'Only admitted students can be enrolled.'})
             
     from apps.terms.models import Term
     active_term = Term.objects.filter(is_active=True).first()

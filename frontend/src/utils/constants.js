@@ -13,6 +13,7 @@ export const ROLES = {
 export const STATUS = {
     PENDING: 'PENDING',
     APPROVED: 'APPROVED',
+    ADMITTED: 'ADMITTED',
     REJECTED: 'REJECTED',
     ACTIVE: 'ACTIVE',
     INACTIVE: 'INACTIVE',
