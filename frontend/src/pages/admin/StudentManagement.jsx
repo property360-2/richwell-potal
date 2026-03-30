@@ -24,7 +24,9 @@ const StudentManagement = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [curriculums, setCurriculums] = useState([]);
-  const [statusFilter, setStatusFilter] = useState('APPROVED,ENROLLED,INACTIVE,GRADUATED');
+  const [statusFilter, setStatusFilter] = useState('ADMITTED,ENROLLED,INACTIVE,GRADUATED');
+  const [programFilter, setProgramFilter] = useState('');
+  const [yearLevelFilter, setYearLevelFilter] = useState('');
   const [activeTerm, setActiveTerm] = useState(null);
   const [dropdownStudentId, setDropdownStudentId] = useState(null);
   const dropdownRef = useRef(null);
@@ -35,14 +37,12 @@ const StudentManagement = () => {
 
   useEffect(() => {
     fetchStudents();
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, programFilter, yearLevelFilter]);
 
   useEffect(() => {
-    if (modalOpen) {
-      fetchAcademics();
-    }
+    fetchAcademics();
     fetchActiveTerm();
-  }, [modalOpen]);
+  }, []);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -77,6 +77,8 @@ const StudentManagement = () => {
       const res = await studentsApi.getStudents({ 
         search: searchTerm,
         status: statusFilter,
+        program: programFilter,
+        year_level: yearLevelFilter,
         page_size: 100
       });
       setStudents(res.data.results || (Array.isArray(res.data) ? res.data : []));
@@ -205,7 +207,7 @@ const StudentManagement = () => {
       header: 'Status',
       render: (student) => {
         const variants = {
-          'APPROVED': 'info',
+          'ADMITTED': 'info',
           'ENROLLED': 'success',
           'INACTIVE': 'neutral',
           'GRADUATED': 'warning'
@@ -265,34 +267,68 @@ const StudentManagement = () => {
       <div className="page-header">
         <div className="header-title-section">
           <h2>Student Management</h2>
-          <p>View and manage enrolled and approved students</p>
+          <p>View and manage enrolled and admitted students</p>
         </div>
         <Button variant="primary" icon={<UserPlus size={18} />} onClick={() => setModalOpen(true)}>
           Add Student
         </Button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex-1 max-w-md">
+      <div className="filter-bar">
+        <div className="search-wrapper">
           <Input
-            placeholder="Search by name, IDN, or email..."
-            icon={<Search size={18} />}
+            placeholder="Search name, IDN..."
+            icon={<Search size={16} />}
+            className="search-input"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="w-full md:w-64">
-           <Select 
-             value={statusFilter}
-             onChange={(e) => setStatusFilter(e.target.value)}
-             options={[
-               { value: 'APPROVED,ENROLLED,INACTIVE,GRADUATED', label: 'All Students' },
-               { value: 'APPROVED', label: 'Approved Students' },
-               { value: 'ENROLLED', label: 'Officially Enrolled' },
-               { value: 'INACTIVE', label: 'Inactive' },
-               { value: 'APPLICANT', label: 'Applications (Pending)' }
-             ]}
-           />
+        
+        <div className="filter-group">
+          <div className="filter-separator" />
+          
+          <div className="filter-item program-select">
+             <Select 
+               value={programFilter}
+               onChange={(e) => setProgramFilter(e.target.value)}
+               options={[
+                 { value: '', label: 'All Programs' },
+                 ...programs
+               ]}
+               className="compact-select"
+             />
+          </div>
+          
+          <div className="filter-item year-select">
+             <Select 
+               value={yearLevelFilter}
+               onChange={(e) => setYearLevelFilter(e.target.value)}
+               options={[
+                 { value: '', label: 'Year Levels' },
+                 { value: '1', label: '1st Year' },
+                 { value: '2', label: '2nd Year' },
+                 { value: '3', label: '3rd Year' },
+                 { value: '4', label: '4th Year' }
+               ]}
+               className="compact-select"
+             />
+          </div>
+          
+          <div className="filter-item status-select">
+             <Select 
+               value={statusFilter}
+               onChange={(e) => setStatusFilter(e.target.value)}
+               options={[
+                 { value: 'ADMITTED,ENROLLED,INACTIVE,GRADUATED', label: 'All Status' },
+                 { value: 'ADMITTED', label: 'Admitted' },
+                 { value: 'ENROLLED', label: 'Enrolled' },
+                 { value: 'INACTIVE', label: 'Inactive' },
+                 { value: 'APPLICANT', label: 'Pending' }
+               ]}
+               className="compact-select"
+             />
+          </div>
         </div>
       </div>
 

@@ -21,8 +21,9 @@ from apps.academics.models import Subject, Program
 from apps.facilities.models import Room
 from apps.faculty.models import Professor
 from apps.finance.models import Payment
-from apps.notifications.models import Notification
+from apps.terms.models import Term
 from apps.auditing.models import AuditLog
+from django.utils import timezone
 
 class ReportService:
     """
@@ -135,8 +136,33 @@ class ReportService:
         if role == 'REGISTRAR':
             return {"pending_docs": Student.objects.filter(status='APPLICANT').count(), "pending_advising": StudentEnrollment.objects.filter(advising_status='PENDING').count(), "total_students": Student.objects.count()}
         if role == 'CASHIER':
-            from django.utils import timezone
             return {"today": Payment.objects.filter(created_at__date=timezone.now().date()).aggregate(s=Sum('amount'))['s'] or 0, "pending_promissories": Payment.objects.filter(is_promissory=True).count()}
+        
+        if role == 'STUDENT':
+            # Check if student is active for current term
+            active_term = Term.objects.filter(is_active=True).first()
+            student = user.student_profile
+            enrollment = student.enrollments.filter(term=active_term).first()
+            
+            return {
+                "active_term": {
+                    "id": active_term.id,
+                    "code": active_term.code,
+                    "name": active_term.name,
+                    "enrollment_open": active_term.is_active # Simplified, could use real dates here
+                } if active_term else None,
+                "current_enrollment": {
+                    "id": enrollment.id,
+                    "advising_status": enrollment.advising_status,
+                    "is_regular": enrollment.is_regular
+                } if enrollment else None,
+                "student_info": {
+                    "id": student.id,
+                    "idn": student.idn,
+                    "program": student.program.code,
+                    "status": student.status
+                }
+            }
         return {}
 
     @staticmethod

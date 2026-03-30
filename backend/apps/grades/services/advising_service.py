@@ -261,6 +261,10 @@ class AdvisingService:
         student_enrollment.advising_approved_at = timezone.now()
         student_enrollment.save()
 
+        # Update official student status
+        student_enrollment.student.status = 'ENROLLED'
+        student_enrollment.student.save()
+
         # Notify Student
         NotificationService.notify(
             recipient=student_enrollment.student.user,

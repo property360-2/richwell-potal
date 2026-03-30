@@ -105,14 +105,17 @@ class StudentViewSet(viewsets.ModelViewSet):
     def returning_student(self, request, pk=None):
         """
         Processes a returning student's enrollment for a new term.
-        Validates the student status and sets a new monthly commitment.
+        Can be called by staff or the student themselves.
         """
         student = self.get_object()
         if not (request.user.role in ('ADMIN', 'ADMISSION', 'REGISTRAR') or request.user == student.user):
             raise PermissionDenied("Unauthorized.")
         
         monthly = request.data.get('monthly_commitment')
-        if not monthly: raise ValidationError({'monthly_commitment': ['Required.']})
+        # Only require monthly if staff is enrolling
+        if not monthly and request.user.role in ('ADMIN', 'ADMISSION', 'REGISTRAR'):
+            raise ValidationError({'monthly_commitment': ['Required.']})
+        
         enrollment = enroll_student_for_term(student, monthly, request.user)
         return Response({'message': 'Ok', 'enrollment': StudentEnrollmentSerializer(enrollment).data})
 

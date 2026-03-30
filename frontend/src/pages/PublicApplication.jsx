@@ -311,8 +311,9 @@ const PublicApplication = () => {
                   Back
                 </Button>
               )}
-              {currentStep < 5 ? (
+              {currentStep < 5 && (
                 <Button 
+                  key="btn-continue"
                   variant="primary" 
                   type="button"
                   onClick={handleNext}
@@ -321,8 +322,10 @@ const PublicApplication = () => {
                   Continue
                   <ChevronRight size={18} style={{ marginLeft: '4px' }} />
                 </Button>
-              ) : (
+              )}
+              {currentStep === 5 && (
                 <Button 
+                  key="btn-submit"
                   variant="primary" 
                   type="submit" 
                   loading={isSubmitting}

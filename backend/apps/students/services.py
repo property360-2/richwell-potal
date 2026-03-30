@@ -58,25 +58,33 @@ def apply_student(data):
             status='APPLICANT'
         )
 
-        # Send Confirmation Email
+        # Send Confirmation Email (Non-blocking)
         try:
             from apps.academics.models import Program
             from apps.terms.models import Term
-            program = Program.objects.filter(id=student.program_id).first()
+            
+            # Fetch context details safely
+            selected_program = Program.objects.filter(id=student.program_id).first()
             active_term = Term.objects.filter(is_active=True).first()
+            
+            # Prepare contextual data
+            context = {
+                'applicant_name': f"{user.first_name} {user.last_name}",
+                'program_name': selected_program.name if selected_program else "Your Selected Program",
+                'term_name': str(active_term) if active_term else "the Academic Year"
+            }
             
             EmailService.send_html_email(
                 subject="Application Received - Richwell Colleges",
                 template_name="emails/application_confirmation.html",
-                context={
-                    'applicant_name': f"{student.user.first_name} {student.user.last_name}",
-                    'program_name': program.name if program else "Selected Program",
-                    'term_name': active_term.name if active_term else "Upcoming Term"
-                },
+                context=context,
                 recipient_list=[email]
             )
-        except Exception:
-            pass # Don't block application if email fails
+        except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send application confirmation email to {email}: {str(e)}")
             
         return student
 
@@ -165,9 +173,10 @@ def admit_student_application(student, monthly_commitment, admitted_by):
             'message': "Generated password is the IDN + birthdate (MMDD format)"
         }
 
-def enroll_student_for_term(student, monthly_commitment, enrolled_by):
+def enroll_student_for_term(student, monthly_commitment=None, enrolled_by=None):
     """
     Enrolls an already approved student into the current active term.
+    Initializes status as 'FOR_ADVISING' for returning/self-service students.
     
     @param {Student} student - The student to enroll.
     @param {float} monthly_commitment - The agreed monthly payment.
@@ -185,19 +194,26 @@ def enroll_student_for_term(student, monthly_commitment, enrolled_by):
     from apps.grades.services.advising_service import AdvisingService
     
     with transaction.atomic():
-        student.status = 'ENROLLED'
-        student.save()
+        # Keep status as is (usually ADMITTED) until advising is approved
+        # student.status = 'ENROLLED'
+        # student.save()
         
         year_level = AdvisingService.get_year_level(student)
         
+        # Determine status: if student enrolled themselves, it's FOR_ADVISING
+        # If staff enrolled them (with commitment), maybe it's PENDING or DRAFT?
+        # User wants "FOR_ADVISING" after submission of form.
+        initial_status = 'FOR_ADVISING' if enrolled_by and enrolled_by.role == 'STUDENT' else 'DRAFT'
+
         enrollment, _ = StudentEnrollment.objects.update_or_create(
             student=student,
             term=active_term,
             defaults={
-                'monthly_commitment': monthly_commitment,
+                'monthly_commitment': monthly_commitment or 0,
                 'year_level': year_level,
                 'enrolled_by': enrolled_by,
-                'is_regular': AdvisingService.check_student_regularity(student, active_term)
+                'is_regular': AdvisingService.check_student_regularity(student, active_term),
+                'advising_status': initial_status
             }
         )
         return enrollment

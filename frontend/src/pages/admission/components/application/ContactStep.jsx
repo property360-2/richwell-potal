@@ -84,7 +84,6 @@ const ContactStep = ({
             {...register('address_municipality', { required: 'Municipality is required' })} 
             options={locations ? Object.keys(locations).map(name => ({ value: name, label: name })) : []}
             error={errors.address_municipality?.message}
-            value={watch('address_municipality')}
           />
           <Select 
             label="Barangay" 
@@ -93,7 +92,6 @@ const ContactStep = ({
             options={barangays.map(b => ({ value: b, label: b }))}
             disabled={!selectedMunicipality}
             error={errors.address_barangay?.message}
-            value={watch('address_barangay')}
           />
         </div>
 

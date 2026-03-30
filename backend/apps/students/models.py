@@ -115,6 +115,7 @@ class StudentEnrollment(AuditMixin, models.Model):
     """
     ADVISING_STATUS_CHOICES = [
         ('DRAFT', 'Draft/Open'),
+        ('FOR_ADVISING', 'For Advising'),
         ('PENDING', 'Pending Approval'),
         ('APPROVED', 'Approved'),
         ('REJECTED', 'Rejected'),

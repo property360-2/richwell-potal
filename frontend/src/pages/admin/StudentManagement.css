@@ -86,3 +86,85 @@
         opacity: 1;
     }
 }
+
+/* COMPACT FILTER BAR STYLES */
+.filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    background: white;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-slate-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.5rem;
+}
+
+.search-wrapper {
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.filter-separator {
+    width: 1px;
+    height: 24px;
+    background: var(--color-slate-200);
+    margin: 0 0.25rem;
+}
+
+.filter-item {
+    min-width: 130px;
+}
+
+.program-select {
+    min-width: 160px;
+}
+
+.year-select {
+    min-width: 120px;
+}
+
+.status-select {
+    min-width: 140px;
+}
+
+@media (max-width: 1024px) {
+    .filter-bar {
+        gap: 0.75rem;
+    }
+    
+    .filter-group {
+        flex: 1;
+        justify-content: space-between;
+    }
+}
+
+@media (max-width: 768px) {
+    .filter-bar {
+        padding: 1rem;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-group {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .filter-separator {
+        display: none;
+    }
+    
+    .filter-item {
+        flex: 1;
+        min-width: calc(50% - 0.25rem);
+    }
+}
