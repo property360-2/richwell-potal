@@ -134,3 +134,85 @@ class Grade(AuditMixin, models.Model):
         Format: IDN - Subject Code (Status)
         """
         return f"{self.student.idn} - {self.subject.code} ({self.grade_status})"
+
+
+class CreditingRequest(models.Model):
+    """
+    Represents a bulk request by the Registrar to credit historical subjects
+    for a transferee student. Awaits approval from the Program Head.
+    """
+    STATUS_PENDING = 'PENDING'
+    STATUS_APPROVED = 'APPROVED'
+    STATUS_REJECTED = 'REJECTED'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
+    student = models.ForeignKey(
+        'students.Student', 
+        on_delete=models.CASCADE, 
+        related_name='crediting_requests'
+    )
+    term = models.ForeignKey(
+        'terms.Term', 
+        on_delete=models.PROTECT, 
+        related_name='crediting_requests'
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='submitted_crediting_requests'
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='reviewed_crediting_requests'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING
+    )
+    rejection_reason = models.TextField(blank=True, null=True)
+    comment = models.TextField(blank=True, null=True, help_text="Optional comment from the Head on approval/rejection.")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Crediting Request for {self.student.idn} - {self.status}"
+
+
+class CreditingRequestItem(models.Model):
+    """
+    Represents an individual subject to be credited within a CreditingRequest.
+    """
+    request = models.ForeignKey(
+        CreditingRequest, 
+        on_delete=models.CASCADE, 
+        related_name='items'
+    )
+    subject = models.ForeignKey(
+        'academics.Subject', 
+        on_delete=models.PROTECT
+    )
+    final_grade = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        validators=[MinValueValidator(1.0), MaxValueValidator(5.0)]
+    )
+    
+    class Meta:
+        unique_together = ('request', 'subject')
+
+    def __str__(self):
+        return f"{self.subject.code} - {self.final_grade}"

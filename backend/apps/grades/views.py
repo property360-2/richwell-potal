@@ -139,6 +139,78 @@ class AdvisingApprovalViewSet(viewsets.ModelViewSet):
         AdvisingService.reject_advising(enrollment, reason)
         return Response({"status": "Advising rejected."})
 
+from apps.grades.models import CreditingRequest
+from apps.grades.serializers import CreditingRequestSerializer, BulkCreditingSubmitSerializer
+
+class CreditingRequestViewSet(viewsets.ModelViewSet):
+    """
+    Manages the lifecycle of bulk crediting requests.
+    - Registrar: Create, List, Retrieve
+    - Program Head: List, Retrieve, Approve, Reject
+    """
+    queryset = CreditingRequest.objects.all().select_related(
+        'student', 'term', 'requested_by', 'reviewed_by'
+    ).prefetch_related('items__subject')
+    serializer_class = CreditingRequestSerializer
+    permission_classes = [IsRegistrar | IsProgramHead | IsAdmin]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        if user.role == 'PROGRAM_HEAD':
+            # Head sees only requests for their program
+            return qs.filter(student__program__program_head=user)
+        return qs
+
+    @action(detail=False, methods=['post'], permission_classes=[IsRegistrar | IsAdmin])
+    def submit_bulk(self, request):
+        serializer = BulkCreditingSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        student_id = request.data.get('student_id')
+        term_id = serializer.validated_data.get('term_id')
+        items = serializer.validated_data['items']
+        
+        student = Student.objects.get(id=student_id)
+        if term_id:
+            term = Term.objects.get(id=term_id)
+        else:
+            term = Term.objects.get(is_active=True)
+        
+        crediting_request = AdvisingService.submit_bulk_crediting_request(
+            student=student, 
+            term=term, 
+            user=request.user, 
+            items_data=items
+        )
+        return Response(CreditingRequestSerializer(crediting_request).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsProgramHead | IsAdmin])
+    def approve(self, request, pk=None):
+        comment = request.data.get('comment', "")
+        crediting_request = AdvisingService.approve_crediting_request(
+            request_id=pk, 
+            user=request.user, 
+            comment=comment
+        )
+        return Response(CreditingRequestSerializer(crediting_request).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsProgramHead | IsAdmin])
+    def reject(self, request, pk=None):
+        reason = request.data.get('reason')
+        if not reason:
+            raise ValidationError({"reason": "A reason for rejection is required."})
+        crediting_request = AdvisingService.reject_crediting_request(
+            request_id=pk, 
+            user=request.user, 
+            reason=reason
+        )
+        return Response(CreditingRequestSerializer(crediting_request).data)
+
+
 class SubjectCreditingViewSet(viewsets.ViewSet):
     """
     Helper ViewSet for Registrar to credit subjects manually.

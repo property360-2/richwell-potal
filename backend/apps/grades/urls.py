@@ -4,6 +4,7 @@ from apps.grades.views import (
     AdvisingViewSet, 
     AdvisingApprovalViewSet, 
     SubjectCreditingViewSet,
+    CreditingRequestViewSet,
     GradeSubmissionViewSet,
     ResolutionViewSet
 )
@@ -12,6 +13,7 @@ router = DefaultRouter()
 router.register('advising', AdvisingViewSet, basename='advising')
 router.register('approvals', AdvisingApprovalViewSet, basename='advising-approvals')
 router.register('crediting', SubjectCreditingViewSet, basename='subject-crediting')
+router.register('crediting-requests', CreditingRequestViewSet, basename='crediting-requests')
 router.register('submission', GradeSubmissionViewSet, basename='grade-submission')
 router.register('resolution', ResolutionViewSet, basename='grade-resolution')
 

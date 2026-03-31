@@ -61,6 +61,7 @@ const ProgramHeadDashboard = lazy(() => import('../pages/program-head/ProgramHea
 const AdvisingApproval = lazy(() => import('../pages/program-head/AdvisingApproval'));
 const ResolutionApproval = lazy(() => import('../pages/program-head/ResolutionApproval'));
 const SectionManagement = lazy(() => import('../pages/program-head/SectionManagement'));
+const CreditingRequests = lazy(() => import('../pages/program-head/CreditingRequests'));
 
 // Faculty Pages
 const ProfessorDashboard = lazy(() => import('../pages/faculty/ProfessorDashboard'));
@@ -232,6 +233,7 @@ const AppRoutes = () => {
             <Route path="/program-head/advising" element={<AdvisingApproval />} />
             <Route path="/program-head/resolutions" element={<ResolutionApproval />} />
             <Route path="/program-head/sections" element={<SectionManagement />} />
+            <Route path="/program-head/crediting" element={<CreditingRequests />} />
           </Route>
 
         </Route>

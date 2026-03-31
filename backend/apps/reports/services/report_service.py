@@ -64,7 +64,8 @@ class ReportService:
     def generate_cor_pdf(student_id, term_id):
         student, enrollment = Student.objects.get(id=student_id), StudentEnrollment.objects.get(student_id=student_id, term_id=term_id)
         grades = Grade.objects.filter(student_id=student_id, term_id=term_id, advising_status='APPROVED')
-        if not grades.exists(): raise ValueError("No approved subjects found.")
+        if not grades.exists():
+            raise ValueError("No approved subjects found for this student in the selected term. Ensure advising is complete and approved.")
         
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch)
@@ -148,7 +149,7 @@ class ReportService:
                 "active_term": {
                     "id": active_term.id,
                     "code": active_term.code,
-                    "name": active_term.name,
+                    "name": f"{active_term.get_semester_type_display()} {active_term.academic_year}",
                     "enrollment_open": active_term.is_active # Simplified, could use real dates here
                 } if active_term else None,
                 "current_enrollment": {

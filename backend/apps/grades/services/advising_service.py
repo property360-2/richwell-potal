@@ -68,25 +68,32 @@ class AdvisingService:
     @staticmethod
     def get_year_level(student):
         """
-        Calculates the year level of a student based on passed subjects.
-        Returns the HIGHEST year level where the student has passed at least one subject.
+        Calculates the year level of a student based on subject density (Majority Rule).
+        Returns the year level where the student has the highest count of subjects (Passed/Enrolled).
         """
-        passed_subjects = Grade.objects.filter(
+        from django.db.models import Count
+        
+        # Consider both passed and currently enrolled subjects
+        tracked_subject_ids = Grade.objects.filter(
             student=student, 
-            grade_status=Grade.STATUS_PASSED
+            grade_status__in=[Grade.STATUS_PASSED, Grade.STATUS_ENROLLED, Grade.STATUS_ADVISING]
         ).values_list('subject_id', flat=True)
 
-        if not passed_subjects:
+        if not tracked_subject_ids:
             return 1
 
-        # Find the highest year_level among passed subjects
-        from django.db.models import Max
-        highest_year = Subject.objects.filter(
+        # Count subjects per year level defined in the curriculum
+        year_counts = Subject.objects.filter(
             curriculum=student.curriculum,
-            id__in=passed_subjects
-        ).aggregate(max_year=Max('year_level'))['max_year']
+            id__in=tracked_subject_ids
+        ).values('year_level').annotate(subject_count=Count('id')).order_by('-subject_count', '-year_level')
 
-        return highest_year or 1
+        if year_counts:
+            # Return the year_level with the most subjects. 
+            # In case of tie, the higher year level is prioritized (order_by '-year_level')
+            return year_counts[0]['year_level']
+
+        return 1
 
     @staticmethod
     @transaction.atomic
@@ -402,3 +409,82 @@ class AdvisingService:
             enrollment.is_regular = cls.check_student_regularity(student, term)
             enrollment.year_level = cls.get_year_level(student)
             enrollment.save()
+
+    @classmethod
+    @transaction.atomic
+    def submit_bulk_crediting_request(cls, student, term, user, items_data):
+        """
+        Registrar submits a bulk crediting request.
+        """
+        from apps.grades.models import CreditingRequest, CreditingRequestItem
+        
+        # Guard: Check if a pending request already exists for this term
+        if CreditingRequest.objects.filter(student=student, term=term, status=CreditingRequest.STATUS_PENDING).exists():
+            raise ValidationError("A pending crediting request already exists for this student and term.")
+
+        request = CreditingRequest.objects.create(
+            student=student,
+            term=term,
+            requested_by=user,
+            status=CreditingRequest.STATUS_PENDING
+        )
+
+        for item in items_data:
+            subject_id = item.get('subject_id')
+            final_grade = item.get('final_grade')
+            CreditingRequestItem.objects.create(
+                request=request,
+                subject_id=subject_id,
+                final_grade=final_grade
+            )
+
+        return request
+
+    @classmethod
+    @transaction.atomic
+    def approve_crediting_request(cls, request_id, user, comment=""):
+        """
+        Program Head approves a crediting request.
+        Automatically credits subjects and updates student advising status.
+        """
+        from apps.grades.models import CreditingRequest, Grade
+        
+        request = CreditingRequest.objects.get(id=request_id)
+        if request.status != CreditingRequest.STATUS_PENDING:
+            raise ValidationError(f"Cannot approve a request with status {request.status}.")
+
+        request.status = CreditingRequest.STATUS_APPROVED
+        request.reviewed_by = user
+        request.comment = comment
+        request.save()
+
+        # Credit the subjects
+        for item in request.items.all():
+            cls.credit_subject(
+                student=request.student,
+                subject=item.subject,
+                term=request.term,
+                credited_by=user,
+                final_grade=item.final_grade
+            )
+            
+        return request
+
+    @classmethod
+    @transaction.atomic
+    def reject_crediting_request(cls, request_id, user, reason):
+        """
+        Program Head rejects a crediting request.
+        """
+        from apps.grades.models import CreditingRequest
+        
+        request = CreditingRequest.objects.get(id=request_id)
+        if request.status != CreditingRequest.STATUS_PENDING:
+            raise ValidationError(f"Cannot reject a request with status {request.status}.")
+
+        request.status = CreditingRequest.STATUS_REJECTED
+        request.reviewed_by = user
+        request.rejection_reason = reason
+        request.save()
+
+        return request

@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { studentsApi } from '../../../api/students';
-import { User, IdentificationCard, GraduationCap, Phone, MapPin, CheckCircle } from 'lucide-react';
+import { User, Contact, GraduationCap, Phone, MapPin, CheckCircle } from 'lucide-react';
 import './EnrollmentModal.css';
 
 const EnrollmentModal = ({ isOpen, onClose, studentData, termData, onEnrollSuccess }) => {
@@ -55,7 +55,7 @@ const EnrollmentModal = ({ isOpen, onClose, studentData, termData, onEnrollSucce
                                     <div className="info-value">{studentData?.user?.first_name} {studentData?.user?.last_name}</div>
                                 </div>
                                 <div className="info-item">
-                                    <label><IdentificationCard size={14}/> Student ID</label>
+                                    <label><Contact size={14}/> Student ID</label>
                                     <div className="info-value">{studentData?.idn}</div>
                                 </div>
                                 <div className="info-item">

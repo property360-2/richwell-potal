@@ -56,10 +56,14 @@ class ReportViewSet(viewsets.ViewSet):
         sid = request.query_params.get('student_id') or (request.user.student_profile.id if request.user.role == 'STUDENT' else None)
         if not all([tid, sid]): return Response({"error": "term_id and student_id required"}, 400)
         if request.user.role == 'STUDENT' and str(request.user.student_profile.id) != str(sid): return Response({"error": "Access denied"}, 403)
-        pdf = self.service.generate_cor_pdf(sid, tid)
-        res = HttpResponse(pdf, content_type='application/pdf')
-        res['Content-Disposition'] = f'attachment; filename="COR_{sid}.pdf"'
-        return res
+        
+        try:
+            pdf = self.service.generate_cor_pdf(sid, tid)
+            res = HttpResponse(pdf, content_type='application/pdf')
+            res['Content-Disposition'] = f'attachment; filename="COR_{sid}.pdf"'
+            return res
+        except (ValueError, Student.DoesNotExist, Exception) as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'], url_path='academic-summary')
     def academic_summary(self, request):
@@ -68,7 +72,10 @@ class ReportViewSet(viewsets.ViewSet):
         """
         sid = request.query_params.get('student_id') or (request.user.student_profile.id if request.user.role == 'STUDENT' else None)
         if not sid: return Response({"error": "student_id required"}, 400)
-        return Response(self.service.get_academic_summary(sid))
+        try:
+            return Response(self.service.get_academic_summary(sid))
+        except (Student.DoesNotExist, Exception) as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'], url_path='graduation-check')
     def graduation_check(self, request):
@@ -76,7 +83,10 @@ class ReportViewSet(viewsets.ViewSet):
         Performs a check to determine if a student is eligible for graduation.
         """
         if not (sid := request.query_params.get('student_id')): return Response({"error": "student_id required"}, 400)
-        return Response(self.service.graduation_check(sid))
+        try:
+            return Response(self.service.graduation_check(sid))
+        except (Student.DoesNotExist, Exception) as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
     def stats(self, request):

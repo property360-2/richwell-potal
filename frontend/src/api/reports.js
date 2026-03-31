@@ -9,7 +9,7 @@ export const reportsApi = {
         params,
         responseType: 'blob'
     }),
-    checkGraduation: (student_id) => api.get('reports/graduation_check/', {
+    checkGraduation: (student_id) => api.get('reports/graduation-check/', {
         params: { student_id }
     }),
     getStats: () => api.get('reports/stats/'),

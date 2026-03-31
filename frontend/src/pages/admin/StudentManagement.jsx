@@ -32,7 +32,9 @@ const StudentManagement = () => {
   const dropdownRef = useRef(null);
   const { addToast } = useToast();
 
-  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm();
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm({
+    mode: 'onBlur'
+  });
   const selectedProgram = watch('program');
 
   useEffect(() => {
@@ -387,7 +389,6 @@ const StudentManagement = () => {
               error={errors.idn?.message} 
               placeholder="e.g. 260011" 
             />
-            <Input label="Year Level" type="number" {...register('year_level', { required: 'Required', min: 1, max: 5 })} error={errors.year_level?.message} defaultValue={1} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

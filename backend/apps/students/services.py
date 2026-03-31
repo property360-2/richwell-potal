@@ -10,6 +10,7 @@ import datetime
 from django.db import transaction
 from django.db.models import Q
 from rest_framework.exceptions import ValidationError
+from django.conf import settings
 from django.contrib.auth import get_user_model
 
 from .models import Student, StudentEnrollment
@@ -285,7 +286,7 @@ def manual_add_student_record(data, requested_by):
             status='ENROLLED'
         )
         
-        # Initial Enrollment
+        # Enrollment Record
         is_regular = AdvisingService.check_student_regularity(student, active_term)
         StudentEnrollment.objects.create(
             student=student,
@@ -295,8 +296,26 @@ def manual_add_student_record(data, requested_by):
             is_regular=is_regular,
             enrolled_by=requested_by
         )
+
+    # Send Welcome Email (outside transaction to ensure commit)
+    try:
+        EmailService.send_html_email(
+            subject="Welcome to Richwell Portal - Your Credentials",
+            template_name="emails/welcome_legacy_student.html",
+            context={
+                "student_name": user.get_full_name(),
+                "idn": idn,
+                "password": f"{idn}{dob_suffix}",
+                "login_url": f"{settings.FRONTEND_URL}/login"
+            },
+            recipient_list=[email]
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to send welcome email to {email}: {str(e)}")
         
-        return student, is_regular
+    return student, is_regular
 
 def toggle_student_regularity(student_id, is_regular):
     """

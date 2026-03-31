@@ -20,6 +20,7 @@ import Badge from '../../components/ui/Badge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useToast } from '../../components/ui/Toast';
 import { reportsApi } from '../../api/reports';
+import PageHeader from '../../components/shared/PageHeader';
 import './SummaryOfGrades.css';
 
 const SummaryOfGrades = ({ isStudent = false }) => {
@@ -68,163 +69,97 @@ const SummaryOfGrades = ({ isStudent = false }) => {
   };
 
   return (
-    <div className="summary-grades-container animate-in fade-in duration-500">
-      {/* Navigation Header */}
+    <div className="summary-grades-container animate-in fade-in duration-500 pb-12">
+      <PageHeader 
+        title={isStudent ? "Academic Records" : "Student Summary"}
+        description={isStudent 
+          ? "Comprehensive view of your full grade history." 
+          : "View full academic transcript and curriculum progress."
+        }
+      />
+
+      {/* Navigation & Actions Header */}
       {!isStudent && (
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
+        <div className="flex items-center justify-between mb-6 mt-4 pb-2 border-b border-slate-100">
           <Button 
             variant="ghost" 
             onClick={() => navigate('/students')}
-            icon={<ChevronLeft size={20} />}
-            className="hover:translate-x-[-4px] transition-transform"
+            icon={<ChevronLeft size={18} />}
+            className="text-slate-500 hover:text-slate-900 px-0"
           >
             Back to Student List
           </Button>
-          <div className="flex gap-3">
-            <Button variant="outline" icon={<Printer size={18} />} onClick={() => window.print()}>Print Summary</Button>
-            <Button variant="primary" icon={<Download size={18} />}>Export TOR</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" icon={<Printer size={16} />} onClick={() => window.print()}>Print</Button>
+            <Button variant="outline" size="sm" icon={<Download size={16} />}>Export</Button>
           </div>
         </div>
       )}
 
       {isStudent && (
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
-           <div>
-              <h1 className="text-2xl font-bold text-slate-800 uppercase tracking-tight">Academic Records</h1>
-              <p className="text-slate-500 mt-1">View your full grade history and credited subjects.</p>
-           </div>
-           <Button variant="outline" icon={<Printer size={18} />} onClick={() => window.print()}>Print Records</Button>
+        <div className="flex items-center justify-between mb-6 mt-4 pb-4 border-b border-slate-100">
+           <div className="flex-1"></div>
+           <Button variant="outline" size="sm" icon={<Printer size={16} />} onClick={() => window.print()}>Print Records</Button>
         </div>
       )}
 
-      {/* Student Info Card */}
-      <div className="student-info-card">
-        <div className="student-info-left">
-          <div className="student-id-badge">ID: {student.idn}</div>
-          <h1>{student.name}</h1>
-          <div className="flex items-center gap-3 text-slate-500 font-medium">
-            <GraduationCap size={20} className="text-primary" />
-            <span className="text-lg">{student.program}</span>
+      {/* Unified Student Header Card */}
+      <div className="student-summary-header-card">
+        <div className="summary-info-main">
+          <div className="flex items-center gap-3">
+             <h2 className="student-name-text">{student.name}</h2>
+             <span className="idn-badge-mini">{student.idn}</span>
           </div>
-        </div>
-        <div className="student-info-right">
-          <div className="info-item">
-            <span className="info-label">Year Level</span>
-            <span className="info-value">Year {student.year_level}</span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Reg. Status</span>
-            <span className="info-value">{student.status}</span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Standing</span>
-            <span className="info-value text-emerald-600">{student.academic_standing}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon bg-blue-50 text-blue-600">
-            <Layers size={24} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.total_units_earned}</span>
-            <span className="stat-label">Units Earned</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon bg-indigo-50 text-indigo-600">
-            <TrendingUp size={24} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.current_gpa}</span>
-            <span className="stat-label">General GPA</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon bg-emerald-50 text-emerald-600">
-            <CheckCircle2 size={24} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.subjects_passed}</span>
-            <span className="stat-label">Passed</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon bg-rose-50 text-rose-600">
-            <XCircle size={24} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.subjects_failed}</span>
-            <span className="stat-label">Failed</span>
+          <div className="student-metadata-small">
+            <GraduationCap size={14} className="text-primary/60" />
+            <span>{student.program}</span>
+            <span className="text-slate-300 mx-1">•</span>
+            <span>Year {student.year_level}</span>
+            <span className="text-slate-300 mx-1">•</span>
+            <span className="font-bold text-emerald-600">{student.academic_standing}</span>
           </div>
         </div>
       </div>
 
       {/* Grades Table Section */}
-      <div className="mb-12">
-        <div className="flex items-center gap-4 mb-8">
-            <div className="h-10 w-1 bg-primary rounded-full"></div>
-            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
-              Academic Transcript Summary
-            </h2>
+      <div className="transcript-section">
+        <div className="flex items-center gap-3 mb-6">
+            <div className="section-indicator"></div>
+            <h2 className="section-title-minimal">Academic Transcript</h2>
         </div>
 
         {semesters.length > 0 ? semesters.map((sem, index) => (
-          <div key={index} className="semester-section">
-            <div className="semester-header">
-              <div className="semester-title">
-                <Calendar size={20} className="text-primary/60" />
-                <span>{sem.title}</span>
+          <div key={index} className="semester-group">
+            <div className="semester-sub-header">
+              <div className="flex items-center gap-2">
+                <Calendar size={16} className="text-primary/40" />
+                <span className="semester-text-label">{sem.title}</span>
               </div>
-              <div className="semester-summary">
-                <div className="summary-pill">Semester Units: <span>{sem.total_units}</span></div>
-                <div className="summary-pill">GPA: <span>{sem.gpa}</span></div>
+              <div className="flex gap-4 text-xs font-semibold">
+                <span className="text-slate-400 uppercase tracking-tighter">Units: <span className="text-slate-700">{sem.total_units}</span></span>
+                <span className="text-slate-400 uppercase tracking-tighter">Term GPA: <span className="text-primary">{sem.gpa}</span></span>
               </div>
             </div>
-            <Card className="overflow-hidden border-none shadow-xl rounded-2xl">
+            
+            <div className="clean-table-wrapper shadow-sm">
               <Table 
                 columns={[
-                  { header: 'Subject Code', accessor: 'code', className: 'font-bold text-slate-800' },
-                  { header: 'Subject Description', accessor: 'subject' },
-                  { header: 'Units', accessor: 'units', align: 'center', className: 'font-semibold text-slate-600' },
-                  { header: 'Term Taken', accessor: 'term_code', align: 'center', className: 'text-slate-500 italic text-sm' },
-                  { header: 'Final Grade', accessor: 'grade', align: 'center', className: 'font-mono font-black text-primary' },
+                  { header: 'Code', accessor: 'code', className: 'font-bold text-slate-800' },
+                  { header: 'Subject Title', accessor: 'subject' },
+                  { header: 'Units', accessor: 'units', align: 'center', className: 'text-slate-600' },
+                  { header: 'Term', accessor: 'term_code', align: 'center', className: 'text-slate-400 italic text-xs' },
+                  { header: 'Grade', accessor: 'grade', align: 'center', className: 'font-mono font-black text-primary' },
                   { 
                     header: 'Status', 
                     align: 'center',
                     render: (row) => (
-                      <div className="flex flex-col items-center gap-1">
+                      <div className="flex flex-col items-center">
                         {getStatusBadge(row.status_code)}
                         {row.resolution_status && (
-                          <div className="flex flex-col items-center mt-1">
-                            <span style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '-0.025em', padding: '2px 8px', borderRadius: '4px', backgroundColor: 
-                                row.resolution_status === 'COMPLETED' ? '#dcfce7' :
-                                row.resolution_status === 'APPROVED' ? '#dbeafe' :
-                                row.resolution_status === 'SUBMITTED' ? '#e0e7ff' :
-                                '#f1f5f9',
-                                color:
-                                row.resolution_status === 'COMPLETED' ? '#166534' :
-                                row.resolution_status === 'APPROVED' ? '#1d4ed8' :
-                                row.resolution_status === 'SUBMITTED' ? '#4338ca' :
-                                '#475569'
-                            }}>
+                          <div className="flex flex-col items-center mt-1.5 pt-1.5 border-t border-slate-50 w-full">
+                            <span className={`res-status-tag ${row.resolution_status.toLowerCase()}`}>
                                 {row.resolution_status}
                             </span>
-                            <div className="flex flex-col gap-0.5 mt-1 items-center">
-                                {row.resolution_requested_by_name && (
-                                    <span style={{ fontSize: '8px', color: '#94a3b8', lineHeight: '1' }}>
-                                        Req: {row.resolution_requested_by_name}
-                                    </span>
-                                )}
-                                {row.resolution_approved_by_name && (
-                                    <span style={{ fontSize: '8px', color: '#16a34a', fontWeight: 'bold', lineHeight: '1' }}>
-                                        App: {row.resolution_approved_by_name}
-                                    </span>
-                                )}
-                            </div>
                           </div>
                         )}
                       </div>
@@ -233,8 +168,9 @@ const SummaryOfGrades = ({ isStudent = false }) => {
                 ]}
                 data={sem.grades}
                 border={false}
+                compact
               />
-            </Card>
+            </div>
           </div>
         )) : (
             <Card className="py-12 text-center bg-slate-50 border-dashed">
@@ -245,25 +181,25 @@ const SummaryOfGrades = ({ isStudent = false }) => {
 
       {/* Curriculum Progress Section */}
       {curriculum_progress.length > 0 && (
-        <div className="curriculum-progress-section shadow-2xl">
-            <div className="curriculum-header flex items-center justify-between">
+        <div className="curriculum-mini-tracker">
+            <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h2>Curriculum Progress Tracker</h2>
-                    <p className="text-slate-400 mt-1">Real-time completion tracking per year level.</p>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Curriculum Progress</h3>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter mt-1">Percentage completion per year level</p>
                 </div>
-                <Award size={48} className="text-primary opacity-20" />
+                <Award size={24} className="text-primary/20" />
             </div>
-            <div className="progress-grid">
+            <div className="progress-minimal-grid">
                 {curriculum_progress.map((p, i) => (
-                    <div key={i} className="year-progress bg-white/5 p-4 rounded-2xl border border-white/5">
-                        <div className="flex justify-between items-end mb-3">
-                            <span className="year-label uppercase tracking-widest text-[10px]">Year Level {p.year}</span>
-                            <span className="progress-value">{p.percentage}%</span>
+                    <div key={i} className="progress-item-clean">
+                        <div className="flex justify-between items-end mb-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Year {p.year}</span>
+                            <span className="text-xs font-bold text-slate-900">{p.percentage}%</span>
                         </div>
-                        <div className="progress-bar-container">
+                        <div className="progress-track-clean">
                             <div 
-                            className="progress-bar-fill shadow-[0_0_15px_rgba(var(--color-primary-rgb),0.5)]" 
-                            style={{ width: `${p.percentage}%` }}
+                              className="progress-fill-clean" 
+                              style={{ width: `${p.percentage}%` }}
                             ></div>
                         </div>
                     </div>
