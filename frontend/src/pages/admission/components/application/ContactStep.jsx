@@ -19,6 +19,7 @@ import React from 'react';
 import { Mail, Phone, MapPin } from 'lucide-react';
 import Input from '../../../../components/ui/Input';
 import Select from '../../../../components/ui/Select';
+import { studentsApi } from '../../../../api/students';
 
 const ContactStep = ({ 
   register, 
@@ -50,6 +51,25 @@ const ContactStep = ({
             pattern: {
               value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
               message: "Enter a valid email address"
+            },
+            validate: async (value) => {
+              try {
+                console.log(`Checking email: ${value}`);
+                const res = await studentsApi.checkEmail(value);
+                console.log(`Email check result:`, res.data);
+                
+                // If it exists, return the error message string (RHF treats strings as errors)
+                if (res.data.exists) {
+                  return "This email is already registered.";
+                }
+                
+                // If it doesn't exist, return true (validation passed)
+                return true;
+              } catch (err) {
+                console.error("Email API validation error:", err);
+                // If the check crashes, we fallback to passing it for now
+                return true; 
+              }
             }
           })} 
           error={errors.email?.message} 

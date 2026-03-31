@@ -34,7 +34,13 @@ const ReviewStep = ({ values, getProgramName }) => {
             <ReviewItem label="First Name" value={values.first_name} />
             <ReviewItem label="Middle Name" value={values.middle_name} />
             <ReviewItem label="Last Name" value={values.last_name} />
-            <ReviewItem label="Date of Birth" value={values.date_of_birth} />
+            <ReviewItem 
+              label="Date of Birth" 
+              value={values.birth_month && values.birth_day && values.birth_year ? 
+                `${values.birth_month}/${values.birth_day}/${values.birth_year}` : 
+                values.date_of_birth
+              } 
+            />
             <ReviewItem label="Gender" value={values.gender} />
             <ReviewItem label="Student Type" value={values.student_type} />
             {values.student_type === 'TRANSFEREE' && (

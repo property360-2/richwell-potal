@@ -47,13 +47,53 @@ const PersonalInfoStep = ({ register, errors, studentType }) => {
         />
       </div>
 
-      <div className="form-grid-3 form-row">
-        <Input 
-          label="Date of Birth" 
-          type="date" 
-          {...register('date_of_birth', { required: 'Date of birth is required' })} 
-          error={errors.date_of_birth?.message} 
-        />
+      <div className="form-row">
+        <label className="input-label mb-2 block">Date of Birth</label>
+        <div className="form-grid-3">
+          <Select 
+            placeholder="Month"
+            {...register('birth_month', { required: 'Required' })}
+            options={[
+              { value: '01', label: 'January' },
+              { value: '02', label: 'February' },
+              { value: '03', label: 'March' },
+              { value: '04', label: 'April' },
+              { value: '05', label: 'May' },
+              { value: '06', label: 'June' },
+              { value: '07', label: 'July' },
+              { value: '08', label: 'August' },
+              { value: '09', label: 'September' },
+              { value: '10', label: 'October' },
+              { value: '11', label: 'November' },
+              { value: '12', label: 'December' },
+            ]}
+            error={errors.birth_month?.message}
+          />
+          <Select 
+            placeholder="Day"
+            {...register('birth_day', { required: 'Required' })}
+            options={Array.from({ length: 31 }, (_, i) => ({ 
+              value: String(i + 1).padStart(2, '0'), 
+              label: String(i + 1) 
+            }))}
+            error={errors.birth_day?.message}
+          />
+          <Select 
+            placeholder="Year"
+            {...register('birth_year', { required: 'Required' })}
+            options={Array.from({ length: 70 }, (_, i) => {
+              const year = new Date().getFullYear() - 15 - i;
+              return { value: String(year), label: String(year) };
+            })}
+            error={errors.birth_year?.message}
+          />
+        </div>
+        {errors.date_of_birth && (
+          <span className="input-error-text mt-1">{errors.date_of_birth.message}</span>
+        )}
+      </div>
+
+      <div className="form-grid-2 form-row">
         <Select 
           label="Gender" 
           {...register('gender', { required: 'Gender is required' })} 

@@ -349,12 +349,44 @@ const StudentManagement = () => {
           </div>
           
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Email" type="email" {...register('email', { required: 'Required' })} error={errors.email?.message} />
+            <Input 
+              label="Email" 
+              type="email" 
+              {...register('email', { 
+                required: 'Required',
+                validate: async (value) => {
+                  if (!value) return true;
+                  try {
+                    const res = await studentsApi.checkEmail(value);
+                    return res.data.exists ? 'Email is already taken' : true;
+                  } catch (err) {
+                    return true; // Skip if API fails
+                  }
+                }
+              })} 
+              error={errors.email?.message} 
+            />
             <Input label="Date of Birth" type="date" {...register('date_of_birth', { required: 'Required' })} error={errors.date_of_birth?.message} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Student ID (IDN)" {...register('idn', { required: 'IDN is required' })} error={errors.idn?.message} placeholder="e.g. 260011" />
+            <Input 
+              label="Student ID (IDN)" 
+              {...register('idn', { 
+                required: 'IDN is required',
+                validate: async (value) => {
+                  if (!value) return true;
+                  try {
+                    const res = await studentsApi.checkIdn(value);
+                    return res.data.exists ? 'Student ID already exists' : true;
+                  } catch (err) {
+                    return true;
+                  }
+                }
+              })} 
+              error={errors.idn?.message} 
+              placeholder="e.g. 260011" 
+            />
             <Input label="Year Level" type="number" {...register('year_level', { required: 'Required', min: 1, max: 5 })} error={errors.year_level?.message} defaultValue={1} />
           </div>
 

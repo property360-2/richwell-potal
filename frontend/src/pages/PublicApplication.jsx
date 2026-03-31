@@ -37,7 +37,7 @@ const STEPS = [
 ];
 
 const STEP_FIELDS = {
-  1: ['first_name', 'last_name', 'date_of_birth', 'gender', 'student_type'],
+  1: ['first_name', 'last_name', 'birth_month', 'birth_day', 'birth_year', 'gender', 'student_type'],
   2: ['email', 'contact_number', 'address_municipality', 'address_barangay', 'address_full'],
   3: ['program'],
   4: ['guardian_name', 'guardian_contact'],
@@ -49,6 +49,7 @@ const STEP_FIELDS = {
  */
 const PublicApplication = () => {
   const { register, handleSubmit, watch, setValue, trigger, getValues, formState: { errors, isSubmitting } } = useForm({
+    mode: 'onBlur',
     defaultValues: {
       student_type: 'FRESHMAN',
       gender: 'MALE'
@@ -114,12 +115,20 @@ const PublicApplication = () => {
 
   /**
    * Filters the available barangay options based on the chosen municipality.
+   * Resets the barangay selection to avoid stale state.
    */
   useEffect(() => {
     if (selectedMunicipality && locations) {
       setBarangays(locations[selectedMunicipality] || []);
+      // Clear out the stale barangay if it's not valid for the new municipality
+      const currentBarangay = watch('address_barangay');
+      if (currentBarangay && !locations[selectedMunicipality]?.includes(currentBarangay)) {
+          setValue('address_barangay', '', { shouldValidate: true });
+      } else if (!currentBarangay) {
+          setValue('address_barangay', '', { shouldValidate: true });
+      }
     }
-  }, [selectedMunicipality, locations]);
+  }, [selectedMunicipality, locations, setValue, watch]);
 
   /**
    * Validates mandated fields for the current step before advancing to the next step.
@@ -163,8 +172,16 @@ const PublicApplication = () => {
     // Prevent premature submissions from 'Enter' keypresses
     if (currentStep !== 5) return;
 
+    // Construct date_of_birth from parts
+    const { birth_year, birth_month, birth_day, ...rest } = data;
+    const finalData = { ...rest };
+    
+    if (birth_year && birth_month && birth_day) {
+      finalData.date_of_birth = `${birth_year}-${birth_month}-${birth_day}`;
+    }
+
     try {
-      await studentsApi.apply(data);
+      await studentsApi.apply(finalData);
       setSubmitted(true);
       window.scrollTo(0, 0);
     } catch (err) {

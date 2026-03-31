@@ -14,6 +14,8 @@ export const studentsApi = {
     createEnrollment: (data) => api.post('students/enrollments/', data),
     manualAdd: (data) => api.post('students/manual-add/', data),
     getSchedule: (term_id) => api.get('students/enrollments/schedule/', { params: { term: term_id } }),
+    checkEmail: (email) => api.get('students/check-email/', { params: { email } }),
+    checkIdn: (idn) => api.get('students/check-idn/', { params: { idn } }),
 };
 
 export default studentsApi;

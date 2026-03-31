@@ -389,64 +389,81 @@
 /* Responsive Adjustments */
 @media (max-width: 768px) {
     .apply-hero {
-        padding: 60px 20px 48px;
+        padding: 48px 20px 32px;
+    }
+    
+    .apply-hero .hero-badge {
+        padding: 6px 16px;
+        font-size: 11px;
     }
 
     .apply-hero h1 {
-        font-size: 28px;
+        font-size: 32px;
+        letter-spacing: -0.03em;
     }
 
     .apply-hero p {
-        font-size: 16px;
+        font-size: 15px;
+        opacity: 0.8;
     }
 
     .apply-stepper {
         gap: 8px;
         padding: 0 16px;
-        margin-top: -24px;
-        overflow-x: auto;
-        justify-content: flex-start;
-        padding-bottom: 12px;
-        scrollbar-width: none;
-    }
-
-    .apply-stepper::-webkit-scrollbar {
-        display: none;
+        margin: -36px auto 32px;
+        justify-content: center;
+        flex-wrap: wrap;
     }
 
     .step-item {
-        min-width: 64px;
-        flex: 0 0 auto;
+        min-width: unset;
+        flex: 1;
     }
 
     .step-circle {
-        width: 44px;
-        height: 44px;
-        border-radius: 14px;
-        font-size: 15px;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        font-size: 14px;
     }
 
     .step-label {
-        font-size: 10px;
-        margin-top: 10px;
+        font-size: 9px;
+        margin-top: 8px;
+        letter-spacing: 0.05em;
+        /* Hide labels for even smaller screens to keep it clean */
     }
 
     .apply-form-container {
-        padding: 0 16px 40px;
+        padding: 0 12px 40px;
     }
 
     .apply-step-card {
-        padding: 32px 24px;
+        padding: 32px 20px;
         border-radius: 24px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
     }
 
     .step-header {
-        margin-bottom: 32px;
-        gap: 16px;
+        margin-bottom: 28px;
+        padding-bottom: 24px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .step-header-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
     }
 
     .step-header h2 {
         font-size: 20px;
+    }
+
+    .step-header p {
+        font-size: 13px;
     }
 
     .form-grid-3,
@@ -454,25 +471,54 @@
         grid-template-columns: 1fr;
         gap: 16px;
     }
+    
+    /* Specific fix for Date of Birth grid on mobile - keep it 3 cols if space allows or 1 */
+    .form-row .form-grid-3 {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
 
     .review-grid {
         grid-template-columns: 1fr;
+        gap: 12px;
     }
 
     .apply-nav {
         flex-direction: column-reverse;
-        gap: 20px;
-        padding: 24px 20px;
-        text-align: center;
+        gap: 16px;
+        padding: 20px;
+        border-radius: 20px;
+        margin-top: 24px;
     }
 
     .nav-buttons {
         width: 100%;
-        flex-direction: column;
+        gap: 12px;
     }
     
     .nav-buttons button {
         width: 100%;
+        padding: 14px;
+        font-size: 15px;
+    }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+    .step-label {
+        display: none; /* Only show circles on very small phones */
+    }
+    
+    .apply-hero h1 {
+        font-size: 28px;
+    }
+    
+    .form-row .form-grid-3 {
+        gap: 6px;
+    }
+    
+    .apply-step-card {
+        padding: 24px 16px;
     }
 }
 

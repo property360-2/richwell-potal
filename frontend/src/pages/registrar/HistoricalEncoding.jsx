@@ -38,6 +38,7 @@ const HistoricalEncoding = () => {
   
   // Data State
   const [source, setSource] = useState('');
+  const [rowErrors, setRowErrors] = useState({});
   const [rows, setRows] = useState([
     { id: Date.now(), subject_id: '', grade: '', code: '', description: '' }
   ]);
@@ -98,6 +99,16 @@ const HistoricalEncoding = () => {
   };
 
   const updateRow = (id, field, value) => {
+    // Clear errors for this row when user makes changes
+    setRowErrors(prev => {
+      const newErrors = { ...prev };
+      if (newErrors[id]) {
+        delete newErrors[id][field];
+        if (Object.keys(newErrors[id]).length === 0) delete newErrors[id];
+      }
+      return newErrors;
+    });
+
     setRows(rows.map(row => {
       if (row.id === id) {
         if (field === 'subject_id') {
@@ -121,6 +132,53 @@ const HistoricalEncoding = () => {
       addToast('warning', 'Please provide a source reference (e.g., TOR Doc ID).');
       return false;
     }
+
+    const errors = {};
+    const seenSubjects = new Set();
+    let hasError = false;
+
+    rows.forEach(row => {
+      const rowErrors = {};
+      
+      // Check for empty fields in active rows
+      if (row.subject_id || row.grade) {
+        if (!row.subject_id) {
+          rowErrors.subject_id = 'Required';
+          hasError = true;
+        }
+        if (!row.grade) {
+          rowErrors.grade = 'Required';
+          hasError = true;
+        } else {
+          const gradeNum = parseFloat(row.grade);
+          if (isNaN(gradeNum) || gradeNum < 1.0 || gradeNum > 5.0) {
+            rowErrors.grade = 'Invalid (1.0-5.0)';
+            hasError = true;
+          }
+        }
+
+        // Duplicate check
+        if (row.subject_id) {
+          if (seenSubjects.has(row.subject_id)) {
+            rowErrors.subject_id = 'Duplicate subject';
+            hasError = true;
+          }
+          seenSubjects.add(row.subject_id);
+        }
+      }
+
+      if (Object.keys(rowErrors).length > 0) {
+        errors[row.id] = rowErrors;
+      }
+    });
+
+    setRowErrors(errors);
+
+    if (hasError) {
+      addToast('error', 'Please correct the errors in the rows below.');
+      return false;
+    }
+
     const validRows = rows.filter(r => r.subject_id && r.grade);
     if (validRows.length === 0) {
       addToast('warning', 'Add at least one complete subject record.');
@@ -251,11 +309,12 @@ const HistoricalEncoding = () => {
                   </thead>
                   <tbody>
                     {rows.map((row) => (
-                      <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
-                        <td className="p-4">
+                      <tr key={row.id} className={`border-b border-slate-50 transition-colors ${rowErrors[row.id] ? 'bg-rose-50/20' : 'hover:bg-slate-50/30'}`}>
+                        <td className="p-4 align-top">
                           <Select 
                             value={row.subject_id}
                             onChange={(e) => updateRow(row.id, 'subject_id', e.target.value)}
+                            error={rowErrors[row.id]?.subject_id}
                             options={[
                               { value: '', label: 'Select Subject...' },
                               ...curriculumSubjects.map(s => ({
@@ -266,17 +325,18 @@ const HistoricalEncoding = () => {
                             className="w-full"
                           />
                         </td>
-                        <td className="p-4">
+                        <td className="p-4 align-top">
                            <Input 
                               type="number"
                               step="0.25"
                               placeholder="1.0"
                               value={row.grade}
+                              error={rowErrors[row.id]?.grade}
                               onChange={(e) => updateRow(row.id, 'grade', e.target.value)}
                               className="font-mono text-center"
                            />
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="p-4 text-right align-top pt-5">
                           <Button 
                             variant="ghost" 
                             size="sm" 

@@ -51,7 +51,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         return StudentRecordSerializer
 
     def get_permissions(self):
-        if self.action == 'apply': return [permissions.AllowAny()]
+        if self.action in ['apply', 'check_email', 'check_idn']: return [permissions.AllowAny()]
         if self.action in ['update', 'partial_update', 'destroy', 'approve', 'unlock_advising', 'toggle_regularity', 'manual_add']:
             return [IsAdmissionOrRegistrar()]
         return [permissions.IsAuthenticated()]
@@ -66,6 +66,33 @@ class StudentViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         student = apply_student(serializer.validated_data)
         return Response(StudentSelfSerializer(student).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='check-email', permission_classes=[permissions.AllowAny])
+    def check_email(self, request):
+        """
+        Checks if a given email is already taken by an existing user.
+        Used for inline validation during student application.
+        """
+        email = request.query_params.get('email')
+        if not email:
+            return Response({'error': 'Email parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        exists = User.objects.filter(email__iexact=email).exists()
+        return Response({'exists': exists})
+
+    @action(detail=False, methods=['get'], url_path='check-idn', permission_classes=[permissions.AllowAny])
+    def check_idn(self, request):
+        """
+        Checks if a given student IDN is already assigned to a student record.
+        """
+        idn = request.query_params.get('idn')
+        if not idn:
+            return Response({'error': 'IDN parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        exists = Student.objects.filter(idn=idn).exists()
+        return Response({'exists': exists})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdmissionOrRegistrar])
     def admit(self, request, pk=None):
