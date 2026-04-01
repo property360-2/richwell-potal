@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from core.permissions import IsAdmin, IsAdminOrRegistrarOrReadOnly
 from .models import Term
 from .serializers import TermSerializer
+from apps.auditing.middleware import get_current_ip
 
 class TermViewSet(viewsets.ModelViewSet):
     """
@@ -66,19 +67,29 @@ class TermViewSet(viewsets.ModelViewSet):
     def activate(self, request, pk=None):
         """
         Activates the specified term and deactivates all others.
+        Propagates audit context so the term deactivation of other terms is attributed 
+        to the acting admin rather than appearing as an anonymous system change.
+
+        @param pk - Primary key of the term to activate.
+        @returns {Response} - 200 with confirmation message.
         """
         term = self.get_object()
         term.is_active = True
-        term.save()  # logic in model.save handles deactivating others
+        # Pass audit context so Term.save() and any cascading saves attribute correctly
+        term.save(audit_user=request.user, audit_ip=get_current_ip())
         return Response({'status': f'Term {term.code} activated'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
         """
         Closes the term, deactivates it, and locks all grades for integrity.
+        Audit context is passed to ensure this critical action is attributed correctly.
+
+        @param pk - Primary key of the term to close.
+        @returns {Response} - 200 with confirmation message.
         """
         term = self.get_object()
         term.is_grades_locked = True
-        term.is_active = False # Deactivate on close
-        term.save()
+        term.is_active = False
+        term.save(audit_user=request.user, audit_ip=get_current_ip())
         return Response({'status': f'Term {term.code} closed and grades locked.'}, status=status.HTTP_200_OK)

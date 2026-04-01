@@ -21,6 +21,11 @@ class AuditLog(models.Model):
         ('LOGOUT', 'Logout'),
         ('LOGIN_FAILED', 'Login Failed'),
         ('BULK_IMPORT', 'Bulk Import'),
+        # Document release events — COR, Masterlist, etc.
+        ('RELEASE', 'Document Released'),
+        # Security events — password changes and resets
+        ('PASSWORD_CHANGE', 'Password Changed'),
+        ('PASSWORD_RESET', 'Password Reset'),
     ]
 
     user = models.ForeignKey(
@@ -30,7 +35,8 @@ class AuditLog(models.Model):
         blank=True,
         related_name='audit_logs'
     )
-    action = models.CharField(max_length=15, choices=ACTION_CHOICES)
+    # max_length=20 to accommodate all ACTION_CHOICES (longest: 'PASSWORD_CHANGE' = 15)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
     model_name = models.CharField(max_length=100)
     object_id = models.CharField(max_length=255)
     object_repr = models.CharField(max_length=255, blank=True)

@@ -377,7 +377,7 @@ class AdvisingService:
             if not subject_id or not final_grade:
                 continue
                 
-            grade, created = Grade.objects.update_or_create(
+            grade, _ = Grade.objects.update_or_create(
                 student=student,
                 subject_id=subject_id,
                 term=term,
@@ -393,6 +393,7 @@ class AdvisingService:
                     'finalized_at': timezone.now()
                 }
             )
+            grade.save(audit_user=user)
             results.append(grade)
             
         # Trigger recalculation of year level and regularity
@@ -422,21 +423,23 @@ class AdvisingService:
         if CreditingRequest.objects.filter(student=student, term=term, status=CreditingRequest.STATUS_PENDING).exists():
             raise ValidationError("A pending crediting request already exists for this student and term.")
 
-        request = CreditingRequest.objects.create(
+        request = CreditingRequest(
             student=student,
             term=term,
             requested_by=user,
             status=CreditingRequest.STATUS_PENDING
         )
+        request.save(audit_user=user)
 
         for item in items_data:
             subject_id = item.get('subject_id')
             final_grade = item.get('final_grade')
-            CreditingRequestItem.objects.create(
+            item = CreditingRequestItem(
                 request=request,
                 subject_id=subject_id,
                 final_grade=final_grade
             )
+            item.save(audit_user=user)
 
         return request
 
@@ -456,7 +459,7 @@ class AdvisingService:
         request.status = CreditingRequest.STATUS_APPROVED
         request.reviewed_by = user
         request.comment = comment
-        request.save()
+        request.save(audit_user=user)
 
         # Credit the subjects
         for item in request.items.all():
@@ -485,6 +488,6 @@ class AdvisingService:
         request.status = CreditingRequest.STATUS_REJECTED
         request.reviewed_by = user
         request.rejection_reason = reason
-        request.save()
+        request.save(audit_user=user)
 
         return request

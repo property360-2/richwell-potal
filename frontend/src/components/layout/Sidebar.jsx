@@ -87,7 +87,11 @@ const getNavItems = (role, isSuperUser = false) => {
     items.push({ path: '/cashier', label: 'Finance', icon: CreditCard });
   }
 
-  if (['ADMIN', 'HEAD_REGISTRAR'].includes(normalizedRole)) {
+  if (['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR'].includes(normalizedRole)) {
+    items.push({ path: '/registrar/history', label: 'Action History', icon: Clock });
+  }
+
+  if (normalizedRole === 'ADMIN') {
     items.push({ path: '/admin/audit', label: 'Audit Logs', icon: Settings });
   }
 

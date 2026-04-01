@@ -12,35 +12,16 @@ from rest_framework import viewsets, permissions, filters, decorators
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import AuditLog
 from .serializers import AuditLogSerializer
+from .filters import AuditLogFilter
 
-from core.permissions import IsHeadRegistrar
+from core.permissions import IsAdmin, IsAdminOrRegistrar
 
 
-class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+class AuditLogExportMixin:
     """
-    ViewSet for viewing system audit logs. Supports filtering by user, 
-    action type, and model name.
+    Mixin to provide CSV export functionality for audit log viewsets.
     """
-    queryset = AuditLog.objects.all()
-    serializer_class = AuditLogSerializer
-    permission_classes = [IsHeadRegistrar]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['user', 'action', 'model_name', 'created_at']
-    search_fields = ['object_id', 'object_repr', 'user__username', 'user__first_name', 'user__last_name']
-    ordering_fields = ['created_at']
-    ordering = ['-created_at']
-
-    def get_queryset(self):
-        """
-        Filters logs based on the user's role. Head Registrars can see logs 
-        for all registrar staff.
-        """
-        user = self.request.user
-        queryset = super().get_queryset()
-        if user.role in ('REGISTRAR', 'HEAD_REGISTRAR'):
-             # Head Registrar sees logs for anyone in the registrar department
-             queryset = queryset.filter(user__role__in=['REGISTRAR', 'HEAD_REGISTRAR'])
-        return queryset
+    export_filename = 'audit_logs.csv'
 
     @decorators.action(detail=False, methods=['get'])
     def export_csv(self, request):
@@ -50,7 +31,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         
         response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="audit_logs.csv"'
+        response['Content-Disposition'] = f'attachment; filename="{self.export_filename}"'
         
         writer = csv.writer(response)
         writer.writerow(['ID', 'Time', 'User', 'Action', 'Model', 'Object ID', 'Object Repr', 'Changes', 'IP Address'])
@@ -61,6 +42,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 log.created_at,
                 log.user.username if log.user else 'System',
                 log.action,
+                log.get_action_display(),
                 log.model_name,
                 log.object_id,
                 log.object_repr,
@@ -69,3 +51,42 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             ])
             
         return response
+
+
+class AuditLogViewSet(AuditLogExportMixin, viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing system audit logs. Supports filtering by user, 
+    action type, and model name. Restricted to system administrators.
+    """
+    queryset = AuditLog.objects.all().select_related('user')
+    serializer_class = AuditLogSerializer
+    permission_classes = [IsAdmin]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = AuditLogFilter
+    search_fields = ['object_id', 'object_repr', 'user__username', 'user__first_name', 'user__last_name']
+    ordering_fields = ['created_at', 'user__username', 'model_name', 'action']
+    ordering = ['-created_at']
+
+
+class RegistrarActionLogViewSet(AuditLogExportMixin, viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for registrar staff to view actions performed by their department.
+    This provides a focused action history for accountability within the registrar office.
+    """
+    export_filename = 'registrar_history.csv'
+    queryset = AuditLog.objects.all().select_related('user')
+    serializer_class = AuditLogSerializer
+    permission_classes = [IsAdminOrRegistrar]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = AuditLogFilter
+    search_fields = ['object_id', 'object_repr', 'user__username', 'user__first_name', 'user__last_name']
+    ordering_fields = ['created_at', 'user__username', 'model_name', 'action']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        """
+        Restricts logs to those performed by registrar or head registrar staff.
+        """
+        return super().get_queryset().filter(
+            user__role__in=['REGISTRAR', 'HEAD_REGISTRAR']
+        )

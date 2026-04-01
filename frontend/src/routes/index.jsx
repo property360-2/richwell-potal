@@ -51,6 +51,7 @@ const CORPreview = lazy(() => import('../pages/registrar/reports/CORPreview'));
 const MasterlistExport = lazy(() => import('../pages/registrar/reports/MasterlistExport'));
 const GraduationAudit = lazy(() => import('../pages/registrar/reports/GraduationAudit'));
 const SummaryOfGrades = lazy(() => import('../pages/registrar/SummaryOfGrades'));
+const RegistrarActionHistory = lazy(() => import('../pages/registrar/RegistrarActionHistory'));
 
 // Dean Pages
 const DeanDashboard = lazy(() => import('../pages/dean/DeanDashboard'));
@@ -149,15 +150,19 @@ const AppRoutes = () => {
           </Route>
         </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'HEAD_REGISTRAR']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'HEAD_REGISTRAR', 'REGISTRAR']} />}>
           <Route element={<PageWrapper title="Staff Management" />}>
             <Route path="/admin/staff" element={<StaffManagement />} />
           </Route>
-          <Route element={<PageWrapper title="System Audit Trail" />}>
-            <Route path="/admin/audit" element={<AuditLogList />} />
-          </Route>
           
+          <Route element={<PageWrapper title="Action History" />}>
+            <Route path="/registrar/history" element={<RegistrarActionHistory />} />
+          </Route>
+
           <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+            <Route element={<PageWrapper title="System Audit Trail" />}>
+              <Route path="/admin/audit" element={<AuditLogList />} />
+            </Route>
             <Route element={<PageWrapper title="Term Management" />}>
               <Route path="/admin/terms" element={<TermManagement />} />
             </Route>

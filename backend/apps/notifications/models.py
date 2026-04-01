@@ -7,8 +7,9 @@ of academic, financial, and administrative updates.
 
 from django.db import models
 from django.conf import settings
+from apps.auditing.mixins import AuditMixin
 
-class Notification(models.Model):
+class Notification(AuditMixin, models.Model):
     """
     Represents an in-app notification for a specific user.
     Tracks read status, type-based categorization, and optional deep-linking.

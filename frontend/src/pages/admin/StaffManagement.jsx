@@ -24,12 +24,13 @@ const ROLE_OPTIONS = [
 
 const REGISTRAR_ONLY_OPTIONS = [
   { value: 'REGISTRAR', label: 'Registrar' },
-  { value: 'HEAD_REGISTRAR', label: 'Head Registrar' },
 ];
 
 const StaffManagement = () => {
   const { role } = useAuth();
   const [staff, setStaff] = useState([]);
+  const [filteredStaff, setFilteredStaff] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -52,6 +53,23 @@ const StaffManagement = () => {
   useEffect(() => {
     fetchStaff();
   }, []);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredStaff(staff);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = staff.filter(s => 
+      s.username.toLowerCase().includes(query) ||
+      s.first_name.toLowerCase().includes(query) ||
+      s.last_name.toLowerCase().includes(query) ||
+      s.email.toLowerCase().includes(query) ||
+      s.role.toLowerCase().includes(query)
+    );
+    setFilteredStaff(filtered);
+  }, [searchQuery, staff]);
 
   const handleOpenModal = (staffMember = null) => {
     if (staffMember) {
@@ -115,7 +133,7 @@ const StaffManagement = () => {
   };
 
   const columns = [
-    { header: 'ID', accessor: 'username' },
+    { header: 'Username', accessor: 'username' },
     { 
       header: 'Name', 
       render: (row) => `${row.first_name} ${row.last_name}`
@@ -170,11 +188,19 @@ const StaffManagement = () => {
       </div>
 
       <Card>
+        <div className="p-4 border-b border-slate-100">
+          <Input 
+            placeholder="Search staff by name, username, email or role..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="max-w-md"
+          />
+        </div>
         <Table 
           columns={columns} 
-          data={staff} 
+          data={filteredStaff} 
           loading={loading} 
-          emptyMessage="No staff members found."
+          emptyMessage={searchQuery ? "No staff matches your search." : "No staff members found."}
         />
       </Card>
 

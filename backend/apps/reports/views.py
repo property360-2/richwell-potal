@@ -12,6 +12,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .services.report_service import ReportService
 from apps.students.models import Student
+from apps.auditing.models import AuditLog
+from apps.auditing.middleware import get_current_ip
 
 class ReportViewSet(viewsets.ViewSet):
     """
@@ -40,9 +42,34 @@ class ReportViewSet(viewsets.ViewSet):
     def masterlist(self, request):
         """
         Generates a master list of students for a specific term, program, and year level in Excel format.
+        Records a RELEASE audit log entry to ensure document generation is traceable.
+
+        @param request - Authenticated DRF request; must include term_id query param.
+        @returns {HttpResponse} - Excel file attachment, or 400 if term_id is missing.
         """
         if not (tid := request.query_params.get('term_id')): return Response({"error": "term_id required"}, 400)
-        excel = self.service.generate_masterlist_excel(tid, request.query_params.get('program_id'), request.query_params.get('year_level'))
+        program_id = request.query_params.get('program_id')
+        year_level = request.query_params.get('year_level')
+
+        excel = self.service.generate_masterlist_excel(tid, program_id, year_level)
+
+        # AUDIT: Log document release — masterlist downloads are not model-saves,
+        # so we must manually create an audit entry for compliance.
+        AuditLog.objects.create(
+            user=request.user,
+            action='RELEASE',
+            model_name='Masterlist',
+            object_id=str(tid),
+            object_repr=f"Masterlist | Term: {tid} | Program: {program_id} | Year: {year_level}",
+            changes={
+                'document': 'masterlist',
+                'term_id': str(tid),
+                'program_id': str(program_id),
+                'year_level': str(year_level)
+            },
+            ip_address=get_current_ip()
+        )
+
         res = HttpResponse(excel, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         res['Content-Disposition'] = 'attachment; filename="masterlist.xlsx"'
         return res
@@ -51,6 +78,10 @@ class ReportViewSet(viewsets.ViewSet):
     def cor(self, request):
         """
         Generates a Certificate of Registration (COR) in PDF format for a student.
+        Records a RELEASE audit log entry to ensure document generation is traceable.
+
+        @param request - Authenticated DRF request; must include term_id and student_id.
+        @returns {HttpResponse} - PDF file attachment, or 400/403 on validation failure.
         """
         tid = request.query_params.get('term_id')
         sid = request.query_params.get('student_id') or (request.user.student_profile.id if request.user.role == 'STUDENT' else None)
@@ -59,6 +90,24 @@ class ReportViewSet(viewsets.ViewSet):
         
         try:
             pdf = self.service.generate_cor_pdf(sid, tid)
+
+            # AUDIT: Log document release — COR generation via GET bypasses model-level
+            # AuditMixin, so we create a manual entry for full accountability.
+            AuditLog.objects.create(
+                user=request.user,
+                action='RELEASE',
+                model_name='COR',
+                object_id=str(sid),
+                object_repr=f"COR | Student: {sid} | Term: {tid}",
+                changes={
+                    'document': 'cor',
+                    'student_id': str(sid),
+                    'term_id': str(tid),
+                    'generated_by_role': request.user.role
+                },
+                ip_address=get_current_ip()
+            )
+
             res = HttpResponse(pdf, content_type='application/pdf')
             res['Content-Disposition'] = f'attachment; filename="COR_{sid}.pdf"'
             return res

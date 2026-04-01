@@ -136,7 +136,7 @@ def admit_student_application(student, monthly_commitment, admitted_by):
         student.user.set_password(generated_password)
         student.user.save()
         
-        student.save()
+        student.save(audit_user=admitted_by)
 
         # Create Initial Enrollment
         year_level = AdvisingService.get_year_level(student)
@@ -217,6 +217,8 @@ def enroll_student_for_term(student, monthly_commitment=None, enrolled_by=None):
                 'advising_status': initial_status
             }
         )
+        if enrolled_by:
+            enrollment.save(audit_user=enrolled_by)
         return enrollment
 
 def manual_add_student_record(data, requested_by):
@@ -285,10 +287,11 @@ def manual_add_student_record(data, requested_by):
             student_type=type_map.get(data.get('student_type'), 'FRESHMAN'),
             status='ENROLLED'
         )
+        student.save(audit_user=requested_by)
         
         # Enrollment Record
         is_regular = AdvisingService.check_student_regularity(student, active_term)
-        StudentEnrollment.objects.create(
+        enrollment = StudentEnrollment.objects.create(
             student=student,
             term=active_term,
             year_level=data.get('year_level', 1),
@@ -296,6 +299,7 @@ def manual_add_student_record(data, requested_by):
             is_regular=is_regular,
             enrolled_by=requested_by
         )
+        enrollment.save(audit_user=requested_by)
 
     # Send Welcome Email (outside transaction to ensure commit)
     try:

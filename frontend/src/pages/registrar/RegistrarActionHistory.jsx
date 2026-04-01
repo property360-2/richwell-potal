@@ -1,11 +1,19 @@
+/**
+ * Richwell Portal — Registrar Action History
+ * 
+ * Provides a focused view of administrative actions performed within 
+ * the registrar department. This ensures accountability and allows 
+ * staff to track their recent data modifications.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { auditingApi } from '../../api/auditing';
-import { Search, ChevronDown, ChevronUp, Clock, Activity, FileJson, Download, Globe } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Clock, FileJson, Download, Globe } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Button from '../../components/ui/Button';
-import './AuditLogList.css';
+import '../admin/AuditLogList.css'; // Reuse existing styles
 
 // Converts raw action to a human-readable past-tense verb
 const getActionVerb = (action) => {
@@ -39,13 +47,12 @@ const humanizeModel = (name) => {
   return name.replace(/([A-Z])/g, ' $1').trim();
 };
 
-const AuditLogList = () => {
+const RegistrarActionHistory = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
   const [filters, setFilters] = useState({
     search: '',
-    user: '',
     model_name: '',
     action: '',
     start_date: '',
@@ -54,7 +61,6 @@ const AuditLogList = () => {
   });
 
   useEffect(() => {
-    // Debounce search/text inputs to avoid too many API calls
     const timer = setTimeout(() => {
       fetchLogs();
     }, 400);
@@ -64,14 +70,13 @@ const AuditLogList = () => {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      // Clean empty filters before sending
       const params = Object.fromEntries(
         Object.entries(filters).filter(([_, v]) => v !== '')
       );
-      const res = await auditingApi.getLogs(params);
+      const res = await auditingApi.getRegistrarHistory(params);
       setLogs(res.data.results || res.data);
     } catch (error) {
-      console.error('Failed to fetch audit logs');
+      console.error('Failed to fetch action history');
     } finally {
       setLoading(false);
     }
@@ -82,11 +87,11 @@ const AuditLogList = () => {
       const params = Object.fromEntries(
         Object.entries(filters).filter(([_, v]) => v !== '')
       );
-      const res = await auditingApi.exportCsv(params);
+      const res = await auditingApi.exportRegistrarCsv(params);
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `registrar_history_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -99,7 +104,6 @@ const AuditLogList = () => {
     setExpandedId(expandedId === id ? null : id);
   };
 
-  // Get a short summary of changed fields for the collapsed view
   const getChangedFields = (changes) => {
     if (!changes || typeof changes !== 'object') return [];
     return Object.keys(changes).slice(0, 4);
@@ -108,8 +112,8 @@ const AuditLogList = () => {
   return (
     <div className="audit-page">
       <PageHeader 
-        title="System Audit Trail"
-        description="Track all data mutations and security events across the platform."
+        title="Action History"
+        description="View recent administrative actions performed by the registrar department."
         actions={
           <Button variant="primary" onClick={handleExport} icon={<Download size={18} />}>
             Export CSV
@@ -121,7 +125,7 @@ const AuditLogList = () => {
       <div className="audit-controls">
         <div className="search-box">
           <Input 
-            placeholder="Search by ID, user, or record..."
+            placeholder="Search by ID or record..."
             icon={<Search size={18} />}
             value={filters.search}
             onChange={(e) => setFilters({...filters, search: e.target.value})}
@@ -180,24 +184,22 @@ const AuditLogList = () => {
               options={[
                 { value: '-created_at', label: 'Newest First' },
                 { value: 'created_at', label: 'Oldest First' },
-                { value: 'user__username', label: 'User (A-Z)' },
-                { value: '-user__username', label: 'User (Z-A)' },
                 { value: 'model_name', label: 'Model (A-Z)' },
+                { value: 'action', label: 'Action Type' },
               ]}
             />
           </div>
         </div>
       </div>
 
-
       <div className="audit-feed-container">
         {loading ? (
           <div className="loading-state">
             <div className="spinner"></div>
-            <p>Loading audit logs...</p>
+            <p>Loading history...</p>
           </div>
         ) : logs.length === 0 ? (
-          <div className="empty-state">No audit entries found matching your filters.</div>
+          <div className="empty-state">No action history found matching your filters.</div>
         ) : (
           <div className="audit-feed">
             {logs.map((log) => {
@@ -211,14 +213,11 @@ const AuditLogList = () => {
                     className={`audit-entry ${isExpanded ? 'active' : ''}`}
                     onClick={() => toggleExpand(log.id)}
                   >
-                    {/* Avatar */}
                     <div className="audit-avatar">
                       {getInitials(log.user_username)}
                     </div>
 
-                    {/* Body */}
                     <div className="audit-body">
-                      {/* Sentence */}
                       <div className="audit-sentence">
                         <span className="audit-user">{log.user_username || 'System'}</span>
                         {' '}
@@ -233,7 +232,6 @@ const AuditLogList = () => {
                         )}
                       </div>
 
-                      {/* Meta: timestamp + IP */}
                       <div className="audit-meta">
                         <span>
                           <Clock size={12} />
@@ -247,7 +245,6 @@ const AuditLogList = () => {
                         )}
                       </div>
 
-                      {/* Changed fields pills (only for UPDATE + collapsed) */}
                       {!isExpanded && hasChanges && (
                         <div className="changes-summary">
                           {changedFields.map(field => (
@@ -260,13 +257,11 @@ const AuditLogList = () => {
                       )}
                     </div>
 
-                    {/* Expand toggle */}
                     <button className="audit-expand" onClick={(e) => { e.stopPropagation(); toggleExpand(log.id); }}>
                       {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </button>
                   </div>
 
-                  {/* Expanded detail panel */}
                   {isExpanded && (
                     <div className="audit-detail-panel">
                       <div className="audit-details">
@@ -305,4 +300,4 @@ const AuditLogList = () => {
   );
 };
 
-export default AuditLogList;
+export default RegistrarActionHistory;

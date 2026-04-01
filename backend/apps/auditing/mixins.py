@@ -1,6 +1,7 @@
 import json
 from django.forms.models import model_to_dict
 from .models import AuditLog
+from .middleware import get_current_user, get_current_ip
 
 class AuditMixin:
     """
@@ -11,10 +12,14 @@ class AuditMixin:
         return model_to_dict(self)
 
     def save(self, *args, **kwargs):
-        user = kwargs.pop('audit_user', None)
-        ip = kwargs.pop('audit_ip', None)
+        user = kwargs.pop('audit_user', get_current_user())
+        ip = kwargs.pop('audit_ip', get_current_ip())
         skip_audit = kwargs.pop('skip_audit', False)
         
+        # Ensure user is a valid User model instance, not AnonymousUser LazyObject
+        if user and hasattr(user, 'is_authenticated') and not user.is_authenticated:
+            user = None
+
         if skip_audit:
             return super().save(*args, **kwargs)
         
@@ -71,9 +76,13 @@ class AuditMixin:
             pass
 
     def delete(self, *args, **kwargs):
-        user = kwargs.pop('audit_user', None)
-        ip = kwargs.pop('audit_ip', None)
+        user = kwargs.pop('audit_user', get_current_user())
+        ip = kwargs.pop('audit_ip', get_current_ip())
         
+        # Ensure user is a valid User model instance, not AnonymousUser LazyObject
+        if user and hasattr(user, 'is_authenticated') and not user.is_authenticated:
+            user = None
+
         pk = self.pk
         model_name = self.__class__.__name__
         repr_val = str(self)

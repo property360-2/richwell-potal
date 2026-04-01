@@ -115,7 +115,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         """
         student = self.get_object()
         student.is_advising_unlocked = True
-        student.save()
+        student.save(audit_user=request.user)
         return Response({'status': 'Advising process unlocked'})
 
     @action(detail=True, methods=['post'], url_path='toggle-regularity')

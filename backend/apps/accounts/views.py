@@ -25,6 +25,8 @@ from .serializers import (
 )
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
+from apps.auditing.models import AuditLog
+from apps.auditing.middleware import get_current_ip
 
 User = get_user_model()
 
@@ -41,6 +43,7 @@ class CsrfTokenView(APIView):
         return Response({"detail": "CSRF cookie set."})
 
 from rest_framework.throttling import AnonRateThrottle
+from django.contrib.auth.signals import user_logged_in, user_logged_out
 
 class LoginView(TokenObtainPairView):
     """
@@ -53,9 +56,13 @@ class LoginView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         if response.status_code == status.HTTP_200_OK:
+            # SimpleJWT doesn't fire user_logged_in, so we do it manually for auditing
+            user = User.objects.get(username=request.data.get('username'))
+            user_logged_in.send(sender=user.__class__, request=request, user=user)
+
             access_token = response.data.get('access')
             refresh_token = response.data.get('refresh')
-
+            # ... (rest of the cookie setting logic)
             response.set_cookie(
                 key=settings.SIMPLE_JWT['AUTH_COOKIE'],
                 value=access_token,
@@ -115,6 +122,9 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        # Fire LOGOUT signal for auditing
+        user_logged_out.send(sender=request.user.__class__, request=request, user=request.user)
+        
         response = Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
         response.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE'])
         response.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
@@ -142,6 +152,14 @@ class ChangePasswordView(generics.UpdateAPIView):
         return self.request.user
 
     def update(self, request, *args, **kwargs):
+        """
+        Processes the password change request.
+        Validates the old password, applies the new one, and emits a PASSWORD_CHANGE 
+        audit log so all credential changes are traceable.
+
+        @param request - Must contain old_password and new_password fields.
+        @returns {Response} - 200 on success, 400 on validation failure.
+        """
         user = self.get_object()
         serializer = self.get_serializer(data=request.data)
 
@@ -152,6 +170,18 @@ class ChangePasswordView(generics.UpdateAPIView):
             user.set_password(serializer.validated_data.get("new_password"))
             user.must_change_password = False
             user.save()
+
+            # AUDIT: Password changes are security-critical events and must be logged
+            # explicitly since set_password + save() does not pass through AuditMixin cleanly.
+            AuditLog.objects.create(
+                user=request.user,
+                action='PASSWORD_CHANGE',
+                model_name='User',
+                object_id=str(user.id),
+                object_repr=user.username,
+                changes={'changed_by': 'self'},
+                ip_address=get_current_ip()
+            )
             return Response({"detail": "Password updated successfully."}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -167,15 +197,27 @@ class StaffManagementViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdmin | IsHeadRegistrar]
     
     def get_queryset(self):
+        """
+        Customizes staff list based on user role.
+        Head Registrars can only view and manage Registrar-related accounts.
+        """
         user = self.request.user
-        queryset = User.objects.exclude(role='STUDENT').order_by('id')
-        
+        # Exclude students and order by newest first
+        queryset = User.objects.exclude(role='STUDENT').order_by('-id')
+
         if user.role == 'HEAD_REGISTRAR':
-            queryset = queryset.filter(role='REGISTRAR')
-            
+            # Head Registrars see themselves and Registrars
+            queryset = queryset.filter(role__in=['REGISTRAR', 'HEAD_REGISTRAR'])
+        
         role = self.request.query_params.get('role')
         if role:
-            queryset = queryset.filter(role=role)
+            if role == 'ADMIN':
+                # Special case for admins who might have empty role strings in DB
+                from django.db.models import Q
+                queryset = queryset.filter(Q(role='ADMIN') | Q(role='', is_superuser=True))
+            else:
+                queryset = queryset.filter(role=role)
+                
         return queryset
 
     
@@ -195,9 +237,24 @@ class StaffManagementViewSet(viewsets.ModelViewSet):
         """
         Resets a user's password to the default format.
         Admin can reset any non-student; Head Registrar can only reset Registrars.
+        Emits a PASSWORD_RESET audit log for compliance tracking.
+
+        @param pk - Target user's primary key.
+        @returns {Response} - 200 on success, 403 on permission failure.
         """
         user = self.get_object()
         if request.user.role == 'HEAD_REGISTRAR' and user.role != 'REGISTRAR':
             raise PermissionDenied("Head Registrars can only reset registrar accounts.")
         UserService.reset_password(user)
+
+        # AUDIT: Admin-triggered password resets are critical security events.
+        AuditLog.objects.create(
+            user=request.user,
+            action='PASSWORD_RESET',
+            model_name='User',
+            object_id=str(user.id),
+            object_repr=user.username,
+            changes={'reset_by': request.user.username, 'target_role': user.role},
+            ip_address=get_current_ip()
+        )
         return Response({"detail": "Password has been reset to the default format."}, status=status.HTTP_200_OK)

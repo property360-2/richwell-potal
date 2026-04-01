@@ -136,7 +136,7 @@ class Grade(AuditMixin, models.Model):
         return f"{self.student.idn} - {self.subject.code} ({self.grade_status})"
 
 
-class CreditingRequest(models.Model):
+class CreditingRequest(AuditMixin, models.Model):
     """
     Represents a bulk request by the Registrar to credit historical subjects
     for a transferee student. Awaits approval from the Program Head.
@@ -192,7 +192,7 @@ class CreditingRequest(models.Model):
         return f"Crediting Request for {self.student.idn} - {self.status}"
 
 
-class CreditingRequestItem(models.Model):
+class CreditingRequestItem(AuditMixin, models.Model):
     """
     Represents an individual subject to be credited within a CreditingRequest.
     """
