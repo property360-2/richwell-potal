@@ -125,6 +125,9 @@ class AdvisingService:
         ).values_list('subject_id', flat=True)
 
         subjects_to_enroll = subjects.exclude(id__in=passed_or_credited)
+        
+        if not subjects_to_enroll.exists():
+            raise ValidationError("No subjects available for advising in this term. You may have already passed or credited all required subjects for this level.")
 
         # Detect retakes (subjects with previous FAILED or RETAKE status)
         retake_subject_ids = Grade.objects.filter(

@@ -109,3 +109,37 @@
     margin: 0 auto var(--space-4);
     color: #f59e0b;
 }
+
+.subject-group-section {
+    animation: fadeIn 0.4s ease-out;
+}
+
+.subject-group-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    padding: 0 var(--space-1);
+}
+
+.subject-group-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.sticky-action-bar {
+    position: sticky;
+    bottom: var(--space-6);
+    background: white;
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    z-index: 40;
+    margin-top: var(--space-8);
+}

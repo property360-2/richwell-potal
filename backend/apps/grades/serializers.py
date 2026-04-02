@@ -110,8 +110,8 @@ class CreditingRequestItemSerializer(serializers.ModelSerializer):
     Serializer for individual items within a crediting request.
     """
     subject_code = serializers.CharField(source='subject.code', read_only=True)
-    subject_title = serializers.CharField(source='subject.title', read_only=True)
-    units = serializers.IntegerField(source='subject.units', read_only=True)
+    subject_title = serializers.CharField(source='subject.description', read_only=True)
+    units = serializers.IntegerField(source='subject.total_units', read_only=True)
 
     class Meta:
         model = CreditingRequestItem

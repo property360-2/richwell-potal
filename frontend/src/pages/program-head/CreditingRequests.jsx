@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle, 
-  XCircle, 
+import {
+  CheckCircle,
+  XCircle,
   Search,
   CheckSquare,
   ClipboardList
@@ -16,7 +16,8 @@ import SearchBar from '../../components/shared/SearchBar';
 import EmptyState from '../../components/shared/EmptyState';
 import PageHeader from '../../components/shared/PageHeader';
 import Input from '../../components/ui/Input';
-import { format } from 'date-fns';
+import { formatDate } from '../../utils/formatters';
+
 
 /**
  * Program Head interface for reviewing bulk subject crediting requests
@@ -29,6 +30,7 @@ const CreditingRequests = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
   const [expandedRows, setExpandedRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -56,11 +58,12 @@ const CreditingRequests = () => {
     }
   };
 
-  const handleApprove = async (id) => {
-    if (!window.confirm("Are you sure you want to approve this crediting request? The subjects will be permanently credited.")) return;
+  const handleApprove = async () => {
+    if (!selectedRequest) return;
     try {
-      await api.post(`grades/crediting-requests/${id}/approve/`);
-      setRequests(requests.filter(r => r.id !== id));
+      await api.post(`grades/crediting-requests/${selectedRequest.id}/approve/`);
+      setRequests(requests.filter(r => r.id !== selectedRequest.id));
+      setShowApproveModal(false);
     } catch (error) {
       alert(error.response?.data?.error || "Approval failed");
     }
@@ -80,24 +83,24 @@ const CreditingRequests = () => {
     }
   };
 
-  const filteredRequests = requests.filter(r => 
+  const filteredRequests = requests.filter(r =>
     r.student_idn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     r.student_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="crediting-requests-container pb-8">
-      <PageHeader 
+      <PageHeader
         title="Subject Crediting Approvals"
         description="Review and approve transferee subject crediting requests"
       />
 
       <Card>
         <div className="mb-4 max-w-md">
-            <SearchBar 
-                placeholder="Search by IDN or Name..." 
-                onSearch={setSearchTerm} 
-            />
+          <SearchBar
+            placeholder="Search by IDN or Name..."
+            onSearch={setSearchTerm}
+          />
         </div>
 
         {loading ? (
@@ -105,7 +108,7 @@ const CreditingRequests = () => {
             <LoadingSpinner />
           </div>
         ) : filteredRequests.length === 0 ? (
-          <EmptyState 
+          <EmptyState
             title="No Pending Requests"
             message={`No pending subject crediting requests found.`}
             icon={<CheckSquare size={48} />}
@@ -128,17 +131,17 @@ const CreditingRequests = () => {
                     <tr className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                           <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
-                             {request.student_name ? request.student_name[0] : '?'}
-                           </div>
-                           <div>
-                              <p className="font-medium text-slate-800">{request.student_name}</p>
-                              <p className="text-sm text-slate-500">{request.student_idn}</p>
-                           </div>
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+                            {request.student_name ? request.student_name[0] : '?'}
+                          </div>
+                          <div>
+                            <p className="font-medium text-slate-800">{request.student_name}</p>
+                            <p className="text-sm text-slate-500">{request.student_idn}</p>
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">
-                        {request.created_at ? format(new Date(request.created_at), 'MMM d, yyyy') : 'N/A'}
+                        {request.created_at ? formatDate(request.created_at) : 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">
                         {request.requested_by_name || 'System'}
@@ -148,25 +151,28 @@ const CreditingRequests = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2 items-center">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => toggleRow(request.id)}
                             className="text-blue-600 hover:bg-blue-50"
                           >
                             {expandedRows.includes(request.id) ? 'Collapse' : 'Review'}
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             className="text-green-600 hover:bg-green-50"
-                            onClick={() => handleApprove(request.id)}
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setShowApproveModal(true);
+                            }}
                             title="Approve"
                           >
                             <CheckCircle size={18} />
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             className="text-red-600 hover:bg-red-50"
                             onClick={() => {
@@ -180,49 +186,49 @@ const CreditingRequests = () => {
                         </div>
                       </td>
                     </tr>
-                    
+
                     {/* Expanded Content */}
                     {expandedRows.includes(request.id) && (
                       <tr className="bg-slate-50/50">
                         <td colSpan="5" className="px-6 py-6 border-b border-slate-200">
-                           <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm ml-11">
-                              <h4 className="font-semibold text-sm mb-4 flex items-center gap-2 text-slate-700">
-                                <ClipboardList size={16} className="text-blue-500" />
-                                Subjects to be Credited
-                              </h4>
-                              {request.items && request.items.length > 0 ? (
-                                <table className="w-full text-sm text-left">
-                                   <thead className="text-slate-500 border-b border-slate-200">
-                                      <tr>
-                                         <th className="pb-2 font-medium">Code</th>
-                                         <th className="pb-2 font-medium">Title</th>
-                                         <th className="pb-2 font-medium">Units</th>
-                                         <th className="pb-2 font-medium">Grade</th>
-                                      </tr>
-                                   </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                       {request.items.map(item => (
-                                          <tr key={item.id}>
-                                             <td className="py-2.5 font-medium text-slate-800">{item.subject_code}</td>
-                                             <td className="py-2.5 text-slate-600">{item.subject_title}</td>
-                                             <td className="py-2.5 text-slate-600">{item.units}</td>
-                                             <td className="py-2.5">
-                                                <Badge variant="success" size="sm">{item.final_grade}</Badge>
-                                             </td>
-                                          </tr>
-                                       ))}
-                                    </tbody>
-                                </table>
-                              ) : (
-                                <p className="text-sm text-slate-500">No subjects found in this request.</p>
-                              )}
-                              
-                              {request.comment && (
-                                <div className="mt-4 p-3 bg-slate-50 rounded text-sm text-slate-700 border border-slate-200">
-                                   <span className="font-medium">Registrar Comment:</span> {request.comment}
-                                </div>
-                              )}
-                           </div>
+                          <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm ml-11">
+                            <h4 className="font-semibold text-sm mb-4 flex items-center gap-2 text-slate-700">
+                              <ClipboardList size={16} className="text-blue-500" />
+                              Subjects to be Credited
+                            </h4>
+                            {request.items && request.items.length > 0 ? (
+                              <table className="w-full text-sm text-left">
+                                <thead className="text-slate-500 border-b border-slate-200">
+                                  <tr>
+                                    <th className="pb-2 font-medium">Code</th>
+                                    <th className="pb-2 font-medium">Title</th>
+                                    <th className="pb-2 font-medium">Units</th>
+                                    <th className="pb-2 font-medium">Grade</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {request.items.map(item => (
+                                    <tr key={item.id}>
+                                      <td className="py-2.5 font-medium text-slate-800">{item.subject_code}</td>
+                                      <td className="py-2.5 text-slate-600">{item.subject_title}</td>
+                                      <td className="py-2.5 text-slate-600">{item.units}</td>
+                                      <td className="py-2.5">
+                                        <Badge variant="success" size="sm">{item.final_grade}</Badge>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            ) : (
+                              <p className="text-sm text-slate-500">No subjects found in this request.</p>
+                            )}
+
+                            {request.comment && (
+                              <div className="mt-4 p-3 bg-slate-50 rounded text-sm text-slate-700 border border-slate-200">
+                                <span className="font-medium">Registrar Comment:</span> {request.comment}
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -233,6 +239,34 @@ const CreditingRequests = () => {
           </div>
         )}
       </Card>
+
+      {/* Approve Modal */}
+      <Modal
+        isOpen={showApproveModal}
+        onClose={() => setShowApproveModal(false)}
+        title="Approve Crediting Request"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-100">
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+              <CheckCircle size={24} />
+            </div>
+            <div>
+              <p className="font-semibold text-green-900">Confirm Approval</p>
+              <p className="text-sm text-green-700">Approve subjects for {selectedRequest?.student_name}?</p>
+            </div>
+          </div>
+          
+          <p className="text-sm text-slate-600 leading-relaxed">
+            By approving this request, the selected subjects will be <strong>permanently credited</strong> to the student's academic record. This action cannot be undone.
+          </p>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button variant="secondary" onClick={() => setShowApproveModal(false)}>Cancel</Button>
+            <Button variant="success" onClick={handleApprove}>Confirm & Approve</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Reject Modal */}
       <Modal

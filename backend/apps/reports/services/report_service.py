@@ -121,12 +121,25 @@ class ReportService:
                         "status": g.get_grade_status_display() if g else "Not Taken",
                         "status_code": g.grade_status if g else "NOT_TAKEN"
                     })
-                semesters.append({"title": f"Year {year} - Sem {sem}", "grades": sem_grades})
+                sem_title = f"{'1st' if sem == '1' else '2nd' if sem == '2' else 'Summer'} Semester"
+                semesters.append({
+                    "title": sem_title, 
+                    "year_level": f"Year {year}", 
+                    "grades": sem_grades
+                })
 
         return {
-            "student": {"name": student.user.get_full_name(), "program": student.program.name, "units_earned": units_earned},
+            "student": {
+                "name": student.user.get_full_name(), 
+                "idn": student.idn,
+                "program": student.program.code, 
+                "year_level": enrollment.year_level if enrollment else 1,
+                "academic_standing": student.get_status_display(),
+                "units_earned": units_earned
+            },
             "stats": {"gpa": gpa, "passed": passed.count()},
-            "semesters": semesters
+            "semesters": semesters,
+            "curriculum_progress": [] # Placeholder or real progress if needed
         }
 
     @staticmethod

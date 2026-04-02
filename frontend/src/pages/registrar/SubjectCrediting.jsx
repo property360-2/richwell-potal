@@ -159,7 +159,7 @@ const SubjectCrediting = () => {
   const handleUnlockAdvising = async () => {
     try {
       setLoading(true);
-      await api.post(`students/${student.id}/unlock_advising/`);
+      await api.post(`students/${student.id}/unlock-advising/`);
       setStudent({ ...student, is_advising_unlocked: true });
       setIsUnlockModalOpen(false);
       showToast('success', 'Advising process unlocked successfully!');
@@ -178,6 +178,32 @@ const SubjectCrediting = () => {
     });
   }, [curriculumSubjects, yearFilter, semesterFilter]);
 
+  const groupedSubjects = useMemo(() => {
+    const groups = {};
+    filteredSubjects.forEach(subject => {
+      const year = subject.year_level;
+      const sem = subject.semester;
+      const key = `${year}-${sem}`;
+      
+      if (!groups[key]) {
+        const semesterLabel = sem === '1' ? 'First Semester' : sem === '2' ? 'Second Semester' : 'Summer Term';
+        groups[key] = {
+          title: `Year ${year} - ${semesterLabel}`,
+          subjects: [],
+          year,
+          sem
+        };
+      }
+      groups[key].subjects.push(subject);
+    });
+
+    return Object.values(groups).sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      const semOrder = { '1': 1, '2': 2, 'S': 3 };
+      return semOrder[a.sem] - semOrder[b.sem];
+    });
+  }, [filteredSubjects]);
+
   const columns = [
     {
       header: 'Status',
@@ -190,12 +216,6 @@ const SubjectCrediting = () => {
     },
     { header: 'Code', accessor: 'code', width: '100px' },
     { header: 'Subject Title', accessor: 'description' },
-    { 
-      header: 'Level/Sem', 
-      width: '120px',
-      align: 'center',
-      render: (row) => `Y${row.year_level} - S${row.semester}` 
-    },
     { 
       header: 'Grade to Credit', 
       width: '150px',
@@ -291,67 +311,87 @@ const SubjectCrediting = () => {
             </div>
           </div>
 
-          <Card padding="0">
-            {/* Inline Filter Bar */}
-            <div className="filter-row-inline border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Filter size={16} className="text-slate-400" />
-                <span className="filter-label-inline">View Options:</span>
-              </div>
-              <div className="w-40">
-                <Select 
-                  size="sm"
-                  value={yearFilter} 
-                  onChange={(e) => setYearFilter(e.target.value)}
-                  options={[
-                    { value: 'ALL', label: 'All Year Levels' },
-                    { value: '1', label: '1st Year' },
-                    { value: '2', label: '2nd Year' },
-                    { value: '3', label: '3rd Year' },
-                    { value: '4', label: '4th Year' },
-                  ]}
-                />
-              </div>
-              <div className="w-44">
-                <Select 
-                  size="sm"
-                  value={semesterFilter} 
-                  onChange={(e) => setSemesterFilter(e.target.value)}
-                  options={[
-                    { value: 'ALL', label: 'All Semesters' },
-                    { value: '1', label: 'First Semester' },
-                    { value: '2', label: 'Second Semester' },
-                    { value: 'S', label: 'Summer Term' },
-                  ]}
-                />
-              </div>
+          <div className="mb-6 flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Filter size={16} className="text-slate-400" />
+              <span className="filter-label-inline">View Options:</span>
             </div>
+            <div className="w-40">
+              <Select 
+                size="sm"
+                value={yearFilter} 
+                onChange={(e) => setYearFilter(e.target.value)}
+                options={[
+                  { value: 'ALL', label: 'All Year Levels' },
+                  { value: '1', label: '1st Year' },
+                  { value: '2', label: '2nd Year' },
+                  { value: '3', label: '3rd Year' },
+                  { value: '4', label: '4th Year' },
+                ]}
+              />
+            </div>
+            <div className="w-44">
+              <Select 
+                size="sm"
+                value={semesterFilter} 
+                onChange={(e) => setSemesterFilter(e.target.value)}
+                options={[
+                  { value: 'ALL', label: 'All Semesters' },
+                  { value: '1', label: 'First Semester' },
+                  { value: '2', label: 'Second Semester' },
+                  { value: 'S', label: 'Summer Term' },
+                ]}
+              />
+            </div>
+            <div className="ml-auto">
+              {!pendingRequest && (
+                <Button 
+                  variant="primary" 
+                  icon={Save} 
+                  size="sm"
+                  onClick={() => setIsSubmitModalOpen(true)}
+                  disabled={Object.keys(subjectGrades).filter(k => subjectGrades[k] && !creditedSubjectIds.includes(parseInt(k))).length === 0}
+                >
+                  Submit Bulk Request
+                </Button>
+              )}
+              {pendingRequest && (
+                <div className="flex items-center gap-2 text-warning-600 bg-warning-50 px-3 py-1.5 rounded-md border border-warning-100">
+                  <AlertCircle size={14} />
+                  <span className="font-medium text-xs">Request Pending</span>
+                </div>
+              )}
+            </div>
+          </div>
 
-            <Table 
-              columns={columns} 
-              data={filteredSubjects} 
-              loading={loading} 
-              rowClassName={(row) => creditedSubjectIds.includes(row.id) ? 'row-credited' : ''}
-            />
-            
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end items-center">
-                {pendingRequest ? (
-                  <div className="flex items-center gap-2 text-warning-700">
-                     <AlertCircle size={18} />
-                     <span className="font-medium text-sm">A request is pending approval by the Program Head.</span>
-                  </div>
-                ) : (
-                  <Button 
-                    variant="primary" 
-                    icon={Save} 
-                    onClick={() => setIsSubmitModalOpen(true)}
-                    disabled={Object.keys(subjectGrades).filter(k => subjectGrades[k] && !creditedSubjectIds.includes(parseInt(k))).length === 0}
-                  >
-                    Submit Bulk Crediting Request
-                  </Button>
-                )}
+          {groupedSubjects.map((group) => (
+            <div key={group.title} className="subject-group-section mb-8">
+              <div className="subject-group-header">
+                <GraduationCap size={18} className="text-primary-600" />
+                <h3>{group.title}</h3>
+                <Badge variant="neutral" size="sm" className="ml-auto">
+                  {group.subjects.length} Subjects
+                </Badge>
+              </div>
+              <Card padding="0" className="overflow-hidden">
+                <Table 
+                  columns={columns} 
+                  data={group.subjects} 
+                  loading={loading} 
+                  rowClassName={(row) => creditedSubjectIds.includes(row.id) ? 'row-credited' : ''}
+                />
+              </Card>
             </div>
-          </Card>
+          ))}
+
+          {groupedSubjects.length === 0 && !loading && (
+            <Card className="text-center py-12">
+              <div className="flex flex-col items-center gap-2 text-slate-400">
+                <AlertCircle size={48} strokeWidth={1} />
+                <p>No subjects found for the selected filters.</p>
+              </div>
+            </Card>
+          )}
         </>
       )}
 

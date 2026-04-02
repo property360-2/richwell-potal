@@ -9,7 +9,8 @@ the advising and crediting process for new and irregular students.
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError as DRFValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q, F, Exists, OuterRef
 import django_filters
 
@@ -73,11 +74,15 @@ class AdvisingViewSet(viewsets.ModelViewSet):
         """
         student = request.user.student_profile
         active_term = Term.objects.filter(is_active=True).first()
-        if not active_term: raise ValidationError({'detail': 'No active term.'})
+        if not active_term: raise DRFValidationError({'detail': 'No active term.'})
         enrollment = StudentEnrollment.objects.filter(student=student, term=active_term).first()
-        if not enrollment: raise ValidationError({'detail': 'Not enrolled for active term.'})
-        grades = AdvisingService.auto_advise_regular(student, active_term)
-        return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
+        if not enrollment: raise DRFValidationError({'detail': 'Not enrolled for active term.'})
+        
+        try:
+            grades = AdvisingService.auto_advise_regular(student, active_term)
+            return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
     @action(detail=False, methods=['post'], url_path='manual-advise')
     def manual_advise(self, request):
@@ -90,9 +95,13 @@ class AdvisingViewSet(viewsets.ModelViewSet):
         serializer = AdvisingSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         student, active_term = request.user.student_profile, Term.objects.filter(is_active=True).first()
-        if not active_term: raise ValidationError({'detail': 'No active term.'})
-        grades = AdvisingService.manual_advise_irregular(student, active_term, serializer.validated_data['subject_ids'])
-        return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
+        if not active_term: raise DRFValidationError({'detail': 'No active term.'})
+        
+        try:
+            grades = AdvisingService.manual_advise_irregular(student, active_term, serializer.validated_data['subject_ids'])
+            return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
 class AdvisingApprovalViewSet(viewsets.ModelViewSet):
     """
@@ -123,8 +132,11 @@ class AdvisingApprovalViewSet(viewsets.ModelViewSet):
         Finalizes a student's advising, transitioning them to officially enrolled in their subjects.
         """
         enrollment = self.get_object()
-        AdvisingService.approve_advising(enrollment, request.user)
-        return Response({"status": "Advising approved and student enrolled."})
+        try:
+            AdvisingService.approve_advising(enrollment, request.user)
+            return Response({"status": "Advising approved and student enrolled."})
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
@@ -152,7 +164,7 @@ class CreditingRequestViewSet(viewsets.ModelViewSet):
         'student', 'term', 'requested_by', 'reviewed_by'
     ).prefetch_related('items__subject')
     serializer_class = CreditingRequestSerializer
-    permission_classes = [IsRegistrar | IsProgramHead | IsAdmin]
+    permission_classes = [IsRegistrar | IsProgramHead | IsAdmin, IsProgramHeadOfStudent]
 
     def get_queryset(self):
         user = self.request.user
@@ -180,35 +192,44 @@ class CreditingRequestViewSet(viewsets.ModelViewSet):
         else:
             term = Term.objects.get(is_active=True)
         
-        crediting_request = AdvisingService.submit_bulk_crediting_request(
-            student=student, 
-            term=term, 
-            user=request.user, 
-            items_data=items
-        )
-        return Response(CreditingRequestSerializer(crediting_request).data, status=status.HTTP_201_CREATED)
+        try:
+            crediting_request = AdvisingService.submit_bulk_crediting_request(
+                student=student, 
+                term=term, 
+                user=request.user, 
+                items_data=items
+            )
+            return Response(CreditingRequestSerializer(crediting_request).data, status=status.HTTP_201_CREATED)
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsProgramHead | IsAdmin])
+    @action(detail=True, methods=['post'], permission_classes=[IsProgramHeadOfStudent])
     def approve(self, request, pk=None):
         comment = request.data.get('comment', "")
-        crediting_request = AdvisingService.approve_crediting_request(
-            request_id=pk, 
-            user=request.user, 
-            comment=comment
-        )
-        return Response(CreditingRequestSerializer(crediting_request).data)
+        try:
+            crediting_request = AdvisingService.approve_crediting_request(
+                request_id=pk, 
+                user=request.user, 
+                comment=comment
+            )
+            return Response(CreditingRequestSerializer(crediting_request).data)
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsProgramHead | IsAdmin])
+    @action(detail=True, methods=['post'], permission_classes=[IsProgramHeadOfStudent])
     def reject(self, request, pk=None):
         reason = request.data.get('reason')
         if not reason:
             raise ValidationError({"reason": "A reason for rejection is required."})
-        crediting_request = AdvisingService.reject_crediting_request(
-            request_id=pk, 
-            user=request.user, 
-            reason=reason
-        )
-        return Response(CreditingRequestSerializer(crediting_request).data)
+        try:
+            crediting_request = AdvisingService.reject_crediting_request(
+                request_id=pk, 
+                user=request.user, 
+                reason=reason
+            )
+            return Response(CreditingRequestSerializer(crediting_request).data)
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
 
 class SubjectCreditingViewSet(viewsets.ViewSet):

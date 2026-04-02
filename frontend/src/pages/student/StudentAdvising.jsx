@@ -122,21 +122,55 @@ const StudentAdvising = () => {
         actions={<div className="flex items-center gap-2"><Badge variant={enrollment?.advising_status === 'APPROVED' ? 'success' : 'warning'}>{enrollment?.advising_status}</Badge></div>} />
       <div className="advising-grid grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {enrollment?.student_details?.student_type === 'TRANSFEREE' && !enrollment?.student_details?.is_advising_unlocked && (
+            <Card className="border-l-4 border-l-amber-500 bg-amber-50/50">
+              <div className="flex gap-4 p-2">
+                <div className="p-3 bg-amber-100 rounded-full h-fit">
+                  <AlertCircle className="text-amber-600" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-amber-900">Registrar Approval Required</h3>
+                  <p className="text-amber-800 text-sm mt-1 leading-relaxed">
+                    Welcome to Richwell Colleges! As a <strong>Transferee Student</strong>, your previous academic records are currently being evaluated. 
+                    The Registrar must first complete the <strong>Subject Crediting</strong> process before you can proceed with subject advising.
+                  </p>
+                  <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                    <Info size={14} />
+                    <span>Please visit the Registrar's Office for assistance</span>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {enrollingGrades.length > 0 && (
             <Card title="Current Selection" icon={<AlertCircle size={18} />}>
               <SelectedSubjectsTable enrollingGrades={enrollingGrades} enrollmentStatus={enrollment?.advising_status} onReset={() => setGrades([])} />
             </Card>
           )}
+
           {isRegular ? ( !enrollingGrades.length && (
             <Card className="text-center py-20">
               <ClipboardList size={64} className="mx-auto mb-4 opacity-20" />
-              <Button className="mt-10" loading={loading} onClick={() => handleAction('auto-advise')} disabled={!enrollment?.student_details?.is_advising_unlocked}>Generate Enrollment Slip</Button>
+              <div className="max-w-md mx-auto">
+                <p className="text-slate-500 mb-8">Click the button below to automatically pick subjects based on your curriculum and prerequisites.</p>
+                <Button 
+                  className="w-full sm:w-auto px-10" 
+                  loading={loading} 
+                  onClick={() => handleAction('auto-advise')} 
+                  disabled={!enrollment?.student_details?.is_advising_unlocked}
+                >
+                  {enrollment?.student_details?.is_advising_unlocked ? 'Generate Enrollment Slip' : 'Advising Currently Locked'}
+                </Button>
+              </div>
             </Card>
           )) : ( enrollment?.advising_status !== 'APPROVED' && (
-            <Card title="Subject Catalog" icon={<Filter size={18} />}>
-              <SearchBar placeholder="Filter catalog..." onSearch={setSearchTerm} />
-              <SubjectSelectionList categorizedSubjects={catSubs} selectedSubjectIds={selectedSubjectIds} toggleSubject={toggleSubject} checkPrerequisites={checkPrerequisites} isOfferedThisTerm={isOfferedThisTerm} />
-            </Card>
+            <div className={!enrollment?.student_details?.is_advising_unlocked ? 'opacity-50 pointer-events-none' : ''}>
+              <Card title="Subject Catalog" icon={<Filter size={18} />}>
+                <SearchBar placeholder="Filter catalog..." onSearch={setSearchTerm} />
+                <SubjectSelectionList categorizedSubjects={catSubs} selectedSubjectIds={selectedSubjectIds} toggleSubject={toggleSubject} checkPrerequisites={checkPrerequisites} isOfferedThisTerm={isOfferedThisTerm} />
+              </Card>
+            </div>
           ))}
         </div>
         <div className="space-y-6">
