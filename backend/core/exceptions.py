@@ -28,6 +28,7 @@ def custom_exception_handler(exc, context):
     {
         "error": true,
         "message": "Human readable message",
+        "reason": "ERROR_CODE",  // Optional machine-readable code
         "details": { "field": ["error"] }  // Optional field-level details
     }
     
@@ -41,16 +42,38 @@ def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
 
     if response is not None:
+        # Extract initial message
+        message = _get_error_message(response)
+        reason = None
+        details = None
+
+        if isinstance(response.data, dict):
+            # Capture 'reason' if provided (custom logic)
+            reason = response.data.get('reason')
+            if isinstance(reason, list) and reason:
+                reason = reason[0]
+
+            # Capture 'detail' specifically
+            if 'detail' in response.data:
+                message = str(response.data['detail'])
+                if isinstance(response.data['detail'], list) and response.data['detail']:
+                    message = str(response.data['detail'][0])
+
+            # Treat everything else as 'details' if it's not a standard key
+            standard_keys = {'error', 'message', 'detail', 'reason', 'non_field_errors'}
+            other_keys = set(response.data.keys()) - standard_keys
+            if other_keys:
+                details = {k: v for k, v in response.data.items() if k in other_keys}
+
         error_data = {
             'error': True,
-            'message': _get_error_message(response),
+            'message': message,
         }
-
-        # Preserve field-level validation errors
-        if isinstance(response.data, dict) and not {'error', 'message', 'detail'}.intersection(response.data.keys()):
-            error_data['details'] = response.data
-        elif isinstance(response.data, dict) and 'detail' in response.data:
-            error_data['message'] = str(response.data['detail'])
+        
+        if reason:
+            error_data['reason'] = reason
+        if details:
+            error_data['details'] = details
 
         response.data = error_data
 

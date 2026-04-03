@@ -85,10 +85,19 @@ const StudentAdvising = () => {
       await fetchInitialData();
     } catch (e) { 
       const errorData = e.response?.data;
+      
       if (errorData?.reason) {
+        // This triggers the specialized UI banners (e.g. ALREADY_SUBMITTED, OUT_OF_SYNC_TRANSFEREE)
         setAdvisingError(errorData);
       } else {
-        alert(errorData?.error || errorData?.detail || "Action failed");
+        setAdvisingError(null);
+        // Robust error parsing: prioritize standardized 'message', then 'detail', ignore boolean 'error'
+        const errMsg = errorData?.message || 
+                       errorData?.detail || 
+                       (typeof errorData?.error === 'string' ? errorData.error : null) || 
+                       (Array.isArray(errorData) ? errorData[0] : null) || 
+                       "Action failed";
+        alert(String(errMsg));
       }
     } finally { 
       setLoading(false); 

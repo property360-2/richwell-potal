@@ -164,7 +164,7 @@ class AdvisingService:
         
         if not subjects_to_enroll.exists():
             raise ValidationError({
-                "detail": "No subjects available for advising in this term. You may have already passed or credited all required subjects for this level.",
+                "detail": "No pending subjects found for your current level. If you have already passed or credited all subjects in this semester, please use 'Manual Selection' for back-subjects or advanced units.",
                 "reason": "OUT_OF_SYNC_TRANSFEREE"
             })
 
