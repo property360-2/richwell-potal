@@ -50,7 +50,10 @@ const StudentAdvising = () => {
       const { data: enrollData } = await api.get(`students/enrollments/me/?term=${term.id}`);
       if (!enrollData) return;
       
-      setEnrolled(true); setEnrollment(enrollData); setIsRegular(enrollData.is_regular);
+      setEnrolled(true); 
+      setEnrollment(enrollData); 
+      setIsRegular(enrollData.is_regular);
+      
       const { data: grRes } = await api.get(`grades/advising/?term=${term.id}&is_credited=false&page_size=100`);
       setGrades(grRes.results || []);
       const { data: pRes } = await api.get(`grades/advising/?grade_status=PASSED&page_size=300`);
@@ -143,6 +146,27 @@ const StudentAdvising = () => {
             </Card>
           )}
 
+          {!isRegular && enrollment?.regularity_reason && (
+            <Card className="border-l-4 border-l-rose-500 bg-rose-50/30">
+              <div className="flex gap-4 p-2">
+                <div className="p-3 bg-rose-100 rounded-full h-fit">
+                  <AlertCircle className="text-rose-600" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-rose-900">Irregularity Status Detected</h3>
+                  <p className="text-rose-800 text-sm mt-1 leading-relaxed">
+                    You have been flagged as an irregular student for the following reason:
+                    <br />
+                    <span className="font-semibold text-rose-700 mt-2 block">"{enrollment.regularity_reason}"</span>
+                  </p>
+                  <p className="text-rose-700 text-xs mt-3 italic">
+                    Please use the Subject Catalog below to manually select your subjects for this term.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {enrollingGrades.length > 0 && (
             <Card title="Current Selection" icon={<AlertCircle size={18} />}>
               <SelectedSubjectsTable enrollingGrades={enrollingGrades} enrollmentStatus={enrollment?.advising_status} onReset={() => setGrades([])} />
@@ -174,7 +198,16 @@ const StudentAdvising = () => {
           ))}
         </div>
         <div className="space-y-6">
-          <AdvisingSummaryCard enrollment={enrollment} isRegular={isRegular} totalUnits={calculateTotalUnits()} loading={loading} enrollmentStatus={enrollment?.advising_status} selectedSubjectIds={selectedSubjectIds} onSubmit={() => handleAction('manual-advise', { subject_ids: selectedSubjectIds })} />
+          <AdvisingSummaryCard 
+             enrollment={enrollment} 
+             isRegular={isRegular} 
+             totalUnits={calculateTotalUnits()} 
+             loading={loading} 
+             enrollmentStatus={enrollment?.advising_status} 
+             selectedSubjectIds={selectedSubjectIds} 
+             onSubmit={() => handleAction('manual-advise', { subject_ids: selectedSubjectIds })} 
+             maxUnits={enrollment?.max_units_override || 30}
+          />
           <Card style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}><div className="flex gap-3"><Info /><p className="text-xs opacity-90">Verify prerequisites before submission. Regular students get auto-filled subjects.</p></div></Card>
         </div>
       </div>

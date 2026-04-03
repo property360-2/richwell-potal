@@ -82,8 +82,8 @@ def test_regularity_failed_prereq(setup_data):
     # Fail the prerequisite S1-1
     Grade.objects.create(student=student, subject=subjects[0], term=term, grade_status=Grade.STATUS_FAILED)
     
-    is_regular = AdvisingService.check_student_regularity(student, term)
-    assert is_regular is False, "Should be Irregular because a prerequisite was failed."
+    reg_data = AdvisingService.check_student_regularity(student, term)
+    assert reg_data['is_regular'] is False, f"Should be Irregular because a prerequisite was failed. Reason: {reg_data['reason']}"
 
 @pytest.mark.django_db
 def test_regularity_skipped_subject(setup_data):
@@ -95,8 +95,8 @@ def test_regularity_skipped_subject(setup_data):
     Grade.objects.create(student=student, subject=subjects[2], term=term, grade_status=Grade.STATUS_PASSED)
     
     # But skipped a Year 1 subject (S1-1 is not passed)
-    is_regular = AdvisingService.check_student_regularity(student, term)
-    assert is_regular is False, "Should be Irregular because a Year 1 subject was skipped."
+    reg_data = AdvisingService.check_student_regularity(student, term)
+    assert reg_data['is_regular'] is False, f"Should be Irregular because a Year 1 subject was skipped. Reason: {reg_data['reason']}"
 
 @pytest.mark.django_db
 def test_regularity_inc(setup_data):
@@ -107,8 +107,8 @@ def test_regularity_inc(setup_data):
     # Has an INC
     Grade.objects.create(student=student, subject=subjects[0], term=term, grade_status=Grade.STATUS_INC)
     
-    is_regular = AdvisingService.check_student_regularity(student, term)
-    assert is_regular is False, "Should be Irregular because of INC."
+    reg_data = AdvisingService.check_student_regularity(student, term)
+    assert reg_data['is_regular'] is False, f"Should be Irregular because of INC. Reason: {reg_data['reason']}"
 
 @pytest.mark.django_db
 def test_regularity_clean_pass(setup_data):
@@ -122,8 +122,8 @@ def test_regularity_clean_pass(setup_data):
     
     # Now in Year 1 still (or Year 2 if we move to Year 2 term)
     # Let's say we are checking for the 2nd Semester of Year 1
-    is_regular = AdvisingService.check_student_regularity(student, term)
-    assert is_regular is True, "Should be Regular because all prior subjects are passed."
+    reg_data = AdvisingService.check_student_regularity(student, term)
+    assert reg_data['is_regular'] is True, f"Should be Regular because all prior subjects are passed. Got reason: {reg_data['reason']}"
 
 @pytest.mark.django_db
 def test_regularity_new_transferee(setup_data):
@@ -135,8 +135,8 @@ def test_regularity_new_transferee(setup_data):
     student.save()
     
     # No grades yet
-    is_regular = AdvisingService.check_student_regularity(student, term)
-    assert is_regular is False, "New transferee without credited subjects should be Irregular by default."
+    reg_data = AdvisingService.check_student_regularity(student, term)
+    assert reg_data['is_regular'] is False, "New transferee without credited subjects should be Irregular by default."
 
 @pytest.mark.django_db
 def test_regularity_transferee_after_crediting(setup_data):
@@ -146,7 +146,7 @@ def test_regularity_transferee_after_crediting(setup_data):
     student.save()
     
     # 1. Start: Irregular (no grades)
-    assert AdvisingService.check_student_regularity(student, term) is False
+    assert AdvisingService.check_student_regularity(student, term)['is_regular'] is False
     
     # 2. Credit a Year 2 subject (but Student is still Year 1 or missing Year 1 subjects)
     subject_y2 = setup_data['subjects'][2] # Year 2 Subj
@@ -158,4 +158,4 @@ def test_regularity_transferee_after_crediting(setup_data):
     # Then it finds Year 1 subjects as Back Subjects. 
     # Since they haven't passed Year 1 subjects, they are Irregular! Perfect!
     assert AdvisingService.get_year_level(student) == 2
-    assert AdvisingService.check_student_regularity(student, term) is False
+    assert AdvisingService.check_student_regularity(student, term)['is_regular'] is False

@@ -37,6 +37,7 @@ class StudentSerializer(serializers.ModelSerializer):
                 'monthly_commitment': enrollment.monthly_commitment,
                 'year_level': enrollment.year_level,
                 'is_regular': enrollment.is_regular,
+                'regularity_reason': enrollment.regularity_reason,
                 'advising_status': enrollment.advising_status
             }
         return None
@@ -75,6 +76,7 @@ class StudentSelfSerializer(serializers.ModelSerializer):
                 'monthly_commitment': enrollment.monthly_commitment,
                 'year_level': enrollment.year_level,
                 'is_regular': enrollment.is_regular,
+                'regularity_reason': enrollment.regularity_reason,
                 'advising_status': enrollment.advising_status
             }
         return None
@@ -113,7 +115,7 @@ class StudentEnrollmentSerializer(serializers.ModelSerializer):
             'id', 'student', 'student_details', 'student_name', 'student_idn', 
             'program_code', 'term', 'term_details',
             'advising_status', 'advising_approved_by', 'advising_approved_at',
-            'is_regular', 'year_level', 'monthly_commitment',
+            'is_regular', 'regularity_reason', 'max_units_override', 'year_level', 'monthly_commitment',
             'enrolled_by', 'enrollment_date', 'is_schedule_picked'
         ]
         read_only_fields = ['enrollment_date']
@@ -132,8 +134,8 @@ class StudentEnrollmentSelfSerializer(serializers.ModelSerializer):
         model = StudentEnrollment
         fields = [
             'id', 'student', 'student_details', 'term', 'term_details',
-            'advising_status', 'advising_approved_at', 'is_regular',
-            'year_level', 'monthly_commitment', 'enrollment_date',
+            'advising_status', 'advising_approved_at', 'is_regular', 'regularity_reason',
+            'year_level', 'monthly_commitment', 'max_units_override', 'enrollment_date',
             'is_schedule_picked'
         ]
         read_only_fields = ['enrollment_date']

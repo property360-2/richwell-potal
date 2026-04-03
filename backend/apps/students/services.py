@@ -139,6 +139,7 @@ def admit_student_application(student, monthly_commitment, admitted_by):
         student.save(audit_user=admitted_by)
 
         # Create Initial Enrollment
+        reg_data = AdvisingService.check_student_regularity(student, active_term)
         year_level = AdvisingService.get_year_level(student)
         StudentEnrollment.objects.get_or_create(
             student=student,
@@ -147,7 +148,8 @@ def admit_student_application(student, monthly_commitment, admitted_by):
                 'monthly_commitment': monthly_commitment,
                 'year_level': year_level,
                 'enrolled_by': admitted_by,
-                'is_regular': AdvisingService.check_student_regularity(student, active_term)
+                'is_regular': reg_data['is_regular'],
+                'regularity_reason': reg_data['reason']
             }
         )
         
@@ -199,6 +201,7 @@ def enroll_student_for_term(student, monthly_commitment=None, enrolled_by=None):
         # student.status = 'ENROLLED'
         # student.save()
         
+        reg_data = AdvisingService.check_student_regularity(student, active_term)
         year_level = AdvisingService.get_year_level(student)
         
         # Determine status: if student enrolled themselves, it's FOR_ADVISING
@@ -213,7 +216,8 @@ def enroll_student_for_term(student, monthly_commitment=None, enrolled_by=None):
                 'monthly_commitment': monthly_commitment or 0,
                 'year_level': year_level,
                 'enrolled_by': enrolled_by,
-                'is_regular': AdvisingService.check_student_regularity(student, active_term),
+                'is_regular': reg_data['is_regular'],
+                'regularity_reason': reg_data['reason'],
                 'advising_status': initial_status
             }
         )
@@ -290,13 +294,16 @@ def manual_add_student_record(data, requested_by):
         student.save(audit_user=requested_by)
         
         # Enrollment Record
-        is_regular = AdvisingService.check_student_regularity(student, active_term)
+        reg_data = AdvisingService.check_student_regularity(student, active_term)
+        is_regular = reg_data['is_regular']
+        regularity_reason = reg_data['reason']
         enrollment = StudentEnrollment.objects.create(
             student=student,
             term=active_term,
             year_level=data.get('year_level', 1),
             monthly_commitment=data.get('monthly_commitment', 0),
             is_regular=is_regular,
+            regularity_reason=regularity_reason,
             enrolled_by=requested_by
         )
         enrollment.save(audit_user=requested_by)

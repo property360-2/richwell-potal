@@ -11,18 +11,24 @@ from apps.notifications.models import Notification
 class AdvisingService:
     @staticmethod
     def check_student_regularity(student, term):
+        """
+        Determines if a student is regular for a given term.
+        Returns a dict: {"is_regular": bool, "reason": str|None}
+        """
         # 0. Irregular if:
         # - Has unresolved INC.
         # - Failed a subject that is a prerequisite for another subject.
         # - Missing "Back Subjects" (prior units in the curriculum sequence).
 
         # 1. Check for INC
-        if Grade.objects.filter(student=student, grade_status=Grade.STATUS_INC).exists():
-            return False
+        inc_grades = Grade.objects.filter(student=student, grade_status=Grade.STATUS_INC)
+        if inc_grades.exists():
+            codes = ", ".join(inc_grades.values_list('subject__code', flat=True))
+            return {"is_regular": False, "reason": f"Unresolved INC grades: {codes}"}
 
         # 1.1 New transferee without any credits yet is Irregular
         if student.student_type == 'TRANSFEREE' and not Grade.objects.filter(student=student).exists():
-            return False
+            return {"is_regular": False, "reason": "New transferee student (Manual Advising required)"}
 
         # 2. Check for Failed Prerequisites
         from apps.academics.models import SubjectPrerequisite
@@ -31,11 +37,13 @@ class AdvisingService:
             grade_status=Grade.STATUS_FAILED
         ).values_list('subject_id', flat=True)
         
-        if SubjectPrerequisite.objects.filter(
+        prq_failures = SubjectPrerequisite.objects.filter(
             prerequisite_subject_id__in=failed_subject_ids,
             prerequisite_type='SPECIFIC'
-        ).exists():
-            return False
+        )
+        if prq_failures.exists():
+            failed_codes = ", ".join(Grade.objects.filter(subject_id__in=failed_subject_ids).values_list('subject__code', flat=True))
+            return {"is_regular": False, "reason": f"Failed prerequisite(s): {failed_codes}"}
 
         # 3. Check for Back Subjects
         # Determine standing (Year/Sem)
@@ -60,10 +68,12 @@ class AdvisingService:
             grade_status=Grade.STATUS_PASSED
         ).values_list('subject_id', flat=True)
 
-        if back_subjects.exclude(id__in=passed_subjects).exists():
-            return False
+        missing_back = back_subjects.exclude(id__in=passed_subjects)
+        if missing_back.exists():
+            missing_codes = ", ".join(missing_back.values_list('code', flat=True))
+            return {"is_regular": False, "reason": f"Missing back subjects: {missing_codes}"}
 
-        return True
+        return {"is_regular": True, "reason": None}
 
     @staticmethod
     def get_year_level(student):
@@ -101,6 +111,12 @@ class AdvisingService:
         """
         Automatically selects subjects for a regular student.
         """
+        reg_data = AdvisingService.check_student_regularity(student, term)
+        if not reg_data['is_regular']:
+            raise ValidationError(
+                message=reg_data['reason'] or "Student is irregular and requires manual advising.",
+                code='IRREGULAR_STUDENT'
+            )
         # Guard: Check if already pending or approved
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if enrollment and enrollment.advising_status in ['PENDING', 'APPROVED']:
@@ -166,17 +182,29 @@ class AdvisingService:
         """
         # Guard: Check if already pending or approved
         current_enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        if current_enrollment and current_enrollment.advising_status in ['PENDING', 'APPROVED']:
+        if not current_enrollment:
+            raise ValidationError("Student is not enrolled for this term.")
+            
+        if current_enrollment.advising_status in ['PENDING', 'APPROVED']:
             raise ValidationError(f"Advising already submitted ({current_enrollment.advising_status}).")
 
         subjects = Subject.objects.filter(id__in=subject_ids)
-        # Calculate total units including existing ones in THIS term
+        
+        # 1. Offering check: Ensure subjects are scheduled for this term
+        from apps.scheduling.models import Schedule
+        offered_subject_ids = Schedule.objects.filter(term=term).values_list('subject_id', flat=True).distinct()
+        for subject in subjects:
+            if subject.id not in offered_subject_ids:
+                raise ValidationError(f"Subject {subject.code} is not offered this term.")
+
+        # 2. Max Units Override check
+        max_units = current_enrollment.max_units_override
         existing_units = sum(g.subject.total_units for g in Grade.objects.filter(student=student, term=term))
         new_units = sum(s.total_units for s in subjects)
         total_term_units = existing_units + new_units
 
-        if total_term_units > 30:
-            raise ValidationError(f"Total units ({total_term_units}) exceed maximum limit of 30.")
+        if total_term_units > max_units:
+            raise ValidationError(f"Total units ({total_term_units}) exceed allowed limit of {max_units} for this term.")
 
         # Prerequisite check
         current_enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
@@ -334,7 +362,8 @@ class AdvisingService:
         # Re-check regularity and Year Level
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if enrollment:
-            enrollment.is_regular = AdvisingService.check_student_regularity(student, term)
+            reg_data = AdvisingService.check_student_regularity(student, term)
+            enrollment.is_regular = reg_data['is_regular']
             enrollment.year_level = AdvisingService.get_year_level(student)
             enrollment.save()
             
@@ -357,7 +386,8 @@ class AdvisingService:
         # Re-check regularity and Year Level
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if enrollment:
-            enrollment.is_regular = AdvisingService.check_student_regularity(student, term)
+            reg_data = AdvisingService.check_student_regularity(student, term)
+            enrollment.is_regular = reg_data['is_regular']
             enrollment.year_level = AdvisingService.get_year_level(student)
             enrollment.save()
 
@@ -410,7 +440,9 @@ class AdvisingService:
         """
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if enrollment:
-            enrollment.is_regular = cls.check_student_regularity(student, term)
+            reg_data = cls.check_student_regularity(student, term)
+            enrollment.is_regular = reg_data['is_regular']
+            enrollment.regularity_reason = reg_data['reason']
             enrollment.year_level = cls.get_year_level(student)
             enrollment.save()
 

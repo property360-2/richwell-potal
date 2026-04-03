@@ -10,7 +10,9 @@ import {
   CheckSquare,
   Square,
   ClipboardList,
-  ArrowRight
+  ArrowRight,
+  Edit2,
+  AlertCircle
 } from 'lucide-react';
 import api from '../../api/axios';
 import Card from '../../components/ui/Card';
@@ -35,6 +37,9 @@ const AdvisingApproval = () => {
   const [activeTab, setActiveTab] = useState('REGULAR'); // REGULAR or IRREGULAR
   const [expandedRows, setExpandedRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showOverrideModal, setShowOverrideModal] = useState(false);
+  const [overrideUnits, setOverrideUnits] = useState(30);
+  const [selectedForOverride, setSelectedForOverride] = useState(null);
 
   useEffect(() => {
     fetchEnrollments();
@@ -108,6 +113,24 @@ const AdvisingApproval = () => {
       setRejectionReason('');
     } catch (error) {
       alert("Rejection failed");
+    }
+  };
+
+  const handleOverrideUnits = async () => {
+    try {
+      const res = await api.post(`grades/approvals/${selectedForOverride.id}/override_max_units/`, {
+        max_units: overrideUnits
+      });
+      
+      // Update local state
+      setEnrollments(enrollments.map(e => 
+        e.id === selectedForOverride.id ? { ...e, max_units_override: overrideUnits } : e
+      ));
+      
+      setShowOverrideModal(false);
+      alert("Max units updated successfully");
+    } catch (error) {
+      alert(error.response?.data?.error || "Failed to update units");
     }
   };
 
@@ -234,6 +257,16 @@ const AdvisingApproval = () => {
                       <tr className="bg-slate-50/50">
                         <td colSpan="5" className="px-6 py-4">
                            <div className="expanded-row-content">
+                              {activeTab === 'IRREGULAR' && enrollment.regularity_reason && (
+                                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+                                  <AlertCircle className="text-amber-600 mt-0.5" size={18} />
+                                  <div>
+                                    <p className="text-sm font-semibold text-amber-900">Irregularity Status</p>
+                                    <p className="text-sm text-amber-800">{enrollment.regularity_reason}</p>
+                                  </div>
+                                </div>
+                              )}
+
                               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
                                 <ClipboardList size={16} className="text-blue-500" />
                                 Selected Subjects
@@ -256,20 +289,43 @@ const AdvisingApproval = () => {
                                                <td className="text-slate-600">{grade.subject_details?.description || grade.subject_details?.name}</td>
                                                <td>{grade.subject_details?.total_units || grade.subject_details?.units}</td>
                                                <td>
-                                                  {grade.is_retake ? <Badge variant="error" size="sm">Yes</Badge> : 'No'}
+                                                   {grade.is_retake ? <Badge variant="error" size="sm">Yes</Badge> : 'No'}
                                                </td>
                                             </tr>
                                          ))}
                                       </tbody>
                                   </table>
-                                  <div className="mt-4 p-4 bg-white border border-slate-200 rounded-lg flex justify-between items-center shadow-sm">
-                                     <span className="text-sm font-medium text-slate-600">Total Units for this Term:</span>
-                                     <span className={`text-lg font-bold ${
-                                       enrollment.grades.filter(g => !g.is_credited).reduce((sum, g) => sum + (g.subject_details?.total_units || 0), 0) > 30 
-                                       ? 'text-red-600' : 'text-blue-600'
-                                     }`}>
-                                       {enrollment.grades.filter(g => !g.is_credited).reduce((sum, g) => sum + (g.subject_details?.total_units || 0), 0)}
-                                     </span>
+                                  <div className="mt-4 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
+                                    <div className="p-4 bg-white border border-slate-200 rounded-lg flex-1 flex justify-between items-center shadow-sm">
+                                       <span className="text-sm font-medium text-slate-600">Total Units for this Term:</span>
+                                       <span className={`text-lg font-bold ${
+                                         enrollment.grades.filter(g => !g.is_credited).reduce((sum, g) => sum + (g.subject_details?.total_units || 0), 0) > (enrollment.max_units_override || 30) 
+                                         ? 'text-red-600' : 'text-blue-600'
+                                       }`}>
+                                         {enrollment.grades.filter(g => !g.is_credited).reduce((sum, g) => sum + (g.subject_details?.total_units || 0), 0)}
+                                       </span>
+                                    </div>
+
+                                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex-1 flex justify-between items-center shadow-sm">
+                                       <div className="flex flex-col">
+                                          <span className="text-xs text-slate-500 uppercase font-semibold tracking-wider">Unit Limit</span>
+                                          <span className="text-sm font-bold text-slate-700">
+                                            {enrollment.max_units_override || 30} Max Units
+                                          </span>
+                                       </div>
+                                       <Button 
+                                          variant="ghost" 
+                                          size="sm" 
+                                          icon={<Edit2 size={14} />}
+                                          onClick={() => {
+                                            setSelectedForOverride(enrollment);
+                                            setOverrideUnits(enrollment.max_units_override || 30);
+                                            setShowOverrideModal(true);
+                                          }}
+                                       >
+                                          Adjust
+                                       </Button>
+                                    </div>
                                   </div>
                                 </>
                               ) : (
@@ -309,6 +365,46 @@ const AdvisingApproval = () => {
           <div style={{ display: 'flex', justifyContent: 'end', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
             <Button variant="secondary" onClick={() => setShowRejectModal(false)}>Cancel</Button>
             <Button variant="danger" onClick={handleReject}>Reject Advising</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Unit Override Modal */}
+      <Modal
+        isOpen={showOverrideModal}
+        onClose={() => setShowOverrideModal(false)}
+        title="Adjust Maximum Unit Limit"
+      >
+        <div className="flex flex-col gap-6">
+          <div className="p-4 bg-blue-50 rounded-lg">
+             <p className="text-sm text-blue-800 leading-relaxed">
+               Allowing <strong>{selectedForOverride?.student_name}</strong> to exceed the standard unit limit. 
+               This applies only to the current term.
+             </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">New Unit Limit (1 - 36)</label>
+            <Input
+              type="number"
+              min="1"
+              max="36"
+              value={overrideUnits}
+              onChange={(e) => setOverrideUnits(parseInt(e.target.value) || 0)}
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setShowOverrideModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="primary" 
+              onClick={handleOverrideUnits}
+              disabled={overrideUnits < 1 || overrideUnits > 36}
+            >
+              Update Limit
+            </Button>
           </div>
         </div>
       </Modal>

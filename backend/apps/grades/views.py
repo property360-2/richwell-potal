@@ -14,6 +14,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q, F, Exists, OuterRef
 import django_filters
 
+from apps.auditing.mixins import AuditMixin
+
 from core.permissions import (
     IsStudent, IsProgramHead, IsRegistrar, IsAdmin, IsProfessor, IsProgramHeadOfStudent
 )
@@ -103,7 +105,7 @@ class AdvisingViewSet(viewsets.ModelViewSet):
         except DjangoValidationError as e:
             raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
-class AdvisingApprovalViewSet(viewsets.ModelViewSet):
+class AdvisingApprovalViewSet(AuditMixin, viewsets.ModelViewSet):
     """
     ViewSet for administrative approval of student advising.
     Allows Program Heads and Registrars to review and finalize subject selections.
@@ -150,6 +152,45 @@ class AdvisingApprovalViewSet(viewsets.ModelViewSet):
         enrollment = self.get_object()
         AdvisingService.reject_advising(enrollment, reason)
         return Response({"status": "Advising rejected."})
+    @action(detail=True, methods=['post'], url_path='override-max-units', permission_classes=[IsAdmin | IsRegistrar])
+    def override_max_units(self, request, pk=None):
+        """
+        Allows Registrar/Admin to override the maximum unit limit for a student.
+        """
+        enrollment = self.get_object()
+        new_limit = request.data.get('max_units_override')
+        
+        if not new_limit:
+            raise DRFValidationError({"max_units_override": "New limit is required."})
+            
+        try:
+            new_limit = int(new_limit)
+            if new_limit < 1 or new_limit > 36:
+                raise ValueError()
+        except ValueError:
+            raise DRFValidationError({"max_units_override": "Limit must be a number between 1 and 36."})
+            
+        enrollment.max_units_override = new_limit
+        enrollment.save()
+        
+        # Log the override action
+        self.audit_action(
+            request,
+            action="UNIT_LIMIT_OVERRIDE",
+            resource=f"StudentEnrollment:{enrollment.id}",
+            description=f"Overrode max units for student {enrollment.student.idn} to {new_limit}",
+            metadata={
+                "student_id": enrollment.student.id,
+                "student_idn": enrollment.student.idn,
+                "new_limit": new_limit,
+                "term": enrollment.term.code
+            }
+        )
+        
+        return Response({
+            "status": f"Max units updated to {new_limit}.",
+            "max_units_override": enrollment.max_units_override
+        })
 
 from apps.grades.models import CreditingRequest
 from apps.grades.serializers import CreditingRequestSerializer, BulkCreditingSubmitSerializer

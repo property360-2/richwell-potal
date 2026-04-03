@@ -20,9 +20,9 @@ import Badge from '../../../../components/ui/Badge';
 import Button from '../../../../components/ui/Button';
 import { AlertCircle } from 'lucide-react';
 
-const AdvisingSummaryCard = ({ enrollment, isRegular, totalUnits, loading, enrollmentStatus, selectedSubjectIds, onSubmit }) => {
+const AdvisingSummaryCard = ({ enrollment, isRegular, totalUnits, loading, enrollmentStatus, selectedSubjectIds, onSubmit, maxUnits = 30 }) => {
   const isUnlocked = enrollment?.student_details?.is_advising_unlocked;
-  const isOverlimit = totalUnits > 30;
+  const isOverlimit = totalUnits > maxUnits;
 
   return (
     <Card title="Advising Summary">
@@ -39,15 +39,21 @@ const AdvisingSummaryCard = ({ enrollment, isRegular, totalUnits, loading, enrol
           <span className="summary-label text-slate-500 font-medium">Year Level</span>
           <span className="summary-value font-bold">{enrollment?.year_level || '1'}</span>
         </div>
-        <div className="summary-item flex justify-between">
+        <div className="summary-item flex justify-between gap-2">
           <span className="summary-label text-slate-500 font-medium">Study Type</span>
-          <Badge variant="ghost">{isRegular ? 'Regular' : 'Irregular'}</Badge>
+          <div className="flex gap-1 justify-end flex-wrap">
+            <Badge variant="ghost">{isRegular ? 'Regular' : 'Irregular'}</Badge>
+            {maxUnits > 30 && <Badge variant="success">Unit Boost ({maxUnits})</Badge>}
+          </div>
         </div>
         
         <div className="summary-divider border-t border-slate-100 my-4"></div>
         
         <div className="total-units-display flex justify-between items-center">
-          <span className="summary-label text-slate-500 font-medium">Total Units</span>
+          <div className="flex flex-col">
+            <span className="summary-label text-slate-500 font-medium">Total Units</span>
+            <span className="text-[10px] text-slate-400">Limit: {maxUnits} units</span>
+          </div>
           <span className={`total-units-value text-xl font-bold ${isOverlimit ? 'text-red-600' : 'text-blue-600'}`}>
             {totalUnits}
           </span>
@@ -56,7 +62,7 @@ const AdvisingSummaryCard = ({ enrollment, isRegular, totalUnits, loading, enrol
         {isOverlimit && (
            <div className="p-3 bg-red-50 text-red-600 text-xs rounded-lg flex gap-2">
              <AlertCircle size={14} className="shrink-0" />
-             Exceeds 30 units limit. Please remove some subjects.
+             Exceeds your {maxUnits} units limit. Please remove some subjects or contact the Registrar.
            </div>
         )}
 

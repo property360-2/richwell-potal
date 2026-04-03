@@ -129,6 +129,8 @@ class StudentEnrollment(AuditMixin, models.Model):
     advising_approved_at = models.DateTimeField(null=True, blank=True)
     
     is_regular = models.BooleanField(default=True)
+    regularity_reason = models.TextField(null=True, blank=True, help_text="Reason for being flagged as irregular")
+    max_units_override = models.PositiveIntegerField(default=30, help_text="Maximum units allowed for this student in this term (default 30, max 36)")
     year_level = models.PositiveIntegerField(null=True, blank=True, help_text="Cached computed year level for this term")
     
     monthly_commitment = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
