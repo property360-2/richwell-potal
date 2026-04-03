@@ -113,14 +113,17 @@ class AdvisingService:
         """
         reg_data = AdvisingService.check_student_regularity(student, term)
         if not reg_data['is_regular']:
-            raise ValidationError(
-                message=reg_data['reason'] or "Student is irregular and requires manual advising.",
-                code='IRREGULAR_STUDENT'
-            )
+            raise ValidationError({
+                "detail": reg_data['reason'] or "Student is irregular and requires manual advising.",
+                "reason": "IRREGULAR_STATUS"
+            })
         # Guard: Check if already pending or approved
         enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if enrollment and enrollment.advising_status in ['PENDING', 'APPROVED']:
-            raise ValidationError(f"Advising already submitted ({enrollment.advising_status}).")
+            raise ValidationError({
+                "detail": f"Advising already submitted ({enrollment.advising_status}).",
+                "reason": "ALREADY_SUBMITTED"
+            })
 
         year_level = AdvisingService.get_year_level(student)
         
@@ -143,7 +146,10 @@ class AdvisingService:
         subjects_to_enroll = subjects.exclude(id__in=passed_or_credited)
         
         if not subjects_to_enroll.exists():
-            raise ValidationError("No subjects available for advising in this term. You may have already passed or credited all required subjects for this level.")
+            raise ValidationError({
+                "detail": "No subjects available for advising in this term. You may have already passed or credited all required subjects for this level.",
+                "reason": "OUT_OF_SYNC_TRANSFEREE"
+            })
 
         # Detect retakes (subjects with previous FAILED or RETAKE status)
         retake_subject_ids = Grade.objects.filter(
@@ -183,10 +189,16 @@ class AdvisingService:
         # Guard: Check if already pending or approved
         current_enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if not current_enrollment:
-            raise ValidationError("Student is not enrolled for this term.")
+            raise ValidationError({
+                "detail": "Student is not enrolled for this term.",
+                "reason": "NOT_ENROLLED"
+            })
             
         if current_enrollment.advising_status in ['PENDING', 'APPROVED']:
-            raise ValidationError(f"Advising already submitted ({current_enrollment.advising_status}).")
+            raise ValidationError({
+                "detail": f"Advising already submitted ({current_enrollment.advising_status}).",
+                "reason": "ALREADY_SUBMITTED"
+            })
 
         subjects = Subject.objects.filter(id__in=subject_ids)
         

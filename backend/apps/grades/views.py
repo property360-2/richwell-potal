@@ -84,7 +84,11 @@ class AdvisingViewSet(viewsets.ModelViewSet):
             grades = AdvisingService.auto_advise_regular(student, active_term)
             return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
         except DjangoValidationError as e:
-            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+            if hasattr(e, 'message_dict'):
+                # Flatten single-item lists for cleaner API response
+                err_data = {k: v[0] if isinstance(v, list) and len(v) == 1 else v for k, v in e.message_dict.items()}
+                raise DRFValidationError(err_data)
+            raise DRFValidationError(e.messages)
 
     @action(detail=False, methods=['post'], url_path='manual-advise')
     def manual_advise(self, request):

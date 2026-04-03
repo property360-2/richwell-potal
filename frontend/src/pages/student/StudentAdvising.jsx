@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, AlertCircle, Filter, Info } from 'lucide-react';
+import { ClipboardList, AlertCircle, Filter, Info, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../api/axios';
@@ -36,6 +36,7 @@ const StudentAdvising = () => {
   const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
   const [passedSubjectIds, setPassedSubjectIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [advisingError, setAdvisingError] = useState(null);
 
   useEffect(() => { fetchInitialData(); }, []);
 
@@ -69,9 +70,19 @@ const StudentAdvising = () => {
   const handleAction = async (endpoint, data = {}) => {
     try {
       setLoading(true);
+      setAdvisingError(null);
       await api.post(`grades/advising/${endpoint}/`, data);
       await fetchInitialData();
-    } catch (e) { alert(e.response?.data?.error || "Action failed"); } finally { setLoading(false); }
+    } catch (e) { 
+      const errorData = e.response?.data;
+      if (errorData?.reason) {
+        setAdvisingError(errorData);
+      } else {
+        alert(errorData?.error || errorData?.detail || "Action failed");
+      }
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const isOfferedThisTerm = (s) => activeTerm && s.semester === activeTerm.semester_type;
@@ -162,6 +173,52 @@ const StudentAdvising = () => {
                   <p className="text-rose-700 text-xs mt-3 italic">
                     Please use the Subject Catalog below to manually select your subjects for this term.
                   </p>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {advisingError?.reason === 'OUT_OF_SYNC_TRANSFEREE' && (
+            <Card className="border-l-4 border-l-blue-500 bg-blue-50/50">
+              <div className="flex gap-4 p-2">
+                <div className="p-3 bg-blue-100 rounded-full h-fit">
+                  <ClipboardList className="text-blue-600" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-blue-900">Curriculum Out-of-Sync</h3>
+                  <p className="text-blue-800 text-sm mt-1 leading-relaxed">
+                    The system could not find any pending subjects for your calculated year level (<strong>Year {enrollment?.year_level}</strong>) in the current curriculum. 
+                    This often happens if you have already credited all subjects for this period through manual crediting.
+                  </p>
+                  <p className="text-blue-700 text-xs mt-3 font-medium">
+                    Recommendation: Please switch to <strong>Manual Selection</strong> or visit the Registrar to verify your year level standing.
+                  </p>
+                  <div className="mt-4">
+                    <Button variant="outline" size="sm" onClick={() => setIsRegular(false)}>
+                      Switch to Manual Selection
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {advisingError?.reason === 'ALREADY_SUBMITTED' && (
+            <Card className="border-l-4 border-l-emerald-500 bg-emerald-50/50">
+              <div className="flex gap-4 p-2">
+                <div className="p-3 bg-emerald-100 rounded-full h-fit">
+                  <CheckCircle className="text-emerald-600" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-emerald-900">Advising Already Submitted</h3>
+                  <p className="text-emerald-800 text-sm mt-1 leading-relaxed">
+                    You have already submitted your subjects for advising. Your current status is <strong>{enrollment?.advising_status}</strong>.
+                  </p>
+                  {enrollment?.advising_status === 'PENDING' && (
+                    <p className="text-emerald-700 text-xs mt-2 italic">
+                      Please wait for the Registrar to approve your request. You will be notified once it's processed.
+                    </p>
+                  )}
                 </div>
               </div>
             </Card>
