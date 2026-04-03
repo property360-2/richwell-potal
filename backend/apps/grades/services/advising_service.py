@@ -109,7 +109,24 @@ class AdvisingService:
     @transaction.atomic
     def auto_advise_regular(student, term):
         """
-        Automatically selects subjects for a regular student.
+        Automatically selects and enrolls subjects for a student based on their regular curriculum sequence.
+
+        This function validates the student's eligibility for automated advising, calculates their
+        current year level based on a "Majority Rule" of passed and enrolled subjects, and attempts
+        to find matching subjects in the curriculum for the current active semester.
+
+        Args:
+            student (Student): The student object requiring advising.
+            term (Term): The active enrollment term to create advising records for.
+
+        Returns:
+            list[SubjectGrade]: A list of newly created or existing SubjectGrade records (Advising items).
+
+        Raises:
+            ValidationError:
+                - reason: 'IRREGULAR_STATUS' if the student is marked as irregular.
+                - reason: 'ALREADY_SUBMITTED' if an advising record already exists for the term.
+                - reason: 'OUT_OF_SYNC_TRANSFEREE' if no pending subjects are found for the calculated year level.
         """
         reg_data = AdvisingService.check_student_regularity(student, term)
         if not reg_data['is_regular']:
@@ -184,7 +201,25 @@ class AdvisingService:
     @transaction.atomic
     def manual_advise_irregular(student, term, subject_ids):
         """
-        Validates and creates grades for irregular student selections.
+        Processes a manual subject selection for irregular students or those requiring flexibility.
+
+        Unlike automated advising, this function accepts a specific list of subject IDs and validates
+        them against the term's offerings, prerequisites, and the student's current unit load limits.
+        It is the primary fallback for the 'OUT_OF_SYNC_TRANSFEREE' scenario.
+
+        Args:
+            student (Student): The student object.
+            term (Term): The active enrollment term.
+            subject_ids (list[int]): List of primary keys for chosen subjects.
+
+        Returns:
+            list[SubjectGrade]: Created advising items.
+
+        Raises:
+            ValidationError:
+                - reason: 'NOT_ENROLLED' if no active enrollment record exists.
+                - reason: 'ALREADY_SUBMITTED' if already pending/approved.
+                - reason: 'PREREQUISITE_FAILED' or string-message for unit/offering violations.
         """
         # Guard: Check if already pending or approved
         current_enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()

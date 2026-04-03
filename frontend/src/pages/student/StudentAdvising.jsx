@@ -67,6 +67,16 @@ const StudentAdvising = () => {
     } catch (e) { console.error("Data fetch error:", e); } finally { setLoading(false); }
   };
 
+  /**
+   * Dispatches advising actions (auto-advise or manual submission) to the backend.
+   * 
+   * It handles loading states, clears previous errors, and performs POST requests
+   * to structured advising endpoints. If a 400 error is returned with a 'reason' 
+   * field, it updates the advisingError state to trigger contextual UI banners.
+   * 
+   * @param {string} endpoint - The API sub-path (e.g., 'auto-advise', 'manual-advise-irregular').
+   * @param {Object} data - Payload containing subject selections or configuration.
+   */
   const handleAction = async (endpoint, data = {}) => {
     try {
       setLoading(true);
