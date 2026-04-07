@@ -158,5 +158,16 @@
 @media (max-width: 768px) {
     .sidebar {
         transform: translateX(-100%);
+        transition: transform var(--transition-normal);
+        width: var(--sidebar-width) !important;
+    }
+
+    .sidebar.mobile-open {
+        transform: translateX(0);
+        box-shadow: var(--shadow-xl);
+    }
+
+    .sidebar-toggle {
+        display: none !important;
     }
 }

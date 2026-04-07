@@ -20,20 +20,20 @@
 }
 
 .apply-hero h1 {
-    font-size: 42px;
+    font-size: clamp(32px, 5vw, 48px);
     font-weight: 900;
     letter-spacing: -0.04em;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     color: #0f172a;
     line-height: 1.1;
 }
 
 .apply-hero p {
-    font-size: 18px;
+    font-size: clamp(15px, 2vw, 18px);
     color: #64748b;
     font-weight: 500;
     max-width: 500px;
-    margin: 0 auto;
+    margin: 12px auto 0;
 }
 
 .apply-hero .hero-badge {
@@ -389,22 +389,25 @@
 /* Responsive Adjustments */
 @media (max-width: 768px) {
     .apply-hero {
-        padding: 48px 20px 32px;
+        padding: 64px 20px 48px;
     }
     
     .apply-hero .hero-badge {
         padding: 6px 16px;
         font-size: 11px;
+        margin-bottom: 16px;
     }
 
     .apply-hero h1 {
         font-size: 32px;
         letter-spacing: -0.03em;
+        margin-bottom: 8px;
     }
 
     .apply-hero p {
         font-size: 15px;
-        opacity: 0.8;
+        opacity: 0.9;
+        margin-top: 8px;
     }
 
     .apply-stepper {

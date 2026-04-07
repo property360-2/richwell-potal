@@ -124,15 +124,19 @@ const getNavItems = (role, isSuperUser = false) => {
   return items;
 };
 
-const Sidebar = ({ collapsed, setCollapsed }) => {
+const Sidebar = ({ collapsed, setCollapsed, mobileOpen, onClose }) => {
   const { role, isSuperUser, logout } = useAuth();
   
   const navItems = getNavItems(role, isSuperUser); 
   const themeColor = roleColors[role?.toUpperCase()] || 'var(--color-primary)';
 
+  const handleNavClick = () => {
+    if (onClose) onClose();
+  };
+
   return (
     <>
-      <div className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
+      <div className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
           {!collapsed && (
             <div className="sidebar-logo">
@@ -163,6 +167,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                 <li key={item.path}>
                   <NavLink 
                     to={item.path} 
+                    onClick={handleNavClick}
                     className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                     style={({ isActive }) => isActive && !collapsed ? { borderLeftColor: themeColor, backgroundColor: 'var(--color-primary-light)', color: themeColor } : {}}
                     title={collapsed ? item.label : undefined}
