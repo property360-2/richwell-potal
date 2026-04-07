@@ -23,6 +23,7 @@ import { useToast } from '../../components/ui/Toast';
 import { academicsApi } from '../../api/academics';
 import ProgramModal from './components/ProgramModal';
 import SubjectModal from './components/SubjectModal';
+import Pagination from '../../components/ui/Pagination';
 import PageHeader from '../../components/shared/PageHeader';
 import './AcademicManagement.css';
 
@@ -31,13 +32,25 @@ const ProgramTab = () => {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
   const { showToast } = useToast();
 
   const fetchPrograms = async () => {
     try {
       setLoading(true);
-      const res = await academicsApi.getPrograms();
-      setPrograms(res.data.results || res.data);
+      const res = await academicsApi.getPrograms({
+        page: page,
+        search: searchQuery
+      });
+      if (res.data.results) {
+        setPrograms(res.data.results);
+        setTotalPages(Math.ceil(res.data.count / 20));
+      } else {
+        setPrograms(res.data);
+        setTotalPages(1);
+      }
     } catch (err) {
       showToast('error', 'Failed to load programs');
     } finally {
@@ -46,8 +59,11 @@ const ProgramTab = () => {
   };
 
   useEffect(() => {
-    fetchPrograms();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      fetchPrograms();
+    }, 300);
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, searchQuery]);
 
   const handleEdit = (program) => {
     setEditingProgram(program);
@@ -82,7 +98,15 @@ const ProgramTab = () => {
     <div className="tab-content">
       <div className="content-header">
         <div className="search-box">
-          <Input placeholder="Search programs..." icon={<Search size={18} />} />
+          <Input 
+            placeholder="Search programs..." 
+            icon={<Search size={18} />} 
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
+          />
         </div>
         <Button variant="primary" icon={<Plus size={18} />} onClick={handleAdd}>
           Add Program
@@ -92,6 +116,16 @@ const ProgramTab = () => {
       <Card padding="0">
         <Table columns={columns} data={programs} loading={loading} />
       </Card>
+
+      {totalPages > 1 && (
+        <div className="pagination-wrapper mt-4 p-4 border-t border-slate-100 flex justify-end">
+          <Pagination 
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        </div>
+      )}
 
       <ProgramModal 
         isOpen={modalOpen} 
@@ -113,6 +147,8 @@ const SubjectTab = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
   const { showToast } = useToast();
@@ -172,7 +208,7 @@ const SubjectTab = () => {
       const params = { 
         curriculum: selectedCurriculumId,
         search: searchQuery,
-        page_size: 100
+        page: page
       };
       if (selectedYearLevel) {
         params.year_level = selectedYearLevel;
@@ -182,7 +218,13 @@ const SubjectTab = () => {
       }
 
       const res = await academicsApi.getSubjects(params);
-      setSubjects(res.data.results || res.data);
+      if (res.data.results) {
+        setSubjects(res.data.results);
+        setTotalPages(Math.ceil(res.data.count / 20));
+      } else {
+        setSubjects(res.data);
+        setTotalPages(1);
+      }
     } catch (err) {
       showToast('error', 'Failed to load subjects');
     } finally {
@@ -192,7 +234,7 @@ const SubjectTab = () => {
 
   useEffect(() => {
     fetchSubjects();
-  }, [selectedCurriculumId, selectedYearLevel, selectedSemester, searchQuery]);
+  }, [selectedCurriculumId, selectedYearLevel, selectedSemester, searchQuery, page]);
 
   const columns = [
     { header: 'Code', accessor: 'code' },
@@ -237,27 +279,39 @@ const SubjectTab = () => {
           <Select 
             label="Program" 
             value={selectedProgramId} 
-            onChange={(e) => setSelectedProgramId(e.target.value)}
+            onChange={(e) => {
+              setSelectedProgramId(e.target.value);
+              setPage(1);
+            }}
             options={programs.map(p => ({ value: p.id, label: p.code }))}
           />
           <Select 
             label="Curriculum" 
             value={selectedCurriculumId} 
-            onChange={(e) => setSelectedCurriculumId(e.target.value)}
+            onChange={(e) => {
+              setSelectedCurriculumId(e.target.value);
+              setPage(1);
+            }}
             options={curriculums.map(c => ({ value: c.id, label: c.version_name + (c.is_active ? ' (Active)' : '') }))}
             disabled={!selectedProgramId}
           />
           <Select 
             label="Year Level" 
             value={selectedYearLevel} 
-            onChange={(e) => setSelectedYearLevel(e.target.value)}
+            onChange={(e) => {
+              setSelectedYearLevel(e.target.value);
+              setPage(1);
+            }}
             options={YEAR_OPTIONS}
             disabled={!selectedCurriculumId}
           />
           <Select 
             label="Semester" 
             value={selectedSemester} 
-            onChange={(e) => setSelectedSemester(e.target.value)}
+            onChange={(e) => {
+              setSelectedSemester(e.target.value);
+              setPage(1);
+            }}
             options={SEMESTER_OPTIONS}
             disabled={!selectedCurriculumId}
           />
@@ -267,7 +321,10 @@ const SubjectTab = () => {
                 placeholder="Search..." 
                 icon={<Search size={18} />} 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
              />
           </div>
           <div className="flex justify-end">
@@ -286,6 +343,16 @@ const SubjectTab = () => {
           emptyMessage={selectedCurriculumId ? "No subjects found for this selection." : "Please select a program and curriculum."}
         />
       </Card>
+
+      {totalPages > 1 && (
+        <div className="pagination-wrapper mt-4 p-4 border-t border-slate-100 flex justify-end">
+          <Pagination 
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        </div>
+      )}
 
       {selectedCurriculumId && (
         <SubjectModal 

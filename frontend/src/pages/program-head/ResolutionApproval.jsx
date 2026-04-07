@@ -5,34 +5,69 @@ import Button from '../../components/ui/Button';
 import Table from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
 import Input from '../../components/ui/Input';
+import PageHeader from '../../components/ui/PageHeader';
 import { useToast } from '../../components/ui/Toast';
 import { gradesApi } from '../../api/grades';
-import PageHeader from '../../components/shared/PageHeader';
+import Pagination from '../../components/ui/Pagination';
 import './ResolutionApproval.css';
 
+/**
+ * ResolutionApproval Component (Program Head)
+ * 
+ * This component allows Program Heads to review and approve or reject grade resolution requests
+ * submitted by instructors (e.g., changing INC to a numeric grade).
+ * 
+ * Features:
+ * - Server-side pagination and search
+ * - Grade approval with automated status updates
+ * - Grade rejection with feedback mechanism (modal)
+ */
 const ResolutionApproval = () => {
   const { addToast } = useToast();
-  const [loading, setLoading] = useState(false);
+  
+  // State for data and loading
   const [pendingResolutions, setPendingResolutions] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Rejection modal state
+  // State for pagination
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  
+  // State for rejection modal
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [selectedRes, setSelectedRes] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  // Fetch data when page or search term changes (with debounce)
   useEffect(() => {
-    fetchPendingResolutions();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      fetchPendingResolutions();
+    }, 300);
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, searchTerm]);
 
+  /**
+   * Fetches pending grade resolutions from the API.
+   * Standardizes response format for paginated and non-paginated results.
+   */
   const fetchPendingResolutions = async () => {
     try {
       setLoading(true);
       // Fetch grades with SUBMITTED status (pending Head approval)
       const res = await gradesApi.getGrades({ 
-        resolution_status: 'SUBMITTED'
+        resolution_status: 'SUBMITTED',
+        search: searchTerm,
+        page: page
       });
-      setPendingResolutions(res.data.results || res.data);
+      
+      if (res.data.results) {
+        setPendingResolutions(res.data.results);
+        setTotalPages(Math.ceil(res.data.count / 20)); // Assume default page size of 20
+      } else {
+        setPendingResolutions(res.data);
+        setTotalPages(1);
+      }
     } catch (error) {
       addToast('error', error.response?.data?.error || 'Failed to load resolution queue.');
     } finally {
@@ -40,6 +75,10 @@ const ResolutionApproval = () => {
     }
   };
 
+  /**
+   * Approves a grade resolution request.
+   * @param {number} id - The ID of the grade record to approve.
+   */
   const handleApprove = async (id) => {
     try {
       setLoading(true);
@@ -53,6 +92,9 @@ const ResolutionApproval = () => {
     }
   };
 
+  /**
+   * Rejects a grade resolution request with a mandatory reason.
+   */
   const handleReject = async () => {
     if (!rejectReason) {
       addToast('warning', 'Please provide a reason for rejection.');
@@ -73,6 +115,7 @@ const ResolutionApproval = () => {
     }
   };
 
+  // Table column configuration
   const columns = [
     {
       header: 'Student',
@@ -146,11 +189,6 @@ const ResolutionApproval = () => {
     }
   ];
 
-  const filtered = pendingResolutions.filter(r => 
-    r.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.student_idn.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   return (
     <div className="resolution-head-container p-6 animate-in fade-in duration-500">
       <PageHeader 
@@ -172,17 +210,32 @@ const ResolutionApproval = () => {
                     size="sm" 
                     icon={<Search size={16} />}
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setPage(1); // Reset to page 1 for new search
+                    }}
                   />
-               </div>
-            </div>
-            <Table 
-              columns={columns}
-              data={filtered}
-              loading={loading}
-              emptyMessage="No grade resolutions currently pending your approval."
-            />
-          </Card>
+                </div>
+              </div>
+              
+              <Table 
+                columns={columns}
+                data={pendingResolutions}
+                loading={loading}
+                emptyMessage="No grade resolutions currently pending your approval."
+              />
+
+              {/* Pagination Section */}
+              {totalPages > 1 && (
+                <div className="pagination-wrapper mt-4 pt-4 border-t border-slate-100 p-4">
+                  <Pagination 
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                  />
+                </div>
+              )}
+            </Card>
       </div>
 
       {/* Rejection Modal */}

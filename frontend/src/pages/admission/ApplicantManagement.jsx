@@ -10,6 +10,7 @@ import {
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Table from '../../components/ui/Table';
+import Pagination from '../../components/ui/Pagination';
 import Badge from '../../components/ui/Badge';
 import PageHeader from '../../components/shared/PageHeader';
 import SearchBar from '../../components/shared/SearchBar';
@@ -23,13 +24,29 @@ const ApplicantManagement = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const { showToast } = useToast();
 
   const fetchApplicants = async () => {
     try {
       setLoading(true);
-      const res = await studentsApi.getStudents({ status: 'APPLICANT', search: searchQuery });
-      setApplicants(res.data.results || res.data);
+      const res = await studentsApi.getStudents({ 
+        status: 'APPLICANT', 
+        search: searchQuery,
+        page: page 
+      });
+      
+      const results = res.data.results || (Array.isArray(res.data) ? res.data : []);
+      setApplicants(results);
+      
+      if (res.data.count) {
+        setTotalCount(res.data.count);
+        setTotalPages(Math.ceil(res.data.count / 20));
+      } else {
+        setTotalPages(1);
+      }
     } catch (err) {
       showToast('error', 'Failed to load applicants');
     } finally {
@@ -39,6 +56,10 @@ const ApplicantManagement = () => {
 
   useEffect(() => {
     fetchApplicants();
+  }, [searchQuery, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [searchQuery]);
 
   const columns = [
@@ -92,7 +113,7 @@ const ApplicantManagement = () => {
         description="Review and approve new student applications"
         actions={
           <Badge variant="neutral" className="text-sm px-3 py-1">
-             {applicants.length} Pending Applications
+             {totalCount || applicants.length} Pending Applications
           </Badge>
         }
       />
@@ -113,6 +134,15 @@ const ApplicantManagement = () => {
           loading={loading} 
           emptyMessage="No pending applications found."
         />
+        {totalPages > 1 && (
+          <div className="pagination-wrapper px-6 py-4 border-t border-slate-50">
+            <Pagination 
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
       </Card>
 
       <ApplicantDetailsModal 

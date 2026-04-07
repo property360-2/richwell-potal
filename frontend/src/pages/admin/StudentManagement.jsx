@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import Select from '../../components/ui/Select';
+import Pagination from '../../components/ui/Pagination';
 import { useToast } from '../../components/ui/Toast';
 import { studentsApi } from '../../api/students';
 import { academicsApi } from '../../api/academics';
@@ -29,6 +30,9 @@ const StudentManagement = () => {
   const [yearLevelFilter, setYearLevelFilter] = useState('');
   const [activeTerm, setActiveTerm] = useState(null);
   const [dropdownStudentId, setDropdownStudentId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const dropdownRef = useRef(null);
   const { addToast } = useToast();
 
@@ -39,7 +43,7 @@ const StudentManagement = () => {
 
   useEffect(() => {
     fetchStudents();
-  }, [searchTerm, statusFilter, programFilter, yearLevelFilter]);
+  }, [searchTerm, statusFilter, programFilter, yearLevelFilter, page]);
 
   useEffect(() => {
     fetchAcademics();
@@ -81,9 +85,18 @@ const StudentManagement = () => {
         status: statusFilter,
         program: programFilter,
         year_level: yearLevelFilter,
-        page_size: 100
+        page: page,
+        page_size: 10
       });
-      setStudents(res.data.results || (Array.isArray(res.data) ? res.data : []));
+      
+      const results = res.data.results || (Array.isArray(res.data) ? res.data : []);
+      setStudents(results);
+      
+      // Calculate total pages if backend returns 'count'
+      if (res.data.count) {
+          setTotalCount(res.data.count);
+          setTotalPages(Math.ceil(res.data.count / 10));
+      }
     } catch (error) {
       console.error('Failed to fetch students:', error);
       setStudents([]);
@@ -283,7 +296,10 @@ const StudentManagement = () => {
             icon={<Search size={16} />}
             className="search-input"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1); // Reset to first page on search
+            }}
           />
         </div>
         
@@ -293,34 +309,43 @@ const StudentManagement = () => {
           <div className="filter-item program-select">
              <Select 
                value={programFilter}
-               onChange={(e) => setProgramFilter(e.target.value)}
                options={[
                  { value: '', label: 'All Programs' },
                  ...programs
                ]}
                className="compact-select"
+               onChange={(e) => {
+                 setProgramFilter(e.target.value);
+                 setPage(1);
+               }}
              />
           </div>
           
           <div className="filter-item year-select">
              <Select 
                value={yearLevelFilter}
-               onChange={(e) => setYearLevelFilter(e.target.value)}
                options={[
-                 { value: '', label: 'Year Levels' },
+                 { value: '', label: 'Year Level' },
                  { value: '1', label: '1st Year' },
                  { value: '2', label: '2nd Year' },
                  { value: '3', label: '3rd Year' },
                  { value: '4', label: '4th Year' }
                ]}
                className="compact-select"
+               onChange={(e) => {
+                 setYearLevelFilter(e.target.value);
+                 setPage(1);
+               }}
              />
           </div>
           
           <div className="filter-item status-select">
              <Select 
                value={statusFilter}
-               onChange={(e) => setStatusFilter(e.target.value)}
+               onChange={(e) => {
+                 setStatusFilter(e.target.value);
+                 setPage(1);
+               }}
                options={[
                  { value: 'ADMITTED,ENROLLED,INACTIVE,GRADUATED', label: 'All Status' },
                  { value: 'ADMITTED', label: 'Admitted' },
@@ -341,6 +366,19 @@ const StudentManagement = () => {
           loading={loading} 
           emptyMessage="No students found matching your search."
         />
+        
+        {totalPages > 1 && (
+          <div className="pagination-wrapper px-6 pb-4 border-t border-slate-100">
+            <span className="text-sm text-slate-500 font-medium">
+              Showing <span className="text-slate-900">{students.length}</span> of <span className="text-slate-900">{totalCount}</span> results
+            </span>
+            <Pagination 
+              currentPage={page} 
+              totalPages={totalPages} 
+              onPageChange={setPage} 
+            />
+          </div>
+        )}
       </Card>
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Manual Student Entry">

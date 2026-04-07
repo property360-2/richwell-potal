@@ -17,41 +17,36 @@ import {
 import api from '../../api/axios';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import Badge from '../../components/ui/Badge';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import Modal from '../../components/ui/Modal';
-import Tabs from '../../components/ui/Tabs';
-import SearchBar from '../../components/shared/SearchBar';
-import EmptyState from '../../components/shared/EmptyState';
-import PageHeader from '../../components/shared/PageHeader';
-import Input from '../../components/ui/Input';
+import Pagination from '../../components/ui/Pagination';
 import './AdvisingApproval.css';
 
 
 const AdvisingApproval = () => {
-  const [loading, setLoading] = useState(true);
-  const [enrollments, setEnrollments] = useState([]);
-  const [selectedEnrollment, setSelectedEnrollment] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('REGULAR'); // REGULAR or IRREGULAR
-  const [expandedRows, setExpandedRows] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showOverrideModal, setShowOverrideModal] = useState(false);
-  const [overrideUnits, setOverrideUnits] = useState(30);
-  const [selectedForOverride, setSelectedForOverride] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     fetchEnrollments();
-  }, [activeTab]);
+  }, [activeTab, page]);
+
+  // Reset page when search or tab changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, activeTab]);
 
   const fetchEnrollments = async () => {
     try {
       setLoading(true);
       // We filter by pending advising status and the active tab (regular/irregular)
-      const res = await api.get(`students/enrollments/?advising_status=PENDING&is_regular=${activeTab === 'REGULAR'}`);
+      const res = await api.get(`students/enrollments/?advising_status=PENDING&is_regular=${activeTab === 'REGULAR'}&search=${searchTerm}&page=${page}`);
 
-      setEnrollments(res.data.results || []);
+      if (res.data.results) {
+        setEnrollments(res.data.results);
+        setTotalPages(Math.ceil(res.data.count / 20));
+      } else {
+        setEnrollments(res.data);
+        setTotalPages(1);
+      }
     } catch (error) {
       console.error("Error fetching enrollments:", error);
     } finally {
@@ -134,10 +129,7 @@ const AdvisingApproval = () => {
     }
   };
 
-  const filteredEnrollments = enrollments.filter(e => 
-    e.student_idn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.student_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const enrollmentsList = enrollments || [];
 
 
   return (
@@ -179,7 +171,7 @@ const AdvisingApproval = () => {
           <div style={{ padding: '40px 0', display: 'flex', justifyContent: 'center' }}>
             <LoadingSpinner />
           </div>
-        ) : filteredEnrollments.length === 0 ? (
+        ) : enrollmentsList.length === 0 ? (
           <EmptyState 
             title="No Pending Enrollments"
             message={`No pending ${activeTab.toLowerCase()} enrollments found.`}
@@ -198,7 +190,7 @@ const AdvisingApproval = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredEnrollments.map((enrollment) => (
+                {enrollmentsList.map((enrollment) => (
                   <React.Fragment key={enrollment.id}>
                     <tr className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
@@ -341,6 +333,16 @@ const AdvisingApproval = () => {
                 ))}
               </tbody>
             </table>
+            
+            {totalPages > 1 && (
+              <div className="pagination-wrapper mt-6 pt-4 border-t border-slate-100">
+                <Pagination 
+                  currentPage={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                />
+              </div>
+            )}
           </div>
         )}
       </Card>

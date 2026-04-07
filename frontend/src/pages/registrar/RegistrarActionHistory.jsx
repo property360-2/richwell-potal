@@ -13,6 +13,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Button from '../../components/ui/Button';
+import Pagination from '../../components/ui/Pagination';
 import '../admin/AuditLogList.css'; // Reuse existing styles
 
 // Converts raw action to a human-readable past-tense verb
@@ -59,22 +60,38 @@ const RegistrarActionHistory = () => {
     end_date: '',
     ordering: '-created_at',
   });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchLogs();
     }, 400);
     return () => clearTimeout(timer);
+  }, [filters, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [filters]);
 
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const params = Object.fromEntries(
-        Object.entries(filters).filter(([_, v]) => v !== '')
-      );
+      const params = {
+        ...Object.fromEntries(
+          Object.entries(filters).filter(([_, v]) => v !== '')
+        ),
+        page: page
+      };
       const res = await auditingApi.getRegistrarHistory(params);
-      setLogs(res.data.results || res.data);
+      
+      if (res.data.results) {
+        setLogs(res.data.results);
+        setTotalPages(Math.ceil(res.data.count / 20));
+      } else {
+        setLogs(res.data);
+        setTotalPages(1);
+      }
     } catch (error) {
       console.error('Failed to fetch action history');
     } finally {
@@ -293,6 +310,16 @@ const RegistrarActionHistory = () => {
                 </React.Fragment>
               );
             })}
+          </div>
+        )}
+        
+        {totalPages > 1 && (
+          <div className="pagination-wrapper">
+            <Pagination 
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
           </div>
         )}
       </div>

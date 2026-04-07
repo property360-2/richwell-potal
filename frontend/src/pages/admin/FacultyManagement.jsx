@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, BookOpen } from 'lucide-react';
+import { Clock, Plus, Search, Edit, BookOpen } from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -9,12 +10,13 @@ import { facultyApi } from '../../api/faculty';
 import ProfessorModal from './components/ProfessorModal';
 import ProfessorSubjectModal from './components/ProfessorSubjectModal';
 import FacultyLoadModal from './components/FacultyLoadModal';
-import { Clock } from 'lucide-react';
 
 const FacultyManagement = () => {
   const [professors, setProfessors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   // Modal states
   const [isProfModalOpen, setIsProfModalOpen] = useState(false);
@@ -23,14 +25,31 @@ const FacultyManagement = () => {
   const [selectedProf, setSelectedProf] = useState(null);
 
   useEffect(() => {
-    fetchProfessors();
+    const timer = setTimeout(() => {
+      fetchProfessors();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [searchTerm]);
 
   const fetchProfessors = async () => {
     try {
       setLoading(true);
-      const res = await facultyApi.getAll({ search: searchTerm });
-      setProfessors(res.data.results || []);
+      const res = await facultyApi.getAll({ 
+        search: searchTerm,
+        page: page 
+      });
+      
+      if (res.data.results) {
+        setProfessors(res.data.results);
+        setTotalPages(Math.ceil(res.data.count / 20));
+      } else {
+        setProfessors(res.data);
+        setTotalPages(1);
+      }
     } catch (error) {
       console.error('Failed to fetch professors:', error);
       setProfessors([]);
@@ -172,6 +191,15 @@ const FacultyManagement = () => {
           loading={loading} 
           emptyMessage="No professors found matching your search."
         />
+        {totalPages > 1 && (
+          <div className="pagination-wrapper">
+            <Pagination 
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
       </Card>
 
       <ProfessorModal 

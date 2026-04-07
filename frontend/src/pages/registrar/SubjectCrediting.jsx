@@ -17,6 +17,7 @@ import { useToast } from '../../components/ui/Toast';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import Table from '../../components/ui/Table';
+import Pagination from '../../components/ui/Pagination';
 import PageHeader from '../../components/shared/PageHeader';
 
 import './SubjectCrediting.css';
@@ -25,7 +26,11 @@ const SubjectCrediting = () => {
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [studentResults, setStudentResults] = useState([]);
   const [student, setStudent] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   
   const [curriculumSubjects, setCurriculumSubjects] = useState([]);
   const [creditedSubjectIds, setCreditedSubjectIds] = useState([]);
@@ -42,8 +47,22 @@ const SubjectCrediting = () => {
   const [yearFilter, setYearFilter] = useState('ALL');
   const [semesterFilter, setSemesterFilter] = useState('ALL');
 
+  useEffect(() => {
+    if (searchTerm) {
+      handleSearch();
+    }
+  }, [page]);
+
   const handleSearch = async (e) => {
-    e.preventDefault();
+    if (e) {
+      e.preventDefault();
+      // Reset to page 1 for new manual search
+      if (page !== 1) {
+        setPage(1);
+        return; // useEffect will trigger handleSearch again
+      }
+    }
+    
     if (!searchTerm) return;
     
     try {
@@ -53,12 +72,16 @@ const SubjectCrediting = () => {
       setMessage(null);
       setPendingRequest(null);
       
-      const res = await api.get(`students/?search=${searchTerm}`);
-      const students = res.data.results || [];
+      const res = await api.get(`students/?search=${searchTerm}&page=${page}`);
+      const students = res.data.results || res.data || [];
+      setStudentResults(students);
+      setTotalCount(res.data.count || students.length);
+      setTotalPages(res.data.count ? Math.ceil(res.data.count / 20) : 1);
       
       if (students.length === 0) {
         setMessage({ type: 'error', text: 'No student found with that ID or Name.' });
-      } else {
+      } else if (students.length === 1 && page === 1) {
+        // Auto-select if only one result on page 1
         const found = students[0];
         setStudent(found);
         fetchCurriculumAndCredits(found);
@@ -249,7 +272,7 @@ const SubjectCrediting = () => {
             <Input 
               label="Student Lookup"
               placeholder="Enter IDN or Student Name..."
-              icon={Search}
+              icon={<Search size={18} />}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full"
@@ -275,6 +298,43 @@ const SubjectCrediting = () => {
                {message.type === 'error' ? <AlertCircle size={20} className="shrink-0" /> : <CheckCircle2 size={20} className="shrink-0" />}
                <span className="text-sm font-semibold">{message.text}</span>
             </div>
+          </div>
+        )}
+
+        {studentResults.length > 1 && !student && (
+          <div className="max-w-4xl mx-auto mt-6">
+            <h4 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">Search Results ({totalCount})</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {studentResults.map(s => (
+                <div 
+                  key={s.id} 
+                  className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-white hover:border-primary-300 hover:shadow-sm transition-all cursor-pointer group"
+                  onClick={() => {
+                    setStudent(s);
+                    fetchCurriculumAndCredits(s);
+                    fetchPendingRequest(s);
+                  }}
+                >
+                  <div className="flex flex-col">
+                    <span className="font-bold text-slate-800 group-hover:text-primary-600 tracking-tight">
+                      {s.user.first_name} {s.user.last_name}
+                    </span>
+                    <span className="text-xs font-mono text-slate-500 uppercase">{s.idn} • {s.program_details?.code}</span>
+                  </div>
+                  <Badge variant="neutral" size="sm">Select</Badge>
+                </div>
+              ))}
+            </div>
+            
+            {totalPages > 1 && (
+              <div className="pagination-wrapper mt-6 pt-4 border-t border-slate-100">
+                <Pagination 
+                  currentPage={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                />
+              </div>
+            )}
           </div>
         )}
       </Card>

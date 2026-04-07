@@ -142,8 +142,45 @@
     
     .filter-group {
         flex: 1;
-        justify-content: space-between;
+        justify-content: flex-end;
+        width: 100%;
     }
+}
+
+/* Pagination UI */
+.pagination-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    margin-top: 1rem;
+}
+
+/* Improved Compact Selects */
+.compact-select.select-container {
+    min-width: 140px;
+    gap: 0;
+}
+
+.compact-select .select-field {
+    height: 38px;
+    padding-top: 0;
+    padding-bottom: 0;
+    background-color: var(--color-slate-50);
+    border-color: var(--color-slate-200);
+    font-weight: 500;
+    font-size: 0.8125rem;
+    color: var(--color-slate-700);
+    border-radius: var(--radius-lg);
+}
+
+.compact-select .select-field:hover {
+    background-color: white;
+    border-color: var(--color-primary-light);
+}
+
+.compact-select .select-icon-right {
+    color: var(--color-slate-400);
 }
 
 @media (max-width: 768px) {

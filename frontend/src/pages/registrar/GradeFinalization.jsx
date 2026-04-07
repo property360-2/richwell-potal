@@ -8,6 +8,7 @@ import Table from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
 import Tabs from '../../components/ui/Tabs';
+import Pagination from '../../components/ui/Pagination';
 import { gradesApi } from '../../api/grades';
 import { termsApi } from '../../api/terms';
 import PageHeader from '../../components/shared/PageHeader';
@@ -33,10 +34,17 @@ const GradeFinalization = () => {
   // Details Modal context
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedDetails, setSelectedDetails] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     fetchInitialData();
-  }, [activeTab]);
+  }, [activeTab, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, searchTerm]);
 
   const fetchInitialData = async () => {
     try {
@@ -56,12 +64,14 @@ const GradeFinalization = () => {
         const res = await gradesApi.getGrades({ 
           term: term.id, 
           finalized_at__isnull: 'true',
-          grade_status__in: 'ENROLLED,PASSED,FAILED,INC,NO_GRADE'
+          grade_status__in: 'ENROLLED,PASSED,FAILED,INC,NO_GRADE',
+          page_size: 100 // Fetch more for grouping
         });
         
-        // Group by section and subject
+        const grades = res.data?.results || res.data || [];
+        setTotalCount(res.data?.count || grades.length);
+        
         const grouped = {};
-        const grades = res.data?.results || [];
         grades.forEach(g => {
             const key = `${g.section}-${g.subject}`;
             if (!grouped[key]) {
@@ -75,27 +85,30 @@ const GradeFinalization = () => {
                     pending_count: 0
                 };
             }
-            if (
-              grouped[key].professor_name === 'TBA' &&
-              g.professor_name &&
-              g.professor_name !== 'TBA'
-            ) {
+            if (grouped[key].professor_name === 'TBA' && g.professor_name && g.professor_name !== 'TBA') {
                 grouped[key].professor_name = g.professor_name;
             }
             grouped[key].pending_count++;
         });
         setPendingSections(Object.values(grouped));
+        setTotalPages(1); // Grouped view doesn't support easy pagination yet
       } else if (activeTab === 'resolutions') {
         const res = await gradesApi.getGrades({ 
           grade_status: 'INC',
-          resolution_status: 'REQUESTED'
+          resolution_status: 'REQUESTED',
+          page: page
         });
         setResolutions(res.data?.results || []);
+        setTotalPages(res.data.count ? Math.ceil(res.data.count / 20) : 1);
+        setTotalCount(res.data.count || 0);
       } else if (activeTab === 'finalization') {
         const res = await gradesApi.getGrades({ 
-          resolution_status: 'HEAD_APPROVED'
+          resolution_status: 'HEAD_APPROVED',
+          page: page
         });
         setResolutions(res.data?.results || []);
+        setTotalPages(res.data.count ? Math.ceil(res.data.count / 20) : 1);
+        setTotalCount(res.data.count || 0);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -492,6 +505,15 @@ const GradeFinalization = () => {
                 "No resolutions awaiting final approval."
               }
             />
+            {totalPages > 1 && (
+              <div className="pagination-wrapper px-6 py-4 border-t border-slate-50">
+                <Pagination 
+                  currentPage={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                />
+              </div>
+            )}
           </Card>
       </div>
       {/* Rejection Modal */}

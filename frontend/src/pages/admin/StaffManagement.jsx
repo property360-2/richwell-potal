@@ -11,6 +11,7 @@ import Badge from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../hooks/useAuth';
 import { Plus, Edit2, KeyRound } from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
 
 const ROLE_OPTIONS = [
   { value: 'REGISTRAR', label: 'Registrar' },
@@ -29,11 +30,12 @@ const REGISTRAR_ONLY_OPTIONS = [
 const StaffManagement = () => {
   const { role } = useAuth();
   const [staff, setStaff] = useState([]);
-  const [filteredStaff, setFilteredStaff] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const { showToast } = useToast();
 
   const { register, handleSubmit, reset, setValue, setError, formState: { errors, isSubmitting } } = useForm();
@@ -41,8 +43,20 @@ const StaffManagement = () => {
   const fetchStaff = async () => {
     try {
       setLoading(true);
-      const res = await api.get('accounts/staff/');
-      setStaff(res.data.results || res.data);
+      const res = await api.get('accounts/staff/', {
+        params: {
+          search: searchQuery,
+          page: page
+        }
+      });
+      // Handle DRF paginated response
+      if (res.data.results) {
+        setStaff(res.data.results);
+        setTotalPages(Math.ceil(res.data.count / 20)); // Assume 20 items per page as per base.py
+      } else {
+        setStaff(res.data);
+        setTotalPages(1);
+      }
     } catch (err) {
       showToast('error', 'Failed to load staff list');
     } finally {
@@ -51,25 +65,16 @@ const StaffManagement = () => {
   };
 
   useEffect(() => {
-    fetchStaff();
-  }, []);
+    const timer = setTimeout(() => {
+      fetchStaff();
+    }, 400); // Debounce search
+    return () => clearTimeout(timer);
+  }, [searchQuery, page]);
 
+  // Reset page when searching
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredStaff(staff);
-      return;
-    }
-
-    const query = searchQuery.toLowerCase();
-    const filtered = staff.filter(s => 
-      s.username.toLowerCase().includes(query) ||
-      s.first_name.toLowerCase().includes(query) ||
-      s.last_name.toLowerCase().includes(query) ||
-      s.email.toLowerCase().includes(query) ||
-      s.role.toLowerCase().includes(query)
-    );
-    setFilteredStaff(filtered);
-  }, [searchQuery, staff]);
+    setPage(1);
+  }, [searchQuery]);
 
   const handleOpenModal = (staffMember = null) => {
     if (staffMember) {
@@ -198,10 +203,19 @@ const StaffManagement = () => {
         </div>
         <Table 
           columns={columns} 
-          data={filteredStaff} 
+          data={staff} 
           loading={loading} 
           emptyMessage={searchQuery ? "No staff matches your search." : "No staff members found."}
         />
+        {totalPages > 1 && (
+          <div className="pagination-wrapper">
+            <Pagination 
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
       </Card>
 
       <Modal 

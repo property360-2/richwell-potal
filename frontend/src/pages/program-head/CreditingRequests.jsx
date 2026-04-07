@@ -17,6 +17,7 @@ import EmptyState from '../../components/shared/EmptyState';
 import PageHeader from '../../components/shared/PageHeader';
 import Input from '../../components/ui/Input';
 import { formatDate } from '../../utils/formatters';
+import Pagination from '../../components/ui/Pagination';
 
 
 /**
@@ -33,16 +34,34 @@ const CreditingRequests = () => {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [expandedRows, setExpandedRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      fetchRequests();
+    }, 300);
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, searchTerm]);
 
   const fetchRequests = async () => {
     try {
       setLoading(true);
-      const res = await api.get('grades/crediting-requests/?status=PENDING');
-      setRequests(res.data.results || res.data || []);
+      const res = await api.get('grades/crediting-requests/', {
+        params: {
+          status: 'PENDING',
+          search: searchTerm,
+          page: page
+        }
+      });
+      
+      if (res.data.results) {
+        setRequests(res.data.results);
+        setTotalPages(Math.ceil(res.data.count / 20)); // Assume 20 per page
+      } else {
+        setRequests(res.data || []);
+        setTotalPages(1);
+      }
     } catch (error) {
       console.error("Error fetching crediting requests:", error);
     } finally {
@@ -83,10 +102,6 @@ const CreditingRequests = () => {
     }
   };
 
-  const filteredRequests = requests.filter(r =>
-    r.student_idn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.student_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <div className="crediting-requests-container pb-8">
@@ -99,7 +114,10 @@ const CreditingRequests = () => {
         <div className="mb-4 max-w-md">
           <SearchBar
             placeholder="Search by IDN or Name..."
-            onSearch={setSearchTerm}
+            onSearch={(value) => {
+              setSearchTerm(value);
+              setPage(1); // Reset to page 1 on search
+            }}
           />
         </div>
 
@@ -107,7 +125,7 @@ const CreditingRequests = () => {
           <div style={{ padding: '40px 0', display: 'flex', justifyContent: 'center' }}>
             <LoadingSpinner />
           </div>
-        ) : filteredRequests.length === 0 ? (
+        ) : requests.length === 0 ? (
           <EmptyState
             title="No Pending Requests"
             message={`No pending subject crediting requests found.`}
@@ -126,7 +144,7 @@ const CreditingRequests = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredRequests.map((request) => (
+                {requests.map((request) => (
                   <React.Fragment key={request.id}>
                     <tr className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
@@ -236,6 +254,17 @@ const CreditingRequests = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Section */}
+        {totalPages > 1 && (
+          <div className="pagination-wrapper mt-4 p-4 border-t border-slate-100">
+            <Pagination 
+               currentPage={page}
+               totalPages={totalPages}
+               onPageChange={setPage}
+            />
           </div>
         )}
       </Card>

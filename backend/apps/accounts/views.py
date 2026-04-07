@@ -195,8 +195,10 @@ class StaffManagementViewSet(viewsets.ModelViewSet):
     Allows creating, updating, and resetting passwords for staff.
     """
     permission_classes = [IsAuthenticated, IsAdmin | IsHeadRegistrar]
+    search_fields = ['username', 'email', 'first_name', 'last_name']
     
     def get_queryset(self):
+
         """
         Customizes staff list based on user role.
         Head Registrars can only view and manage Registrar-related accounts.

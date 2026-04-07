@@ -60,3 +60,14 @@
     text-align: center !important;
     color: var(--color-text-muted);
 }
+
+.pagination-wrapper {
+    padding: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    background-color: var(--color-surface);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-bottom-left-radius: var(--radius-lg);
+    border-bottom-right-radius: var(--radius-lg);
+}
