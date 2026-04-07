@@ -1,3 +1,11 @@
+/**
+ * Richwell Portal — Grade Review Page
+ * 
+ * This page allows the Registrar to review student grades for a specific section and subject.
+ * It supports server-side pagination and search to efficiently handle large rosters and
+ * provides the interface to finalize and lock grades for the selected class.
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, CheckCircle, Layers, FileText, User, Hash } from 'lucide-react';
@@ -9,14 +17,29 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useToast } from '../../components/ui/Toast';
 import { gradesApi } from '../../api/grades';
 import PageHeader from '../../components/shared/PageHeader';
+import SearchBar from '../../components/shared/SearchBar';
+import Pagination from '../../components/shared/Pagination';
 
+/**
+ * GradeReviewPage Component
+ * 
+ * Renders a detailed roster of students and their grades for a given subject/section.
+ * Includes search capabilities and allows the registrar to lock the grades.
+ */
 const GradeReviewPage = () => {
   const { termId, sectionId, subjectId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  
+  // State for data and navigation
   const [loading, setLoading] = useState(true);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [roster, setRoster] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const [meta, setMeta] = useState({
     sectionName: 'Loading...',
     subjectName: 'Loading...',
@@ -24,12 +47,22 @@ const GradeReviewPage = () => {
     professorName: '...'
   });
 
+  /**
+   * Fetches the student roster from the server with current search and pagination filters.
+   */
   const fetchRoster = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await gradesApi.getSectionStudents(sectionId, subjectId);
-      const students = res.data?.results || res.data || [];
+      const res = await gradesApi.getSectionStudents(sectionId, subjectId, {
+        page,
+        search: searchTerm
+      });
+      
+      const data = res.data;
+      const students = data.results || data || [];
       setRoster(students);
+      setTotalPages(data.total_pages || 1);
+      setTotalCount(data.count || students.length);
 
       if (students.length > 0) {
         const first = students[0];
@@ -46,12 +79,16 @@ const GradeReviewPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [sectionId, subjectId, showToast]);
+  }, [sectionId, subjectId, page, searchTerm, showToast]);
 
   useEffect(() => {
     fetchRoster();
   }, [fetchRoster]);
 
+  /**
+   * Triggers the finalization process for the entire section/subject roster.
+   * This locks the grades and prevents further professor edits.
+   */
   const handleFinalize = async () => {
     if (!window.confirm('Are you sure you want to finalize these grades? This action is permanent and will lock the grades for this section.')) {
         return;
@@ -73,6 +110,9 @@ const GradeReviewPage = () => {
     }
   };
 
+  /**
+   * Column definitions for the roster table.
+   */
   const columns = [
     { 
       header: 'ID Number', 
@@ -176,17 +216,44 @@ const GradeReviewPage = () => {
         <div className="md:col-span-2 space-y-6">
           <Card className="overflow-hidden border-none shadow-xl shadow-slate-200/50">
             <div className="bg-slate-50/50 border-b border-slate-100 p-4 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                <Hash size={14} className="text-slate-400" />
-                Student Grade Roster
-              </h3>
-              <Badge variant="info">{roster.length} Students</Badge>
+              <div className="flex flex-col gap-1">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                  <Hash size={14} className="text-slate-400" />
+                  Student Grade Roster
+                </h3>
+                <div className="text-[10px] text-slate-400 font-bold uppercase">
+                  {totalCount} Total Students
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <SearchBar 
+                  placeholder="Search by name or IDN..."
+                  onSearch={(val) => {
+                    setSearchTerm(val);
+                    setPage(1);
+                  }}
+                />
+              </div>
             </div>
             <Table 
               columns={columns}
               data={roster}
               loading={loading}
+              emptyMessage={searchTerm ? "No students match your search criteria." : "This roster is currently empty."}
             />
+            
+            {totalPages > 1 && (
+              <div className="p-4 bg-slate-50/30 border-t border-slate-100 flex justify-between items-center">
+                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                  Page {page} of {totalPages}
+                </div>
+                <Pagination 
+                  currentPage={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                />
+              </div>
+            )}
           </Card>
         </div>
 
@@ -214,7 +281,7 @@ const GradeReviewPage = () => {
                   </div>
                   <div className="flex justify-between text-sm py-2">
                     <span className="text-slate-500">Total Enrolled</span>
-                    <span className="font-bold text-slate-800">{roster.length}</span>
+                    <span className="font-bold text-slate-800">{totalCount}</span>
                   </div>
                </div>
             </div>

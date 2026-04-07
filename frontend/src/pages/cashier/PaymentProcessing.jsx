@@ -1,4 +1,13 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * Richwell Portal — Payment Processing Page
+ * 
+ * This page provides the Cashier interface for searching students, viewing their financial
+ * ledger (transaction history), and recording new payments or promissory notes.
+ * It includes server-side pagination for the transaction history and real-time permit
+ * readiness status indicators.
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, AlertCircle, CheckCircle2, DollarSign, ArrowLeft, MoreHorizontal, User, CreditCard } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -12,29 +21,44 @@ import api from '../../api/axios';
 import { useToast } from '../../components/ui/Toast';
 import { financeApi } from '../../api/finance';
 import { studentsApi } from '../../api/students';
+import Pagination from '../../components/shared/Pagination';
 import './Cashier.css';
 
+/**
+ * PaymentProcessing Component
+ * 
+ * Main interface for cashier operations. Handles student search, ledger displays,
+ * and payment recording workflows.
+ */
 const PaymentProcessing = () => {
   const { addToast } = useToast();
+  
+  // Basic State
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  
+  // Ledger / Finance State
   const [history, setHistory] = useState([]);
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [totalLedgerPages, setTotalLedgerPages] = useState(1);
+  const [totalLedgerCount, setTotalLedgerCount] = useState(0);
+  
   const [permitStatus, setPermitStatus] = useState(null);
   const [nextPaymentInfo, setNextPaymentInfo] = useState(null);
+  const [activeTerm, setActiveTerm] = useState(null);
   
-  // Modal States
+  // Modal & Form States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  
-  // Form State
   const [formData, setFormData] = useState({
     amount: '',
     is_promissory: false,
     notes: ''
   });
 
-  const [activeTerm, setActiveTerm] = useState(null);
-
+  /**
+   * Initializes the page by fetching the current active academic term.
+   */
   useEffect(() => {
     const init = async () => {
       try {
@@ -48,8 +72,15 @@ const PaymentProcessing = () => {
     init();
   }, []);
 
-  const closePaymentModal = React.useCallback(() => setIsPaymentModalOpen(false), []);
+  /**
+   * Closes the payment recording modal.
+   */
+  const closePaymentModal = useCallback(() => setIsPaymentModalOpen(false), []);
 
+  /**
+   * Searches for a student by IDN or name. If found, selects the first match
+   * and loads their financial ledger.
+   */
   const handleSearch = async () => {
     if (!searchTerm) return;
     try {
@@ -57,8 +88,10 @@ const PaymentProcessing = () => {
       const res = await studentsApi.getStudents({ search: searchTerm });
       const students = res.data.results || res.data;
       if (students.length > 0) {
-        setSelectedStudent(students[0]);
-        fetchStudentLedger(students[0].id);
+        const student = students[0];
+        setSelectedStudent(student);
+        setLedgerPage(1); // Reset to first page for new student
+        fetchStudentLedger(student.id, 1);
       } else {
         addToast('warning', 'No student found with that ID or Name.');
       }
@@ -69,14 +102,26 @@ const PaymentProcessing = () => {
     }
   };
 
-  const fetchStudentLedger = async (studentId) => {
+  /**
+   * Fetches the paginated financial history (ledger) for the selected student.
+   * Also retrieves current permit status and next payment calculations.
+   * 
+   * @param {number} studentId - The unique ID of the student.
+   * @param {number} targetPage - The page number to fetch.
+   */
+  const fetchStudentLedger = useCallback(async (studentId, targetPage = 1) => {
     try {
         setLoading(true);
         const historyRes = await financeApi.getPayments({ 
           student: studentId,
-          term: activeTerm?.id 
+          term: activeTerm?.id,
+          page: targetPage
         });
-        setHistory(historyRes.data.results || historyRes.data || []);
+        
+        const data = historyRes.data;
+        setHistory(data.results || data || []);
+        setTotalLedgerPages(data.total_pages || 1);
+        setTotalLedgerCount(data.count || (data.results?.length || 0));
         
         if (activeTerm) {
           const [permitRes, nextRes] = await Promise.all([
@@ -91,8 +136,20 @@ const PaymentProcessing = () => {
     } finally {
         setLoading(false);
     }
-  };
+  }, [activeTerm, addToast]);
 
+  /**
+   * Effect to refresh ledger when page changes while a student is selected.
+   */
+  useEffect(() => {
+    if (selectedStudent) {
+      fetchStudentLedger(selectedStudent.id, ledgerPage);
+    }
+  }, [ledgerPage, selectedStudent, fetchStudentLedger]);
+
+  /**
+   * Submits a new payment or promissory note to the backend.
+   */
   const submitPayment = async () => {
     if (!formData.amount && !formData.is_promissory) {
         addToast('warning', 'Amount is required for payments.');
@@ -111,7 +168,8 @@ const PaymentProcessing = () => {
       addToast('success', 'Payment recorded successfully.');
       setIsPaymentModalOpen(false);
       setFormData({ amount: '', is_promissory: false, notes: '' });
-      fetchStudentLedger(selectedStudent.id);
+      setLedgerPage(1); // Return to first page to see the new entry
+      fetchStudentLedger(selectedStudent.id, 1);
     } catch (error) {
       const msg = error.response?.data?.detail || 'Failed to record payment.';
       addToast('error', msg);
@@ -120,7 +178,9 @@ const PaymentProcessing = () => {
     }
   };
 
-
+  /**
+   * Table columns definition for the ledger history.
+   */
   const columns = [
     {
       header: 'Student',
@@ -250,7 +310,10 @@ const PaymentProcessing = () => {
               <div className="lg:col-span-3">
                   <Card className="shadow-sm">
                       <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                          <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Transaction Ledger</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Transaction Ledger</span>
+                            <div className="text-[9px] text-slate-400 font-bold uppercase">{totalLedgerCount} Records Total</div>
+                          </div>
                           <span className="text-xs text-slate-400 italic">No Edits Allowed</span>
                       </div>
                       <Table 
@@ -259,6 +322,19 @@ const PaymentProcessing = () => {
                         loading={loading}
                         emptyMessage="No financial history found for this student."
                       />
+                      
+                      {totalLedgerPages > 1 && (
+                        <div className="p-4 border-t border-slate-100 flex justify-between items-center">
+                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                            Page {ledgerPage} of {totalLedgerPages}
+                          </div>
+                          <Pagination 
+                            currentPage={ledgerPage}
+                            totalPages={totalLedgerPages}
+                            onPageChange={setLedgerPage}
+                          />
+                        </div>
+                      )}
                   </Card>
               </div>
           </div>

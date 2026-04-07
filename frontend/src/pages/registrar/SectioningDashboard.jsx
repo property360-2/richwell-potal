@@ -1,5 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Users, LayoutGrid, FilePlus, ChevronRight, CheckCircle2, AlertCircle, RefreshCw, Clock } from 'lucide-react';
+/**
+ * SectioningDashboard.jsx
+ * 
+ * This component provides an administrative interface for managing class sections.
+ * It includes an enrollment matrix for automated generation and a searchable,
+ * paginated view of active sections for term-wide oversight.
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { Users, LayoutGrid, FilePlus, ChevronRight, CheckCircle2, AlertCircle, RefreshCw, Clock, Search } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -15,16 +23,31 @@ import Select from '../../components/ui/Select';
 import Tabs from '../../components/ui/Tabs';
 import PageHeader from '../../components/shared/PageHeader';
 import SectionPreviewModal from './components/SectionPreviewModal';
+import SearchBar from '../../components/shared/SearchBar';
+import Pagination from '../../components/ui/Pagination';
 
 import './SectioningDashboard.css';
 
+/**
+ * SectioningDashboard Component
+ * 
+ * Manages the transition from student enrollment to section assignment.
+ * Supports bulk generation of sections and individual student transfers.
+ */
 const SectioningDashboard = () => {
   const [activeTerm, setActiveTerm] = useState(null);
   const [stats, setStats] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sectionsLoading, setSectionsLoading] = useState(false);
   
+  // Pagination & Search State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   // Navigation & Modal Tabs
   const [mainTab, setMainTab] = useState('matrix'); // 'matrix' or 'sections'
   const [modalTab, setModalTab] = useState('students'); // 'students' or 'schedule'
@@ -45,6 +68,9 @@ const SectioningDashboard = () => {
 
   const { showToast } = useToast();
 
+  /**
+   * Fetches static data (terms, stats, programs) once on mount.
+   */
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -53,25 +79,54 @@ const SectioningDashboard = () => {
       setActiveTerm(term);
 
       if (term) {
-        const statsRes = await sectionsApi.getStats(term.id);
+        const [statsRes, programsRes] = await Promise.all([
+          sectionsApi.getStats(term.id),
+          academicsApi.getPrograms()
+        ]);
         setStats(statsRes.data);
-
-        const programsRes = await academicsApi.getPrograms();
         setPrograms(programsRes.data.results || programsRes.data);
-
-        const sectionsRes = await sectionsApi.getSections({ term_id: term.id });
-        setSections(sectionsRes.data.results || sectionsRes.data);
       }
     } catch (err) {
-      showToast('error', 'Failed to load sectioning data');
+      showToast('error', 'Failed to load initial data');
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Fetches the sections list with search and pagination.
+   */
+  const fetchSections = useCallback(async () => {
+    if (!activeTerm) return;
+    try {
+      setSectionsLoading(true);
+      const res = await sectionsApi.getSections({ 
+        term_id: activeTerm.id,
+        search: searchTerm,
+        page: page,
+        page_size: 20
+      });
+      setSections(res.data.results || res.data || []);
+      setTotalPages(res.data.count ? Math.ceil(res.data.count / 20) : 1);
+      setTotalCount(res.data.count || 0);
+    } catch (err) {
+      showToast('error', 'Failed to load sections');
+    } finally {
+      setSectionsLoading(false);
+    }
+  }, [activeTerm, searchTerm, page, showToast]);
+
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (activeTerm) fetchSections();
+  }, [activeTerm, fetchSections]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm]);
 
   const handleGenerate = (programId, yearLevel) => {
     setGenerationParams({ program_id: programId, year_level: yearLevel, term_id: activeTerm.id });
@@ -293,73 +348,98 @@ const SectioningDashboard = () => {
           </div>
         ) : (
           /* Sections Grid Section */
-          <div className="sections-container">
-            <div className="sections-section-header">
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <LayoutGrid size={20} style={{ color: 'var(--color-primary)' }} />
-                Active Section Blocks
-              </h2>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>
-                {sections.length} active units
+          <div className="sections-view animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="sections-header px-1 pb-4 flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <h2 className="flex items-center gap-2 font-bold text-slate-800">
+                  <LayoutGrid size={20} className="text-primary" />
+                  Active Section Blocks
+                </h2>
+                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>
+                  {totalCount} active units available
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <SearchBar 
+                  placeholder="Search by section name, session, or program..."
+                  onSearch={setSearchTerm}
+                />
               </div>
             </div>
 
-            {sections.length > 0 ? (
-              <div className="sections-grid">
-                {sections.map(section => {
-                  const fulfillment = (section.student_count / section.max_students) * 100;
-                  const barColor = section.student_count >= section.max_students ? 'danger' : section.student_count > section.target_students ? 'warning' : 'normal';
+            {sectionsLoading ? (
+              <div className="p-12 flex justify-center"><LoadingSpinner size="lg" /></div>
+            ) : sections.length > 0 ? (
+              <>
+                <div className="sections-grid">
+                  {sections.map(section => {
+                    const fulfillment = (section.student_count / section.max_students) * 100;
+                    const barColor = section.student_count >= section.max_students ? 'danger' : section.student_count > section.target_students ? 'warning' : 'normal';
 
-                  return (
-                    <div 
-                      key={section.id} 
-                      className="section-card"
-                      onClick={() => handleOpenRoster(section)}
-                    >
-                      <div className="section-card-header">
-                        <div className="section-name-box">
-                          <h3>{section.name}</h3>
-                          <div className="section-badges">
-                            <Badge variant={section.session === 'AM' ? 'info' : 'warning'} style={{ fontSize: '9px', fontWeight: 'black' }}>
-                              {section.session}
-                            </Badge>
-                            <span style={{ fontSize: '9px', color: 'var(--color-text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                              {section.program_code}
-                            </span>
+                    return (
+                      <div 
+                        key={section.id} 
+                        className="section-card"
+                        onClick={() => handleOpenRoster(section)}
+                      >
+                        <div className="section-card-header">
+                          <div className="section-name-box">
+                            <h3>{section.name}</h3>
+                            <div className="section-badges">
+                              <Badge variant={section.session === 'AM' ? 'info' : 'warning'} style={{ fontSize: '9px', fontWeight: 'black' }}>
+                                {section.session}
+                              </Badge>
+                              <span style={{ fontSize: '9px', color: 'var(--color-text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                {section.program_code}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="capacity-info">
+                            <div className="current-count">{section.student_count}</div>
+                            <div className="max-label">/ {section.target_students}</div>
                           </div>
                         </div>
-                        <div className="capacity-info">
-                          <div className="current-count">{section.student_count}</div>
-                          <div className="max-label">/ {section.target_students}</div>
+                        
+                        <div className="fulfillment-container">
+                          <div className="fulfillment-labels">
+                            <span>Fulfillment</span>
+                            <span>{Math.round(fulfillment)}%</span>
+                          </div>
+                          <div className="progress-bar-bg">
+                            <div 
+                              className={`progress-bar-fill ${barColor}`}
+                              style={{ width: `${fulfillment}%` }}
+                            ></div>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="fulfillment-container">
-                        <div className="fulfillment-labels">
-                          <span>Fulfillment</span>
-                          <span>{Math.round(fulfillment)}%</span>
-                        </div>
-                        <div className="progress-bar-bg">
-                          <div 
-                            className={`progress-bar-fill ${barColor}`}
-                            style={{ width: `${fulfillment}%` }}
-                          ></div>
-                        </div>
-                      </div>
 
-                      <div className="view-roster-btn">
-                        <span>View Class Details</span>
-                        <ChevronRight size={16} />
+                        <div className="view-roster-btn">
+                          <span>View Class Details</span>
+                          <ChevronRight size={16} />
+                        </div>
                       </div>
+                    );
+                  })}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="pagination-wrapper mt-8 pt-6 border-t border-slate-100 flex justify-between items-center px-2">
+                    <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                      Page {page} of {totalPages}
                     </div>
-                  );
-                })}
-              </div>
+                    <Pagination 
+                      currentPage={page}
+                      totalPages={totalPages}
+                      onPageChange={setPage}
+                    />
+                  </div>
+                )}
+              </>
             ) : (
               <div className="empty-state-card">
                 <Users size={64} style={{ color: 'var(--color-primary)' }} />
-                <h3>No Sections Generated</h3>
-                <p>Select a program and year in the matrix above to begin automated section creation.</p>
+                <h3>No Sections Found</h3>
+                <p>No sections match your current filters or have been generated yet.</p>
               </div>
             )}
           </div>

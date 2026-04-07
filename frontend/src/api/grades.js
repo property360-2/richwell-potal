@@ -5,8 +5,8 @@ export const gradesApi = {
     getHistory: (params) => api.get('grades/advising/', { params }),
     getProfessorSections: () => api.get('sections/my-sections/'),
     getProfessorSchedule: () => api.get('sections/my-schedule/'),
-    getSectionStudents: (sectionId, subjectId) => api.get('grades/submission/roster/', {
-        params: { section_id: sectionId, subject_id: subjectId }
+    getSectionStudents: (sectionId, subjectId, params = {}) => api.get('grades/submission/roster/', {
+        params: { ...params, section_id: sectionId, subject_id: subjectId }
     }),
     submitMidterm: (gradeId, value, isInc = false, override = false) => api.post(`grades/submission/${gradeId}/submit-midterm/`, { value, is_inc: isInc, override_grading_window: override }),
     submitFinal: (gradeId, value, isInc = false, override = false) => api.post(`grades/submission/${gradeId}/submit-final/`, { value, is_inc: isInc, override_grading_window: override }),

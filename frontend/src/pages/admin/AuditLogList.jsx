@@ -1,45 +1,28 @@
+/**
+ * @file AuditLogList.jsx
+ * @description Comprehensive audit trail viewer for administrators.
+ * Shows all data mutations and system events with advanced filtering.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { auditingApi } from '../../api/auditing';
-import { Search, ChevronDown, ChevronUp, Clock, Activity, FileJson, Download, Globe } from 'lucide-react';
+import { Search, Download } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Button from '../../components/ui/Button';
 import Pagination from '../../components/ui/Pagination';
+import AuditFeedItem from '../../components/shared/AuditFeedItem';
 import './AuditLogList.css';
 
-// Converts raw action to a human-readable past-tense verb
-const getActionVerb = (action) => {
-  switch (action) {
-    case 'CREATE': return 'created';
-    case 'UPDATE': return 'updated';
-    case 'DELETE': return 'deleted';
-    default: return action?.toLowerCase() || 'modified';
-  }
-};
-
-// Returns the CSS class for the action verb color
-const getVerbClass = (action) => {
-  switch (action) {
-    case 'CREATE': return 'verb-create';
-    case 'UPDATE': return 'verb-update';
-    case 'DELETE': return 'verb-delete';
-    default: return 'verb-update';
-  }
-};
-
-// Gets user initials for the avatar
-const getInitials = (username) => {
-  if (!username) return 'SY';
-  return username.substring(0, 2).toUpperCase();
-};
-
-// Humanize a model name: "StudentSubject" → "Student Subject"
-const humanizeModel = (name) => {
-  if (!name) return 'Record';
-  return name.replace(/([A-Z])/g, ' $1').trim();
-};
-
+/**
+ * AuditLogList Component
+ * 
+ * Main administration page for monitoring system accountability.
+ * Uses AuditFeedItem for the list items and AuditDetailPanel for JSON diffs.
+ * 
+ * @returns {JSX.Element}
+ */
 const AuditLogList = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +32,7 @@ const AuditLogList = () => {
     user: '',
     model_name: '',
     action: '',
+    start_date: '',
     end_date: '',
     ordering: '-created_at',
   });
@@ -66,6 +50,9 @@ const AuditLogList = () => {
     setPage(1);
   }, [filters]);
 
+  /**
+   * Fetches audit logs from the API with current filters and pagination.
+   */
   const fetchLogs = async () => {
     setLoading(true);
     try {
@@ -92,6 +79,9 @@ const AuditLogList = () => {
     }
   };
 
+  /**
+   * Triggers a CSV export of the current filtered audit logs.
+   */
   const handleExport = async () => {
     try {
       const params = Object.fromEntries(
@@ -110,14 +100,12 @@ const AuditLogList = () => {
     }
   };
 
+  /**
+   * Toggles the expansion state of a specific log entry.
+   * @param {string|number} id - Log entry ID
+   */
   const toggleExpand = (id) => {
     setExpandedId(expandedId === id ? null : id);
-  };
-
-  // Get a short summary of changed fields for the collapsed view
-  const getChangedFields = (changes) => {
-    if (!changes || typeof changes !== 'object') return [];
-    return Object.keys(changes).slice(0, 4);
   };
 
   return (
@@ -132,7 +120,6 @@ const AuditLogList = () => {
         }
       />
 
-      {/* Advanced Filter Bar */}
       <div className="audit-controls">
         <div className="search-box">
           <Input 
@@ -173,14 +160,14 @@ const AuditLogList = () => {
             <div className="date-inputs">
               <input 
                 type="date" 
-                value={filters.start_date}
+                value={filters.start_date || ''}
                 onChange={(e) => setFilters({...filters, start_date: e.target.value})}
                 className="date-input"
               />
               <span>to</span>
               <input 
                 type="date" 
-                value={filters.end_date}
+                value={filters.end_date || ''}
                 onChange={(e) => setFilters({...filters, end_date: e.target.value})}
                 className="date-input"
               />
@@ -204,7 +191,6 @@ const AuditLogList = () => {
         </div>
       </div>
 
-
       <div className="audit-feed-container">
         {loading ? (
           <div className="loading-state">
@@ -215,104 +201,14 @@ const AuditLogList = () => {
           <div className="empty-state">No audit entries found matching your filters.</div>
         ) : (
           <div className="audit-feed">
-            {logs.map((log) => {
-              const isExpanded = expandedId === log.id;
-              const changedFields = getChangedFields(log.changes);
-              const hasChanges = changedFields.length > 0;
-
-              return (
-                <React.Fragment key={log.id}>
-                  <div 
-                    className={`audit-entry ${isExpanded ? 'active' : ''}`}
-                    onClick={() => toggleExpand(log.id)}
-                  >
-                    {/* Avatar */}
-                    <div className="audit-avatar">
-                      {getInitials(log.user_username)}
-                    </div>
-
-                    {/* Body */}
-                    <div className="audit-body">
-                      {/* Sentence */}
-                      <div className="audit-sentence">
-                        <span className="audit-user">{log.user_username || 'System'}</span>
-                        {' '}
-                        <span className={`action-verb ${getVerbClass(log.action)}`}>
-                          {getActionVerb(log.action)}
-                        </span>
-                        {' '}
-                        <span className="audit-model">{humanizeModel(log.model_name)}</span>
-                        {' '}
-                        {log.object_repr && (
-                          <span className="audit-object">"{log.object_repr}"</span>
-                        )}
-                      </div>
-
-                      {/* Meta: timestamp + IP */}
-                      <div className="audit-meta">
-                        <span>
-                          <Clock size={12} />
-                          {new Date(log.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                        </span>
-                        {log.ip_address && (
-                          <span>
-                            <Globe size={12} />
-                            {log.ip_address}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Changed fields pills (only for UPDATE + collapsed) */}
-                      {!isExpanded && hasChanges && (
-                        <div className="changes-summary">
-                          {changedFields.map(field => (
-                            <span key={field} className="change-pill">{field}</span>
-                          ))}
-                          {Object.keys(log.changes).length > 4 && (
-                            <span className="change-pill">+{Object.keys(log.changes).length - 4} more</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Expand toggle */}
-                    <button className="audit-expand" onClick={(e) => { e.stopPropagation(); toggleExpand(log.id); }}>
-                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
-                  </div>
-
-                  {/* Expanded detail panel */}
-                  {isExpanded && (
-                    <div className="audit-detail-panel">
-                      <div className="audit-details">
-                        <div className="detail-header">
-                          <FileJson size={14} />
-                          <span>Field-Level Changes</span>
-                        </div>
-                        <div className="diff-grid">
-                          <div className="diff-header">
-                            <div className="field">Field</div>
-                            <div className="old">Previous</div>
-                            <div className="new">New Value</div>
-                          </div>
-                          {Object.keys(log.changes).length > 0 ? (
-                            Object.entries(log.changes).map(([field, delta]) => (
-                              <div key={field} className="diff-row">
-                                <div className="field">{field}</div>
-                                <div className="old">{delta.old != null ? String(delta.old) : <span className="null-val">None</span>}</div>
-                                <div className="new">{delta.new != null ? String(delta.new) : <span className="null-val">None</span>}</div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="no-changes">No field-level changes recorded for this action.</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </React.Fragment>
-              );
-            })}
+            {logs.map((log) => (
+              <AuditFeedItem 
+                key={log.id} 
+                log={log} 
+                isExpanded={expandedId === log.id}
+                onToggle={() => toggleExpand(log.id)}
+              />
+            ))}
           </div>
         )}
         

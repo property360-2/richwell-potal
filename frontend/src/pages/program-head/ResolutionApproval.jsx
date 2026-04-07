@@ -5,7 +5,7 @@ import Button from '../../components/ui/Button';
 import Table from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
 import Input from '../../components/ui/Input';
-import PageHeader from '../../components/ui/PageHeader';
+import PageHeader from '../../components/shared/PageHeader';
 import { useToast } from '../../components/ui/Toast';
 import { gradesApi } from '../../api/grades';
 import Pagination from '../../components/ui/Pagination';

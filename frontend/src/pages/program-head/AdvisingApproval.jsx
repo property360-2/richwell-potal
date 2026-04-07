@@ -18,12 +18,34 @@ import api from '../../api/axios';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Pagination from '../../components/ui/Pagination';
+import Tabs from '../../components/ui/Tabs';
+import Badge from '../../components/ui/Badge';
+import Modal from '../../components/ui/Modal';
+import Input from '../../components/ui/Input';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import PageHeader from '../../components/shared/PageHeader';
+import SearchBar from '../../components/shared/SearchBar';
+import EmptyState from '../../components/shared/EmptyState';
 import './AdvisingApproval.css';
 
 
 const AdvisingApproval = () => {
+  const [enrollments, setEnrollments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('REGULAR');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedRows, setExpandedRows] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // States for Modals
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [selectedEnrollment, setSelectedEnrollment] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  const [showOverrideModal, setShowOverrideModal] = useState(false);
+  const [selectedForOverride, setSelectedForOverride] = useState(null);
+  const [overrideUnits, setOverrideUnits] = useState(30);
 
   useEffect(() => {
     fetchEnrollments();

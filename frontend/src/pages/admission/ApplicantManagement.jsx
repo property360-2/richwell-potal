@@ -1,11 +1,13 @@
+/**
+ * @file ApplicantManagement.jsx
+ * @description Admission module for reviewing and approving new student applications.
+ * Provides search, status badges, and a detail review workflow.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, 
-  Search, 
   Eye, 
-  Calendar,
-  Clock,
-  Filter
+  Clock
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -18,6 +20,13 @@ import { useToast } from '../../components/ui/Toast';
 import { studentsApi } from '../../api/students';
 import ApplicantDetailsModal from './components/ApplicantDetailsModal';
 
+/**
+ * ApplicantManagement Component
+ * 
+ * Manages the list of students with 'APPLICANT' status.
+ * 
+ * @returns {JSX.Element}
+ */
 const ApplicantManagement = () => {
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);

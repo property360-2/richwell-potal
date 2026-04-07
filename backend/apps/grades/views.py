@@ -351,10 +351,31 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         """
         Returns the class roster for a specific section and subject.
         Used by professors to see a list of students ready for grading.
+        Supports search and pagination.
         """
-        section_id, subject_id = request.query_params.get('section_id'), request.query_params.get('subject_id')
-        grades = Grade.objects.filter(section_id=section_id, subject_id=subject_id).select_related('student__user').order_by('student__user__last_name')
-        return Response(GradeSerializer(grades, many=True).data)
+        section_id = request.query_params.get('section_id')
+        subject_id = request.query_params.get('subject_id')
+        search_term = request.query_params.get('search')
+
+        queryset = Grade.objects.filter(
+            section_id=section_id, 
+            subject_id=subject_id
+        ).select_related('student__user').order_by('student__user__last_name')
+
+        if search_term:
+            queryset = queryset.filter(
+                Q(student__user__first_name__icontains=search_term) |
+                Q(student__user__last_name__icontains=search_term) |
+                Q(student__idn__icontains=search_term)
+            )
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = GradeSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = GradeSerializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['post'], url_path='finalize-section')
     def finalize_section(self, request):

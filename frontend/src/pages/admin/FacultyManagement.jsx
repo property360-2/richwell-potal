@@ -1,3 +1,9 @@
+/**
+ * @file FacultyManagement.jsx
+ * @description Administrative module for managing professors, their department assignments,
+ * and teaching loads.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Clock, Plus, Search, Edit, BookOpen } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
@@ -11,6 +17,13 @@ import ProfessorModal from './components/ProfessorModal';
 import ProfessorSubjectModal from './components/ProfessorSubjectModal';
 import FacultyLoadModal from './components/FacultyLoadModal';
 
+/**
+ * FacultyManagement Component
+ * 
+ * Main dashboard for faculty human resources and assignment management.
+ * 
+ * @returns {JSX.Element}
+ */
 const FacultyManagement = () => {
   const [professors, setProfessors] = useState([]);
   const [loading, setLoading] = useState(true);
