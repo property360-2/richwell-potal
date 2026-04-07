@@ -45,6 +45,29 @@ Approves one enrollment.
 ### `POST /api/grades/approvals/{id}/reject/`
 Rejects one enrollment.
 
+## Subject Crediting (Transferees)
+
+Base path: `/api/grades/crediting/`
+Manual historical encoding for single subjects.
+
+### `POST /api/grades/crediting/bulk_historical_encoding/`
+Encodes multiple subjects as PASSED for a student based on their TOR.
+- **Auth required**: `REGISTRAR` or `ADMIN`
+
+Base path: `/api/grades/crediting-requests/`
+Bulk crediting workflow requiring Program Head approval.
+
+### `POST /api/grades/crediting-requests/`
+Submits a new `CreditingRequest` with multiple subjects.
+- **Auth required**: `REGISTRAR`
+
+### `POST /api/grades/crediting-requests/{id}/approve/`
+Approves the request and marks subjects as `PASSED`.
+- **Auth required**: `PROGRAM_HEAD` (of the student's program) or `ADMIN`
+
+### `POST /api/grades/crediting-requests/{id}/reject/`
+Rejects the request with a reason.
+
 ## Grade Submission
 
 Base path: `/api/grades/submission/`

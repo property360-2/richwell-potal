@@ -60,9 +60,9 @@ const StudentAdvising = () => {
       const { data: pRes } = await api.get(`grades/advising/?grade_status=PASSED&page_size=300`);
       setPassedSubjectIds(pRes.results.map(g => g.subject) || []);
       
-      if (!enrollData.is_regular && (!grRes.results || grRes.results.length === 0)) {
-         const { data: subRes } = await api.get(`academics/subjects/?curriculum=${enrollData.student_details?.curriculum}&page_size=200`);
-         setAvailableSubjects(subRes.results || []);
+      if (!enrollData.is_regular) {
+        const { data: subRes } = await api.get(`academics/subjects/?curriculum=${enrollData.student_details?.curriculum_id || enrollData.student_details?.curriculum}&page_size=200`);
+        setAvailableSubjects(subRes.results || []);
       }
     } catch (e) { console.error("Data fetch error:", e); } finally { setLoading(false); }
   };

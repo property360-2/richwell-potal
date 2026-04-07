@@ -22,8 +22,9 @@ Download the currently filtered list as a CSV file.
 | Field | Description |
 |-------|-------------|
 | user | The user who performed the action |
-| action | CREATE, UPDATE, or DELETE |
-| model_name | The impacted model (e.g., "Grade") |
+| action | `CREATE`, `UPDATE`, `DELETE`, `RELEASE` (docs), `UNIT_OVERRIDE` (advising) |
+| model_name | The impacted model (e.g., "Grade", "COR", "Masterlist") |
 | object_id | The primary key of the impacted object |
-| changes | JSON object showing "before" and "after" for updated fields |
+| changes | JSON object showing specific field changes, document metadata, or override reason. |
 | ip_address | Client IP address |
+

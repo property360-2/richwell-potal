@@ -71,9 +71,9 @@ class AuditMixin:
                 import traceback
                 f.write(f"Error in {self.__class__.__name__} save: {str(e)}\n")
                 f.write(traceback.format_exc() + "\n")
-            # We still want to let the main save succeed if possible? 
-            # No, if super().save already ran, we are good.
-            pass
+            # CRITICAL: We MUST re-raise the exception so the caller (like a seeder or view)
+            # knows the save failed and doesn't proceed with incomplete data.
+            raise e
 
     def delete(self, *args, **kwargs):
         user = kwargs.pop('audit_user', get_current_user())
