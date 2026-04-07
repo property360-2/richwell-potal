@@ -34,9 +34,17 @@ class GradeFilter(django_filters.FilterSet):
     Filter set for Grade records.
     """
     grade_status__in = django_filters.BaseInFilter(field_name='grade_status', lookup_expr='in')
+    resolution_status__in = django_filters.BaseInFilter(field_name='resolution_status', lookup_expr='in')
+    
     class Meta:
         model = Grade
-        fields = {'student':['exact'], 'is_credited':['exact'], 'term':['exact'], 'advising_status':['exact']}
+        fields = {
+            'student': ['exact'], 
+            'is_credited': ['exact'], 
+            'term': ['exact'], 
+            'advising_status': ['exact'],
+            'resolution_status': ['exact']
+        }
 
 class AdvisingViewSet(viewsets.ModelViewSet):
     """
@@ -214,7 +222,9 @@ class CreditingRequestViewSet(viewsets.ModelViewSet):
         'student', 'term', 'requested_by', 'reviewed_by'
     ).prefetch_related('items__subject')
     serializer_class = CreditingRequestSerializer
-    permission_classes = [IsRegistrar | IsProgramHead | IsAdmin, IsProgramHeadOfStudent]
+    # NOTE: IsProgramHeadOfStudent is intentionally NOT here, only on approve/reject actions.
+    # Keeping it at class level would block Registrars from list/retrieve operations.
+    permission_classes = [IsRegistrar | IsProgramHead | IsAdmin]
 
     def get_queryset(self):
         user = self.request.user
@@ -357,11 +367,13 @@ class GradeSubmissionViewSet(viewsets.ViewSet):
         self.service.finalize_section_grades(term, subject, section, request.user)
         return Response({"status": "Finalized"})
 
-class ResolutionViewSet(viewsets.ViewSet):
+class ResolutionViewSet(viewsets.GenericViewSet):
     """
     Workflow ViewSet for resolving INC (Incomplete) grades.
     Handles a multi-step workflow from request to final Registrar finalization.
     """
+    queryset = Grade.objects.all()
+    serializer_class = GradeSerializer
     permission_classes = [IsProfessor | IsRegistrar | IsProgramHead | IsAdmin]
     service = ResolutionService()
 
@@ -371,7 +383,8 @@ class ResolutionViewSet(viewsets.ViewSet):
         Initiates a resolution request for an INC grade.
         Typically called by a Professor or Registrar.
         """
-        return Response(GradeSerializer(self.service.request_resolution(pk, request.user, request.data.get('reason'))).data)
+        obj = self.get_object()
+        return Response(GradeSerializer(self.service.request_resolution(obj.id, request.user, request.data.get('reason'))).data)
 
     @action(detail=True, methods=['post'], url_path='registrar-approve')
     def registrar_approve(self, request, pk=None):
@@ -379,14 +392,49 @@ class ResolutionViewSet(viewsets.ViewSet):
         Approves the resolution request from the Registrar's side.
         Allows the professor to then submit a replacement grade.
         """
-        return Response(GradeSerializer(self.service.registrar_approve_request(pk, request.user)).data)
+        obj = self.get_object()
+        return Response(GradeSerializer(self.service.registrar_approve_request(obj.id, request.user)).data)
+
+    @action(detail=True, methods=['post'], url_path='registrar-reject')
+    def registrar_reject(self, request, pk=None):
+        """
+        Rejects the resolution request from the Registrar's side.
+        Reverts the grade status to INC.
+        """
+        reason = request.data.get('reason')
+        if not reason:
+            raise DRFValidationError({"reason": "A reason for rejection is required."})
+        obj = self.get_object()
+        return Response(GradeSerializer(self.service.registrar_reject_request(obj.id, request.user, reason)).data)
 
     @action(detail=True, methods=['post'], url_path='submit-grade')
     def submit_grade(self, request, pk=None):
         """
         Allows the professor to submit the alternative grade for the INC resolution.
         """
-        return Response(GradeSerializer(self.service.submit_resolved_grade(pk, request.user, request.data.get('new_grade'))).data)
+        obj = self.get_object()
+        return Response(GradeSerializer(self.service.submit_resolved_grade(obj.id, request.user, request.data.get('new_grade'))).data)
+
+    @action(detail=True, methods=['post'], url_path='head-approve', permission_classes=[IsProgramHeadOfStudent | IsAdmin])
+    def head_approve(self, request, pk=None):
+        """
+        Approves the resolution from the Program Head's side.
+        Moves the status to HEAD_APPROVED, making it visible to the Registrar.
+        """
+        obj = self.get_object()
+        return Response(GradeSerializer(self.service.head_approve_resolution(obj.id, request.user)).data)
+
+    @action(detail=True, methods=['post'], url_path='head-reject', permission_classes=[IsProgramHeadOfStudent | IsAdmin])
+    def head_reject(self, request, pk=None):
+        """
+        Rejects the resolution from the Program Head's side.
+        Professors must re-submit the grade.
+        """
+        reason = request.data.get('reason')
+        if not reason:
+            raise DRFValidationError({"reason": "A reason for rejection is required."})
+        obj = self.get_object()
+        return Response(GradeSerializer(self.service.head_reject_resolution(obj.id, request.user, reason)).data)
 
     @action(detail=True, methods=['post'], url_path='registrar-finalize')
     def registrar_finalize(self, request, pk=None):
@@ -394,4 +442,5 @@ class ResolutionViewSet(viewsets.ViewSet):
         Final step in the resolution workflow.
         The Registrar confirms the new grade and officially updates the record.
         """
-        return Response(GradeSerializer(self.service.registrar_finalize_resolution(pk, request.user)).data)
+        obj = self.get_object()
+        return Response(GradeSerializer(self.service.registrar_finalize_resolution(obj.id, request.user)).data)

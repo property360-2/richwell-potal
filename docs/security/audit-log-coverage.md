@@ -126,6 +126,26 @@ AuditLog.objects.create(
 
 ---
 
+### Graduation Confirmation — `RELEASE`
+
+**File:** `apps/students/views.py` → `StudentViewSet.confirm_graduation()`
+
+```python
+# Triggered after: POST /api/students/{id}/confirm-graduation/
+
+AuditLog.objects.create(
+    user=request.user,
+    action='RELEASE',
+    model_name='Student',
+    object_id=str(student.id),
+    object_repr=f"Graduation Confirmed | {student.idn} | {name}",
+    changes={'status': {'old': '...', 'new': 'GRADUATED'}},
+    ip_address=get_current_ip()
+)
+```
+
+---
+
 ### Password Change — `PASSWORD_CHANGE`
 
 **File:** `apps/accounts/views.py` → `ChangePasswordView`

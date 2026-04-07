@@ -146,6 +146,76 @@ class StudentViewSet(viewsets.ModelViewSet):
         enrollment = enroll_student_for_term(student, monthly, request.user)
         return Response({'message': 'Ok', 'enrollment': StudentEnrollmentSerializer(enrollment).data})
 
+    @action(detail=True, methods=['post'], url_path='confirm-graduation',
+            permission_classes=[IsAdmissionOrRegistrar])
+    def confirm_graduation(self, request, pk=None):
+        """
+        Officially confirms a student's graduation after the Registrar verifies eligibility.
+
+        Runs a live graduation eligibility check via ReportService before transitioning
+        the student's status to GRADUATED. Blocked if the student is not yet eligible.
+        Creates an audit log entry (RELEASE action) and notifies the student.
+
+        Args:
+            pk (int): Primary key of the Student to confirm.
+
+        Returns:
+            200 OK: { status, student_id, idn }
+            400 Bad Request: if the student is not yet academically eligible.
+        """
+        from apps.reports.services.report_service import ReportService
+        from apps.auditing.models import AuditLog
+        from apps.auditing.middleware import get_current_ip
+        from apps.notifications.services.notification_service import NotificationService
+        from apps.notifications.models import Notification
+
+        student = self.get_object()
+
+        # Guard: run eligibility check before making any changes
+        result = ReportService.graduation_check(student.id)
+        if not result['is_eligible']:
+            raise ValidationError(
+                "This student has not yet completed all curriculum requirements "
+                "and is not eligible for graduation."
+            )
+
+        # Transition to GRADUATED
+        student.status = 'GRADUATED'
+        student.save(audit_user=request.user)
+
+        # Manual audit log — graduation confirmation is a significant administrative act
+        AuditLog.objects.create(
+            user=request.user,
+            action='RELEASE',
+            model_name='Student',
+            object_id=str(student.id),
+            object_repr=f"Graduation Confirmed | {student.idn} | {student.user.get_full_name()}",
+            changes={
+                'status': {'old': 'ENROLLED', 'new': 'GRADUATED'},
+                'confirmed_by': request.user.username,
+            },
+            ip_address=get_current_ip()
+        )
+
+        # Notify the student
+        NotificationService.notify(
+            recipient=student.user,
+            notification_type=Notification.NotificationType.GENERAL,
+            title="🎓 Congratulations! Your Graduation is Confirmed",
+            message=(
+                "Your academic record has been reviewed and your graduation has been "
+                "officially confirmed by the Registrar. Congratulations on completing "
+                f"your program at Richwell Colleges!"
+            ),
+            link_url="/student/grades"
+        )
+
+        return Response({
+            "status": "Graduation confirmed. Student is now marked as GRADUATED.",
+            "student_id": student.id,
+            "idn": student.idn,
+        })
+
     @action(detail=False, methods=['post'], url_path='manual-add')
     def manual_add(self, request):
         """
@@ -154,6 +224,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         """
         student, is_regular = manual_add_student_record(request.data, request.user)
         return Response({'student': StudentRecordSerializer(student).data, 'is_regular': is_regular}, status=status.HTTP_201_CREATED)
+
 
 class StudentEnrollmentViewSet(viewsets.ModelViewSet):
     """

@@ -181,8 +181,54 @@ class ReportService:
 
     @staticmethod
     def graduation_check(student_id):
+        """
+        Audits a student's curriculum completion and returns their graduation eligibility.
+
+        Compares all subjects in the student's assigned CurriculumVersion against their
+        passed Grade records (including credited and historical entries). Returns a
+        structured result the graduation audit UI can render directly.
+
+        Args:
+            student_id (int): Primary key of the Student record to audit.
+
+        Returns:
+            dict: {
+                is_eligible (bool): True if no required subjects are missing.
+                total_units_earned (int): Sum of units from all PASSED grades.
+                total_units_required (int): Sum of units from all curriculum subjects.
+                missing_subjects (list): Each missing subject with code, name,
+                                         year_level (int), and semester (str).
+            }
+        """
         student = Student.objects.get(id=student_id)
-        req = Subject.objects.filter(curriculum=student.curriculum)
-        passed_ids = set(Grade.objects.filter(student=student, grade_status='PASSED').values_list('subject_id', flat=True))
-        missing = req.exclude(id__in=passed_ids)
-        return {"is_eligible": not missing.exists(), "earned": sum(g.subject.total_units for g in Grade.objects.filter(student=student, grade_status='PASSED')), "required": sum(s.total_units for s in req), "missing": [{"code": m.code, "name": m.description} for m in missing]}
+        curriculum_subjects = Subject.objects.filter(curriculum=student.curriculum)
+
+        passed_ids = set(
+            Grade.objects.filter(student=student, grade_status='PASSED')
+            .values_list('subject_id', flat=True)
+        )
+        missing = curriculum_subjects.exclude(id__in=passed_ids)
+
+        total_units_earned = (
+            Grade.objects.filter(student=student, grade_status='PASSED')
+            .select_related('subject')
+            .aggregate(total=Sum('subject__total_units'))['total'] or 0
+        )
+        total_units_required = (
+            curriculum_subjects.aggregate(total=Sum('total_units'))['total'] or 0
+        )
+
+        return {
+            "is_eligible": not missing.exists(),
+            "total_units_earned": total_units_earned,
+            "total_units_required": total_units_required,
+            "missing_subjects": [
+                {
+                    "code": m.code,
+                    "name": m.description,
+                    "year_level": m.year_level,
+                    "semester": m.semester,
+                }
+                for m in missing.order_by('year_level', 'semester')
+            ],
+        }

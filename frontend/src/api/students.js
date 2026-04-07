@@ -1,3 +1,11 @@
+/**
+ * frontend/src/api/students.js
+ *
+ * HTTP client methods for all student-related API endpoints.
+ * Wraps the shared axios instance to provide named, type-safe API calls.
+ * All actions are scoped by the authenticated user's JWT on the backend.
+ */
+
 import api from './axios';
 
 export const studentsApi = {
@@ -7,6 +15,16 @@ export const studentsApi = {
     apply: (data) => api.post('students/apply/', data),
     admit: (id, data) => api.post(`students/${id}/admit/`, data),
     returningStudent: (id, data) => api.post(`students/${id}/returning-student/`, data),
+
+    /**
+     * Confirms a student's graduation after the Registrar verifies eligibility.
+     * Triggers the backend eligibility guard, sets status = GRADUATED,
+     * and sends the student a notification.
+     *
+     * @param {number} studentId - Primary key of the student to confirm.
+     * @returns {Promise} Axios response with { status, student_id, idn }.
+     */
+    confirmGraduation: (studentId) => api.post(`students/${studentId}/confirm-graduation/`),
 
     // Enrollments
     getEnrollments: (params) => api.get('students/enrollments/', { params }),

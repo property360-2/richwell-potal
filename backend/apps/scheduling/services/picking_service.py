@@ -5,6 +5,7 @@ from apps.sections.models import Section, SectionStudent
 from apps.grades.models import Grade
 from apps.students.models import StudentEnrollment
 from apps.scheduling.models import Schedule
+from apps.notifications.services.notification_service import NotificationService
 from core.exceptions import ConflictError
 
 class PickingService:
@@ -122,9 +123,11 @@ class PickingService:
                 is_home_section=True
             )
 
-        # 6. TODO: Notification if redirected
-        # if redirected:
-        #     NotificationService.notify_session_redirection(student, preferred_session, target_section.session)
+        # 6. NOTIF-02: Notify the student if their preferred session was not available
+        if redirected:
+            NotificationService.notify_session_redirection(
+                student, preferred_session, target_section.session
+            )
 
         return target_section, redirected
 

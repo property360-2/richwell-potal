@@ -530,11 +530,26 @@ class AdvisingService:
     def approve_crediting_request(cls, request_id, user, comment=""):
         """
         Program Head approves a crediting request.
-        Automatically credits subjects and updates student advising status.
+
+        Marks the request as APPROVED, credits all included subjects via credit_subject(),
+        and sends a notification to the student informing them of the approval.
+
+        Args:
+            request_id (int): Primary key of the CreditingRequest to approve.
+            user (User): The Program Head performing the approval.
+            comment (str): Optional reviewer comment to attach to the request.
+
+        Returns:
+            CreditingRequest: The updated request record.
+
+        Raises:
+            ValidationError: If the request is not in PENDING status.
         """
         from apps.grades.models import CreditingRequest, Grade
-        
-        request = CreditingRequest.objects.get(id=request_id)
+        from apps.notifications.services.notification_service import NotificationService
+        from apps.notifications.models import Notification
+
+        request = CreditingRequest.objects.select_related('student__user', 'term').get(id=request_id)
         if request.status != CreditingRequest.STATUS_PENDING:
             raise ValidationError(f"Cannot approve a request with status {request.status}.")
 
@@ -552,7 +567,21 @@ class AdvisingService:
                 credited_by=user,
                 final_grade=item.final_grade
             )
-            
+
+        # NOTIF-03: Notify the student of approval
+        subject_count = request.items.count()
+        NotificationService.notify(
+            recipient=request.student.user,
+            notification_type=Notification.NotificationType.ADVISING,
+            title="Subject Crediting Approved",
+            message=(
+                f"Your subject crediting request for {subject_count} subject(s) in "
+                f"{request.term.code} has been approved by the Program Head. "
+                f"Your grades have been updated."
+            ),
+            link_url="/student/grades"
+        )
+
         return request
 
     @classmethod
@@ -560,10 +589,26 @@ class AdvisingService:
     def reject_crediting_request(cls, request_id, user, reason):
         """
         Program Head rejects a crediting request.
+
+        Marks the request as REJECTED and sends a notification to the student
+        with the rejection reason so they can follow up with the Registrar.
+
+        Args:
+            request_id (int): Primary key of the CreditingRequest to reject.
+            user (User): The Program Head performing the rejection.
+            reason (str): Mandatory rejection reason to be shown to the student.
+
+        Returns:
+            CreditingRequest: The updated request record.
+
+        Raises:
+            ValidationError: If the request is not in PENDING status.
         """
         from apps.grades.models import CreditingRequest
-        
-        request = CreditingRequest.objects.get(id=request_id)
+        from apps.notifications.services.notification_service import NotificationService
+        from apps.notifications.models import Notification
+
+        request = CreditingRequest.objects.select_related('student__user', 'term').get(id=request_id)
         if request.status != CreditingRequest.STATUS_PENDING:
             raise ValidationError(f"Cannot reject a request with status {request.status}.")
 
@@ -571,5 +616,17 @@ class AdvisingService:
         request.reviewed_by = user
         request.rejection_reason = reason
         request.save(audit_user=user)
+
+        # NOTIF-03: Notify the student of rejection with the reason
+        NotificationService.notify(
+            recipient=request.student.user,
+            notification_type=Notification.NotificationType.ADVISING,
+            title="Subject Crediting Rejected",
+            message=(
+                f"Your subject crediting request for {request.term.code} was not approved. "
+                f"Reason: {reason}. Please contact the Registrar for further assistance."
+            ),
+            link_url="/student/grades"
+        )
 
         return request
