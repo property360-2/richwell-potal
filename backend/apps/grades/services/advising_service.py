@@ -147,26 +147,36 @@ class AdvisingService:
         # Determine semester type from term (e.g., 1st, 2nd)
         semester = term.semester_type 
         
-        # Get subjects for the calculated year level and semester
-        subjects = Subject.objects.filter(
-            curriculum=student.curriculum,
-            year_level=year_level,
-            semester=semester
-        ).exclude(semester='S') # Skip summer subjects
+        # Dynamic Waterfall Search:
+        # Instead of strictly checking the calculated year level, we find the EARLIEST year
+        # level that has subjects offered in this semester type which the student hasn't passed yet.
+        semester = term.semester_type
 
-        # Exclude subjects already passed or credited
         passed_or_credited = Grade.objects.filter(
             student=student,
             grade_status__in=[Grade.STATUS_PASSED, Grade.STATUS_INC]
         ).values_list('subject_id', flat=True)
 
-        subjects_to_enroll = subjects.exclude(id__in=passed_or_credited)
-        
-        if not subjects_to_enroll.exists():
+        subjects_to_enroll = None
+
+        # Iterate through years to find the first available block in the current semester type
+        for y in range(1, 6): # Supports up to 5-year programs
+            potential_subjects = Subject.objects.filter(
+                curriculum=student.curriculum,
+                year_level=y,
+                semester=semester
+            ).exclude(id__in=passed_or_credited)
+
+            if potential_subjects.exists():
+                subjects_to_enroll = potential_subjects
+                break
+
+        if not subjects_to_enroll:
             raise ValidationError({
-                "detail": "No pending subjects found for your current level. If you have already passed or credited all subjects in this semester, please use 'Manual Selection' for back-subjects or advanced units.",
+                "detail": "No pending subjects found for this semester in your curriculum. If you have already completed this semester's requirements, please contact the Registrar.",
                 "reason": "OUT_OF_SYNC_TRANSFEREE"
             })
+
 
         # Detect retakes (subjects with previous FAILED or RETAKE status)
         retake_subject_ids = Grade.objects.filter(

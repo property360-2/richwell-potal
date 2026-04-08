@@ -233,7 +233,7 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
     queryset = StudentEnrollment.objects.all()
     serializer_class = StudentEnrollmentSerializer
     permission_classes = [permissions.IsAuthenticated]
-    filterset_fields = ['advising_status', 'is_regular']
+    filterset_fields = ['student', 'advising_status', 'is_regular']
 
     def get_serializer_class(self):
         if self.request.user.role == 'STUDENT': return StudentEnrollmentSelfSerializer

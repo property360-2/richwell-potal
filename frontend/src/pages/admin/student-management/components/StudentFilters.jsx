@@ -8,6 +8,7 @@ import React from 'react';
 import { Search } from 'lucide-react';
 import Input from '../../../../components/ui/Input';
 import Select from '../../../../components/ui/Select';
+import styles from '../StudentManagement.module.css';
 
 /**
  * StudentFilters Component
@@ -42,31 +43,31 @@ const StudentFilters = ({
   };
 
   return (
-    <div className="filter-bar flex flex-col md:flex-row gap-4 mb-6">
-      <div className="search-wrapper flex-1">
+    <div className={`${styles.filterBar} flex flex-col md:flex-row gap-4 mb-6`}>
+      <div className={`${styles.searchWrapper} flex-1`}>
         <Input
           placeholder="Search name, IDN..."
           icon={<Search size={16} />}
-          className="search-input w-full"
+          className={`${styles.searchInput} w-full`}
           value={searchTerm}
           onChange={(e) => handleFilterChange(setSearchTerm, e.target.value)}
         />
       </div>
       
-      <div className="filter-group flex flex-wrap items-center gap-3">
-        <div className="filter-item program-select min-w-[180px]">
+      <div className={`${styles.filterGroup} flex flex-wrap items-center gap-3`}>
+        <div className={`${styles.filterItem} ${styles.programSelect} min-w-[180px]`}>
           <Select 
             value={programFilter}
             options={[
               { value: '', label: 'All Programs' },
               ...programs
             ]}
-            className="compact-select"
+            className={styles.compactSelect}
             onChange={(e) => handleFilterChange(setProgramFilter, e.target.value)}
           />
         </div>
         
-        <div className="filter-item year-select min-w-[140px]">
+        <div className={`${styles.filterItem} ${styles.yearSelect} min-w-[140px]`}>
           <Select 
             value={yearLevelFilter}
             options={[
@@ -76,12 +77,12 @@ const StudentFilters = ({
               { value: '3', label: '3rd Year' },
               { value: '4', label: '4th Year' }
             ]}
-            className="compact-select"
+            className={styles.compactSelect}
             onChange={(e) => handleFilterChange(setYearLevelFilter, e.target.value)}
           />
         </div>
         
-        <div className="filter-item status-select min-w-[160px]">
+        <div className={`${styles.filterItem} ${styles.statusSelect} min-w-[160px]`}>
           <Select 
             value={statusFilter}
             onChange={(e) => handleFilterChange(setStatusFilter, e.target.value)}
@@ -92,7 +93,7 @@ const StudentFilters = ({
               { value: 'INACTIVE', label: 'Inactive' },
               { value: 'APPLICANT', label: 'Pending' }
             ]}
-            className="compact-select"
+            className={styles.compactSelect}
           />
         </div>
       </div>

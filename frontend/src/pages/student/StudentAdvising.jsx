@@ -43,8 +43,9 @@ const StudentAdvising = () => {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const { data: terms } = await api.get('terms/?is_active=true');
-      const term = terms.results[0];
+      const { data: termsRes } = await api.get('terms/?is_active=true');
+      const terms = termsRes.results || termsRes;
+      const term = Array.isArray(terms) ? terms[0] : terms;
       setActiveTerm(term);
       if (!term) return;
 
@@ -56,15 +57,34 @@ const StudentAdvising = () => {
       setIsRegular(enrollData.is_regular);
       
       const { data: grRes } = await api.get(`grades/advising/?term=${term.id}&is_credited=false&page_size=100`);
-      setGrades(grRes.results || []);
+      setGrades(grRes.results || grRes || []);
+      
       const { data: pRes } = await api.get(`grades/advising/?grade_status=PASSED&page_size=300`);
-      setPassedSubjectIds(pRes.results.map(g => g.subject) || []);
+      const passedData = pRes.results || pRes || [];
+      setPassedSubjectIds(passedData.map(g => g.subject) || []);
       
       if (!enrollData.is_regular) {
-        const { data: subRes } = await api.get(`academics/subjects/?curriculum=${enrollData.student_details?.curriculum_id || enrollData.student_details?.curriculum}&page_size=200`);
-        setAvailableSubjects(subRes.results || []);
+        await fetchAvailableSubjects(enrollData);
       }
-    } catch (e) { console.error("Data fetch error:", e); } finally { setLoading(false); }
+    } catch (e) { 
+      console.error("Data fetch error:", e); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
+
+  const fetchAvailableSubjects = async (currentEnrollment = enrollment) => {
+    const student = currentEnrollment?.student_details;
+    const curriculumId = student?.curriculum_id || student?.curriculum;
+    
+    if (!curriculumId) return;
+
+    try {
+      const { data: subRes } = await api.get(`academics/subjects/?curriculum=${curriculumId}&page_size=200`);
+      setAvailableSubjects(subRes.results || subRes || []);
+    } catch (e) {
+      console.error("Subject fetch error:", e);
+    }
   };
 
   /**
@@ -176,7 +196,7 @@ const StudentAdvising = () => {
             </Card>
           )}
 
-          {!isRegular && enrollment?.regularity_reason && (
+          {!enrollment?.is_regular && enrollment?.regularity_reason && (
             <Card className="border-l-4 border-l-rose-500 bg-rose-50/30">
               <div className="flex gap-4 p-2">
                 <div className="p-3 bg-rose-100 rounded-full h-fit">
@@ -185,9 +205,17 @@ const StudentAdvising = () => {
                 <div>
                   <h3 className="text-lg font-bold text-rose-900">Irregularity Status Detected</h3>
                   <p className="text-rose-800 text-sm mt-1 leading-relaxed">
-                    You have been flagged as an irregular student for the following reason:
-                    <br />
-                    <span className="font-semibold text-rose-700 mt-2 block">"{enrollment.regularity_reason}"</span>
+                    {enrollment.regularity_reason.includes('New transferee student') ? (
+                      <>
+                        You have been flagged as an irregular student because <strong>no subjects have been credited</strong> to your account yet.
+                      </>
+                    ) : (
+                      <>
+                        You have been flagged as an irregular student for the following reason:
+                        <br />
+                        <span className="font-semibold text-rose-700 mt-2 block">"{enrollment.regularity_reason}"</span>
+                      </>
+                    )}
                   </p>
                   <p className="text-rose-700 text-xs mt-3 italic">
                     Please use the Subject Catalog below to manually select your subjects for this term.
@@ -197,7 +225,7 @@ const StudentAdvising = () => {
             </Card>
           )}
 
-          {advisingError?.reason === 'OUT_OF_SYNC_TRANSFEREE' && (
+          {isRegular && advisingError?.reason === 'OUT_OF_SYNC_TRANSFEREE' && (
             <Card className="border-l-4 border-l-blue-500 bg-blue-50/50">
               <div className="flex gap-4 p-2">
                 <div className="p-3 bg-blue-100 rounded-full h-fit">
@@ -213,7 +241,14 @@ const StudentAdvising = () => {
                     Recommendation: Please switch to <strong>Manual Selection</strong> or visit the Registrar to verify your year level standing.
                   </p>
                   <div className="mt-4">
-                    <Button variant="outline" size="sm" onClick={() => setIsRegular(false)}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        setIsRegular(false);
+                        fetchAvailableSubjects();
+                      }}
+                    >
                       Switch to Manual Selection
                     </Button>
                   </div>

@@ -81,9 +81,34 @@ const RegistrarVerificationModal = ({ isOpen, onClose, onSuccess, student }) => 
         <div className="space-y-3">
           <div className="flex justify-between items-center mb-2">
             <h4 className="font-medium text-slate-700">Document Checklist</h4>
-            <span className="text-sm text-slate-500 font-medium">
-              Verified: {verifiedCount} / {totalDocs}
-            </span>
+            <div className="flex items-center gap-4">
+              <button 
+                type="button"
+                onClick={() => {
+                  const allSubmittedVerified = Object.values(checklist)
+                    .filter(d => d.submitted)
+                    .every(d => d.verified);
+                  
+                  setChecklist(prev => {
+                    const next = JSON.parse(JSON.stringify(prev));
+                    Object.keys(next).forEach(key => {
+                      if (next[key].submitted) {
+                        next[key].verified = !allSubmittedVerified;
+                      }
+                    });
+                    return next;
+                  });
+                }}
+                className="text-xs font-bold text-primary hover:text-primary-dark transition-colors uppercase tracking-wider"
+              >
+                {Object.values(checklist).filter(d => d.submitted).every(d => d.verified) 
+                  ? 'Deselect All' 
+                  : 'Select All'}
+              </button>
+              <span className="text-sm text-slate-500 font-medium">
+                Verified: {verifiedCount} / {totalDocs}
+              </span>
+            </div>
           </div>
 
           {docs.length === 0 ? (

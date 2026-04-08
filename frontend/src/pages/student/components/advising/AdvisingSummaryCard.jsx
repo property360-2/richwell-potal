@@ -42,7 +42,7 @@ const AdvisingSummaryCard = ({ enrollment, isRegular, totalUnits, loading, enrol
         <div className="summary-item flex justify-between gap-2">
           <span className="summary-label text-slate-500 font-medium">Study Type</span>
           <div className="flex gap-1 justify-end flex-wrap">
-            <Badge variant="ghost">{isRegular ? 'Regular' : 'Irregular'}</Badge>
+            <Badge variant="ghost">{enrollment?.is_regular ? 'Regular' : 'Irregular'}</Badge>
             {maxUnits > 30 && <Badge variant="success">Unit Boost ({maxUnits})</Badge>}
           </div>
         </div>

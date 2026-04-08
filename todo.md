@@ -1,6 +1,7 @@
-enrollment flow
+enrollment flow check
 subject advising
- - regular
- - irregular
- - transferee
+ - regular check
+ - irregular 
+ - transferee check
+
 

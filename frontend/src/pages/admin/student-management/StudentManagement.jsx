@@ -17,6 +17,7 @@ import { studentsApi } from '../../../api/students';
 import { academicsApi } from '../../../api/academics';
 import { reportsApi } from '../../../api/reports';
 import { termsApi } from '../../../api/terms';
+import { getErrorMessage } from '../../../utils/errorHandling';
 
 // Modular Components
 import StudentFilters from './components/StudentFilters';
@@ -46,6 +47,8 @@ const StudentManagement = () => {
   const [yearLevelFilter, setYearLevelFilter] = useState('');
   const [activeTerm, setActiveTerm] = useState(null);
   const [dropdownStudentId, setDropdownStudentId] = useState(null);
+  const [enrollmentHistory, setEnrollmentHistory] = useState({}); // { studentId: [enrollments] }
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -100,11 +103,26 @@ const StudentManagement = () => {
     } catch (err) { addToast('error', 'Academic data load failed'); }
   };
 
-  const handleDownloadCOR = async (student) => {
-    if (!activeTerm) return addToast('error', 'No active term for COR');
+  const fetchEnrollmentHistory = async (studentId) => {
+    if (enrollmentHistory[studentId]) return;
+    try {
+      setLoadingHistory(true);
+      const res = await studentsApi.getEnrollments({ student: studentId });
+      setEnrollmentHistory(prev => ({ ...prev, [studentId]: res.data.results || res.data }));
+    } catch (err) {
+      addToast('error', 'Failed to fetch enrollment history');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleDownloadCOR = async (student, termId) => {
+    const downloadTermId = termId || activeTerm?.id;
+    if (!downloadTermId) return addToast('error', 'No term selected for COR');
+    
     try {
       setLoading(true);
-      const res = await reportsApi.getCOR({ student_id: student.id, term_id: activeTerm.id });
+      const res = await reportsApi.getCOR({ student_id: student.id, term_id: downloadTermId });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -113,7 +131,10 @@ const StudentManagement = () => {
       link.click();
       link.remove();
       addToast('success', 'COR downloaded');
-    } catch (err) { addToast('error', 'COR failed. Check enrollment status.'); }
+    } catch (err) { 
+      const msg = await getErrorMessage(err);
+      addToast('error', msg);
+    }
     finally { setLoading(false); setDropdownStudentId(null); }
   };
 
@@ -143,6 +164,8 @@ const StudentManagement = () => {
           students={students} loading={loading}
           dropdownStudentId={dropdownStudentId} setDropdownStudentId={setDropdownStudentId}
           dropdownRef={dropdownRef} handleDownloadCOR={handleDownloadCOR}
+          enrollmentHistory={enrollmentHistory} fetchEnrollmentHistory={fetchEnrollmentHistory}
+          loadingHistory={loadingHistory}
         />
         
         {totalPages > 1 && (
