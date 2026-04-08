@@ -11,7 +11,9 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .services.report_service import ReportService
+from .services.admission_report_service import AdmissionReportService
 from apps.students.models import Student
+from apps.terms.models import Term
 from apps.auditing.models import AuditLog
 from apps.auditing.middleware import get_current_ip
 
@@ -143,3 +145,28 @@ class ReportViewSet(viewsets.ViewSet):
         Returns high-level dashboard statistics based on the user's role.
         """
         return Response(self.service.get_dashboard_stats(request.user))
+    @action(detail=False, methods=['get'])
+    def admission_report(self, request):
+        """
+        Retrieves detailed enrollment monitoring data for the Admission dashboard.
+        Query Params: term_id, month, year
+        """
+        term_id = request.query_params.get('term_id')
+        if not term_id:
+            active_term = Term.objects.filter(is_active=True).first()
+            if not active_term:
+                return Response({"error": "No active term found."}, status=status.HTTP_400_BAD_REQUEST)
+            term_id = active_term.id
+
+        month = request.query_params.get('month')
+        year = request.query_params.get('year')
+        
+        try:
+            data = AdmissionReportService.get_admission_report_data(
+                term_id=term_id,
+                month=int(month) if month else None,
+                year=int(year) if year else None
+            )
+            return Response(data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

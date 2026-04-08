@@ -48,6 +48,7 @@ const getNavItems = (role, isSuperUser = false) => {
 
   if (['ADMISSION', 'ADMIN'].includes(normalizedRole)) {
     items.push({ path: '/admission/applicants', label: 'Applicants', icon: Users });
+    items.push({ path: '/admission/monitoring', label: 'Enrollment Monitoring', icon: ClipboardList });
   }
 
   if (['ADMISSION', 'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR'].includes(normalizedRole)) {

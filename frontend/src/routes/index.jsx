@@ -37,6 +37,7 @@ const AdminDashboard = lazy(() => import('../pages/admin/admin-dashboard/AdminDa
 // Admission Pages
 const AdmissionDashboard = lazy(() => import('../pages/admission/AdmissionDashboard'));
 const ApplicantManagement = lazy(() => import('../pages/admission/ApplicantManagement'));
+const EnrollmentMonitoring = lazy(() => import('../pages/admission/EnrollmentMonitoring'));
 const PublicApplication = lazy(() => import('../pages/PublicApplication'));
 
 // Registrar Pages
@@ -214,6 +215,7 @@ const AppRoutes = () => {
           <Route element={<PageWrapper title="Admission Dashboard" />}>
             <Route path="/admission" element={<AdmissionDashboard />} />
             <Route path="/admission/applicants" element={<ApplicantManagement />} />
+            <Route path="/admission/monitoring" element={<EnrollmentMonitoring />} />
           </Route>
         </Route>
 

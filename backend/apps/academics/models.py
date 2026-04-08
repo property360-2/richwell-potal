@@ -15,8 +15,20 @@ class Program(AuditMixin, TimestampMixin):
     Represents an Academic Program (e.g., BS Information Systems).
     Tracks the program head, versioning, and whether it includes summer terms.
     """
+    DEPARTMENT_CHOICES = [
+        ('SHS', 'Senior High School'),
+        ('CHED', 'College (CHED)'),
+        ('TECHVOC', 'Technical Vocational (Diploma)'),
+    ]
+
     code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=200)
+    department = models.CharField(
+        max_length=10, 
+        choices=DEPARTMENT_CHOICES, 
+        default='CHED',
+        help_text="Academic level for reporting and monitoring."
+    )
     effective_year = models.CharField(max_length=50, null=True, blank=True)
     has_summer = models.BooleanField(default=False)
     program_head = models.ForeignKey(
