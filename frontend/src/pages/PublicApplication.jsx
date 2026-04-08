@@ -67,6 +67,7 @@ const PublicApplication = () => {
   const selectedProgramId = watch('program');
   const selectedMunicipality = watch('address_municipality');
   const studentType = watch('student_type');
+  const confirmDetails = watch('confirm_details');
 
   // SEO Update
   useEffect(() => {
@@ -307,6 +308,8 @@ const PublicApplication = () => {
           {currentStep === 5 && (
             <ReviewStep 
               values={watch()} 
+              register={register}
+              errors={errors}
               getProgramName={(id) => {
                 const program = programs.find(p => p.id === id || p.id === parseInt(id));
                 return program ? program.name : id;
@@ -346,7 +349,7 @@ const PublicApplication = () => {
                   variant="primary" 
                   type="submit" 
                   loading={isSubmitting}
-                  disabled={isNavigating}
+                  disabled={isNavigating || !confirmDetails}
                   icon={<Send size={18} />}
                 >
                   Submit Application

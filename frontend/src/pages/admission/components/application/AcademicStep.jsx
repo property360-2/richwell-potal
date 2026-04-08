@@ -28,24 +28,15 @@ const AcademicStep = ({ register, errors, programs, curriculums }) => {
       </div>
 
       <div className="space-y-6">
-        <Select 
-          label="Preferred Program" 
+        <Select
+          label="Preferred Program"
           placeholder="Search or select a program"
-          {...register('program', { required: 'Program selection is required' })} 
+          {...register('program', { required: 'Program selection is required' })}
           options={programs.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))}
           error={errors.program?.message}
           fullWidth
         />
 
-        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-3">
-          <CheckCircle2 size={18} className="text-primary mt-0.5" />
-          <div>
-            <p className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Curriculum Assignment</p>
-            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              Based on your selection, the latest relevant curriculum will be automatically assigned to your profile for the upcoming academic year.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

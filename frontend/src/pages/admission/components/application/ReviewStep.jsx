@@ -11,9 +11,9 @@
  */
 
 import React from 'react';
-import { Send, User, MapPin, GraduationCap, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Send, User, MapPin, GraduationCap, ShieldCheck, AlertCircle, Calendar } from 'lucide-react';
 
-const ReviewStep = ({ values, getProgramName }) => {
+const ReviewStep = ({ values, getProgramName, register, errors }) => {
   return (
     <div className="apply-step-card" key="step-5">
       <div className="step-header">
@@ -40,6 +40,7 @@ const ReviewStep = ({ values, getProgramName }) => {
                 `${values.birth_month}/${values.birth_day}/${values.birth_year}` : 
                 values.date_of_birth
               } 
+              icon={<Calendar size={14} />}
             />
             <ReviewItem label="Gender" value={values.gender} />
             <ReviewItem label="Student Type" value={values.student_type} />
@@ -89,14 +90,28 @@ const ReviewStep = ({ values, getProgramName }) => {
       </div>
 
       <div className="certification-card">
-        <div className="flex gap-3">
-          <AlertCircle size={20} className="text-primary/60 mt-0.5" />
-          <p>
-            By submitting this application, I certify that all information provided is 
-            <strong> true and correct</strong>. I understand that any false information 
-            may be grounds for rejection of my application.
-          </p>
-        </div>
+        <label className="confirmation-checkbox-wrap">
+          <input 
+            type="checkbox" 
+            className="confirmation-checkbox"
+            {...register('confirm_details', { required: true })}
+          />
+          <div className="confirmation-text">
+            <div className="flex gap-3">
+              <AlertCircle size={20} className="text-primary/60 mt-0.5 shrink-0" />
+              <p>
+                By submitting this application, I certify that all information provided is 
+                <strong> true and correct</strong>. I understand that any false information 
+                may be grounds for rejection of my application.
+              </p>
+            </div>
+            {errors.confirm_details && (
+              <span className="checkbox-error mt-2 block text-xs font-bold text-red-500">
+                You must confirm your details before submitting.
+              </span>
+            )}
+          </div>
+        </label>
       </div>
     </div>
   );

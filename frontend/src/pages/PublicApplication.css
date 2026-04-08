@@ -525,6 +525,51 @@
     }
 }
 
+/* Confirmation Checkbox Styling */
+.confirmation-checkbox-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.3s ease;
+}
+
+.confirmation-checkbox {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    border: 2px solid #cbd5e1;
+    cursor: pointer;
+    accent-color: #2563eb;
+    margin-top: 4px;
+    flex-shrink: 0;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.confirmation-checkbox:hover {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+.confirmation-text {
+    flex: 1;
+}
+
+.checkbox-error {
+    color: #ef4444;
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Disabled submit button visual state */
+button[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    filter: grayscale(0.5);
+    background: #cbd5e1 !important;
+    border-color: #cbd5e1 !important;
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }

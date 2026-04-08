@@ -50,7 +50,7 @@ const GuardianStep = ({ register, errors, handlePhoneInput }) => {
         />
       </div>
 
-      <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 flex items-start gap-3 mt-8">
+      <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 flex items-start gap-3 my-8">
         <ShieldCheck size={18} className="text-orange-600 mt-0.5" />
         <p className="text-xs text-orange-800 leading-relaxed">
           <strong>Privacy Note:</strong> This information will only be used for emergency and administrative communication. We respect your family's data privacy.
