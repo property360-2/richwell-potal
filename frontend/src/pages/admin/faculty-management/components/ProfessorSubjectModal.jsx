@@ -8,6 +8,21 @@ import { academicsApi } from '../../../../api/academics';
 import { useToast } from '../../../../components/ui/Toast';
 import { Search, Info } from 'lucide-react';
 
+/**
+ * ProfessorSubjectModal.jsx
+ * 
+ * A modal component for assigning and managing academic subjects for a specific professor.
+ * This interface allows administrators to search through available subjects and toggle
+ * assignments for the faculty member's personnel record.
+ * 
+ * @module ProfessorSubjectModal
+ * @param {Object} props - Component properties.
+ * @param {boolean} props.isOpen - Controls the visibility of the modal.
+ * @param {Function} props.onClose - Callback function to trigger when the modal is requested to close.
+ * @param {Object} props.professor - The professor record being modified, including current assigned subjects.
+ * @param {Function} props.onSuccess - Callback triggered after a successful subject assignment operation.
+ */
+
 const ProfessorSubjectModal = ({ isOpen, onClose, professor, onSuccess }) => {
   const { showToast } = useToast();
   const [subjects, setSubjects] = useState([]);

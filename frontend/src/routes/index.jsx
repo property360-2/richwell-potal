@@ -31,7 +31,7 @@ const TermManagement = lazy(() => import('../pages/admin/term-management/TermMan
 const RoomManagement = lazy(() => import('../pages/admin/room-management/RoomManagement'));
 const StudentManagement = lazy(() => import('../pages/admin/student-management/StudentManagement'));
 const FacultyManagement = lazy(() => import('../pages/admin/faculty-management/FacultyManagement'));
-const AuditLogList = lazy(() => import('../pages/admin/AuditLogList'));
+const AuditLogManagement = lazy(() => import('../pages/admin/audit-log-management/AuditLogManagement'));
 const AdminDashboard = lazy(() => import('../pages/admin/admin-dashboard/AdminDashboard'));
 
 // Admission Pages
@@ -161,7 +161,7 @@ const AppRoutes = () => {
 
           <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
             <Route element={<PageWrapper title="System Audit Trail" />}>
-              <Route path="/admin/audit" element={<AuditLogList />} />
+              <Route path="/admin/audit" element={<AuditLogManagement />} />
             </Route>
             <Route element={<PageWrapper title="Term Management" />}>
               <Route path="/admin/terms" element={<TermManagement />} />

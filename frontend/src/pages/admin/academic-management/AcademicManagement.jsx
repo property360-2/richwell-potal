@@ -38,7 +38,7 @@ const AcademicManagement = () => {
   ];
 
   return (
-    <div className={`${styles.pageContainer} space-y-8 ${styles.academicManagement}`}>
+    <div className={`${styles.pageContainer} ${styles.academicManagement}`}>
       <PageHeader
         title="Academic Management"
         description="Manage programs, subjects, and curriculum data."
@@ -58,9 +58,11 @@ const AcademicManagement = () => {
       </div>
 
       <div className={styles.activeTabContainer}>
-        {activeTab === 'programs' && <ProgramTab />}
-        {activeTab === 'subjects' && <SubjectTab />}
-        {activeTab === 'import' && <ImportTab />}
+        <div className={styles.tabContent}>
+          {activeTab === 'programs' && <ProgramTab styles={styles} />}
+          {activeTab === 'subjects' && <SubjectTab styles={styles} />}
+          {activeTab === 'import' && <ImportTab styles={styles} />}
+        </div>
       </div>
     </div>
   );

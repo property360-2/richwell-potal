@@ -14,9 +14,11 @@ import { useToast } from '../../../../components/ui/Toast';
 /**
  * ImportTab Component
  * 
+ * @param {Object} props - Component properties.
+ * @param {Object} props.styles - The styles object from AcademicManagement.module.css.
  * @returns {JSX.Element} Renders the bulk import tab content.
  */
-const ImportTab = () => {
+const ImportTab = ({ styles }) => {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
@@ -59,43 +61,56 @@ const ImportTab = () => {
   };
 
   return (
-    <div className="tab-content flex flex-col items-center">
-      <Card className="import-card w-full max-w-2xl">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center p-4 bg-indigo-50 text-indigo-600 rounded-full mb-4">
-            <Upload size={32} />
+    <div className="flex flex-col items-center">
+      <Card className={`${styles.importCard} w-full max-w-2xl overflow-hidden`}>
+        <div className="text-center mb-10 mt-4">
+          <div className="inline-flex items-center justify-center p-5 bg-indigo-50 text-indigo-600 rounded-2xl mb-6 shadow-sm">
+            <Upload size={36} />
           </div>
-          <h2 className="text-xl font-bold text-slate-800">Bulk Subject Import</h2>
-          <p className="text-slate-500 mt-2">
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Bulk Subject Import</h2>
+          <p className="text-slate-500 mt-3 max-w-md mx-auto leading-relaxed">
             Upload a CSV file containing curriculum subjects. The system will automatically link them to their respective programs.
           </p>
         </div>
 
         {!uploadResult ? (
           <div 
-            className={`upload-zone mb-6 p-10 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all hover:border-indigo-400 hover:bg-slate-50 ${file ? 'border-indigo-500 bg-indigo-50' : ''}`}
+            className={`${styles.uploadZone} mb-8 ${file ? styles.activeFile : ''}`}
             onClick={() => document.getElementById('csv-file').click()}
-            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-indigo-500'); }}
-            onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-indigo-500'); }}
+            onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = "#4f46e5"; e.currentTarget.style.background = "#f1f5f9"; }}
+            onDragLeave={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = ""; e.currentTarget.style.background = ""; }}
             onDrop={(e) => {
               e.preventDefault();
+              e.currentTarget.style.borderColor = "";
+              e.currentTarget.style.background = "";
               const droppedFile = e.dataTransfer.files[0];
               if (droppedFile?.name.endsWith('.csv')) setFile(droppedFile);
             }}
           >
-            {file ? (
-              <div className="flex flex-col items-center">
-                <FileText size={48} className="text-indigo-500 mb-2" />
-                <span className="font-medium text-indigo-600">{file.name}</span>
-                <span className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(2)} KB</span>
-              </div>
-            ) : (
-              <>
-                <Upload size={48} className="text-slate-300 mb-2" />
-                <p className="font-medium text-slate-700">Click or drag CSV here</p>
-                <p className="text-sm text-slate-400">Download CSV template</p>
-              </>
-            )}
+            <div className="relative z-10 flex flex-col items-center text-center">
+              {file ? (
+                <>
+                  <div className="p-4 bg-indigo-100 text-indigo-600 rounded-xl mb-4">
+                    <FileText size={48} />
+                  </div>
+                  <span className="text-lg font-bold text-indigo-700 mb-1">{file.name}</span>
+                  <span className="text-sm text-slate-500 font-medium tracking-wide">
+                    {(file.size / 1024).toFixed(2)} KB • Ready to import
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Upload size={56} className="text-slate-300 mb-6" />
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">Click or drag CSV here</h3>
+                  <p className="text-sm text-slate-500 max-w-[200px]">
+                    Ensure your file follows the required curriculum format.
+                  </p>
+                  <button className="mt-4 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-widest border-b border-indigo-200 pb-1">
+                    Download CSV Template
+                  </button>
+                </>
+              )}
+            </div>
             <input 
               type="file" 
               id="csv-file" 
@@ -105,58 +120,64 @@ const ImportTab = () => {
             />
           </div>
         ) : (
-          <div className="result-area mb-6 p-6 bg-slate-50 rounded-lg border border-slate-200">
-             <div className="flex items-center gap-3 mb-4 text-green-600">
-                <CheckCircle size={24} />
-                <h4 className="font-bold">Import Summary</h4>
+          <div className={`${styles.resultArea} mb-8 p-8 bg-slate-50 rounded-2xl border border-slate-200`}>
+             <div className="flex items-center gap-4 mb-6 text-green-600">
+                <CheckCircle size={28} className="drop-shadow-sm" />
+                <h4 className="text-lg font-bold tracking-tight">Import Successful</h4>
              </div>
-             <div className="grid grid-cols-3 gap-4">
-               <div className="bg-white p-3 rounded border border-slate-200 text-center">
-                  <div className="text-sm text-slate-500">Programs</div>
-                  <div className="text-xl font-bold text-slate-800">{uploadResult.stats?.programs_created || 0}</div>
+             <div className="grid grid-cols-3 gap-5">
+               <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Programs</div>
+                  <div className="text-2xl font-black text-slate-800">{uploadResult.stats?.programs_created || 0}</div>
                </div>
-               <div className="bg-white p-3 rounded border border-slate-200 text-center">
-                  <div className="text-sm text-slate-500">Curriculums</div>
-                  <div className="text-xl font-bold text-slate-800">{uploadResult.stats?.curriculums_created || 0}</div>
+               <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Curriculums</div>
+                  <div className="text-2xl font-black text-slate-800">{uploadResult.stats?.curriculums_created || 0}</div>
                </div>
-               <div className="bg-white p-3 rounded border border-slate-200 text-center">
-                  <div className="text-sm text-slate-500">Subjects</div>
-                  <div className="text-xl font-bold text-slate-800">{uploadResult.stats?.subjects_processed || 0}</div>
+               <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Subjects</div>
+                  <div className="text-2xl font-black text-slate-800">{uploadResult.stats?.subjects_processed || 0}</div>
                </div>
              </div>
              {uploadResult.errors?.length > 0 && (
-               <div className="mt-4">
-                 <div className="flex items-center gap-2 text-amber-600 text-sm font-bold mb-2">
-                   <AlertCircle size={16} />
-                   <span>Warnings/Errors ({uploadResult.errors.length})</span>
+               <div className="mt-8">
+                 <div className="flex items-center gap-2 text-amber-600 text-xs font-bold mb-3 uppercase tracking-wider">
+                   <AlertCircle size={14} />
+                   <span>Optimization Suggestions ({uploadResult.errors.length})</span>
                  </div>
-                 <div className="max-h-32 overflow-y-auto text-xs text-slate-600 bg-white p-2 rounded border border-slate-200">
-                    {uploadResult.errors.map((err, i) => <div key={i} className="mb-1">• {err}</div>)}
+                 <div className="max-h-40 overflow-y-auto text-xs text-slate-600 bg-white p-4 rounded-xl border border-slate-100 leading-relaxed">
+                    {uploadResult.errors.map((err, i) => (
+                      <div key={i} className="mb-2 last:mb-0 pb-2 border-b border-slate-50 last:border-0 flex gap-2">
+                        <span className="text-amber-400">•</span>
+                        <span>{err}</span>
+                      </div>
+                    ))}
                  </div>
                </div>
              )}
-             <Button variant="ghost" className="w-full mt-4" onClick={() => setUploadResult(null)}>
-                Upload Another File
+             <Button variant="ghost" className="w-full mt-6 py-3 font-semibold" onClick={() => setUploadResult(null)}>
+                Import Another Dataset
              </Button>
           </div>
         )}
 
-        {file && (
+        {file && !uploadResult && (
           <Button 
             variant="primary" 
-            className="w-full" 
+            className="w-full py-4 text-md font-bold shadow-indigo-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all" 
             onClick={handleUpload} 
             loading={uploading}
-            icon={<Upload size={18} />}
+            icon={<Upload size={20} />}
           >
-            Start Import
+            Initialize Import
           </Button>
         )}
       </Card>
       
-      <div className="mt-8 text-slate-400 text-sm max-w-xl text-center leading-relaxed">
-        <strong>Important:</strong> The CSV must follow the system format with columns: 
-        Program, Year_Semester, Program_Code, Subject_Description, Lec_Units, Lab_Units, Total_Units.
+      <div className="mt-12 p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-500 text-sm max-w-2xl text-center leading-relaxed">
+        <strong className="text-slate-700 block mb-1 uppercase text-xs tracking-widest font-bold">Data Integrity Notice</strong>
+        The system precisely maps subjects to their programs based on the <code className="bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold">Program_Code</code>. 
+        Ensure your CSV header structure matches the template to prevent processing interruptions.
       </div>
     </div>
   );

@@ -1,3 +1,11 @@
+/**
+ * Richwell Portal — Term Management Page
+ * 
+ * This page allows administrators to manage academic terms, years, and semesters.
+ * It provides functionality for listing all terms, creating new ones, editing
+ * existing ones, and activating a specific term (which deactivates others).
+ */
+
 import React, { useState, useEffect } from 'react';
 import { 
   Plus,
@@ -7,15 +15,21 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
-import Table from '../../components/ui/Table';
-import Badge from '../../components/ui/Badge';
-import { useToast } from '../../components/ui/Toast';
-import { termsApi } from '../../api/terms';
+import Card from '../../../components/ui/Card';
+import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
+import Table from '../../../components/ui/Table';
+import Badge from '../../../components/ui/Badge';
+import { useToast } from '../../../components/ui/Toast';
+import { termsApi } from '../../../api/terms';
 import TermModal from './components/TermModal';
 
+/**
+ * TermManagement Component
+ * 
+ * Main container for managing academic terms. Handles data fetching,
+ * searching, and term activation logic.
+ */
 const TermManagement = () => {
   const [terms, setTerms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +38,10 @@ const TermManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const { showToast } = useToast();
 
+  /**
+   * Fetches the list of academic terms from the backend API.
+   * Supports filtering by search query.
+   */
   const fetchTerms = async () => {
     try {
       setLoading(true);
@@ -40,6 +58,12 @@ const TermManagement = () => {
     fetchTerms();
   }, [searchQuery]);
 
+  /**
+   * Handles the activation of a specific term.
+   * Prompts the user for confirmation as this is a destructive global action.
+   * 
+   * @param {number|string} id - The unique ID of the term to activate.
+   */
   const handleActivate = async (id) => {
     if (!window.confirm('Activating this term will deactivate all others. Continue?')) return;
     try {
@@ -90,6 +114,7 @@ const TermManagement = () => {
             size="sm" 
             icon={<Edit2 size={16} />} 
             onClick={() => { setEditingTerm(row); setModalOpen(true); }} 
+            title="Edit Term"
           />
         </div>
       )
@@ -134,3 +159,4 @@ const TermManagement = () => {
 };
 
 export default TermManagement;
+

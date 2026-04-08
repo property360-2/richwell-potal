@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { Plus, Trash2, Info } from 'lucide-react';
-import Modal from '../../../components/ui/Modal';
-import Input from '../../../components/ui/Input';
-import Button from '../../../components/ui/Button';
-import Select from '../../../components/ui/Select';
-import { academicsApi } from '../../../api/academics';
-import { useToast } from '../../../components/ui/Toast';
+import Modal from '../../../../components/ui/Modal';
+import Input from '../../../../components/ui/Input';
+import Button from '../../../../components/ui/Button';
+import Select from '../../../../components/ui/Select';
+import { academicsApi } from '../../../../api/academics';
+import { useToast } from '../../../../components/ui/Toast';
 
 const PREREQ_TYPES = [
   { value: 'SPECIFIC', label: 'Specific Subject' },

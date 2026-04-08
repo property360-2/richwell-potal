@@ -5,15 +5,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { auditingApi } from '../../api/auditing';
+import { auditingApi } from '../../../api/auditing';
 import { Search, Download } from 'lucide-react';
-import PageHeader from '../../components/shared/PageHeader';
-import Input from '../../components/ui/Input';
-import Select from '../../components/ui/Select';
-import Button from '../../components/ui/Button';
-import Pagination from '../../components/ui/Pagination';
-import AuditFeedItem from '../../components/shared/AuditFeedItem';
-import './AuditLogList.css';
+import PageHeader from '../../../components/shared/PageHeader';
+import Input from '../../../components/ui/Input';
+import Select from '../../../components/ui/Select';
+import Button from '../../../components/ui/Button';
+import Pagination from '../../../components/ui/Pagination';
+import AuditFeedItem from '../../../components/shared/AuditFeedItem';
+import styles from '../../../styles/AuditPageLayout.module.css';
 
 /**
  * AuditLogList Component
@@ -23,7 +23,7 @@ import './AuditLogList.css';
  * 
  * @returns {JSX.Element}
  */
-const AuditLogList = () => {
+const AuditLogManagement = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
@@ -109,7 +109,7 @@ const AuditLogList = () => {
   };
 
   return (
-    <div className="audit-page">
+    <div className={styles.auditPage}>
       <PageHeader 
         title="System Audit Trail"
         description="Track all data mutations and security events across the platform."
@@ -120,8 +120,8 @@ const AuditLogList = () => {
         }
       />
 
-      <div className="audit-controls">
-        <div className="search-box">
+      <div className={styles.auditControls}>
+        <div className={styles.searchBox}>
           <Input 
             placeholder="Search by ID, user, or record..."
             icon={<Search size={18} />}
@@ -131,8 +131,8 @@ const AuditLogList = () => {
           />
         </div>
         
-        <div className="filter-grid">
-          <div className="filter-group">
+        <div className={styles.filterGrid}>
+          <div className={styles.filterGroup}>
             <label>Model</label>
             <Input 
               placeholder="e.g. Student"
@@ -141,7 +141,7 @@ const AuditLogList = () => {
             />
           </div>
 
-          <div className="filter-group">
+          <div className={styles.filterGroup}>
             <label>Action</label>
             <Select 
               value={filters.action}
@@ -155,26 +155,26 @@ const AuditLogList = () => {
             />
           </div>
 
-          <div className="filter-group">
+          <div className={styles.filterGroup}>
             <label>Date Range</label>
-            <div className="date-inputs">
+            <div className={styles.dateInputs}>
               <input 
                 type="date" 
                 value={filters.start_date || ''}
                 onChange={(e) => setFilters({...filters, start_date: e.target.value})}
-                className="date-input"
+                className={styles.dateInput}
               />
               <span>to</span>
               <input 
                 type="date" 
                 value={filters.end_date || ''}
                 onChange={(e) => setFilters({...filters, end_date: e.target.value})}
-                className="date-input"
+                className={styles.dateInput}
               />
             </div>
           </div>
 
-          <div className="filter-group">
+          <div className={styles.filterGroup}>
             <label>Sort By</label>
             <Select 
               value={filters.ordering}
@@ -191,16 +191,16 @@ const AuditLogList = () => {
         </div>
       </div>
 
-      <div className="audit-feed-container">
+      <div className={styles.auditFeedContainer}>
         {loading ? (
-          <div className="loading-state">
-            <div className="spinner"></div>
+          <div className={styles.loadingState}>
+            <div className={styles.spinner}></div>
             <p>Loading audit logs...</p>
           </div>
         ) : logs.length === 0 ? (
-          <div className="empty-state">No audit entries found matching your filters.</div>
+          <div className={styles.emptyState}>No audit entries found matching your filters.</div>
         ) : (
-          <div className="audit-feed">
+          <div className={styles.auditFeed}>
             {logs.map((log) => (
               <AuditFeedItem 
                 key={log.id} 
@@ -226,4 +226,4 @@ const AuditLogList = () => {
   );
 };
 
-export default AuditLogList;
+export default AuditLogManagement;

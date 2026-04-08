@@ -21,7 +21,7 @@ import api from '../../api/axios';
 import { useToast } from '../../components/ui/Toast';
 import { financeApi } from '../../api/finance';
 import { studentsApi } from '../../api/students';
-import Pagination from '../../components/shared/Pagination';
+import Pagination from '../../components/ui/Pagination';
 import './Cashier.css';
 
 /**

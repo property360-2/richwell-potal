@@ -5,12 +5,12 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { schedulingApi } from '../../../api/scheduling';
-import { facultyApi } from '../../../api/faculty';
-import { sectionsApi } from '../../../api/sections';
-import { termsApi } from '../../../api/terms';
-import { facilitiesApi } from '../../../api/facilities';
-import { useToast } from '../../../components/ui/Toast';
+import { schedulingApi } from '../../../../api/scheduling';
+import { facultyApi } from '../../../../api/faculty';
+import { sectionsApi } from '../../../../api/sections';
+import { termsApi } from '../../../../api/terms';
+import { facilitiesApi } from '../../../../api/facilities';
+import { useToast } from '../../../../components/ui/Toast';
 
 export const useSchedulingData = () => {
     const [view, setView] = useState('LIST'); // 'LIST' or 'MANAGE'

@@ -1,128 +1,182 @@
-.academic-management {
+/**
+ * @file AcademicManagement.module.css
+ * @description Premium styling for the Academic Management interface.
+ * Implements a modern tabbed layout with glassmorphism and smooth transitions.
+ */
+
+.academicManagement {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
-}
-
-.tabs-container {
-    display: flex;
-    gap: var(--space-2);
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: 0;
-}
-
-.tab-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-6);
-    border: none;
-    background: none;
-    color: var(--color-text-secondary);
-    font-weight: 500;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: var(--transition-fast);
-}
-
-.tab-btn:hover {
-    color: var(--color-primary);
-    background-color: var(--color-primary-light);
-}
-
-.tab-btn.active {
-    color: var(--color-primary);
-    border-bottom-color: var(--color-primary);
-}
-
-.tab-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-    animation: fadeIn 0.3s ease;
+    gap: 32px;
+    animation: fadeIn 0.4s ease-out;
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(4px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.content-header {
+.pageContainer {
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* Premium Tabs Container with Glassmorphism */
+.tabsContainer {
+    display: inline-flex;
+    padding: 6px;
+    background: rgba(241, 245, 249, 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 12px;
+    gap: 4px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Pill-style Tab Buttons */
+.tabBtn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+
+.tabBtn:hover {
+    color: #1e293b;
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.tabBtn svg {
+    transition: transform 0.25s ease;
+}
+
+.tabBtn:hover svg {
+    transform: scale(1.1);
+}
+
+/* Active State with Gradient Pill */
+.tabBtn.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+.tabBtn.active svg {
+    color: #ffffff;
+}
+
+/* Tab Content Transitions */
+.activeTabContainer {
+    margin-top: 8px;
+}
+
+.tabContent {
+    animation: slideUp 0.4s cubic-bezier(0, 0, 0.2, 1);
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Specialized Components within Tabs */
+.importCard {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+/* Premium Upload Zone */
+.uploadZone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 14px;
+    padding: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    background: #f8fafc;
+    position: relative;
+    overflow: hidden;
+}
+
+.uploadZone::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(rgba(79, 70, 229, 0.03), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.uploadZone:hover {
+    border-color: #4f46e5;
+    background: #f1f5f9;
+    transform: translateY(-2px);
+}
+
+.uploadZone:hover::after {
+    opacity: 1;
+}
+
+.uploadZone h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.uploadZone p {
+    color: #64748b;
+    font-size: 14px;
+    margin: 0;
+}
+
+.resultArea {
+    animation: fadeIn 0.5s ease;
+}
+
+.searchBox {
+    max-width: 400px;
+    width: 100%;
+}
+
+.contentHeader {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: var(--space-4);
-    margin-bottom: var(--space-2);
+    gap: 24px;
+    margin-bottom: 24px;
 }
 
-.content-filters {
-    margin-bottom: var(--space-4);
+.tableContainer {
+    border-radius: 16px;
+    overflow: hidden;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
-.search-box {
-    width: 320px;
-}
-
-.filters-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-4);
-    align-items: end;
-}
-
-.empty-state {
+.paginationWrapper {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-12);
-    color: var(--color-text-muted);
-    gap: var(--space-4);
-    text-align: center;
-}
-
-.import-card {
-    max-width: 600px;
-    margin: 0 auto;
-}
-
-.upload-zone {
-    border: 2px dashed var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-12);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-4);
-    transition: var(--transition-normal);
-    cursor: pointer;
-    text-align: center;
-}
-
-.upload-zone:hover {
-    border-color: var(--color-primary);
-    background-color: var(--color-primary-light);
-    color: var(--color-primary);
-}
-
-.upload-zone h3 {
-    margin: 0;
-    color: var(--color-text);
-}
-
-.upload-zone p {
-    margin: 0;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-}
-
-.mt-4 {
-    margin-top: var(--space-4);
+    justify-content: flex-end;
+    padding: 20px;
+    border-top: 1px solid #f1f5f9;
+    background: #fcfcfd;
 }

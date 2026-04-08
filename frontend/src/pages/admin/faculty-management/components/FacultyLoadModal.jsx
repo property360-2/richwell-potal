@@ -5,7 +5,21 @@ import Button from '../../../../components/ui/Button';
 import { schedulingApi } from '../../../../api/scheduling';
 import { termsApi } from '../../../../api/terms';
 import LoadingSpinner from '../../../../components/ui/LoadingSpinner';
-import '../../dean/SchedulingPage.css';
+import '../../../dean/scheduling-page/SchedulingPage.module.css';
+
+/**
+ * FacultyLoadModal.jsx
+ * 
+ * A specialized visualization modal that displays a professor's teaching schedule
+ * in a comprehensive timetable grid layout. This component fetches current term data
+ * and provides a detailed view of class hours, rooms, and assignments.
+ * 
+ * @module FacultyLoadModal
+ * @param {Object} props - Component properties.
+ * @param {boolean} props.isOpen - Controls the visibility of the modal.
+ * @param {Function} props.onClose - Callback function to trigger when the modal is closed.
+ * @param {Object} props.professor - The professor record to visualize the teaching load for.
+ */
 
 const FacultyLoadModal = ({ isOpen, onClose, professor }) => {
   const [load, setLoad] = useState(null);

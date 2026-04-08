@@ -7,14 +7,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { auditingApi } from '../../api/auditing';
-import { Search, Download } from 'lucide-react';
+import { Search, Download, Filter, Calendar, ListFilter } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Button from '../../components/ui/Button';
 import Pagination from '../../components/ui/Pagination';
 import AuditFeedItem from '../../components/shared/AuditFeedItem';
-import '../admin/AuditLogList.css'; // Reuse existing styles
+import styles from '../../styles/AuditPageLayout.module.css';
 
 /**
  * RegistrarActionHistory Component
@@ -107,10 +107,10 @@ const RegistrarActionHistory = () => {
   };
 
   return (
-    <div className="audit-page">
+    <div className={styles.auditPage}>
       <PageHeader 
         title="Action History"
-        description="View recent administrative actions performed by the registrar department."
+        description="Monitor and audit administrative actions within the registrar department."
         actions={
           <Button variant="primary" onClick={handleExport} icon={<Download size={18} />}>
             Export CSV
@@ -118,10 +118,10 @@ const RegistrarActionHistory = () => {
         }
       />
 
-      <div className="audit-controls">
-        <div className="search-box">
+      <div className={styles.auditControls}>
+        <div className={styles.searchBox}>
           <Input 
-            placeholder="Search by ID or record..."
+            placeholder="Search by object representation, username, or IP..."
             icon={<Search size={18} />}
             value={filters.search}
             onChange={(e) => setFilters({...filters, search: e.target.value})}
@@ -129,9 +129,9 @@ const RegistrarActionHistory = () => {
           />
         </div>
         
-        <div className="filter-grid">
-          <div className="filter-group">
-            <label>Model</label>
+        <div className={styles.filterGrid}>
+          <div className={styles.filterGroup}>
+            <label><Filter size={12} /> Model Type</label>
             <Input 
               placeholder="e.g. Student"
               value={filters.model_name}
@@ -139,8 +139,8 @@ const RegistrarActionHistory = () => {
             />
           </div>
 
-          <div className="filter-group">
-            <label>Action</label>
+          <div className={styles.filterGroup}>
+            <label><ListFilter size={12} /> Action</label>
             <Select 
               value={filters.action}
               onChange={(e) => setFilters({...filters, action: e.target.value})}
@@ -153,27 +153,27 @@ const RegistrarActionHistory = () => {
             />
           </div>
 
-          <div className="filter-group">
-            <label>Date Range</label>
-            <div className="date-inputs">
+          <div className={styles.filterGroup}>
+            <label><Calendar size={12} /> Date Range</label>
+            <div className={styles.dateInputs}>
               <input 
                 type="date" 
                 value={filters.start_date || ''}
                 onChange={(e) => setFilters({...filters, start_date: e.target.value})}
-                className="date-input"
+                className={styles.dateInput}
               />
               <span>to</span>
               <input 
                 type="date" 
                 value={filters.end_date || ''}
                 onChange={(e) => setFilters({...filters, end_date: e.target.value})}
-                className="date-input"
+                className={styles.dateInput}
               />
             </div>
           </div>
 
-          <div className="filter-group">
-            <label>Sort By</label>
+          <div className={styles.filterGroup}>
+            <label>Sort Ordering</label>
             <Select 
               value={filters.ordering}
               onChange={(e) => setFilters({...filters, ordering: e.target.value})}
@@ -188,16 +188,18 @@ const RegistrarActionHistory = () => {
         </div>
       </div>
 
-      <div className="audit-feed-container">
+      <div className={styles.auditFeedContainer}>
         {loading ? (
-          <div className="loading-state">
-            <div className="spinner"></div>
-            <p>Loading history...</p>
+          <div className={styles.loadingState}>
+            <div className={styles.spinner}></div>
+            <p>Gathering action history...</p>
           </div>
         ) : logs.length === 0 ? (
-          <div className="empty-state">No action history found matching your filters.</div>
+          <div className={styles.emptyState}>
+            <p>No activity logs found for the current filters.</p>
+          </div>
         ) : (
-          <div className="audit-feed">
+          <div className={styles.auditFeed}>
             {logs.map((log) => (
               <AuditFeedItem 
                 key={log.id} 
@@ -210,7 +212,7 @@ const RegistrarActionHistory = () => {
         )}
         
         {totalPages > 1 && (
-          <div className="pagination-wrapper">
+          <div className="mt-8 flex justify-center">
             <Pagination 
               currentPage={page}
               totalPages={totalPages}

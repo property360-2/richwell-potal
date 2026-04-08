@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, GraduationCap, BookOpen, MapPin, Activity, Settings, Layout, Layers } from 'lucide-react';
-import { reportsApi } from '../../api/reports';
-import Card from '../../components/ui/Card';
-import StatCard from '../../components/shared/StatCard';
-import PageHeader from '../../components/shared/PageHeader';
-import '../shared/Dashboard.css';
+import { reportsApi } from '../../../api/reports';
+import Card from '../../../components/ui/Card';
+import StatCard from '../../../components/shared/StatCard';
+import PageHeader from '../../../components/shared/PageHeader';
+import '../../shared/Dashboard.css';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();

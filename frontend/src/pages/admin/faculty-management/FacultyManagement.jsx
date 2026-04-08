@@ -1,11 +1,22 @@
 /**
  * @file FacultyManagement.jsx
  * @description Administrative module for managing professors, their department assignments,
- * and teaching loads.
+ * and teaching loads. It provides a central interface for HR and academic workload management.
  */
 
 import React, { useState, useEffect } from 'react';
-import { Clock, Plus, Search, Edit, BookOpen } from 'lucide-react';
+import { 
+  Clock, 
+  Plus, 
+  Search, 
+  Edit, 
+  BookOpen 
+} from 'lucide-react';
+
+// Styles
+import styles from './FacultyManagement.module.css';
+
+// Components
 import Pagination from '../../../components/ui/Pagination';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
@@ -21,8 +32,9 @@ import FacultyLoadModal from './components/FacultyLoadModal';
  * FacultyManagement Component
  * 
  * Main dashboard for faculty human resources and assignment management.
+ * Handles listing, searching, and managing individual professor profiles and loads.
  * 
- * @returns {JSX.Element}
+ * @returns {JSX.Element} The rendered Faculty Management dashboard
  */
 const FacultyManagement = () => {
   const [professors, setProfessors] = useState([]);
@@ -48,6 +60,10 @@ const FacultyManagement = () => {
     setPage(1);
   }, [searchTerm]);
 
+  /**
+   * Fetches the list of professors from the backend.
+   * Handles both paginated and non-paginated responses.
+   */
   const fetchProfessors = async () => {
     try {
       setLoading(true);
@@ -71,35 +87,53 @@ const FacultyManagement = () => {
     }
   };
 
+  /**
+   * Triggers the modal for adding a new professor.
+   */
   const handleAdd = () => {
     setSelectedProf(null);
     setIsProfModalOpen(true);
   };
 
+  /**
+   * Triggers the modal for editing an existing professor.
+   * @param {Object} prof - The professor object to edit
+   */
   const handleEdit = (prof) => {
     setSelectedProf(prof);
     setIsProfModalOpen(true);
   };
 
+  /**
+   * Triggers the modal for assigning subjects to a professor.
+   * @param {Object} prof - The selected professor
+   */
   const handleAssignSubjects = (prof) => {
     setSelectedProf(prof);
     setIsSubjectModalOpen(true);
   };
 
+  /**
+   * Triggers the modal for viewing a professor's teaching load.
+   * @param {Object} prof - The selected professor
+   */
   const handleViewLoad = (prof) => {
     setSelectedProf(prof);
     setIsLoadModalOpen(true);
   };
 
+  /**
+   * Table column definitions
+   */
   const columns = [
     {
       header: 'Professor Name',
       render: (prof) => (
-        <div className="py-1">
-          <div className="font-semibold text-slate-900">
+        <div className={styles['professor-info']}>
+          <div className={styles['professor-name']}>
             {prof.user.first_name} {prof.user.last_name}
           </div>
-          <div className="text-xs text-slate-500">{prof.user.email}</div>
+          <div className={styles['professor-email']}>{prof.user.email}</div>
         </div>
       )
     },
@@ -107,7 +141,7 @@ const FacultyManagement = () => {
     { 
       header: 'Hours Assigned', 
       render: (prof) => (
-        <div className="font-bold text-slate-700">
+        <div className={styles['hours-display']}>
           {prof.hours_assigned} hrs
         </div>
       )
@@ -116,7 +150,10 @@ const FacultyManagement = () => {
     { 
       header: 'Type', 
       render: (prof) => (
-        <Badge variant={prof.employment_status === 'FULL_TIME' ? 'primary' : 'warning'} className="text-[10px] font-black uppercase">
+        <Badge 
+          variant={prof.employment_status === 'FULL_TIME' ? 'primary' : 'warning'} 
+          className="text-[10px] font-black uppercase"
+        >
           {prof.employment_status === 'FULL_TIME' ? 'Full-time' : 'Part-time'}
         </Badge>
       )
@@ -141,7 +178,7 @@ const FacultyManagement = () => {
       header: 'Actions',
       align: 'right',
       render: (prof) => (
-        <div className="flex justify-end gap-2">
+        <div className={styles['actions-cell']}>
           <Button 
             variant="ghost" 
             size="sm"
@@ -175,9 +212,9 @@ const FacultyManagement = () => {
   ];
 
   return (
-    <div className="page-container space-y-8">
-      <div className="page-header">
-        <div className="header-title-section">
+    <div className={styles['page-container']}>
+      <div className={styles['page-header']}>
+        <div className={styles['header-title-section']}>
           <h2>Faculty Management</h2>
           <p>Manage professors and their subject assignments</p>
         </div>
@@ -186,8 +223,8 @@ const FacultyManagement = () => {
         </Button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex-1 max-w-md">
+      <div className={styles['search-section']}>
+        <div className={styles['search-wrapper']}>
           <Input
             placeholder="Search by name, ID, or department..."
             icon={<Search size={18} />}
@@ -197,7 +234,7 @@ const FacultyManagement = () => {
         </div>
       </div>
 
-      <Card>
+      <Card padding="0">
         <Table 
           columns={columns} 
           data={professors} 
@@ -205,7 +242,7 @@ const FacultyManagement = () => {
           emptyMessage="No professors found matching your search."
         />
         {totalPages > 1 && (
-          <div className="pagination-wrapper">
+          <div className={styles['pagination-wrapper']}>
             <Pagination 
               currentPage={page}
               totalPages={totalPages}
@@ -239,3 +276,4 @@ const FacultyManagement = () => {
 };
 
 export default FacultyManagement;
+

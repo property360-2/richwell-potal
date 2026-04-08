@@ -1,0 +1,99 @@
+/**
+ * FacultyManagement.module.css
+ * 
+ * Styles for the Faculty Management module.
+ * Following the project's CSS Module standardization.
+ */
+
+.page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding-bottom: 2rem;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.header-title-section h2 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--color-slate-900);
+  margin: 0;
+}
+
+.header-title-section p {
+  color: var(--color-slate-500);
+  margin-top: 0.25rem;
+}
+
+.search-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .search-section {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.search-wrapper {
+  flex: 1;
+  max-width: 28rem;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-slate-100);
+  background-color: var(--color-slate-50)/30;
+}
+
+/* Professor name cell styling */
+.professor-info {
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 0;
+}
+
+.professor-name {
+  font-weight: 600;
+  color: var(--color-slate-900);
+}
+
+.professor-email {
+  font-size: 0.75rem;
+  color: var(--color-slate-500);
+}
+
+.hours-display {
+  font-weight: 700;
+  color: var(--color-slate-700);
+}
+
+.actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .page-header button {
+    width: 100%;
+  }
+}

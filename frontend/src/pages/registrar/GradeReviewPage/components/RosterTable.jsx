@@ -10,7 +10,7 @@ import Card from '../../../../components/ui/Card';
 import Table from '../../../../components/ui/Table';
 import Badge from '../../../../components/ui/Badge';
 import SearchBar from '../../../../components/shared/SearchBar';
-import Pagination from '../../../../components/shared/Pagination';
+import Pagination from '../../../../components/ui/Pagination';
 
 /**
  * RosterTable Component

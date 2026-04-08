@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Filter, RotateCcw } from 'lucide-react';
 import Card from '../../../../components/ui/Card';
 import Button from '../../../../components/ui/Button';
 import Input from '../../../../components/ui/Input';
@@ -20,9 +20,11 @@ import SubjectModal from './SubjectModal';
 /**
  * SubjectTab Component
  * 
+ * @param {Object} props - Component properties.
+ * @param {Object} props.styles - The styles object from AcademicManagement.module.css.
  * @returns {JSX.Element} Renders the subjects management tab content.
  */
-const SubjectTab = () => {
+const SubjectTab = ({ styles }) => {
   const [programs, setPrograms] = useState([]);
   const [selectedProgramId, setSelectedProgramId] = useState('');
   const [curriculums, setCurriculums] = useState([]);
@@ -53,6 +55,7 @@ const SubjectTab = () => {
     { value: 'S', label: 'Summer' },
   ];
 
+  // Fetch programs on mount
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -69,6 +72,7 @@ const SubjectTab = () => {
     fetchInitialData();
   }, []);
 
+  // Fetch curriculums when program changes
   useEffect(() => {
     if (selectedProgramId) {
       const fetchCurriculums = async () => {
@@ -121,7 +125,10 @@ const SubjectTab = () => {
   };
 
   useEffect(() => {
-    fetchSubjects();
+    const delayDebounceFn = setTimeout(() => {
+      fetchSubjects();
+    }, 300);
+    return () => clearTimeout(delayDebounceFn);
   }, [selectedCurriculumId, selectedYearLevel, selectedSemester, searchQuery, page]);
 
   /**
@@ -146,10 +153,10 @@ const SubjectTab = () => {
       header: 'Y/S', 
       render: (row) => `${row.year_level} - ${row.semester === 'S' ? 'Summer' : row.semester + (row.semester === '1' ? 'st' : 'nd')}` 
     },
-    { header: 'Units', accessor: 'total_units' },
-    { header: 'Hrs/Wk', accessor: 'hrs_per_week' },
+    { header: 'Units', accessor: 'total_units', align: 'center' },
+    { header: 'Hrs/Wk', accessor: 'hrs_per_week', align: 'center' },
     { 
-        header: 'Major', 
+        header: 'Complexity', 
         render: (row) => row.is_major ? <Badge variant="warning">Major</Badge> : <Badge variant="neutral">Minor</Badge>
     },
     {
@@ -165,87 +172,111 @@ const SubjectTab = () => {
   ];
 
   return (
-    <div className="tab-content">
-      <div className="content-filters bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
-          <Select 
-            label="Program" 
-            value={selectedProgramId} 
+    <div className={styles.tabContent}>
+      {/* Header Actions */}
+      <div className={styles.contentHeader}>
+        <div className={styles.searchBox}>
+          <Input 
+            placeholder="Filter by subject code or title..." 
+            icon={<Search size={18} />} 
+            value={searchQuery}
             onChange={(e) => {
-              setSelectedProgramId(e.target.value);
+              setSearchQuery(e.target.value);
               setPage(1);
             }}
-            options={programs.map(p => ({ value: p.id, label: p.code }))}
           />
-          <Select 
-            label="Curriculum" 
-            value={selectedCurriculumId} 
-            onChange={(e) => {
-              setSelectedCurriculumId(e.target.value);
-              setPage(1);
-            }}
-            options={curriculums.map(c => ({ value: c.id, label: c.version_name + (c.is_active ? ' (Active)' : '') }))}
+        </div>
+        <Button variant="primary" icon={<Plus size={18} />} onClick={() => { setEditingSubject(null); setModalOpen(true); }} disabled={!selectedCurriculumId}>
+          Add Subject
+        </Button>
+      </div>
+
+      {/* Premium Filtering Section */}
+      <div className="bg-white/60 backdrop-blur-sm p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-6 mb-8">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Program Selection</label>
+          <select 
+            className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
+            value={selectedProgramId}
+            onChange={(e) => { setSelectedProgramId(e.target.value); setPage(1); }}
+          >
+            {programs.map(p => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
+          </select>
+        </div>
+
+        <div className="flex-1 min-w-[220px]">
+          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Academic Curriculum</label>
+          <select 
+            className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none disabled:opacity-50"
+            value={selectedCurriculumId}
+            onChange={(e) => { setSelectedCurriculumId(e.target.value); setPage(1); }}
             disabled={!selectedProgramId}
-          />
-          <Select 
-            label="Year Level" 
-            value={selectedYearLevel} 
-            onChange={(e) => {
-              setSelectedYearLevel(e.target.value);
+          >
+            {curriculums.map(c => <option key={c.id} value={c.id}>{c.version_name} {c.is_active ? '• Active' : ''}</option>)}
+          </select>
+        </div>
+
+        <div className="w-44">
+          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Year Level</label>
+          <select 
+            className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
+            value={selectedYearLevel}
+            onChange={(e) => { setSelectedYearLevel(e.target.value); setPage(1); }}
+          >
+            {YEAR_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </div>
+
+        <div className="w-44">
+          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Semester</label>
+          <select 
+            className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
+            value={selectedSemester}
+            onChange={(e) => { setSelectedSemester(e.target.value); setPage(1); }}
+          >
+            {SEMESTER_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-end pb-1">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            icon={<RotateCcw size={14} />}
+            onClick={() => {
+              setSelectedYearLevel('');
+              setSelectedSemester('');
+              setSearchQuery('');
               setPage(1);
             }}
-            options={YEAR_OPTIONS}
-            disabled={!selectedCurriculumId}
-          />
-          <Select 
-            label="Semester" 
-            value={selectedSemester} 
-            onChange={(e) => {
-              setSelectedSemester(e.target.value);
-              setPage(1);
-            }}
-            options={SEMESTER_OPTIONS}
-            disabled={!selectedCurriculumId}
-          />
-          <div className="search-box-container">
-             <Input 
-                label="Search"
-                placeholder="Search..." 
-                icon={<Search size={18} />} 
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setPage(1);
-                }}
-             />
-          </div>
-          <div className="flex justify-end">
-             <Button variant="primary" icon={<Plus size={18} />} onClick={() => { setEditingSubject(null); setModalOpen(true); }} disabled={!selectedCurriculumId}>
-                Add
-             </Button>
-          </div>
+            className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+          >
+            Reset
+          </Button>
         </div>
       </div>
 
-      <Card padding="0">
+      {/* Data Table */}
+      <div className={styles.tableContainer}>
         <Table 
           columns={columns} 
           data={subjects} 
           loading={loading} 
-          emptyMessage={selectedCurriculumId ? "No subjects found for this selection." : "Please select a program and curriculum."}
+          emptyMessage={selectedCurriculumId ? "No subjects match your filters in this curriculum." : "Please select a curriculum to view subjects."}
         />
-      </Card>
+        
+        {totalPages > 1 && (
+          <div className={styles.paginationWrapper}>
+            <Pagination 
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
+      </div>
 
-      {totalPages > 1 && (
-        <div className="pagination-wrapper mt-4 p-4 border-t border-slate-100 flex justify-end">
-          <Pagination 
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-          />
-        </div>
-      )}
-
+      {/* CRUD Modal */}
       {selectedCurriculumId && (
         <SubjectModal 
           isOpen={modalOpen} 

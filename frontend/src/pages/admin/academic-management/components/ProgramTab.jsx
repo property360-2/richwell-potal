@@ -19,9 +19,11 @@ import ProgramModal from './ProgramModal';
 /**
  * ProgramTab Component
  * 
+ * @param {Object} props - Component properties.
+ * @param {Object} props.styles - The styles object from AcademicManagement.module.css.
  * @returns {JSX.Element} Renders the programs management tab content.
  */
-const ProgramTab = () => {
+const ProgramTab = ({ styles }) => {
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -99,9 +101,9 @@ const ProgramTab = () => {
   ];
 
   return (
-    <div className="tab-content">
-      <div className="content-header">
-        <div className="search-box">
+    <div className={styles.tabContent}>
+      <div className={styles.contentHeader}>
+        <div className={styles.searchBox}>
           <Input 
             placeholder="Search programs..." 
             icon={<Search size={18} />} 
@@ -117,19 +119,19 @@ const ProgramTab = () => {
         </Button>
       </div>
 
-      <Card padding="0">
+      <div className={styles.tableContainer}>
         <Table columns={columns} data={programs} loading={loading} />
-      </Card>
-
-      {totalPages > 1 && (
-        <div className="pagination-wrapper mt-4 p-4 border-t border-slate-100 flex justify-end">
-          <Pagination 
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-          />
-        </div>
-      )}
+        
+        {totalPages > 1 && (
+          <div className={styles.paginationWrapper}>
+            <Pagination 
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
+      </div>
 
       <ProgramModal 
         isOpen={modalOpen} 

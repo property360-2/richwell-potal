@@ -5,8 +5,35 @@
  */
 
 import React from 'react';
-import { Clock, Globe, ChevronDown, ChevronUp } from 'lucide-react';
+import { 
+  Clock, 
+  Globe, 
+  ChevronDown, 
+  ChevronUp, 
+  User, 
+  FileText, 
+  Settings, 
+  Shield, 
+  Database,
+  UserCheck 
+} from 'lucide-react';
 import AuditDetailPanel from './AuditDetailPanel';
+import styles from './AuditLogs.module.css';
+
+/**
+ * Returns a contextual icon based on the model name.
+ * @param {string} modelName - The model name
+ * @returns {JSX.Element}
+ */
+const getModelIcon = (modelName) => {
+  const name = modelName?.toLowerCase() || '';
+  if (name.includes('student')) return <User size={14} />;
+  if (name.includes('subject') || name.includes('program')) return <FileText size={14} />;
+  if (name.includes('term') || name.includes('academic')) return <Database size={14} />;
+  if (name.includes('user') || name.includes('profile')) return <UserCheck size={14} />;
+  if (name.includes('permission') || name.includes('role')) return <Shield size={14} />;
+  return <Settings size={14} />;
+};
 
 /**
  * Converts raw action type to a human-readable past-tense verb.
@@ -25,14 +52,14 @@ const getActionVerb = (action) => {
 /**
  * Returns the CSS class for the action verb color coding.
  * @param {string} action - Action string
- * @returns {string}
+ * @returns {string} Style class name
  */
 const getVerbClass = (action) => {
   switch (action) {
-    case 'CREATE': return 'verb-create';
-    case 'UPDATE': return 'verb-update';
-    case 'DELETE': return 'verb-delete';
-    default: return 'verb-update';
+    case 'CREATE': return styles.verbCreate;
+    case 'UPDATE': return styles.verbUpdate;
+    case 'DELETE': return styles.verbDelete;
+    default: return styles.verbUpdate;
   }
 };
 
@@ -43,7 +70,7 @@ const getVerbClass = (action) => {
  */
 const getInitials = (username) => {
   if (!username) return 'SY';
-  return username.substring(0, 2).toUpperCase();
+  return username.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 };
 
 /**
@@ -72,29 +99,32 @@ const AuditFeedItem = ({ log, isExpanded, onToggle }) => {
   return (
     <React.Fragment>
       <div 
-        className={`audit-entry ${isExpanded ? 'active' : ''}`}
+        className={`${styles.auditEntry} ${isExpanded ? styles.active : ''}`}
         onClick={onToggle}
       >
-        <div className="audit-avatar">
+        <div className={styles.auditAvatar}>
           {getInitials(log.user_username)}
         </div>
 
-        <div className="audit-body">
-          <div className="audit-sentence">
-            <span className="audit-user">{log.user_username || 'System'}</span>
+        <div className={styles.auditBody}>
+          <div className={styles.auditSentence}>
+            <span className={styles.auditUser}>{log.user_username || 'System'}</span>
             {' '}
-            <span className={`action-verb ${getVerbClass(log.action)}`}>
+            <span className={`${styles.actionVerb} ${getVerbClass(log.action)}`}>
               {getActionVerb(log.action)}
             </span>
             {' '}
-            <span className="audit-model">{humanizeModel(log.model_name)}</span>
+            <span className={styles.auditModel}>
+              {getModelIcon(log.model_name)}
+              {humanizeModel(log.model_name)}
+            </span>
             {' '}
             {log.object_repr && (
-              <span className="audit-object">"{log.object_repr}"</span>
+              <span className={styles.auditObject}>"{log.object_repr}"</span>
             )}
           </div>
 
-          <div className="audit-meta">
+          <div className={styles.auditMeta}>
             <span>
               <Clock size={12} />
               {new Date(log.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
@@ -108,19 +138,25 @@ const AuditFeedItem = ({ log, isExpanded, onToggle }) => {
           </div>
 
           {!isExpanded && hasChanges && (
-            <div className="changes-summary">
+            <div className={styles.changesSummary}>
               {changedFields.map(field => (
-                <span key={field} className="change-pill">{field}</span>
+                <span key={field} className={styles.changePill}>
+                  {field.replace(/_/g, ' ')}
+                </span>
               ))}
               {Object.keys(log.changes).length > 4 && (
-                <span className="change-pill">+{Object.keys(log.changes).length - 4} more</span>
+                <span className={styles.changePill}>+ {Object.keys(log.changes).length - 4} more fields</span>
               )}
             </div>
           )}
         </div>
 
-        <button className="audit-expand" onClick={(e) => { e.stopPropagation(); onToggle(); }}>
-          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        <button 
+          className={styles.auditExpand} 
+          onClick={(e) => { e.stopPropagation(); onToggle(); }}
+          aria-label={isExpanded ? "Collapse" : "Expand"}
+        >
+          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
       </div>
 

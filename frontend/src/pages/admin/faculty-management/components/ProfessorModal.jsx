@@ -1,3 +1,9 @@
+/**
+ * @file ProfessorModal.jsx
+ * @description Modal component for creating and editing professor profiles.
+ * Handles user account synchronization and profile details.
+ */
+
 import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import Modal from '../../../../components/ui/Modal';
@@ -8,6 +14,17 @@ import { facultyApi } from '../../../../api/faculty';
 import { useToast } from '../../../../components/ui/Toast';
 import { Mail, UserCircle, Briefcase, Calendar, Hash } from 'lucide-react';
 
+/**
+ * ProfessorModal Component
+ * 
+ * Provides a form interface for administrators to manage faculty personnel records.
+ * 
+ * @param {Object} props
+ * @param {boolean} props.isOpen - Whether the modal is visible
+ * @param {Function} props.onClose - Callback to close the modal
+ * @param {Object} [props.professor] - Professor data if editing, null if creating
+ * @param {Function} props.onSuccess - Callback after successful save
+ */
 const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
   const { showToast } = useToast();
   const isEditing = !!professor;
