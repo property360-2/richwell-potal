@@ -1,0 +1,269 @@
+/**
+ * SectioningDashboard.module.css
+ * 
+ * Scoped styles for the Sectioning Dashboard.
+ */
+
+.container {
+    padding: var(--space-8);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+    max-width: var(--content-max-width);
+    margin: 0 auto;
+}
+
+.matrixCard {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+}
+
+.matrixCardHeader {
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+}
+
+.matrixCardHeader h3 {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-secondary);
+}
+
+.matrixTableWrapper {
+    overflow-x: auto;
+}
+
+.matrixTable {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.matrixTable th {
+    padding: var(--space-4) var(--space-6);
+    background-color: var(--color-bg);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.matrixTable th:first-child {
+    text-align: left;
+}
+
+.matrixTable td {
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+    vertical-align: middle;
+    text-align: center;
+}
+
+.matrixTable td:first-child {
+    text-align: left;
+    border-right: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+    width: 300px;
+}
+
+.programInfo {
+    display: flex;
+    flex-direction: column;
+}
+
+.programCode {
+    font-weight: 800;
+    color: var(--color-primary);
+    font-size: var(--font-size-base);
+    text-transform: uppercase;
+}
+
+.programName {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.studentCountCell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.countNumber {
+    font-size: var(--font-size-xl);
+    font-weight: 800;
+    color: var(--color-text);
+}
+
+.countNumber.zero {
+    color: var(--color-text-muted);
+    opacity: 0.3;
+}
+
+/* Sections View Styling */
+.sectionsHeader {
+    padding: 0 var(--space-1) var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.activeUnitLabel {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.sectionsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-6);
+}
+
+.sectionCard {
+    padding: var(--space-6);
+    background-color: var(--color-surface);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border);
+    transition: all var(--transition-normal);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    position: relative;
+    overflow: hidden;
+}
+
+.sectionCard:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-primary);
+}
+
+.sectionCardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.sectionNameBox h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 800;
+    color: var(--color-text);
+    text-transform: uppercase;
+}
+
+.sectionBadges {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+}
+
+.capacityInfo {
+    text-align: right;
+}
+
+.currentCount {
+    font-size: var(--font-size-xl);
+    font-weight: 800;
+    color: var(--color-text);
+    line-height: 1;
+}
+
+.maxLabel {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    margin-top: 2px;
+}
+
+.fulfillmentContainer {
+    margin-top: var(--space-2);
+}
+
+.fulfillmentLabels {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-1);
+}
+
+.progressBarBg {
+    height: 8px;
+    background-color: var(--color-bg);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.progressBarFill {
+    height: 100%;
+    transition: width 0.6s ease;
+}
+
+.progressBarFillLevelNormal {
+    background-color: var(--color-primary);
+}
+
+.progressBarFillLevelWarning {
+    background-color: var(--color-warning);
+}
+
+.progressBarFillLevelDanger {
+    background-color: var(--color-error);
+}
+
+.viewRosterBtn {
+    margin-top: var(--space-2);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--color-text-secondary);
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+}
+
+.sectionCard:hover .viewRosterBtn {
+    color: var(--color-primary);
+}
+
+.emptyStateCard {
+    padding: var(--space-12);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    text-align: center;
+    background-color: var(--color-bg);
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-xl);
+    color: var(--color-text-muted);
+}
+
+.emptyStateCard h3 {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    color: var(--color-text-muted);
+}

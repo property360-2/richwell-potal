@@ -25,14 +25,14 @@ const ServerError = lazy(() => import('../pages/errors/ServerError'));
 const UIDemo = lazy(() => import('../pages/demo/UIDemo'));
 
 // Admin Pages
-const StaffManagement = lazy(() => import('../pages/admin/StaffManagement'));
-const AcademicManagement = lazy(() => import('../pages/admin/AcademicManagement'));
-const TermManagement = lazy(() => import('../pages/admin/TermManagement'));
-const RoomManagement = lazy(() => import('../pages/admin/RoomManagement'));
-const StudentManagement = lazy(() => import('../pages/admin/StudentManagement'));
-const FacultyManagement = lazy(() => import('../pages/admin/FacultyManagement'));
+const StaffManagement = lazy(() => import('../pages/admin/staff-management/StaffManagement'));
+const AcademicManagement = lazy(() => import('../pages/admin/academic-management/AcademicManagement'));
+const TermManagement = lazy(() => import('../pages/admin/term-management/TermManagement'));
+const RoomManagement = lazy(() => import('../pages/admin/room-management/RoomManagement'));
+const StudentManagement = lazy(() => import('../pages/admin/student-management/StudentManagement'));
+const FacultyManagement = lazy(() => import('../pages/admin/faculty-management/FacultyManagement'));
 const AuditLogList = lazy(() => import('../pages/admin/AuditLogList'));
-const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
+const AdminDashboard = lazy(() => import('../pages/admin/admin-dashboard/AdminDashboard'));
 
 // Admission Pages
 const AdmissionDashboard = lazy(() => import('../pages/admission/AdmissionDashboard'));
@@ -43,9 +43,9 @@ const PublicApplication = lazy(() => import('../pages/PublicApplication'));
 const RegistrarDashboard = lazy(() => import('../pages/registrar/RegistrarDashboard'));
 const DocumentVerification = lazy(() => import('../pages/registrar/DocumentVerification'));
 const SubjectCrediting = lazy(() => import('../pages/registrar/SubjectCrediting'));
-const SectioningDashboard = lazy(() => import('../pages/registrar/SectioningDashboard'));
+const SectioningDashboard = lazy(() => import('../pages/registrar/SectioningDashboard/index'));
 const GradeFinalization = lazy(() => import('../pages/registrar/GradeFinalization'));
-const GradeReviewPage = lazy(() => import('../pages/registrar/GradeReviewPage'));
+const GradeReviewPage = lazy(() => import('../pages/registrar/GradeReviewPage/index'));
 const HistoricalEncoding = lazy(() => import('../pages/registrar/HistoricalEncoding'));
 const CORPreview = lazy(() => import('../pages/registrar/reports/CORPreview'));
 const MasterlistExport = lazy(() => import('../pages/registrar/reports/MasterlistExport'));
@@ -54,8 +54,8 @@ const SummaryOfGrades = lazy(() => import('../pages/registrar/SummaryOfGrades'))
 const RegistrarActionHistory = lazy(() => import('../pages/registrar/RegistrarActionHistory'));
 
 // Dean Pages
-const DeanDashboard = lazy(() => import('../pages/dean/DeanDashboard'));
-const SchedulingPage = lazy(() => import('../pages/dean/SchedulingPage'));
+const DeanDashboard = lazy(() => import('../pages/dean/dean-dashboard/DeanDashboard'));
+const SchedulingPage = lazy(() => import('../pages/dean/scheduling-page/SchedulingPage'));
 
 // Program Head Pages
 const ProgramHeadDashboard = lazy(() => import('../pages/program-head/ProgramHeadDashboard'));
