@@ -17,9 +17,12 @@ import { studentsApi } from '../../api/students';
 import RegistrarVerificationModal from './components/RegistrarVerificationModal';
 import PageHeader from '../../components/shared/PageHeader';
 import SearchBar from '../../components/shared/SearchBar';
+import CORIssuanceTab from './components/CORIssuanceTab';
 import './DocumentVerification.css';
+import './reports/Reports.css';
 
 const DocumentVerification = () => {
+  const [activeTab, setActiveTab] = useState('verification');
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -123,11 +126,30 @@ const DocumentVerification = () => {
   return (
     <div className="verification-page-container animate-in fade-in duration-500">
       <PageHeader 
-        title="Document Verification" 
-        description="Registrar quality check and enrollment finalization" 
+        title="Document Verification & Issuance" 
+        description="Registrar quality check, enrollment finalization, and COR release" 
       />
 
-      <div className="filter-card">
+      <div className="tab-navigation mb-6">
+        <button 
+          className={`tab-item ${activeTab === 'verification' ? 'active' : ''}`}
+          onClick={() => setActiveTab('verification')}
+        >
+          <ClipboardCheck size={18} />
+          <span>Verification Queue</span>
+        </button>
+        <button 
+          className={`tab-item ${activeTab === 'cor' ? 'active' : ''}`}
+          onClick={() => setActiveTab('cor')}
+        >
+          <FileCheck size={18} />
+          <span>COR Issuance</span>
+        </button>
+      </div>
+
+      {activeTab === 'verification' ? (
+        <div className="tab-pane animate-in fade-in duration-300">
+          <div className="filter-card">
         <div className="filter-row">
           <div className="filter-label">
             <Filter size={18} />
@@ -165,12 +187,18 @@ const DocumentVerification = () => {
         />
       </Card>
 
-      <RegistrarVerificationModal 
-        isOpen={modalOpen} 
-        onClose={() => setModalOpen(false)} 
-        onSuccess={fetchStudents} 
-        student={selectedStudent} 
-      />
+          <RegistrarVerificationModal 
+            isOpen={modalOpen} 
+            onClose={() => setModalOpen(false)} 
+            onSuccess={fetchStudents} 
+            student={selectedStudent} 
+          />
+        </div>
+      ) : (
+        <div className="tab-pane animate-in fade-in duration-300">
+          <CORIssuanceTab />
+        </div>
+      )}
     </div>
   );
 };

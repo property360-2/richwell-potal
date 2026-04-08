@@ -14,6 +14,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import Card from '../../components/ui/Card';
 import GradingWindowSettings from './components/GradingWindowSettings';
 import GradeFinalizationModule from './components/GradeFinalizationModule';
+import MasterlistExportPanel from './components/MasterlistExportPanel';
 import './GradeFinalization.css';
 
 /**
@@ -111,6 +112,8 @@ const GradeFinalization = () => {
       </div>
 
       <GradeFinalizationModule activeTerm={activeTerm} />
+      
+      <MasterlistExportPanel activeTermId={activeTerm?.id} />
     </div>
   );
 };

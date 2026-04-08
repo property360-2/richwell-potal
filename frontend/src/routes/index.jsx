@@ -47,8 +47,6 @@ const SectioningDashboard = lazy(() => import('../pages/registrar/SectioningDash
 const GradeFinalization = lazy(() => import('../pages/registrar/GradeFinalization'));
 const GradeReviewPage = lazy(() => import('../pages/registrar/GradeReviewPage/index'));
 const HistoricalEncoding = lazy(() => import('../pages/registrar/HistoricalEncoding'));
-const CORPreview = lazy(() => import('../pages/registrar/reports/CORPreview'));
-const MasterlistExport = lazy(() => import('../pages/registrar/reports/MasterlistExport'));
 const GraduationAudit = lazy(() => import('../pages/registrar/reports/GraduationAudit'));
 const SummaryOfGrades = lazy(() => import('../pages/registrar/SummaryOfGrades'));
 const RegistrarActionHistory = lazy(() => import('../pages/registrar/RegistrarActionHistory'));
@@ -204,10 +202,9 @@ const AppRoutes = () => {
             <Route path="/registrar/grades" element={<GradeFinalization />} />
             <Route path="/registrar/grades/review/:termId/:sectionId/:subjectId" element={<GradeReviewPage />} />
             <Route path="/registrar/historical-encode" element={<HistoricalEncoding />} />
-          </Route>
-          <Route element={<PageWrapper title="Reports" />}>
-            <Route path="/registrar/reports/cor" element={<CORPreview />} />
-            <Route path="/registrar/reports/masterlist" element={<MasterlistExport />} />
+            {/* Consolidated Reports - Redirecting to parent pages */}
+            <Route path="/registrar/reports/cor" element={<Navigate to="/registrar/verification" replace />} />
+            <Route path="/registrar/reports/masterlist" element={<Navigate to="/registrar/grades" replace />} />
             <Route path="/registrar/reports/graduation" element={<GraduationAudit />} />
             <Route path="/registrar/students/:studentId/summary" element={<SummaryOfGrades />} />
           </Route>

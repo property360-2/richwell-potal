@@ -1,4 +1,12 @@
-import React, { useState } from 'react';
+/**
+ * CORIssuanceTab Component
+ * 
+ * This component provides an interface for searching students and generating 
+ * Certificate of Registration (COR) PDF reports for a selected academic term.
+ * It is designed to be embedded as a tab within the Document Verification page.
+ */
+
+import React, { useState, useEffect } from 'react';
 import { Search, FileText, Download, User, Info } from 'lucide-react';
 import { reportsApi } from '../../../api/reports';
 import { studentsApi } from '../../../api/students';
@@ -7,42 +15,47 @@ import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
-import PageHeader from '../../../components/shared/PageHeader';
-import './Reports.css';
 
-const CORPreview = () => {
+const CORIssuanceTab = ({ initialStudent = null }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [students, setStudents] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(initialStudent);
   const [terms, setTerms] = useState([]);
   const [selectedTerm, setSelectedTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchTerms();
   }, []);
+
+  useEffect(() => {
+    if (initialStudent) {
+      setSelectedStudent(initialStudent);
+    }
+  }, [initialStudent]);
 
   const fetchTerms = async () => {
     try {
       const res = await termsApi.getTerms();
-      setTerms(res.data.results || res.data);
-      const active = res.data.find(t => t.is_active);
+      const termsData = res.data.results || res.data;
+      setTerms(termsData);
+      const active = termsData.find(t => t.is_active);
       if (active) setSelectedTerm(active.id);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to fetch terms:', e);
     }
   };
 
   const handleSearch = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!searchQuery) return;
     setLoading(true);
     try {
       const res = await studentsApi.getStudents({ search: searchQuery });
       setStudents(res.data.results || res.data);
     } catch (e) {
-      console.error(e);
+      console.error('Student search failed:', e);
     } finally {
       setLoading(false);
     }
@@ -52,7 +65,10 @@ const CORPreview = () => {
     if (!selectedStudent || !selectedTerm) return;
     setDownloading(true);
     try {
-      const res = await reportsApi.getCOR({ student_id: selectedStudent.id, term_id: selectedTerm });
+      const res = await reportsApi.getCOR({ 
+        student_id: selectedStudent.id, 
+        term_id: selectedTerm 
+      });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -68,20 +84,14 @@ const CORPreview = () => {
   };
 
   return (
-    <div className="reports-page">
-      <PageHeader 
-        title="Registration Certificates"
-        description="Generate and issue official CORs for students."
-        badge={<div className="header-icon-box"><FileText className="text-blue-500" /></div>}
-      />
-
+    <div className="cor-issuance-tab animate-in fade-in duration-500">
       <div className="reports-grid">
         <Card className="search-card">
           <form onSubmit={handleSearch} className="search-form">
             <div className="w-full">
               <Input 
                 placeholder="Search Student Name or ID..." 
-                icon={Search}
+                icon={<Search size={18} />}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -118,7 +128,7 @@ const CORPreview = () => {
                </div>
                <h3>{selectedStudent.user.last_name}, {selectedStudent.user.first_name}</h3>
                <span className="badge-idn">{selectedStudent.idn}</span>
-               <p className="program-text">{selectedStudent.program.name}</p>
+               <p className="program-text">{selectedStudent.program?.name || selectedStudent.program_details?.name}</p>
             </div>
 
             <div className="preview-controls">
@@ -152,4 +162,4 @@ const CORPreview = () => {
   );
 };
 
-export default CORPreview;
+export default CORIssuanceTab;
