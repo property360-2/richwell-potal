@@ -15,6 +15,7 @@ export const studentsApi = {
     apply: (data) => api.post('students/apply/', data),
     admit: (id, data) => api.post(`students/${id}/admit/`, data),
     returningStudent: (id, data) => api.post(`students/${id}/returning-student/`, data),
+    unlockAdvising: (id) => api.post(`students/${id}/unlock-advising/`),
 
     /**
      * Confirms a student's graduation after the Registrar verifies eligibility.

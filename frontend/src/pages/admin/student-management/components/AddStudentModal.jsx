@@ -12,7 +12,9 @@ import Input from '../../../../components/ui/Input';
 import Select from '../../../../components/ui/Select';
 import Button from '../../../../components/ui/Button';
 import { studentsApi } from '../../../../api/students';
+import { academicsApi } from '../../../../api/academics';
 import { useToast } from '../../../../components/ui/Toast';
+import DateSelector from '../../../../components/ui/DateSelector';
 
 /**
  * AddStudentModal Component
@@ -28,19 +30,66 @@ const AddStudentModal = ({
   isOpen,
   onClose,
   programs,
-  curriculums,
-  selectedProgram,
   fetchStudents
 }) => {
   const { addToast } = useToast();
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
-    mode: 'onBlur'
+  const [internalCurriculums, setInternalCurriculums] = React.useState([]);
+  const [loadingCurriculums, setLoadingCurriculums] = React.useState(false);
+
+  const { 
+    register, 
+    handleSubmit, 
+    reset, 
+    watch, 
+    setValue, 
+    formState: { errors, isSubmitting } 
+  } = useForm({
+    mode: 'all'
   });
+
+  const selectedProgramId = watch('program');
+
+  React.useEffect(() => {
+    const fetchCurriculums = async () => {
+      if (!selectedProgramId) {
+        setInternalCurriculums([]);
+        setValue('curriculum', '');
+        return;
+      }
+
+      // Reset curriculum selection when program changes
+      setValue('curriculum', '');
+
+      try {
+        setLoadingCurriculums(true);
+        const res = await academicsApi.getCurriculums({ program: selectedProgramId, is_active: true });
+        const data = res.data.results || res.data; // Handle both paginated and non-paginated
+        setInternalCurriculums(data.map(c => ({ 
+          value: c.id, 
+          label: c.version_name || c.name // Fallback to name if version_name is missing
+        })));
+      } catch (err) {
+        setInternalCurriculums([]);
+        addToast('error', 'Failed to load curriculums for the selected program');
+      } finally {
+        setLoadingCurriculums(false);
+      }
+    };
+
+    fetchCurriculums();
+  }, [selectedProgramId]);
 
   const onSubmit = async (data) => {
     try {
-      await studentsApi.manualAdd(data);
-      addToast('success', `Student added! Password set to: ${data.idn}${data.date_of_birth.replace(/-/g, '').slice(4, 8)}`);
+      // Combine separate date fields into YYYY-MM-DD
+      const dateOfBirth = `${data.birth_year}-${data.birth_month}-${data.birth_day}`;
+      const payload = {
+        ...data,
+        date_of_birth: dateOfBirth
+      };
+
+      await studentsApi.manualAdd(payload);
+      addToast('success', `Student added! Password set to: ${data.idn}${dateOfBirth.replace(/-/g, '').slice(4, 8)}`);
       onClose();
       reset();
       fetchStudents();
@@ -73,7 +122,7 @@ const AddStudentModal = ({
             })} 
             error={errors.email?.message} 
           />
-          <Input label="Date of Birth" type="date" {...register('date_of_birth', { required: 'Required' })} error={errors.date_of_birth?.message} />
+          <DateSelector register={register} errors={errors} label="Date of Birth" className="mt-[-8px]" />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -116,9 +165,9 @@ const AddStudentModal = ({
         <div className="grid grid-cols-1 gap-4">
           <Select 
             label="Curriculum" 
-            options={curriculums} 
+            options={internalCurriculums} 
             {...register('curriculum', { required: 'Required' })} 
-            disabled={!selectedProgram || curriculums.length === 0} 
+            disabled={!selectedProgramId || internalCurriculums.length === 0 || loadingCurriculums} 
             error={errors.curriculum?.message} 
           />
         </div>

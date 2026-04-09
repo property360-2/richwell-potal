@@ -180,7 +180,7 @@ const StudentManagement = () => {
 
       <AddStudentModal 
         isOpen={modalOpen} onClose={() => setModalOpen(false)}
-        programs={programs} curriculums={curriculums}
+        programs={programs}
         fetchStudents={fetchStudents}
       />
     </div>

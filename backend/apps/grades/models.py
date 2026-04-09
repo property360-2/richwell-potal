@@ -8,6 +8,7 @@ It serves as the central record for transcript generation and advising.
 
 from django.db import models
 from django.conf import settings
+from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator
 from apps.auditing.mixins import AuditMixin
 
@@ -208,7 +209,7 @@ class CreditingRequestItem(AuditMixin, models.Model):
     final_grade = models.DecimalField(
         max_digits=4,
         decimal_places=2,
-        validators=[MinValueValidator(1.0), MaxValueValidator(5.0)]
+        validators=[MinValueValidator(Decimal('1.0')), MaxValueValidator(Decimal('5.0'))]
     )
     
     class Meta:

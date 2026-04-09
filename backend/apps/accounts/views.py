@@ -11,7 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, AuthenticationFailed
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -98,7 +98,10 @@ class TokenRefreshCookieView(TokenRefreshView):
         if refresh_token:
             request.data['refresh'] = refresh_token
         
-        response = super().post(request, *args, **kwargs)
+        try:
+            response = super().post(request, *args, **kwargs)
+        except User.DoesNotExist:
+            raise AuthenticationFailed("User associated with this token no longer exists.")
         
         if response.status_code == status.HTTP_200_OK:
             access_token = response.data.get('access')

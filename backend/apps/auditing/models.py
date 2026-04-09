@@ -26,6 +26,12 @@ class AuditLog(models.Model):
         # Security events — password changes and resets
         ('PASSWORD_CHANGE', 'Password Changed'),
         ('PASSWORD_RESET', 'Password Reset'),
+        # Academic and Advising events
+        ('UNIT_LIMIT_OVERRIDE', 'Unit Limit Override'),
+        ('ADVISING_APPROVE', 'Advising Approved'),
+        ('ADVISING_REJECT', 'Advising Rejected'),
+        ('CREDITING_APPROVE', 'Crediting Approved'),
+        ('CREDITING_REJECT', 'Crediting Rejected'),
     ]
 
     user = models.ForeignKey(

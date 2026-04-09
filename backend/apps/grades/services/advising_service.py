@@ -15,42 +15,31 @@ class AdvisingService:
         Determines if a student is regular for a given term.
         Returns a dict: {"is_regular": bool, "reason": str|None}
         """
-        # 0. Irregular if:
-        # - Has unresolved INC.
-        # - Failed a subject that is a prerequisite for another subject.
-        # - Missing "Back Subjects" (prior units in the curriculum sequence).
-
-        # 1. Check for INC
-        inc_grades = Grade.objects.filter(student=student, grade_status=Grade.STATUS_INC)
-        if inc_grades.exists():
-            codes = ", ".join(inc_grades.values_list('subject__code', flat=True))
-            return {"is_regular": False, "reason": f"Unresolved INC grades: {codes}"}
+        # 1. Check for Unresolved Grades (INC or NO_GRADE)
+        unresolved_grades = Grade.objects.filter(
+            student=student, 
+            grade_status__in=[Grade.STATUS_INC, Grade.STATUS_NO_GRADE]
+        )
+        if unresolved_grades.exists():
+            codes = ", ".join(unresolved_grades.values_list('subject__code', flat=True))
+            return {"is_regular": False, "reason": f"Unresolved grades (INC/No Grade): {codes}"}
 
         # 1.1 New transferee without any credits yet is Irregular
         if student.student_type == 'TRANSFEREE' and not Grade.objects.filter(student=student).exists():
             return {"is_regular": False, "reason": "New transferee student (Manual Advising required)"}
 
-        # 2. Check for Failed Prerequisites
-        from apps.academics.models import SubjectPrerequisite
-        failed_subject_ids = Grade.objects.filter(
+        # 2. Check for ANY Failed/Retake/Dropped subjects in their curriculum
+        failed_or_retake_grades = Grade.objects.filter(
             student=student, 
-            grade_status=Grade.STATUS_FAILED
-        ).values_list('subject_id', flat=True)
-        
-        prq_failures = SubjectPrerequisite.objects.filter(
-            prerequisite_subject_id__in=failed_subject_ids,
-            prerequisite_type='SPECIFIC'
+            grade_status__in=[Grade.STATUS_FAILED, Grade.STATUS_RETAKE, Grade.STATUS_DROPPED]
         )
-        if prq_failures.exists():
-            failed_codes = ", ".join(Grade.objects.filter(subject_id__in=failed_subject_ids).values_list('subject__code', flat=True))
-            return {"is_regular": False, "reason": f"Failed prerequisite(s): {failed_codes}"}
+        if failed_or_retake_grades.exists():
+            codes = ", ".join(failed_or_retake_grades.values_list('subject__code', flat=True))
+            return {"is_regular": False, "reason": f"Subjects requiring retake: {codes}"}
 
-        # 3. Check for Back Subjects
-        # Determine standing (Year/Sem)
-        # If already enrolled for this term, use that year level. 
-        # Otherwise, use the calculated year level.
-        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        current_year = enrollment.year_level if enrollment else AdvisingService.get_year_level(student)
+        # 3. Check for Back Subjects (Stricter logic)
+        # Determine standing (Year/Sem) based on progressive calculation
+        current_year = AdvisingService.get_year_level(student)
         current_sem = term.semester_type
         
         sem_weight = {'1': 1, '2': 2, 'S': 3}
@@ -63,25 +52,34 @@ class AdvisingService:
         )
 
         # If any of these "should have been passed" subjects are missing PASSED grade
-        passed_subjects = Grade.objects.filter(
+        passed_subjects_ids = Grade.objects.filter(
             student=student, 
-            grade_status=Grade.STATUS_PASSED
+            grade_status__in=[Grade.STATUS_PASSED, Grade.STATUS_CREDITED] if hasattr(Grade, 'STATUS_CREDITED') else [Grade.STATUS_PASSED]
+        ).values_list('subject_id', flat=True)
+        # Handle cases where is_credited boolean is used instead of status
+        passed_or_credited = Grade.objects.filter(
+            Q(student=student) & 
+            (Q(grade_status=Grade.STATUS_PASSED) | Q(is_credited=True))
         ).values_list('subject_id', flat=True)
 
-        missing_back = back_subjects.exclude(id__in=passed_subjects)
+        missing_back = back_subjects.exclude(id__in=passed_or_credited)
         if missing_back.exists():
             missing_codes = ", ".join(missing_back.values_list('code', flat=True))
-            return {"is_regular": False, "reason": f"Missing back subjects: {missing_codes}"}
+            if student.student_type == 'TRANSFEREE':
+                return {"is_regular": False, "reason": f"Transferee with uncredited/missing subjects: {missing_codes}"}
+            else:
+                return {"is_regular": False, "reason": f"Missing back subjects: {missing_codes}"}
 
         return {"is_regular": True, "reason": None}
 
     @staticmethod
     def get_year_level(student):
         """
-        Calculates the year level of a student based on subject density (Majority Rule).
-        Returns the year level where the student has the highest count of subjects (Passed/Enrolled).
+        Calculates the year level of a student based on cumulative progress.
+        A student is promoted to year N+1 if they have completed >= 75% of the cumulative units 
+        required up to year N.
         """
-        from django.db.models import Count
+        from django.db.models import Sum
         
         # Consider both passed and currently enrolled subjects
         tracked_subject_ids = Grade.objects.filter(
@@ -92,18 +90,78 @@ class AdvisingService:
         if not tracked_subject_ids:
             return 1
 
-        # Count subjects per year level defined in the curriculum
-        year_counts = Subject.objects.filter(
-            curriculum=student.curriculum,
-            id__in=tracked_subject_ids
-        ).values('year_level').annotate(subject_count=Count('id')).order_by('-subject_count', '-year_level')
+        tracked_units = Subject.objects.filter(id__in=tracked_subject_ids).aggregate(total=Sum('total_units'))['total'] or 0
 
-        if year_counts:
-            # Return the year_level with the most subjects. 
-            # In case of tie, the higher year level is prioritized (order_by '-year_level')
-            return year_counts[0]['year_level']
+        # Get units per year level
+        year_units = Subject.objects.filter(curriculum=student.curriculum).values('year_level').annotate(total=Sum('total_units')).order_by('year_level')
+        
+        if not year_units:
+            return 1
 
-        return 1
+        current_year = 1
+        cum_sum_prev_years = 0
+        for yu in year_units:
+            y = yu['year_level']
+            cum_sum_prev_years += yu['total']
+            
+            # If tracked units >= 75% of cumulative units up to year Y, then we can be at least Year Y+1
+            if tracked_units >= (0.75 * cum_sum_prev_years):
+                current_year = y + 1
+            else:
+                current_year = y
+                break
+                
+        # Cap current_year to max year level in curriculum
+        max_year = max([yu['year_level'] for yu in year_units] or [1])
+        if current_year > max_year:
+            current_year = max_year
+            
+        return current_year
+
+    @staticmethod
+    def validate_subject_prerequisites(student, subject, term):
+        """
+        Validates if a student meets all prerequisites for a specific subject.
+        Raises ValidationError if any prerequisite is not met.
+        """
+        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
+        
+        for prereq in subject.prerequisites.all():
+            if prereq.prerequisite_type == 'SPECIFIC':
+                is_passed = Grade.objects.filter(
+                    student=student, 
+                    subject=prereq.prerequisite_subject,
+                    grade_status=Grade.STATUS_PASSED
+                ).exists()
+                if not is_passed:
+                    raise ValidationError(f"Missing prerequisite for {subject.code}: {prereq.prerequisite_subject.code}")
+            
+            elif prereq.prerequisite_type == 'YEAR_STANDING':
+                if enrollment and enrollment.year_level < prereq.standing_year:
+                    raise ValidationError(f"{subject.code} requires Year {prereq.standing_year} standing.")
+            
+            elif prereq.prerequisite_type == 'GROUP':
+                passed_count = Grade.objects.filter(
+                    student=student,
+                    grade_status=Grade.STATUS_PASSED,
+                    subject__description__icontains=prereq.description
+                ).count()
+                if passed_count < (prereq.min_subjects or 0):
+                    raise ValidationError(f"Missing group prerequisite for {subject.code}: Needs {prereq.min_subjects} subjects from '{prereq.description}'.")
+
+            elif prereq.prerequisite_type == 'PERCENTAGE' or prereq.prerequisite_type == 'PROGRAM_PERCENTAGE':
+                from django.db.models import Sum
+                total_curriculum_units = Subject.objects.filter(curriculum=student.curriculum).aggregate(total=Sum('total_units'))['total'] or 0
+                passed_units = Grade.objects.filter(
+                    student=student,
+                    grade_status=Grade.STATUS_PASSED
+                ).aggregate(total=Sum('subject__total_units'))['total'] or 0
+                
+                if total_curriculum_units > 0:
+                    percent_passed = (passed_units / total_curriculum_units) * 100
+                    threshold = prereq.min_units or 0 # min_units used as percentage threshold
+                    if percent_passed < threshold:
+                        raise ValidationError(f"Missing units prerequisite for {subject.code}: Needs {threshold}% completion (Current: {percent_passed:.1f}%).")
 
     @staticmethod
     @transaction.atomic
@@ -168,13 +226,21 @@ class AdvisingService:
             ).exclude(id__in=passed_or_credited)
 
             if potential_subjects.exists():
-                subjects_to_enroll = potential_subjects
-                break
+                # NEW: Verify prerequisites for all subjects in this potential block
+                try:
+                    for s in potential_subjects:
+                        AdvisingService.validate_subject_prerequisites(student, s, term)
+                    subjects_to_enroll = potential_subjects
+                    break
+                except ValidationError:
+                    # If this block has unfulfilled prerequisites, it's not a valid "Regular" block 
+                    # for this student right now. They might have missing prerequisites.
+                    continue
 
         if not subjects_to_enroll:
             raise ValidationError({
-                "detail": "No pending subjects found for this semester in your curriculum. If you have already completed this semester's requirements, please contact the Registrar.",
-                "reason": "OUT_OF_SYNC_TRANSFEREE"
+                "detail": "No valid subject blocks found. You may have missing prerequisites for your current year level. Please contact your Program Head for manual advising.",
+                "reason": "PREREQUISITE_FAILED"
             })
 
 
@@ -247,10 +313,12 @@ class AdvisingService:
 
         subjects = Subject.objects.filter(id__in=subject_ids)
         
-        # 1. Offering check: Ensure subjects are scheduled for this term
+        # 1. Offering check: Ensure subjects are scheduled for this term AND match the active semester
         from apps.scheduling.models import Schedule
         offered_subject_ids = Schedule.objects.filter(term=term).values_list('subject_id', flat=True).distinct()
         for subject in subjects:
+            if subject.semester != term.semester_type:
+                raise ValidationError(f"Subject {subject.code} is a {subject.get_semester_display()} subject, but the active term is {term.get_semester_type_display()}.")
             if subject.id not in offered_subject_ids:
                 raise ValidationError(f"Subject {subject.code} is not offered this term.")
 
@@ -264,48 +332,8 @@ class AdvisingService:
             raise ValidationError(f"Total units ({total_term_units}) exceed allowed limit of {max_units} for this term.")
 
         # Prerequisite check
-        current_enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        
         for subject in subjects:
-            for prereq in subject.prerequisites.all():
-                if prereq.prerequisite_type == 'SPECIFIC':
-                    is_passed = Grade.objects.filter(
-                        student=student, 
-                        subject=prereq.prerequisite_subject,
-                        grade_status=Grade.STATUS_PASSED
-                    ).exists()
-                    if not is_passed:
-                        raise ValidationError(f"Missing prerequisite for {subject.code}: {prereq.prerequisite_subject.code}")
-                
-                elif prereq.prerequisite_type == 'YEAR_STANDING':
-                    if current_enrollment and current_enrollment.year_level < prereq.standing_year:
-                        raise ValidationError(f"{subject.code} requires Year {prereq.standing_year} standing.")
-                
-                elif prereq.prerequisite_type == 'GROUP':
-                    # Check if student has passed X subjects in a specific group (labeled in description)
-                    # For now, we use a simple set of subject codes or tags if available, 
-                    # but here we'll assume the description contains the required group name
-                    passed_count = Grade.objects.filter(
-                        student=student,
-                        grade_status=Grade.STATUS_PASSED,
-                        subject__description__icontains=prereq.description # Mock group check
-                    ).count()
-                    if passed_count < (prereq.min_subjects or 0):
-                        raise ValidationError(f"Missing group prerequisite for {subject.code}: Needs {prereq.min_subjects} subjects from '{prereq.description}'.")
-
-                elif prereq.prerequisite_type == 'PERCENTAGE':
-                    # Check if student has passed X% of total units in their curriculum
-                    from django.db.models import Sum
-                    total_curriculum_units = Subject.objects.filter(curriculum=student.curriculum).aggregate(total=Sum('total_units'))['total'] or 0
-                    passed_units = Grade.objects.filter(
-                        student=student,
-                        grade_status=Grade.STATUS_PASSED
-                    ).aggregate(total=Sum('subject__total_units'))['total'] or 0
-                    
-                    if total_curriculum_units > 0:
-                        percent_passed = (passed_units / total_curriculum_units) * 100
-                        if percent_passed < (prereq.min_units or 0): # min_units used as percentage threshold
-                            raise ValidationError(f"Missing units prerequisite for {subject.code}: Needs {prereq.min_units}% completion (Current: {percent_passed:.1f}%).")
+            AdvisingService.validate_subject_prerequisites(student, subject, term)
 
         grades = []
         for subject in subjects:

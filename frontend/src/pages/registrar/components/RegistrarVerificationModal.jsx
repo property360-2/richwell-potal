@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileCheck, ShieldAlert, CheckCircle2, AlertCircle } from 'lucide-react';
+import { FileCheck, ShieldAlert, CheckCircle2, AlertCircle, ShieldCheck, ShieldOff } from 'lucide-react';
 import Modal from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
@@ -9,6 +9,7 @@ import { studentsApi } from '../../../api/students';
 const RegistrarVerificationModal = ({ isOpen, onClose, onSuccess, student }) => {
   const [checklist, setChecklist] = useState({});
   const [loading, setLoading] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -45,6 +46,22 @@ const RegistrarVerificationModal = ({ isOpen, onClose, onSuccess, student }) => 
       showToast('error', 'Failed to save document verification');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUnlockAdvising = async () => {
+    if (!student) return;
+    
+    try {
+      setUnlocking(true);
+      await studentsApi.unlockAdvising(student.id);
+      showToast('success', 'Advising unlocked for student');
+      onSuccess();
+      onClose();
+    } catch (err) {
+      showToast('error', 'Failed to unlock advising');
+    } finally {
+      setUnlocking(false);
     }
   };
 
@@ -137,14 +154,11 @@ const RegistrarVerificationModal = ({ isOpen, onClose, onSuccess, student }) => 
                     <div className="ml-4 pl-4 border-l border-slate-200">
                       <button
                         type="button"
-                        onClick={() => isSubmitted && handleToggleVerified(docName)}
-                        disabled={!isSubmitted}
+                        onClick={() => handleToggleVerified(docName)}
                         className={`flex flex-col items-center justify-center w-24 h-12 rounded border transition-all ${
-                          !isSubmitted 
-                            ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
-                            : isVerified
-                              ? 'bg-green-50 border-green-200 text-green-700 shadow-sm'
-                              : 'bg-white border-slate-300 text-slate-600 hover:border-blue-400 hover:bg-blue-50 cursor-pointer'
+                          isVerified
+                            ? 'bg-green-50 border-green-200 text-green-700 shadow-sm'
+                            : 'bg-white border-slate-300 text-slate-600 hover:border-blue-400 hover:bg-blue-50 cursor-pointer'
                         }`}
                       >
                         {isVerified ? (
@@ -175,10 +189,21 @@ const RegistrarVerificationModal = ({ isOpen, onClose, onSuccess, student }) => 
         )}
 
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <Button variant="secondary" onClick={onClose} disabled={loading}>
+          <Button 
+            variant="outline" 
+            onClick={handleUnlockAdvising} 
+            loading={unlocking}
+            disabled={student.is_advising_unlocked || loading}
+            className={student.is_advising_unlocked ? 'text-green-600 border-green-200 bg-green-50' : 'text-amber-600 border-amber-200 hover:bg-amber-50'}
+            icon={student.is_advising_unlocked ? <ShieldCheck size={18} /> : <ShieldOff size={18} />}
+          >
+            {student.is_advising_unlocked ? 'Advising Unlocked' : 'Force Unlock Advising'}
+          </Button>
+          <div className="flex-1" />
+          <Button variant="secondary" onClick={onClose} disabled={loading || unlocking}>
             Cancel
           </Button>
-          <Button onClick={handleSave} loading={loading}>
+          <Button onClick={handleSave} loading={loading} disabled={unlocking}>
             Save Verification
           </Button>
         </div>

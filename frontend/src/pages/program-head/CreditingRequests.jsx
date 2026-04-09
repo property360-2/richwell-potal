@@ -83,8 +83,12 @@ const CreditingRequests = () => {
       await api.post(`grades/crediting-requests/${selectedRequest.id}/approve/`);
       setRequests(requests.filter(r => r.id !== selectedRequest.id));
       setShowApproveModal(false);
+      setSelectedRequest(null);
+      // If we are on a paginated list, we might want to refresh to fill the gaps, 
+      // but for now immediate local removal is better for responsiveness.
     } catch (error) {
-      alert(error.response?.data?.error || "Approval failed");
+      const errorMsg = error.response?.data?.detail || error.response?.data?.error || "Approval failed";
+      alert(errorMsg);
     }
   };
 
@@ -92,13 +96,15 @@ const CreditingRequests = () => {
     if (!rejectionReason) return alert("Please provide a reason for rejection");
     try {
       await api.post(`grades/crediting-requests/${selectedRequest.id}/reject/`, {
-        comment: rejectionReason
+        reason: rejectionReason
       });
       setRequests(requests.filter(r => r.id !== selectedRequest.id));
       setShowRejectModal(false);
       setRejectionReason('');
+      setSelectedRequest(null);
     } catch (error) {
-      alert("Rejection failed");
+      const errorMsg = error.response?.data?.detail || error.response?.data?.reason || "Rejection failed";
+      alert(errorMsg);
     }
   };
 

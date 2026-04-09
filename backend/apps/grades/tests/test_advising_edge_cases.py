@@ -17,7 +17,8 @@ class TestAdvisingEdgeCases:
         user = django_user_model.objects.create(username="edgestudent", first_name="Edge", last_name="Student")
         student = Student.objects.create(
             user=user, idn="269999", date_of_birth="2000-01-01", gender="MALE",
-            program=program, curriculum=curriculum, student_type="REGULAR"
+            program=program, curriculum=curriculum, student_type="CURRENT",
+            document_checklist=Student.DEFAULT_CHECKLIST
         )
         term = Term.objects.create(
             code="2024-1", academic_year="2024-2025", semester_type="1",
@@ -32,7 +33,7 @@ class TestAdvisingEdgeCases:
         
         # Default enrollment
         enrollment = StudentEnrollment.objects.create(
-            student=student, term=term, year_level=1, advising_status='OPEN', max_units_override=24
+            student=student, term=term, year_level=1, advising_status='DRAFT', max_units_override=24
         )
         
         return {
@@ -60,7 +61,7 @@ class TestAdvisingEdgeCases:
         
         reg_data = AdvisingService.check_student_regularity(student, term)
         assert reg_data["is_regular"] is False
-        assert "Unresolved INC grades" in reg_data["reason"]
+        assert "Unresolved grades (INC/No Grade)" in reg_data["reason"]
 
     def test_irregular_due_to_failed_prerequisite(self, setup_base_data):
         student = setup_base_data["student"]
@@ -78,7 +79,7 @@ class TestAdvisingEdgeCases:
         
         reg_data = AdvisingService.check_student_regularity(student, term)
         assert reg_data["is_regular"] is False
-        assert "Failed prerequisite(s)" in reg_data["reason"]
+        assert "Subjects requiring retake" in reg_data["reason"]
 
     def test_irregular_due_to_back_subjects(self, setup_base_data):
         student = setup_base_data["student"]
@@ -184,3 +185,55 @@ class TestAdvisingEdgeCases:
         reg_data = AdvisingService.check_student_regularity(student, term)
         assert reg_data["is_regular"] is False
         assert "New transferee student" in reg_data["reason"]
+
+    def test_irregular_due_to_failed_non_prerequisite(self, setup_base_data):
+        student = setup_base_data["student"]
+        term = setup_base_data["term"]
+        curriculum = setup_base_data["curriculum"]
+        
+        # Subject that is NOT a prerequisite for anything
+        subj_standalone = self.create_subject(curriculum, "STANDALONE")
+        
+        # Fail it
+        Grade.objects.create(student=student, subject=subj_standalone, term=term, grade_status=Grade.STATUS_FAILED)
+        
+        reg_data = AdvisingService.check_student_regularity(student, term)
+        # Previously this might have been True if it wasn't a prerequisite. 
+        # Now it MUST be False.
+        assert reg_data["is_regular"] is False
+        assert "Subjects requiring retake" in reg_data["reason"]
+
+    def test_auto_advise_regular_validates_prerequisites(self, setup_base_data):
+        student = setup_base_data["student"]
+        term = setup_base_data["term"]
+        curriculum = setup_base_data["curriculum"]
+        section = setup_base_data["section"]
+        
+        # Current term is Year 1 Sem 1 (to avoid 'Missing back subjects' check)
+        term.semester_type = "1"
+        term.save()
+        
+        # Define Year 1 subjects for Sem 1
+        subj_pre = self.create_subject(curriculum, "PRE", year_level=1, semester="1")
+        subj_main = self.create_subject(curriculum, "MAIN", year_level=1, semester="1")
+        
+        # PRE is prerequisite for MAIN
+        SubjectPrerequisite.objects.create(subject=subj_main, prerequisite_subject=subj_pre, prerequisite_type='SPECIFIC')
+        
+        # Create schedules for BOTH
+        Schedule.objects.create(term=term, subject=subj_pre, section=section)
+        Schedule.objects.create(term=term, subject=subj_main, section=section)
+        
+        # Student is Year 1
+        enrollment = setup_base_data["enrollment"]
+        enrollment.year_level = 1
+        enrollment.save()
+        
+        # Try to auto-advise. It will find both in the block.
+        # But MAIN will fail because PRE is not yet passed.
+        # auto_advise_regular should then stop or fail with PREREQUISITE_FAILED because it can't find a valid block layout.
+        
+        with pytest.raises(ValidationError) as excinfo:
+            AdvisingService.auto_advise_regular(student, term)
+        
+        assert "PREREQUISITE_FAILED" in str(excinfo.value)

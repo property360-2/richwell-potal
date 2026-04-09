@@ -9,7 +9,8 @@ and manual student record creation.
 import datetime
 from django.db import transaction
 from django.db.models import Q
-from rest_framework.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
@@ -29,7 +30,7 @@ def apply_student(data):
     """
     email = data['email']
     if User.objects.filter(email=email).exists():
-        raise ValidationError({'email': ['A student with this email already has an application or account.']})
+        raise DRFValidationError({'email': ['A student with this email already has an application or account.']})
         
     with transaction.atomic():
         user = User.objects.create_user(
@@ -41,23 +42,26 @@ def apply_student(data):
             is_active=False
         )
         
-        student = Student.objects.create(
-            user=user,
-            idn=f"APP-{user.id}",
-            middle_name=data.get('middle_name'),
-            date_of_birth=data['date_of_birth'],
-            gender=data['gender'],
-            address_municipality=data['address_municipality'],
-            address_barangay=data['address_barangay'],
-            address_full=data.get('address_full'),
-            contact_number=data['contact_number'],
-            guardian_name=data['guardian_name'],
-            guardian_contact=data['guardian_contact'],
-            program=data['program'],
-            curriculum=data['curriculum'],
-            student_type=data['student_type'],
-            status='APPLICANT'
-        )
+        try:
+            student = Student.objects.create(
+                user=user,
+                idn=f"APP-{user.id}",
+                middle_name=data.get('middle_name'),
+                date_of_birth=data['date_of_birth'],
+                gender=data['gender'],
+                address_municipality=data['address_municipality'],
+                address_barangay=data['address_barangay'],
+                address_full=data.get('address_full'),
+                contact_number=data['contact_number'],
+                guardian_name=data['guardian_name'],
+                guardian_contact=data['guardian_contact'],
+                program=data['program'],
+                curriculum=data['curriculum'],
+                student_type=data['student_type'],
+                status='APPLICANT'
+            )
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else str(e))
 
         # Send Confirmation Email (Non-blocking)
         try:
@@ -70,7 +74,7 @@ def apply_student(data):
             
             # Prepare contextual data
             context = {
-                'applicant_name': f"{user.first_name} {user.last_name}",
+                'full_name': f"{user.first_name} {user.last_name}",
                 'program_name': selected_program.name if selected_program else "Your Selected Program",
                 'term_name': str(active_term) if active_term else "the Academic Year"
             }
@@ -100,13 +104,13 @@ def admit_student_application(student, monthly_commitment, admitted_by):
     @returns {dict} Admission details including generated credentials.
     """
     if student.status != 'APPLICANT':
-        raise ValidationError({'detail': 'Only applicants can be admitted.'})
+        raise DRFValidationError({'detail': 'Only applicants can be admitted.'})
         
     # Get active term
     from apps.terms.models import Term
     active_term = Term.objects.filter(is_active=True).first()
     if not active_term:
-        raise ValidationError({'detail': 'No active term found. Please activate a term first.'})
+        raise DRFValidationError({'detail': 'No active term found. Please activate a term first.'})
 
     from apps.grades.services.advising_service import AdvisingService
 
@@ -141,7 +145,7 @@ def admit_student_application(student, monthly_commitment, admitted_by):
         # Create Initial Enrollment
         reg_data = AdvisingService.check_student_regularity(student, active_term)
         year_level = AdvisingService.get_year_level(student)
-        StudentEnrollment.objects.get_or_create(
+        enrollment, created = StudentEnrollment.objects.get_or_create(
             student=student,
             term=active_term,
             defaults={
@@ -152,6 +156,9 @@ def admit_student_application(student, monthly_commitment, admitted_by):
                 'regularity_reason': reg_data['reason']
             }
         )
+        # Ensure the enrollment creation is captured in the audit log
+        if created:
+            enrollment.save(audit_user=admitted_by)
         
         
         # Send Account Verified Email
@@ -160,15 +167,17 @@ def admit_student_application(student, monthly_commitment, admitted_by):
                 subject="Application Verified - Richwell Colleges",
                 template_name="emails/account_verified.html",
                 context={
-                    'student_name': f"{student.user.first_name} {student.user.last_name}",
+                    'full_name': f"{student.user.first_name} {student.user.last_name}",
                     'idn': idn,
                     'password': generated_password,
-                    'login_url': "http://localhost:5173/login" # Should use a setting in production
+                    'login_url': "http://localhost:5173/login"  # TODO: replace with settings.FRONTEND_URL in production
                 },
                 recipient_list=[student.user.email]
             )
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send account_verified email to {student.user.email}: {str(e)}")
 
         return {
             'idn': idn,
@@ -187,12 +196,12 @@ def enroll_student_for_term(student, monthly_commitment=None, enrolled_by=None):
     @returns {StudentEnrollment} The created or updated enrollment record.
     """
     if student.status in ['APPLICANT', 'REJECTED']:
-        raise ValidationError({'detail': 'Only admitted students can be enrolled.'})
+        raise DRFValidationError({'detail': 'Only admitted students can be enrolled.'})
             
     from apps.terms.models import Term
     active_term = Term.objects.filter(is_active=True).first()
     if not active_term:
-        raise ValidationError({'detail': 'No active term found.'})
+        raise DRFValidationError({'detail': 'No active term found.'})
 
     from apps.grades.services.advising_service import AdvisingService
     
@@ -238,17 +247,17 @@ def manual_add_student_record(data, requested_by):
     email = data.get('email')
     
     if not idn or not email:
-        raise ValidationError({'detail': 'IDN and Email are required.'})
+        raise DRFValidationError({'detail': 'IDN and Email are required.'})
     
     if User.objects.filter(Q(username=idn) | Q(email=email)).exists():
-        raise ValidationError({'detail': 'Student with this IDN or Email already exists.'})
+        raise DRFValidationError({'detail': 'Student with this IDN or Email already exists.'})
 
     from apps.terms.models import Term
     from apps.grades.services.advising_service import AdvisingService
     
     active_term = Term.objects.filter(is_active=True).first()
     if not active_term:
-        raise ValidationError({'detail': 'No active term found.'})
+        raise DRFValidationError({'detail': 'No active term found.'})
 
     with transaction.atomic():
         # User Creation
@@ -264,7 +273,7 @@ def manual_add_student_record(data, requested_by):
         try:
             dob = datetime.datetime.strptime(dob_str, '%Y-%m-%d').date()
         except (TypeError, ValueError) as exc:
-            raise ValidationError({'date_of_birth': ['A valid date_of_birth is required (YYYY-MM-DD).']}) from exc
+            raise DRFValidationError({'date_of_birth': ['A valid date_of_birth is required (YYYY-MM-DD).']}) from exc
         
         # Set default password
         dob_suffix = dob.strftime('%m%d')
@@ -281,17 +290,24 @@ def manual_add_student_record(data, requested_by):
         }
 
         # Student Profile
-        student = Student.objects.create(
-            user=user,
-            idn=idn,
-            date_of_birth=dob,
-            gender=gender_map.get(data.get('gender'), 'MALE'),
-            program_id=data.get('program'),
-            curriculum_id=data.get('curriculum'),
-            student_type=type_map.get(data.get('student_type'), 'FRESHMAN'),
-            status='ENROLLED'
-        )
-        student.save(audit_user=requested_by)
+        try:
+            student = Student.objects.create(
+                user=user,
+                idn=idn,
+                date_of_birth=dob,
+                gender=gender_map.get(data.get('gender'), 'MALE'),
+                program_id=data.get('program'),
+                curriculum_id=data.get('curriculum'),
+                student_type=type_map.get(data.get('student_type'), 'FRESHMAN'),
+                status='ENROLLED'
+            )
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else str(e))
+
+        try:
+            student.save(audit_user=requested_by)
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else str(e))
         
         # Enrollment Record
         reg_data = AdvisingService.check_student_regularity(student, active_term)
@@ -339,11 +355,11 @@ def toggle_student_regularity(student_id, is_regular):
     from apps.terms.models import Term
     active_term = Term.objects.filter(is_active=True).first()
     if not active_term:
-        raise ValidationError({'detail': 'No active term found.'})
+        raise DRFValidationError({'detail': 'No active term found.'})
         
     enrollment = StudentEnrollment.objects.filter(student_id=student_id, term=active_term).first()
     if not enrollment:
-        raise ValidationError({'detail': 'No enrollment record found for the active term.'})
+        raise DRFValidationError({'detail': 'No enrollment record found for the active term.'})
         
     enrollment.is_regular = is_regular
     enrollment.save()

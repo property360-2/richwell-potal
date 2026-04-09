@@ -2,16 +2,20 @@
  * Richwell Portal — Advising Summary Card
  * 
  * Displays the current enrollment status, program info, and total unit 
- * calculations. It alerts the student if they exceed unit limits.
- * 
- * @param {Object} props
- * @param {Object} props.enrollment - The student's current enrollment record.
- * @param {boolean} props.isRegular - Whether the student is regular or irregular.
- * @param {number} props.totalUnits - Total calculated units from selection.
- * @param {boolean} props.loading - Loading state for the action button.
- * @param {string} props.enrollmentStatus - Status for submission lock.
- * @param {Array} props.selectedSubjectIds - IDs of currently selected subjects.
- * @param {Function} props.onSubmit - Submission callback for irregular selection.
+ * calculations. Shows a status badge for irregular students and alerts the
+ * student if they exceed their unit limit. The submit button is enabled when
+ * at least one subject is selected and the unit limit is not exceeded.
+ * Advising lock enforcement is handled by the backend, not this component.
+ *
+ * @param {Object}   props
+ * @param {Object}   props.enrollment          - The student's current enrollment record.
+ * @param {boolean}  props.isRegular           - Whether the student is regular or irregular.
+ * @param {number}   props.totalUnits          - Total calculated units from selection.
+ * @param {boolean}  props.loading             - Loading state for the action button.
+ * @param {string}   props.enrollmentStatus    - Status for submission lock.
+ * @param {Array}    props.selectedSubjectIds  - IDs of currently selected subjects.
+ * @param {Function} props.onSubmit            - Submission callback for irregular selection.
+ * @param {number}   props.maxUnits            - Maximum allowed units (default 30).
  */
 
 import React from 'react';
@@ -21,7 +25,6 @@ import Button from '../../../../components/ui/Button';
 import { AlertCircle } from 'lucide-react';
 
 const AdvisingSummaryCard = ({ enrollment, isRegular, totalUnits, loading, enrollmentStatus, selectedSubjectIds, onSubmit, maxUnits = 30 }) => {
-  const isUnlocked = enrollment?.student_details?.is_advising_unlocked;
   const isOverlimit = totalUnits > maxUnits;
 
   return (
@@ -69,11 +72,11 @@ const AdvisingSummaryCard = ({ enrollment, isRegular, totalUnits, loading, enrol
         {enrollmentStatus !== 'APPROVED' && !isRegular && (
           <Button 
             className="w-full mt-2" 
-            disabled={selectedSubjectIds.length === 0 || isOverlimit || !isUnlocked}
+            disabled={selectedSubjectIds.length === 0 || isOverlimit}
             onClick={onSubmit}
             loading={loading}
           >
-            {!isUnlocked ? 'Locked by Registrar' : 'Submit for Approval'}
+            Submit for Approval
           </Button>
         )}
       </div>

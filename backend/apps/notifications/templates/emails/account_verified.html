@@ -1,43 +1,67 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admission Application Admitted!</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b;">
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; padding: 40px 20px;">
+
+<body
+    style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="background-color: #f8fafc; padding: 40px 20px;">
         <tr>
             <td align="center">
                 <!-- Main Container -->
-                <table width="100%" max-width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; border-collapse: separate; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                <table width="100%" max-width="600" cellpadding="0" cellspacing="0" border="0"
+                    style="max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; border-collapse: separate; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
                     <tr>
                         <td style="padding: 40px;">
                             <!-- Header -->
-                            <h1 style="color: #047857; font-size: 24px; font-weight: 700; margin: 0 0 20px 0; border-bottom: 2px solid #10b981; padding-bottom: 12px;">Application Admitted!</h1>
-                            
+                            <h1
+                                style="color: #047857; font-size: 24px; font-weight: 700; margin: 0 0 20px 0; border-bottom: 2px solid #10b981; padding-bottom: 12px;">
+                                Application Admitted!</h1>
+
                             <!-- Content -->
-                            <p style="font-size: 16px; line-height: 1.6; color: #475569; margin: 0 0 16px 0;">Congratulations {{ student_name }},</p>
-                            <p style="font-size: 16px; line-height: 1.6; color: #475569; margin: 0 0 20px 0;">Your application to <strong style="color: #1e293b;">Richwell Colleges</strong> has been verified and admitted by the Admission Office.</p>
-                            <p style="font-size: 16px; line-height: 1.6; color: #475569; margin: 0 0 24px 0;">A student account has been provisioned for you. Please use the following official credentials to log into the Richwell Portal:</p>
+                            <p style="font-size: 16px; line-height: 1.6; color: #475569; margin: 0 0 16px 0;">
+                                Congratulations {{ full_name }},</p>
+                            <p style="font-size: 16px; line-height: 1.6; color: #475569; margin: 0 0 20px 0;">Your
+                                application to <strong style="color: #1e293b;">Richwell Colleges</strong> has been
+                                verified and admitted by the Admission Office.</p>
+                            <p style="font-size: 16px; line-height: 1.6; color: #475569; margin: 0 0 24px 0;">A student
+                                account has been provisioned for you. Please use the following official credentials to
+                                log into the Richwell Portal:</p>
 
                             <!-- Credentials Box -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 24px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 24px;">
                                 <tr>
                                     <td style="padding: 20px;">
-                                        <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #0f172a; font-weight: 700;">Your Richwell Account</h3>
+                                        <h3
+                                            style="margin: 0 0 16px 0; font-size: 18px; color: #0f172a; font-weight: 700;">
+                                            Your Richwell Account</h3>
                                         <div style="margin-bottom: 12px; font-size: 15px; color: #334155;">
-                                            <strong style="color: #1e293b; display: inline-block; width: 110px;">Student IDN:</strong> <span style="font-family: monospace; font-size: 16px; padding: 4px 8px; background: #fff; border-radius: 4px; border: 1px solid #cbd5e1;">{{ idn }}</span>
+                                            <strong style="color: #1e293b; display: inline-block; width: 110px;">Student
+                                                IDN:</strong> <span
+                                                style="font-family: monospace; font-size: 16px; padding: 4px 8px; background: #fff; border-radius: 4px; border: 1px solid #cbd5e1;">{{
+                                                idn }}</span>
                                         </div>
                                         <div style="font-size: 15px; color: #334155;">
-                                            <strong style="color: #1e293b; display: inline-block; width: 110px;">Password:</strong> <span style="font-family: monospace; font-size: 16px; padding: 4px 8px; background: #fff; border-radius: 4px; border: 1px solid #cbd5e1;">{{ password }}</span>
+                                            <strong
+                                                style="color: #1e293b; display: inline-block; width: 110px;">Password:</strong>
+                                            <span
+                                                style="font-family: monospace; font-size: 16px; padding: 4px 8px; background: #fff; border-radius: 4px; border: 1px solid #cbd5e1;">{{
+                                                password }}</span>
                                         </div>
                                     </td>
                                 </tr>
                             </table>
-                            
-                            <p style="font-size: 16px; line-height: 1.6; color: #475569; margin: 0 0 28px 0;">We advise you to log in immediately and change your password. You may now view your assigned curriculum and proceed with enrollment advising.</p>
-                            
+
+                            <p style="font-size: 16px; line-height: 1.6; color: #475569; margin: 0 0 28px 0;">We advise
+                                you to log in immediately and change your password. You may now view your assigned
+                                curriculum and proceed with enrollment advising.</p>
+
                             <!-- Button -->
                             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 32px;">
                                 <tr>
@@ -45,21 +69,24 @@
                                         <table cellpadding="0" cellspacing="0" border="0">
                                             <tr>
                                                 <td align="center" bgcolor="#2563eb" style="border-radius: 8px;">
-                                                    <a href="{{ login_url }}" target="_blank" style="display: inline-block; padding: 14px 28px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 16px; color: #ffffff; text-decoration: none; font-weight: 600; border-radius: 8px;">Access Richwell Portal</a>
+                                                    <a href="{{ login_url }}" target="_blank"
+                                                        style="display: inline-block; padding: 14px 28px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 16px; color: #ffffff; text-decoration: none; font-weight: 600; border-radius: 8px;">Access
+                                                        Richwell Portal</a>
                                                 </td>
                                             </tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
-                            
+
                             <p style="font-size: 16px; line-height: 1.6; color: #475569; margin: 0;">
-                                Welcome to Richwell Colleges!<br/>
+                                Welcome to Richwell Colleges!<br />
                                 <strong style="color: #1e293b;">Admission Office</strong>
                             </p>
-                            
+
                             <!-- Footer -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 40px; border-top: 1px solid #f1f5f9;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="margin-top: 40px; border-top: 1px solid #f1f5f9;">
                                 <tr>
                                     <td align="center" style="padding-top: 20px; font-size: 13px; color: #94a3b8;">
                                         &copy; {% now "Y" %} Richwell Colleges. All rights reserved.
@@ -73,4 +100,5 @@
         </tr>
     </table>
 </body>
+
 </html>

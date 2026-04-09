@@ -98,3 +98,40 @@ class AuditMixin:
             changes={'deleted': True},
             ip_address=ip
         )
+
+    def audit_action(self, request, action, resource, description, metadata=None):
+        """
+        Manually triggers an audit log entry for a specific action.
+        Useful for logging non-CRUD events from viewsets like custom actions.
+        
+        Args:
+            request: The current DRF request object
+            action: String code for the action (should be in AuditLog.ACTION_CHOICES)
+            resource: String identifying the resource, e.g., 'ModelName:ID'
+            description: Human-readable description of the event
+            metadata: Optional dict of additional context
+        """
+        ip = get_current_ip()
+        user = getattr(request, 'user', None)
+        
+        # Ensure user is a valid User model instance
+        if user and hasattr(user, 'is_authenticated') and not user.is_authenticated:
+            user = None
+            
+        model_name = resource
+        object_id = ""
+        
+        if ":" in resource:
+            parts = resource.split(":", 1)
+            model_name = parts[0]
+            object_id = parts[1]
+            
+        return AuditLog.objects.create(
+            user=user,
+            action=action,
+            model_name=model_name,
+            object_id=str(object_id),
+            object_repr=description[:255],
+            changes=metadata or {},
+            ip_address=ip
+        )

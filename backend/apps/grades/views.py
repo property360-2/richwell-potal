@@ -6,10 +6,11 @@ grade submissions, and INC resolution workflows. It also handles
 the advising and crediting process for new and irregular students.
 """
 
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, permissions, exceptions as drf_exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import PermissionDenied, ValidationError as DRFValidationError
+from django.core import exceptions as django_exceptions
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q, F, Exists, OuterRef
 import django_filters
@@ -84,24 +85,24 @@ class AdvisingViewSet(viewsets.ModelViewSet):
         """
         student = request.user.student_profile
         active_term = Term.objects.filter(is_active=True).first()
-        if not active_term: raise DRFValidationError({'detail': 'No active term.'})
+        if not active_term: raise drf_exceptions.ValidationError({'detail': 'No active term.'})
         enrollment = StudentEnrollment.objects.filter(student=student, term=active_term).first()
-        if not enrollment: raise DRFValidationError({'detail': 'Not enrolled for active term.'})
+        if not enrollment: raise drf_exceptions.ValidationError({'detail': 'Not enrolled for active term.'})
         
         try:
             grades = AdvisingService.auto_advise_regular(student, active_term)
             return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
-        except DjangoValidationError as e:
+        except django_exceptions.ValidationError as e:
             # Always return a dictionary with a 'detail' key for consistent frontend parsing
             if hasattr(e, 'message_dict'):
                 err_data = {k: v[0] if isinstance(v, list) and len(v) == 1 else v for k, v in e.message_dict.items()}
                 # Ensure 'detail' exists if not present
                 if 'detail' not in err_data and e.messages:
                     err_data['detail'] = e.messages[0]
-                raise DRFValidationError(err_data)
+                raise drf_exceptions.ValidationError(err_data)
             
             # Fallback for non-dict-based validation errors
-            raise DRFValidationError({'detail': e.messages[0] if e.messages else "Validation failed."})
+            raise drf_exceptions.ValidationError({'detail': e.messages[0] if e.messages else "Validation failed."})
 
     @action(detail=False, methods=['post'], url_path='manual-advise')
     def manual_advise(self, request):
@@ -114,13 +115,13 @@ class AdvisingViewSet(viewsets.ModelViewSet):
         serializer = AdvisingSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         student, active_term = request.user.student_profile, Term.objects.filter(is_active=True).first()
-        if not active_term: raise DRFValidationError({'detail': 'No active term.'})
+        if not active_term: raise drf_exceptions.ValidationError({'detail': 'No active term.'})
         
         try:
             grades = AdvisingService.manual_advise_irregular(student, active_term, serializer.validated_data['subject_ids'])
             return Response(GradeSerializer(grades, many=True).data, status=status.HTTP_201_CREATED)
-        except DjangoValidationError as e:
-            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+        except django_exceptions.ValidationError as e:
+            raise drf_exceptions.ValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
 class AdvisingApprovalViewSet(AuditMixin, viewsets.ModelViewSet):
     """
@@ -153,9 +154,23 @@ class AdvisingApprovalViewSet(AuditMixin, viewsets.ModelViewSet):
         enrollment = self.get_object()
         try:
             AdvisingService.approve_advising(enrollment, request.user)
+            
+            # Log the approval action
+            self.audit_action(
+                request,
+                action="ADVISING_APPROVE",
+                resource=f"StudentEnrollment:{enrollment.id}",
+                description=f"Approved highlighting advising for student {enrollment.student.idn}",
+                metadata={
+                    "student_id": enrollment.student.id,
+                    "student_idn": enrollment.student.idn,
+                    "term": enrollment.term.code
+                }
+            )
+            
             return Response({"status": "Advising approved and student enrolled."})
-        except DjangoValidationError as e:
-            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+        except django_exceptions.ValidationError as e:
+            raise drf_exceptions.ValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
@@ -164,10 +179,23 @@ class AdvisingApprovalViewSet(AuditMixin, viewsets.ModelViewSet):
         """
         reason = request.data.get('reason')
         if not reason:
-            raise ValidationError({"reason": "A reason for rejection is required."})
+            raise drf_exceptions.ValidationError({"reason": "A reason for rejection is required."})
             
         enrollment = self.get_object()
         AdvisingService.reject_advising(enrollment, reason)
+        
+        # Log the rejection
+        self.audit_action(
+            request,
+            action="ADVISING_REJECT",
+            resource=f"StudentEnrollment:{enrollment.id}",
+            description=f"Rejected advising for student {enrollment.student.idn}",
+            metadata={
+                "student_id": enrollment.student.id,
+                "reason": reason
+            }
+        )
+        
         return Response({"status": "Advising rejected."})
     @action(detail=True, methods=['post'], url_path='override-max-units', permission_classes=[IsAdmin | IsRegistrar])
     def override_max_units(self, request, pk=None):
@@ -178,14 +206,14 @@ class AdvisingApprovalViewSet(AuditMixin, viewsets.ModelViewSet):
         new_limit = request.data.get('max_units_override')
         
         if not new_limit:
-            raise DRFValidationError({"max_units_override": "New limit is required."})
+            raise drf_exceptions.ValidationError({"max_units_override": "New limit is required."})
             
         try:
             new_limit = int(new_limit)
             if new_limit < 1 or new_limit > 36:
                 raise ValueError()
         except ValueError:
-            raise DRFValidationError({"max_units_override": "Limit must be a number between 1 and 36."})
+            raise drf_exceptions.ValidationError({"max_units_override": "Limit must be a number between 1 and 36."})
             
         enrollment.max_units_override = new_limit
         enrollment.save()
@@ -212,7 +240,7 @@ class AdvisingApprovalViewSet(AuditMixin, viewsets.ModelViewSet):
 from apps.grades.models import CreditingRequest
 from apps.grades.serializers import CreditingRequestSerializer, BulkCreditingSubmitSerializer
 
-class CreditingRequestViewSet(viewsets.ModelViewSet):
+class CreditingRequestViewSet(AuditMixin, viewsets.ModelViewSet):
     """
     Manages the lifecycle of bulk crediting requests.
     - Registrar: Create, List, Retrieve
@@ -229,9 +257,15 @@ class CreditingRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = super().get_queryset()
+        
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+            
         student_id = self.request.query_params.get('student_id')
         if student_id:
             qs = qs.filter(student_id=student_id)
+            
         if user.role == 'PROGRAM_HEAD':
             # Head sees only requests for their program
             return qs.filter(student__program__program_head=user)
@@ -260,8 +294,8 @@ class CreditingRequestViewSet(viewsets.ModelViewSet):
                 items_data=items
             )
             return Response(CreditingRequestSerializer(crediting_request).data, status=status.HTTP_201_CREATED)
-        except DjangoValidationError as e:
-            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+        except django_exceptions.ValidationError as e:
+            raise drf_exceptions.ValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
     @action(detail=True, methods=['post'], permission_classes=[IsProgramHeadOfStudent])
     def approve(self, request, pk=None):
@@ -272,24 +306,50 @@ class CreditingRequestViewSet(viewsets.ModelViewSet):
                 user=request.user, 
                 comment=comment
             )
+            
+            # Log the approval
+            self.audit_action(
+                request,
+                action="CREDITING_APPROVE",
+                resource=f"CreditingRequest:{crediting_request.id}",
+                description=f"Approved subject crediting for student {crediting_request.student.idn}",
+                metadata={
+                    "student_id": crediting_request.student.id,
+                    "comment": comment
+                }
+            )
+            
             return Response(CreditingRequestSerializer(crediting_request).data)
-        except DjangoValidationError as e:
-            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+        except django_exceptions.ValidationError as e:
+            raise drf_exceptions.ValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
     @action(detail=True, methods=['post'], permission_classes=[IsProgramHeadOfStudent])
     def reject(self, request, pk=None):
         reason = request.data.get('reason')
         if not reason:
-            raise ValidationError({"reason": "A reason for rejection is required."})
+            raise drf_exceptions.ValidationError({"reason": "A reason for rejection is required."})
         try:
             crediting_request = AdvisingService.reject_crediting_request(
                 request_id=pk, 
                 user=request.user, 
                 reason=reason
             )
+            
+            # Log the rejection
+            self.audit_action(
+                request,
+                action="CREDITING_REJECT",
+                resource=f"CreditingRequest:{crediting_request.id}",
+                description=f"Rejected subject crediting for student {crediting_request.student.idn}",
+                metadata={
+                    "student_id": crediting_request.student.id,
+                    "reason": reason
+                }
+            )
+            
             return Response(CreditingRequestSerializer(crediting_request).data)
-        except DjangoValidationError as e:
-            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+        except django_exceptions.ValidationError as e:
+            raise drf_exceptions.ValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
 
 
 class SubjectCreditingViewSet(viewsets.ViewSet):

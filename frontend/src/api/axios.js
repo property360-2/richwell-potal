@@ -13,6 +13,9 @@ import NProgress from 'nprogress';
 // Configure NProgress (optional, e.g., turn off spinner)
 NProgress.configure({ showSpinner: false });
 
+// Track if we've already notified the user about session expiration to avoid "toast spam"
+let isSessionExpiredNotified = false;
+
 /**
  * Central API instance with base configuration.
  * Uses environment variables for the API URL with a local fallback.
@@ -64,8 +67,20 @@ api.interceptors.response.use(
                 }
             } catch (refreshError) {
                 // Token refresh failed, meaning session is truly expired
-                // AuthContext will handle state cleanup on next check
                 window.dispatchEvent(new Event('auth-expired'));
+                
+                // Provide explicit feedback for the user, but only once to avoid "toast spam"
+                if (!isSessionExpiredNotified) {
+                    isSessionExpiredNotified = true;
+                    window.dispatchEvent(new CustomEvent('api-error', {
+                        detail: { message: 'Your session has expired or your account is no longer valid. Please log in again.' }
+                    }));
+                    
+                    // Reset the flag after a delay to allow future notifications if the session dies again
+                    setTimeout(() => {
+                        isSessionExpiredNotified = false;
+                    }, 5000);
+                }
             }
         } else if (error.response?.status >= 500) {
             // Global catching for 500 Internal Server Errors

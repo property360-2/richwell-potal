@@ -13,6 +13,7 @@ import Button from '../../../../components/ui/Button';
 import { facultyApi } from '../../../../api/faculty';
 import { useToast } from '../../../../components/ui/Toast';
 import { Mail, UserCircle, Briefcase, Calendar, Hash } from 'lucide-react';
+import DateSelector from '../../../../components/ui/DateSelector';
 
 /**
  * ProfessorModal Component
@@ -30,6 +31,7 @@ const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
   const isEditing = !!professor;
   
   const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm({
+    mode: 'all',
     defaultValues: {
       first_name: '',
       last_name: '',
@@ -37,7 +39,9 @@ const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
       department: '',
       employment_status: 'FULL_TIME',
       employee_id: '',
-      date_of_birth: '',
+      birth_month: '',
+      birth_day: '',
+      birth_year: '',
       is_active: true
     }
   });
@@ -52,7 +56,9 @@ const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
           department: professor.department,
           employment_status: professor.employment_status,
           employee_id: professor.employee_id,
-          date_of_birth: professor.date_of_birth,
+          birth_month: professor.date_of_birth?.split('-')[1] || '',
+          birth_day: professor.date_of_birth?.split('-')[2] || '',
+          birth_year: professor.date_of_birth?.split('-')[0] || '',
           is_active: professor.is_active
         });
       } else {
@@ -63,7 +69,9 @@ const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
           department: '',
           employment_status: 'FULL_TIME',
           employee_id: '',
-          date_of_birth: '',
+          birth_month: '',
+          birth_day: '',
+          birth_year: '',
           is_active: true
         });
       }
@@ -72,11 +80,15 @@ const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
 
   const onSubmit = async (data) => {
     try {
+      const payload = {
+        ...data,
+        date_of_birth: `${data.birth_year}-${data.birth_month}-${data.birth_day}`
+      };
       if (isEditing) {
-        await facultyApi.update(professor.id, data);
+        await facultyApi.update(professor.id, payload);
         showToast('Professor details updated successfully.', 'success');
       } else {
-        await facultyApi.create(data);
+        await facultyApi.create(payload);
         showToast('Professor created. Account credentials have been generated.', 'success');
       }
       onSuccess();
@@ -142,14 +154,7 @@ const ProfessorModal = ({ isOpen, onClose, professor = null, onSuccess }) => {
             helperText="Leave blank to auto-generate (EMP-YYseq)"
             {...register('employee_id')}
           />
-          <Input
-            label="Date of Birth"
-            type="date"
-            icon={Calendar}
-            helperText="Used for default password generation"
-            {...register('date_of_birth', { required: 'Date of birth is required' })}
-            error={errors.date_of_birth?.message}
-          />
+          <DateSelector register={register} errors={errors} label="Date of Birth" className="mt-[-8px]" />
         </div>
 
         <div className="grid grid-cols-2 gap-4">

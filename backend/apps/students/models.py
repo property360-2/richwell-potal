@@ -8,6 +8,7 @@ application status, document tracking, and graduation state.
 
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from apps.academics.models import Program, CurriculumVersion
 from apps.terms.models import Term
 from apps.auditing.mixins import AuditMixin
@@ -15,8 +16,9 @@ from apps.auditing.mixins import AuditMixin
 class Student(AuditMixin, models.Model):
     """
     Core student profile. Maintains personal information, academic program, 
-    and document submission status. Unlocked for advising by the registrar 
-    once prerequisites are met.
+    and document submission status. Advising must be explicitly unlocked by
+    the Registrar after physical document verification — no automatic unlock
+    is allowed for any student type.
     """
     GENDER_CHOICES = [
         ('MALE', 'Male'),
@@ -78,7 +80,7 @@ class Student(AuditMixin, models.Model):
 
     
     appointment_date = models.DateField(null=True, blank=True)
-    document_checklist = models.JSONField(default=dict)
+    document_checklist = models.JSONField(default=dict, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -90,19 +92,28 @@ class Student(AuditMixin, models.Model):
         """
         return f"[{self.idn}] {self.user.get_full_name()}"
 
+    def clean(self):
+        """
+        Ensures data integrity for program and curriculum associations.
+        """
+        if self.curriculum and self.program and self.curriculum.program_id != self.program_id:
+            raise ValidationError({
+                'curriculum': f"The selected curriculum ({self.curriculum.version_name}) does not belong to the selected program ({self.program.name})."
+            })
+
     def save(self, *args, **kwargs):
+        """
+        Overrides default save to enforce document checklist initialization
+        and data integrity validation.
+
+        NOTE: Advising is intentionally NOT auto-unlocked for any student type.
+        The Registrar must explicitly call the unlock-advising endpoint after
+        physically verifying the student's documents.
+        """
         if not self.document_checklist:
             self.document_checklist = self.DEFAULT_CHECKLIST
-        
-        # Freshmen are unlocked by default, Transferees need registrar approval
-        if not self.id and self.student_type == 'FRESHMAN':
-            self.is_advising_unlocked = True
-            
-        # If all submitted documents are verified, unlock advising automatically
-        if self.document_checklist:
-            submitted_docs = [d for d in self.document_checklist.values() if d.get('submitted')]
-            if submitted_docs and all(d.get('verified') for d in submitted_docs):
-                self.is_advising_unlocked = True
+
+        self.full_clean()
 
         super().save(*args, **kwargs)
 

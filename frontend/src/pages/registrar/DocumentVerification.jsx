@@ -88,17 +88,21 @@ const DocumentVerification = () => {
     },
     { 
       header: 'Docs Verified', 
-      render: (row) => {
-        const verifiedCount = Object.values(row.document_checklist || {}).filter(d => d.verified).length;
-        const totalCount = Object.keys(row.document_checklist || {}).length;
-        const isAllVerified = totalCount > 0 && verifiedCount === totalCount;
-        
-        return (
-          <Badge variant={isAllVerified ? 'success' : 'warning'}>
-            {isAllVerified ? 'VERIFIED' : 'UNVERIFIED'}
-          </Badge>
-        );
-      }
+        render: (row) => {
+          const checklist = row.document_checklist || {};
+          const docs = Object.values(checklist);
+          const activeDocs = docs.filter(d => d.submitted || d.verified);
+          
+          // Consider it verified if at least one doc exists and all active ones are verified
+          // OR if specifically unlocked by the registrar
+          const isVerified = (activeDocs.length > 0 && activeDocs.every(d => d.verified)) || row.is_advising_unlocked;
+
+          return (
+            <Badge variant={isVerified ? 'success' : 'warning'}>
+              {isVerified ? 'VERIFIED' : 'UNVERIFIED'}
+            </Badge>
+          );
+        }
     },
     {
       header: 'Actions',

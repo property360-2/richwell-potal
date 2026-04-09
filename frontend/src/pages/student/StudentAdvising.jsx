@@ -289,18 +289,17 @@ const StudentAdvising = () => {
               <ClipboardList size={64} className="mx-auto mb-4 opacity-20" />
               <div className="max-w-md mx-auto">
                 <p className="text-slate-500 mb-8">Click the button below to automatically pick subjects based on your curriculum and prerequisites.</p>
-                <Button 
-                  className="w-full sm:w-auto px-10" 
-                  loading={loading} 
-                  onClick={() => handleAction('auto-advise')} 
-                  disabled={!enrollment?.student_details?.is_advising_unlocked}
+                <Button
+                  className="w-full sm:w-auto px-10"
+                  loading={loading}
+                  onClick={() => handleAction('auto-advise')}
                 >
-                  {enrollment?.student_details?.is_advising_unlocked ? 'Generate Enrollment Slip' : 'Advising Currently Locked'}
+                  Generate Enrollment Slip
                 </Button>
               </div>
             </Card>
           )) : ( enrollment?.advising_status !== 'APPROVED' && (
-            <div className={!enrollment?.student_details?.is_advising_unlocked ? 'opacity-50 pointer-events-none' : ''}>
+            <div>
               <Card title="Subject Catalog" icon={<Filter size={18} />}>
                 <SearchBar placeholder="Filter catalog..." onSearch={setSearchTerm} />
                 <SubjectSelectionList categorizedSubjects={catSubs} selectedSubjectIds={selectedSubjectIds} toggleSubject={toggleSubject} checkPrerequisites={checkPrerequisites} isOfferedThisTerm={isOfferedThisTerm} />
