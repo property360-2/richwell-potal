@@ -313,18 +313,18 @@ class AdvisingService:
 
         subjects = Subject.objects.filter(id__in=subject_ids)
         
-        # 1. Offering check: Ensure subjects are scheduled for this term AND match the active semester
-        from apps.scheduling.models import Schedule
-        offered_subject_ids = Schedule.objects.filter(term=term).values_list('subject_id', flat=True).distinct()
+        # 1. Offering check: Ensure subjects match the active semester
         for subject in subjects:
             if subject.semester != term.semester_type:
                 raise ValidationError(f"Subject {subject.code} is a {subject.get_semester_display()} subject, but the active term is {term.get_semester_type_display()}.")
-            if subject.id not in offered_subject_ids:
-                raise ValidationError(f"Subject {subject.code} is not offered this term.")
 
         # 2. Max Units Override check
         max_units = current_enrollment.max_units_override
-        existing_units = sum(g.subject.total_units for g in Grade.objects.filter(student=student, term=term))
+        # Fix: Exclude subjects in the current submission AND credited subjects from existing_units
+        existing_grades = Grade.objects.filter(student=student, term=term, is_credited=False)
+        other_grades = existing_grades.exclude(subject_id__in=subject_ids)
+        existing_units = sum(g.subject.total_units for g in other_grades)
+        
         new_units = sum(s.total_units for s in subjects)
         total_term_units = existing_units + new_units
 
@@ -606,6 +606,11 @@ class AdvisingService:
                 final_grade=item.final_grade
             )
 
+        # NEW: Automatically unlock advising for the student after crediting is approved
+        # This streamlines the workflow for transferees so they don't wait for registrar manual unlock.
+        request.student.is_advising_unlocked = True
+        request.student.save(audit_user=user)
+
         # NOTIF-03: Notify the student of approval
         subject_count = request.items.count()
         NotificationService.notify(
@@ -615,9 +620,10 @@ class AdvisingService:
             message=(
                 f"Your subject crediting request for {subject_count} subject(s) in "
                 f"{request.term.code} has been approved by the Program Head. "
-                f"Your grades have been updated."
+                "Your grades have been updated, and your enrollment advising has been unlocked. "
+                "You may now proceed with selecting your subjects."
             ),
-            link_url="/student/grades"
+            link_url="/student/advising"
         )
 
         return request

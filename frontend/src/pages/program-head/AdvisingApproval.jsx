@@ -110,10 +110,11 @@ const AdvisingApproval = () => {
     if (!window.confirm("Approve all pending regular students?")) return;
     try {
       setLoading(true);
-      await api.post('grades/approvals/batch_approve_regular/');
+      const res = await api.post('grades/approvals/batch_approve_regular/');
+      alert(res.data.status || "Batch approval successful");
       fetchEnrollments();
     } catch (error) {
-      alert("Batch approval failed");
+      alert(error.response?.data?.error || "Batch approval failed");
     } finally {
       setLoading(false);
     }
@@ -135,8 +136,8 @@ const AdvisingApproval = () => {
 
   const handleOverrideUnits = async () => {
     try {
-      const res = await api.post(`grades/approvals/${selectedForOverride.id}/override_max_units/`, {
-        max_units: overrideUnits
+      await api.post(`grades/approvals/${selectedForOverride.id}/override_max_units/`, {
+        max_units_override: overrideUnits
       });
       
       // Update local state
@@ -150,6 +151,7 @@ const AdvisingApproval = () => {
       alert(error.response?.data?.error || "Failed to update units");
     }
   };
+
 
   const enrollmentsList = enrollments || [];
 

@@ -16,7 +16,7 @@ import React from 'react';
 import Badge from '../../../../components/ui/Badge';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
-const SubjectSelectionList = ({ categorizedSubjects, selectedSubjectIds, toggleSubject, checkPrerequisites, isOfferedThisTerm }) => {
+const SubjectSelectionList = ({ categorizedSubjects, selectedSubjectIds, toggleSubject, toggleGroup, checkPrerequisites, isOfferedThisTerm }) => {
   const groups = Object.keys(categorizedSubjects);
 
   if (groups.length === 0) {
@@ -27,13 +27,37 @@ const SubjectSelectionList = ({ categorizedSubjects, selectedSubjectIds, toggleS
     );
   }
 
+  const isGroupFullySelected = (subjects) => {
+    const eligible = subjects.filter(s => isOfferedThisTerm(s) && checkPrerequisites(s).met);
+    return eligible.length > 0 && eligible.every(s => selectedSubjectIds.includes(s.id));
+  };
+
+  const hasEligibleSubjects = (subjects) => {
+    return subjects.some(s => isOfferedThisTerm(s) && checkPrerequisites(s).met);
+  };
+
   return (
     <div className="subject-selection-list">
-      {Object.entries(categorizedSubjects).map(([group, subjects]) => (
-        <div key={group} className="subject-group">
-          <div className="subject-group-header">{group}</div>
-          {subjects.map(subject => {
-            const isSelected = selectedSubjectIds.includes(subject.id);
+      {Object.entries(categorizedSubjects).map(([group, subjects]) => {
+        const fullySelected = isGroupFullySelected(subjects);
+        const canSelectGroup = hasEligibleSubjects(subjects);
+
+        return (
+          <div key={group} className="subject-group">
+            <div className="subject-group-header flex items-center justify-between">
+              <span>{group}</span>
+              {canSelectGroup && (
+                <button 
+                  type="button"
+                  className={`group-select-btn ${fullySelected ? 'active' : ''}`}
+                  onClick={() => toggleGroup(subjects)}
+                >
+                  {fullySelected ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+            </div>
+            {subjects.map(subject => {
+              const isSelected = selectedSubjectIds.includes(subject.id);
             const prereq = checkPrerequisites(subject);
             const isOffered = isOfferedThisTerm(subject);
             
@@ -72,9 +96,10 @@ const SubjectSelectionList = ({ categorizedSubjects, selectedSubjectIds, toggleS
             );
           })}
         </div>
-      ))}
-    </div>
-  );
+      );
+    })}
+  </div>
+);
 };
 
 export default SubjectSelectionList;

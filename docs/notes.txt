@@ -1,3 +1,10 @@
+260002
+
+Default Password
+2600020421
+
+
+
 ## python manage.py seed_applicants        # Admission pipeline
 
 ## python manage.py seed_advising          # Enrolled students

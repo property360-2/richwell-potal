@@ -16,9 +16,12 @@ from apps.auditing.mixins import AuditMixin
 class Student(AuditMixin, models.Model):
     """
     Core student profile. Maintains personal information, academic program, 
-    and document submission status. Advising must be explicitly unlocked by
-    the Registrar after physical document verification — no automatic unlock
-    is allowed for any student type.
+    and document submission status. 
+    
+    Advising must be explicitly unlocked by the Registrar after physical 
+    document verification. For transferees, advising is automatically 
+    unlocked once their subject crediting request is approved by the 
+    Program Head.
     """
     GENDER_CHOICES = [
         ('MALE', 'Male'),
@@ -74,7 +77,7 @@ class Student(AuditMixin, models.Model):
     
     student_type = models.CharField(max_length=15, choices=STUDENT_TYPE_CHOICES)
     previous_school = models.CharField(max_length=255, null=True, blank=True, help_text="For transferees: Name of the previous school/university")
-    is_advising_unlocked = models.BooleanField(default=False, help_text="For transferees: Must be unlocked by registrar after crediting.")
+    is_advising_unlocked = models.BooleanField(default=False, help_text="Unlocked by Registrar after document verification, or automatically for transferees upon crediting approval.")
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='APPLICANT')
 
 
@@ -106,7 +109,8 @@ class Student(AuditMixin, models.Model):
         Overrides default save to enforce document checklist initialization
         and data integrity validation.
 
-        NOTE: Advising is intentionally NOT auto-unlocked for any student type.
+        # NOTE: Advising is normally NOT auto-unlocked on save to ensure verification.
+        # It is explicitly unlocked in AdvisingService during the crediting approval flow.
         The Registrar must explicitly call the unlock-advising endpoint after
         physically verifying the student's documents.
         """

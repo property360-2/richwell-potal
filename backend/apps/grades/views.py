@@ -237,6 +237,55 @@ class AdvisingApprovalViewSet(AuditMixin, viewsets.ModelViewSet):
             "max_units_override": enrollment.max_units_override
         })
 
+    @action(detail=False, methods=['post'], url_path='batch_approve_regular')
+    def batch_approve_regular(self, request):
+        """
+        Approves all regular students with PENDING advising status in the 
+        active term for the user's program.
+        """
+        user = self.request.user
+        queryset = StudentEnrollment.objects.filter(
+            advising_status='PENDING',
+            is_regular=True
+        )
+        
+        # Limit by program head jurisdiction
+        if user.role == 'PROGRAM_HEAD':
+            queryset = queryset.filter(student__program__program_head=user)
+        
+        count = queryset.count()
+        if count == 0:
+            return Response({"error": "No pending regular students found."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        processed_count = 0
+        errors = []
+        for enrollment in queryset:
+            try:
+                AdvisingService.approve_advising(enrollment, user)
+                processed_count += 1
+            except Exception as e:
+                errors.append(f"{enrollment.student.idn}: {str(e)}")
+        
+        # Log the batch approval action
+        self.audit_action(
+            request,
+            action="BATCH_ADVISING_APPROVE",
+            resource="StudentEnrollment:Batch",
+            description=f"Batch approved {processed_count} regular students",
+            metadata={
+                "count": processed_count,
+                "errors": errors,
+                "role": user.role
+            }
+        )
+        
+        return Response({
+            "status": f"Successfully approved {processed_count} regular students.",
+            "processed_count": processed_count,
+            "errors": errors
+        })
+
+
 from apps.grades.models import CreditingRequest
 from apps.grades.serializers import CreditingRequestSerializer, BulkCreditingSubmitSerializer
 

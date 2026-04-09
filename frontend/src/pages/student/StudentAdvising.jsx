@@ -125,11 +125,39 @@ const StudentAdvising = () => {
   };
 
   const isOfferedThisTerm = (s) => activeTerm && s.semester === activeTerm.semester_type;
+
   const toggleSubject = (s) => {
     if (!isOfferedThisTerm(s)) return alert("Not offered this term.");
     const p = checkPrerequisites(s);
     if (!p.met && !selectedSubjectIds.includes(s.id)) return alert(p.reason);
     setSelectedSubjectIds(prev => prev.includes(s.id) ? prev.filter(i => i !== s.id) : [...prev, s.id]);
+  };
+
+  /**
+   * Toggles selection for an entire group of subjects (e.g. Year 1 - 1st Sem).
+   * It only selects subjects that are offered this term AND have prerequisites met.
+   * If all eligible subjects in the group are already selected, it deselects them.
+   * 
+   * @param {Array} subjects - List of subjects in the group.
+   */
+  const toggleGroup = (subjects) => {
+    const eligibleSubjects = subjects.filter(s => isOfferedThisTerm(s) && checkPrerequisites(s).met);
+    if (eligibleSubjects.length === 0) return;
+
+    const eligibleIds = eligibleSubjects.map(s => s.id);
+    const allSelected = eligibleIds.every(id => selectedSubjectIds.includes(id));
+
+    if (allSelected) {
+      setSelectedSubjectIds(prev => prev.filter(id => !eligibleIds.includes(id)));
+    } else {
+      setSelectedSubjectIds(prev => {
+        const next = [...prev];
+        eligibleIds.forEach(id => {
+          if (!next.includes(id)) next.push(id);
+        });
+        return next;
+      });
+    }
   };
 
   const checkPrerequisites = (s) => {
@@ -302,7 +330,7 @@ const StudentAdvising = () => {
             <div>
               <Card title="Subject Catalog" icon={<Filter size={18} />}>
                 <SearchBar placeholder="Filter catalog..." onSearch={setSearchTerm} />
-                <SubjectSelectionList categorizedSubjects={catSubs} selectedSubjectIds={selectedSubjectIds} toggleSubject={toggleSubject} checkPrerequisites={checkPrerequisites} isOfferedThisTerm={isOfferedThisTerm} />
+                <SubjectSelectionList categorizedSubjects={catSubs} selectedSubjectIds={selectedSubjectIds} toggleSubject={toggleSubject} toggleGroup={toggleGroup} checkPrerequisites={checkPrerequisites} isOfferedThisTerm={isOfferedThisTerm} />
               </Card>
             </div>
           ))}

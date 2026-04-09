@@ -167,3 +167,31 @@
     background-color: var(--color-primary);
     border-radius: var(--radius-full);
 }
+
+.group-select-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-primary);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.group-select-btn:hover {
+    background-color: var(--color-primary-light);
+    transform: translateY(-1px);
+}
+
+.group-select-btn.active {
+    color: var(--color-text-secondary);
+}
+
+.group-select-btn.active:hover {
+    background-color: var(--color-bg);
+    color: var(--color-rose-600);
+}
