@@ -11,49 +11,62 @@
  */
 
 import React from 'react';
-import { ShieldCheck, CheckSquare } from 'lucide-react';
+import { ShieldCheck, CheckSquare, ArrowRight } from 'lucide-react';
 import Button from '../../../../components/ui/Button';
 
 const ScheduleStatusScreens = ({ status, onNavigate }) => {
-  if (status === 'REQUIRED') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
-        <div className="max-w-md flex flex-col items-center">
-          <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6">
-            <ShieldCheck size={40} className="text-amber-500" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Advising Approval Required</h2>
-          <p className="text-slate-500 mb-8 leading-relaxed">
-            Your subject advising list must be approved by the registrar before you can proceed to section selection.
-          </p>
-          <Button variant="primary" size="lg" onClick={() => onNavigate('/student/advising')}>
-            Go to Advising
+  const isRequired = status === 'REQUIRED';
+  
+  return (
+    <div className="sp-container" style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="glass-card animate-slide-up" style={{ maxWidth: '500px', width: '100%', padding: '4rem 2rem', textAlign: 'center', borderRadius: '3rem' }}>
+        <div 
+          className="sp-icon-box active mx-auto" 
+          style={{ 
+            width: '80px', 
+            height: '80px', 
+            marginBottom: '2rem',
+            background: isRequired ? 'var(--color-amber-500)' : 'var(--color-green-500)',
+            boxShadow: isRequired ? '0 0 30px rgba(245, 158, 11, 0.3)' : '0 0 30px rgba(34, 197, 94, 0.3)'
+          }}
+        >
+          {isRequired ? (
+            <ShieldCheck size={40} className="text-white" />
+          ) : (
+            <CheckSquare size={40} className="text-white" />
+          )}
+        </div>
+
+        <h2 className="text-2xl font-black text-slate-900 italic tracking-tighter uppercase mb-3">
+          {isRequired ? 'Advising Required' : 'Schedule Locked'}
+        </h2>
+        
+        <p className="text-slate-500 font-medium leading-relaxed mb-8">
+          {isRequired 
+            ? 'Your subject advising list must be approved by the registrar before you can proceed to section selection.' 
+            : 'You have already successfully picked your schedule for this term. Your registration is now finalized.'}
+        </p>
+
+        <div className="flex flex-col gap-3">
+          <Button 
+            className="sp-btn-premium w-full" 
+            onClick={() => onNavigate(isRequired ? '/student/advising' : '/student/schedule')}
+          >
+            {isRequired ? 'Return to Advising' : 'View My Timetable'}
+            <ArrowRight size={16} className="ml-2" />
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            className="text-2xs font-black uppercase tracking-widest text-slate-400"
+            onClick={() => onNavigate('/student/dashboard')}
+          >
+            Go to Dashboard
           </Button>
         </div>
       </div>
-    );
-  }
-
-  if (status === 'LOCKED') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
-        <div className="max-w-md flex flex-col items-center">
-          <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
-            <CheckSquare size={40} className="text-green-500" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Schedule Already Finalized</h2>
-          <p className="text-slate-500 mb-8 leading-relaxed">
-            You have already successfully picked your schedule for this term. You can now view your active timetable.
-          </p>
-          <Button variant="primary" size="lg" onClick={() => onNavigate('/student/schedule')}>
-            View My Timetable
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 };
 
 export default ScheduleStatusScreens;

@@ -112,7 +112,8 @@ const FacultyLoadModal = ({ isOpen, onClose, professor }) => {
       title="Faculty Teaching Load"
       size="lg"
     >
-      <div className={styles.modalContainer}>
+      <>
+        <div className={styles.modalContainer}>
         {professor && (
           <div className={styles.headerCard}>
             <div className={styles.profName}>
@@ -223,6 +224,10 @@ const FacultyLoadModal = ({ isOpen, onClose, professor }) => {
                                {height > 40 && <div className={styles.ttMetaItem}><MapPin size={10} /> {item.room}</div>}
                             </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  );
                 })}
               </div>
             </div>
@@ -279,6 +284,7 @@ const FacultyLoadModal = ({ isOpen, onClose, professor }) => {
           </div>
         </Modal>
       )}
+      </>
     </Modal>
   );
 };

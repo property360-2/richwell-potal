@@ -11,10 +11,13 @@ class SchedulingService:
     def publish_schedule(term):
         """
         Marks the schedule as published, opening student picking.
+        Sets the 3-day countdown trigger.
         Notifies all students with approved advising for this term.
         """
+        from django.utils import timezone
         term.schedule_published = True
-        term.save(update_fields=['schedule_published'])
+        term.picking_published_at = timezone.now()
+        term.save(update_fields=['schedule_published', 'picking_published_at'])
 
         # Notify students with approved advising
         from apps.students.models import StudentEnrollment

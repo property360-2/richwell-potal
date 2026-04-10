@@ -1,79 +1,122 @@
-/**
- * Richwell Portal — Regular Session Picker
- * 
- * Provides session block selection (AM/PM) for regular students.
- * Includes visual feedback and capacity indicators.
- * 
- * @param {Object} props
- * @param {string} props.selectedSession - The currently selected session ('AM' or 'PM').
- * @param {Array} props.sectionsMatrix - List of session availabilities.
- * @param {boolean} props.isProcessing - Loading state for action buttons.
- * @param {Function} props.onSelectSession - Session change callback.
- * @param {Function} props.onConfirm - Action to finalize selection.
- */
-
 import React from 'react';
-import { Clock, CheckSquare } from 'lucide-react';
+import { Sun, MoonStar, Clock, CheckCircle2, ChevronRight, Users } from 'lucide-react';
 import Badge from '../../../../components/ui/Badge';
 import Button from '../../../../components/ui/Button';
 
+/**
+ * RegularSessionPicker — Refined Interactive Session Selection
+ * 
+ * Provides regular students with high-impact hero tiles for selecting 
+ * their preferred class session (Morning or Afternoon).
+ */
 const RegularSessionPicker = ({ selectedSession, sectionsMatrix, isProcessing, onSelectSession, onConfirm }) => {
   const sessions = [
-    { id: 'AM', label: 'Morning', time: '07:00 AM - 12:00 PM' },
-    { id: 'PM', label: 'Afternoon', time: '01:00 PM - 06:00 PM' }
+    {
+      id: 'AM',
+      label: 'Morning Session',
+      time: '07:00 AM - 12:00 PM',
+      icon: Sun,
+      description: 'Ideal for early birds. Primary core subjects are scheduled in the morning block.'
+    },
+    {
+      id: 'PM',
+      label: 'Afternoon Session',
+      time: '01:00 PM - 06:00 PM',
+      icon: MoonStar,
+      description: 'Perfect for night owls. Afternoon slots offer flexible laboratory and lecture timings.'
+    }
   ];
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
-      <div className="text-center space-y-2">
-        <h3 className="text-xl font-bold text-slate-800">Assign Preferred Session</h3>
+    <div className="animate-slide-up">
+      <div className="sp-section-header">
+        <h3 className="text-slate-800">Assign Preferred Session</h3>
         <p className="text-slate-500">Pick a session block to automatically join sections with matching hours.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="sp-selection-grid">
         {sessions.map(session => {
           const isSelected = selectedSession === session.id;
           const availableCount = sectionsMatrix.filter(s => s.session === session.id && !s.is_full).length;
           const isFull = availableCount === 0;
 
           return (
-            <div 
+            <div
               key={session.id}
               onClick={() => !isFull && onSelectSession(session.id)}
-              className={`relative overflow-hidden cursor-pointer group rounded-xl border-2 p-6 transition-all duration-300
-                ${isSelected ? 'bg-indigo-50 border-indigo-500 scale-[1.02]' : isFull ? 'opacity-60 bg-slate-50 border-slate-200 grayscale cursor-not-allowed' : 'bg-white border-slate-100 hover:border-slate-300'}
-              `}
+              className={`selection-tile ${isSelected ? 'active' : ''} ${isFull ? 'disabled' : ''}`}
             >
-              <div className="flex flex-col items-center gap-2">
-                <div className={`p-4 rounded-full ${isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'}`}>
-                  <Clock size={28} />
+              <div className="sp-card-content">
+                <div className="flex justify-between items-start mb-6">
+                  <div className={`sp-icon-box ${isSelected ? 'active' : ''}`}>
+                    <session.icon
+                      size={32}
+                      className={session.id === 'AM' ? 'text-amber-500' : 'text-indigo-500'}
+                    />
+                  </div>
+                  {isSelected && (
+                    <CheckCircle2 className="text-indigo-500 animate-fade-in" size={24} />
+                  )}
                 </div>
-                <div className="text-lg font-bold text-slate-800">{session.label}</div>
-                <div className="text-sm font-medium text-slate-500">{session.time}</div>
-                {isFull && (
-                   <div className="mt-4"><Badge variant="error" size="sm">SESSION FULL</Badge></div>
-                )}
+
+                <div className="mb-8">
+                  <h4 className={`text-2xl font-black mb-1 ${isSelected ? 'text-indigo-600' : 'text-slate-900'}`}>
+                    {session.label}
+                  </h4>
+                  <div className="flex items-center gap-2 text-slate-500 font-bold text-sm">
+                    <Clock size={14} />
+                    {session.time}
+                  </div>
+                </div>
+
+                <p className="text-slate-500 leading-relaxed text-sm mb-8">
+                  {session.description}
+                </p>
+
+                <div className="flex items-center justify-between border-t border-slate-100 pt-6 mt-auto">
+                  {!isFull ? (
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <Users size={14} />
+                      <span className="text-xs font-semibold">{availableCount} Sections Available</span>
+                    </div>
+                  ) : (
+                    <Badge variant="error">SESSION FULL</Badge>
+                  )}
+
+                  <Badge variant={isSelected ? 'default' : 'secondary'} className="rounded-full">
+                    {isSelected ? 'Selected' : 'Select Block'}
+                  </Badge>
+                </div>
               </div>
-              {isSelected && <div className="absolute top-4 right-4 text-indigo-500"><CheckSquare size={20} /></div>}
             </div>
           );
         })}
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center justify-between p-6 bg-slate-50 rounded-xl gap-4">
-        <div className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-           <CheckSquare size={18} className="text-green-500" />
-           Currently Selected: <span className="text-indigo-600 uppercase">{selectedSession === 'AM' ? 'Morning' : 'Afternoon'} Block</span>
+      {selectedSession && (
+        <div className="sticky-footer animate-slide-up flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="sp-icon-box" style={{ width: 48, height: 48, background: 'rgba(255,255,255,0.1)', marginBottom: 0 }}>
+              <CheckCircle2 size={24} className="text-indigo-400" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-0.5">Selection Confirmed</p>
+              <h5 className="text-white text-lg font-bold">
+                {selectedSession === 'AM' ? 'Morning' : 'Afternoon'} Block
+              </h5>
+            </div>
+          </div>
+
+          <Button
+            loading={isProcessing}
+            onClick={onConfirm}
+            className="sp-btn-premium"
+          >
+            Confirm & Lock Timetable
+            <ChevronRight size={16} className="ml-2" />
+          </Button>
         </div>
-        <Button 
-          variant="primary" 
-          size="lg" 
-          loading={isProcessing}
-          onClick={onConfirm}
-        >
-          Confirm & Lock Schedule
-        </Button>
-      </div>
+      )}
     </div>
   );
 };

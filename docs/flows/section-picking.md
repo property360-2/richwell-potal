@@ -17,7 +17,7 @@ All of the following must be true before a student can pick a section:
 
 1. Sections **have been generated** for the active term (Dean has run section generation).
 2. The term's `schedule_published` flag is `True` (Dean has published the schedule).
-3. Today's date is within `term.schedule_picking_start` and `term.schedule_picking_end`.
+3. The publication time (`picking_published_at`) is within the last 72 hours.
 4. The student's `StudentEnrollment.advising_status` is `APPROVED`.
 5. The student has **not yet been assigned** to a section for this term.
 
@@ -122,19 +122,16 @@ Student                   Frontend                  Backend (PickingService)
 
 ## Flow 3: Auto-Assignment (After Deadline)
 
-Admins can trigger auto-assignment of any students who did not pick within the window.
+Once the 72-hour window expires, the system handles the remaining students via a management command.
 
-**Endpoint:** `POST /api/schedule/auto-assign/`
+**Command:** `python manage.py auto_assign_schedules --term_id <ID>`
 
 **Logic:**
 - Finds all `APPROVED` enrollments without a `SectionStudent` record for the term.
-- Runs `pick_schedule_regular()` for each with `preferred_session = 'AM'` (falls back to PM).
-- Skips students where all sections are full (logs the failure, continues).
-
-**Response:**
-```json
-{ "assigned_count": 12 }
-```
+- For each student, it attempts to find and assign sections based on their advising list.
+- Regular students are assigned to their previous session (AM/PM) if possible, otherwise fallback.
+- Irregular students are assigned to available sections with the fewest conflicts.
+- Skips students where all sections are full (logs the failure for manual admin intervention).
 
 ---
 
@@ -157,7 +154,6 @@ All fields live on the `Term` model (`apps/terms/models.py`):
 | Field | Type | Purpose |
 |---|---|---|
 | `schedule_published` | boolean | Dean flips this to `True` to open picking |
-| `schedule_picking_start` | date | Window open date |
-| `schedule_picking_end` | date | Window close date (inclusive) |
+| `picking_published_at` | datetime | Timestamp when the schedule was published. Sets the T-0 for the 3-day window. |
 
-All three must be configured or picking raises a `400 Bad Request`.
+Picking is allowed only when `schedule_published` is true and `now < picking_published_at + 3 days`.

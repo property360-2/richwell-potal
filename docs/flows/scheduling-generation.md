@@ -23,7 +23,7 @@ Registrar or Dean generates sections, Dean assigns schedules, Dean publishes the
   - active enrollment exists for the term
   - advising status is `APPROVED`
   - the student is regular
-  - the request falls inside `schedule_picking_start` and `schedule_picking_end`
+  - the request falls inside the 72-hour window after schedule publication
 - Assignment uses live section capacity and row locking to avoid overbooking.
 
 ### 5. Irregular Student Picking

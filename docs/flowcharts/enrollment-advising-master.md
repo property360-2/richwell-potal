@@ -71,26 +71,32 @@ graph TD
 
 ---
 
-## 3. Schedule Picking (The "Execution")
-Once approved, students link their subjects to specific classroom sections.
+## 3. Schedule Selection (The Dynamic Window)
+Once advising is approved and the Dean publishes the official schedule, the dynamic picking window opens.
 
 ```mermaid
 graph TD
-    Start([Selection Start]) --> StudentType{Student Type}
+    Start([Dean Publishes Schedule]) --> OpenWindow[3-Day Picking Window Opens]
     
-    StudentType -- "Regular" --> SessionSelect[Select Preferred Session: AM or PM]
-    SessionSelect --> CapacityCheck{Session Full?}
-    CapacityCheck -- "No" --> AssignBlock[Assign All Sections in Block]
-    CapacityCheck -- "Yes" --> Fallback[Assign Alternative Session & Notify]
+    OpenWindow --> WindowStatus{Time Check: <br/> Within 72 Hours?}
     
-    StudentType -- "Irregular" --> SectionSelect[Manual Section Selection]
-    SectionSelect --> ConflictCheck{Time Overlap Detected?}
-    ConflictCheck -- "Conflict" --> ShowError[Show Schedule Conflict Error]
-    ConflictCheck -- "No Conflict" --> AddToSched[Linked to Section Loads]
+    WindowStatus -- "YES: Window Open" --> StudentAccess[Student Selects Manually]
+    WindowStatus -- "NO: Window Closed" --> AutoAssign[System Auto-Assigns Student]
     
-    AssignBlock --> Finalize[Commit Enrollment: ENROLLED]
-    Fallback --> Finalize
-    AddToSched --> Finalize
+    subgraph StudentAction [Manual Picking Actions]
+        Regular[Regular Student] --> SessionSelect[Select AM or PM Session]
+        Irregular[Irregular Student] --> CustomSelect[Pick Sections per Subject]
+    end
     
-    Finalize --> End([Official Timetable Generated])
+    SessionSelect --> BlockAssign[Assign to Session Block]
+    CustomSelect --> ConflictCheck[Check Time Conflicts]
+    
+    BlockAssign --> Finalize[Commit Enrollment: ENROLLED]
+    ConflictCheck --> Finalize
+    AutoAssign --> Finalize
+    
+    Finalize --> End([Official Timetable & COR Generated])
 ```
+
+> [!NOTE]
+> **Automatic Assignment**: Students who do not pick their schedule within the 3-day window are automatically assigned to available sections by the system based on their regularity status and session history.

@@ -33,8 +33,7 @@ class Term(AuditMixin, models.Model):
     advising_start = models.DateField()
     advising_end = models.DateField()
     
-    schedule_picking_start = models.DateField(null=True, blank=True)
-    schedule_picking_end = models.DateField(null=True, blank=True)
+    picking_published_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp of when the Dean published the schedule")
     schedule_published = models.BooleanField(default=False, help_text="Dean publishes schedule to open student picking")
     
     midterm_grade_start = models.DateField(null=True, blank=True)
