@@ -40,7 +40,8 @@ class SectionSerializer(serializers.ModelSerializer):
 class SectionStudentSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.user.get_full_name', read_only=True)
     student_idn = serializers.CharField(source='student.idn', read_only=True)
-    
+    student_id = serializers.IntegerField(source='student.id', read_only=True)
+
     class Meta:
         model = SectionStudent
-        fields = ['id', 'section', 'student', 'student_name', 'student_idn']
+        fields = ['id', 'section', 'term', 'student', 'student_id', 'student_name', 'student_idn', 'is_home_section']

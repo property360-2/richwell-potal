@@ -32,6 +32,9 @@ class AuditLog(models.Model):
         ('ADVISING_REJECT', 'Advising Rejected'),
         ('CREDITING_APPROVE', 'Crediting Approved'),
         ('CREDITING_REJECT', 'Crediting Rejected'),
+        # Student Lifecycle events
+        ('ADMIT_STUDENT', 'Student Admitted'),
+        ('MANUAL_STUDENT', 'Manual Student Created'),
     ]
 
     user = models.ForeignKey(

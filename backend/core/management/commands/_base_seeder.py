@@ -474,11 +474,11 @@ def assign_students_to_sections(students, sections, term, stdout):
     for idx, student in enumerate(students):
         section = sections[idx % len(sections)]
 
-        # Create home section assignment
-        SectionStudent.objects.get_or_create(
-            section=section,
+        # Create home section assignment — keyed on (student, term) per new unique_together
+        SectionStudent.objects.update_or_create(
             student=student,
-            defaults={'is_home_section': True},
+            term=term,
+            defaults={'section': section, 'is_home_section': True},
         )
 
         # Update all grade records for this term to point to this section

@@ -122,7 +122,8 @@ class StudentEnrollmentSerializer(serializers.ModelSerializer):
 
     def get_is_schedule_picked(self, obj):
         from apps.sections.models import SectionStudent
-        return SectionStudent.objects.filter(student=obj.student, section__term=obj.term).exists()
+        # Use direct term field for an index-friendly check (no join)
+        return SectionStudent.objects.filter(student=obj.student, term=obj.term).exists()
 
 
 class StudentEnrollmentSelfSerializer(serializers.ModelSerializer):
@@ -142,6 +143,7 @@ class StudentEnrollmentSelfSerializer(serializers.ModelSerializer):
 
     def get_is_schedule_picked(self, obj):
         from apps.sections.models import SectionStudent
-        return SectionStudent.objects.filter(student=obj.student, section__term=obj.term).exists()
+        # Use direct term field for an index-friendly check (no join)
+        return SectionStudent.objects.filter(student=obj.student, term=obj.term).exists()
 
 

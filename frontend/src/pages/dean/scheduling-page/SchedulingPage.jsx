@@ -94,6 +94,11 @@ const SchedulingPage = () => {
 
     const fetchProfDetails = async (profId) => {
         if (!activeTerm) return;
+        // NOTE: Clear stale state immediately so the old professor's data is never
+        // visible while the new requests are in-flight (mirrors fetchSectionDetails pattern).
+        setProfSchedules([]);
+        setProfAvailability([]);
+        setAvailableSlots([]);
         try {
              const [schedRes, availRes, slotsRes] = await Promise.all([
                 schedulingApi.getSchedules({ professor_id: profId, term_id: activeTerm.id }),
@@ -102,7 +107,7 @@ const SchedulingPage = () => {
             ]);
             setProfSchedules(schedRes.data.results || schedRes.data);
             setProfAvailability(availRes.data);
-            setAvailableSlots(slotsRes.data);
+            setAvailableSlots(slotsRes.data.results || slotsRes.data || []);
         } catch (err) {
             showToast('error', 'Failed to load professor details');
         }

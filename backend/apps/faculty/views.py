@@ -11,7 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
 from django.contrib.auth import get_user_model
-from core.permissions import IsStaff, IsAdmin
+from core.permissions import IsStaff, IsAdmin, IsDean
 import datetime
 
 from .models import Professor, ProfessorSubject, ProfessorAvailability
@@ -26,9 +26,18 @@ class ProfessorViewSet(viewsets.ModelViewSet):
     Includes actions for subject assignment and availability tracking.
     """
     queryset = Professor.objects.all()
-    permission_classes = [IsAdmin]
     search_fields = ['employee_id', 'user__first_name', 'user__last_name', 'department']
     filterset_fields = ['department', 'employment_status', 'is_active']
+
+    def get_permissions(self):
+        """
+        Custom permissions:
+        - List/Retrieve: Any staff member (IsStaff)
+        - Create/Update/Delete/Actions: Deans and Admins (IsDean)
+        """
+        if self.action in ['list', 'retrieve']:
+            return [IsStaff()]
+        return [IsDean()]
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -183,4 +192,12 @@ class ProfessorViewSet(viewsets.ModelViewSet):
                         )
                         created_count += 1
                         
+                # Audit: log the full availability replacement for this professor
+                professor.audit_action(
+                    request, 'UPDATE',
+                    f'ProfessorAvailability:{professor.id}',
+                    f'Availability preferences replaced for {professor}',
+                    metadata={'slots_saved': created_count}
+                )
+
                 return Response({'status': f'Updated {created_count} availability slots'})

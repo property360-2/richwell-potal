@@ -40,14 +40,27 @@ class SectionStudent(AuditMixin, models.Model):
     """
     Relational model linking students to their assigned sections.
     Differentiates between home sections and elective/subject-based assignments.
+
+    The `term` field is denormalized from `section.term` for efficient, join-free
+    per-term queries. This ensures clean cross-term isolation — a student can only
+    have one home-section assignment per term, enforced directly at the DB level.
     """
     section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='student_assignments')
+    # NOTE: Denormalized from section.term — always set this when creating a SectionStudent
+    term = models.ForeignKey(
+        'terms.Term',
+        on_delete=models.CASCADE,
+        related_name='section_student_assignments',
+        null=True,   # nullable for backwards compatibility with existing rows
+        blank=True
+    )
     student = models.ForeignKey('students.Student', on_delete=models.CASCADE, related_name='section_assignments')
     is_home_section = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('section', 'student')
+        # One home-section per student per term — no ambiguity across terms
+        unique_together = ('student', 'term')
 
     def __str__(self):
         """

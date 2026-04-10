@@ -1,0 +1,252 @@
+/* FacultyLoadModal.module.css */
+
+.modalContainer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    padding: var(--space-2);
+}
+
+/* Premium Header Card */
+.headerCard {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-6);
+    color: white;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.headerCard::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    right: -10%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.profName {
+    font-size: var(--font-size-2xl);
+    font-weight: 900;
+    letter-spacing: -0.025em;
+    margin-bottom: var(--space-1);
+    background: linear-gradient(to right, #fff, #cbd5e1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.profMeta {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.termBadge {
+    position: absolute;
+    top: var(--space-6);
+    right: var(--space-6);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-full);
+}
+
+.termLabel {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #cbd5e1;
+}
+
+.termValue {
+    font-size: var(--font-size-sm);
+    font-weight: 900;
+    color: white;
+}
+
+/* Insights Bar */
+.insightsBar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+}
+
+.insightCard {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.insightIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.insightInfo h4 {
+    font-size: var(--font-size-lg);
+    font-weight: 900;
+    color: var(--color-text);
+    line-height: 1;
+}
+
+.insightInfo p {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Timetable Visualization */
+.timetableWrapper {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-2xl);
+    position: relative;
+    box-shadow: var(--shadow-sm);
+    min-height: fit-content;
+}
+
+.timetableGrid {
+    display: grid;
+    position: relative;
+}
+
+.ttCorner {
+    background: #f8fafc;
+    border-bottom: 2px solid #e2e8f0;
+    border-right: 2px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 20;
+}
+
+.ttDayHeader {
+    background: #f8fafc;
+    padding: var(--space-3);
+    text-align: center;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.075em;
+    color: #64748b;
+    border-bottom: 2px solid #e2e8f0;
+    border-right: 1px solid #f1f5f9;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.ttTimeLabel {
+    background: #f8fafc;
+    font-size: 10px;
+    font-weight: 800;
+    color: #94a3b8;
+    border-right: 2px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: var(--space-3);
+    position: sticky;
+    left: 0;
+    z-index: 10;
+}
+
+.ttCell {
+    border-bottom: 1px solid #f1f5f9;
+    border-right: 1px solid #f1f5f9;
+}
+
+.ttCellHour {
+    border-bottom: 1px solid #e2e8f0;
+}
+
+/* Blocks Overlay */
+.ttBlocksOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    pointer-events: none;
+    padding-top: 42px; /* Header height */
+    padding-left: 60px; /* Corner width */
+}
+
+.ttDayColumn {
+    position: relative;
+    pointer-events: auto;
+    height: 100%;
+}
+
+.ttBlock {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    border-radius: 8px;
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    z-index: 5;
+    overflow: hidden;
+}
+
+.ttBlock:hover {
+    transform: scale(1.02) translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+}
+
+.ttBlockCode {
+    font-size: 11px;
+    font-weight: 900;
+    line-height:1.2;
+    letter-spacing: -0.01em;
+}
+
+.ttBlockMeta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ttMetaItem {
+    font-size: 9px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.8;
+}
+
+/* Animations */
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animateSlideUp {
+    animation: slideUp 0.4s ease forwards;
+}

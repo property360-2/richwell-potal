@@ -197,7 +197,8 @@ class Command(BaseCommand):
             return user
 
         create_user('admin', User.RoleChoices.ADMIN, 'System', 'Admin')
-        reg_user = create_user('registrar_e2e', User.RoleChoices.REGISTRAR, 'E2E', 'Registrar')
+        create_user('registrar_e2e', User.RoleChoices.REGISTRAR, 'E2E', 'Registrar')
+        create_user('admission_e2e', User.RoleChoices.ADMISSION, 'E2E', 'Admission')
         ph_user = create_user('program_head_e2e', User.RoleChoices.PROGRAM_HEAD, 'E2E', 'Program Head')
         foreign_ph_user = create_user('program_head_foreign_e2e', User.RoleChoices.PROGRAM_HEAD, 'Foreign', 'Program Head')
         prof_user = create_user('professor_e2e', User.RoleChoices.PROFESSOR, 'E2E', 'Professor')
@@ -254,9 +255,22 @@ class Command(BaseCommand):
         # Student Profile (Enrolled)
         student, _ = Student.objects.update_or_create(
             user=stud_user,
-            defaults={'idn': 'E2E-1001', 'program': program, 'curriculum': cv, 'date_of_birth': date(2005, 1, 1), 'gender': 'MALE', 'status': 'ENROLLED', 'is_advising_unlocked': True}
+            defaults={
+                'idn': 'E2E-1001', 
+                'program': program, 
+                'curriculum': cv, 
+                'date_of_birth': date(2005, 1, 1), 
+                'gender': 'MALE', 
+                'status': 'ENROLLED', 
+                'student_type': 'CURRENT',
+                'is_advising_unlocked': True
+            }
         )
-        SectionStudent.objects.update_or_create(section=section, student=student)
+        SectionStudent.objects.update_or_create(
+            student=student,
+            term=term,
+            defaults={'section': section, 'is_home_section': True}
+        )
         StudentEnrollment.objects.get_or_create(student=student, term=term, defaults={'year_level': 1, 'is_regular': True, 'advising_status': 'APPROVED'})
         Grade.objects.get_or_create(student=student, subject=subject, term=term, defaults={'grade_status': 'ENROLLED', 'advising_status': 'APPROVED', 'section': section})
 
@@ -264,7 +278,7 @@ class Command(BaseCommand):
         enrollee, _ = Student.objects.update_or_create(
             user=enrollee_user,
             defaults={
-                'idn': 'E2E-2002', 'program': program, 'curriculum': cv, 'date_of_birth': date(2006, 1, 1), 'gender': 'FEMALE', 'status': 'APPROVED',
+                'idn': 'E2E-2002', 'program': program, 'curriculum': cv, 'date_of_birth': date(2006, 1, 1), 'gender': 'FEMALE', 'status': 'ADMITTED',
                 'student_type': 'FRESHMAN',
                 'is_advising_unlocked': False,
                 'document_checklist': {
@@ -324,7 +338,7 @@ class Command(BaseCommand):
             user=foreign_student_user,
             defaults={
                 'idn': 'E2E-5005', 'program': foreign_program, 'curriculum': foreign_cv, 'date_of_birth': date(2006, 5, 5),
-                'gender': 'FEMALE', 'status': 'APPROVED', 'student_type': 'FRESHMAN', 'is_advising_unlocked': True
+                'gender': 'FEMALE', 'status': 'ADMITTED', 'student_type': 'FRESHMAN', 'is_advising_unlocked': True
             }
         )
         StudentEnrollment.objects.update_or_create(

@@ -156,9 +156,21 @@ def admit_student_application(student, monthly_commitment, admitted_by):
                 'regularity_reason': reg_data['reason']
             }
         )
-        # Ensure the enrollment creation is captured in the audit log
         if created:
             enrollment.save(audit_user=admitted_by)
+        
+        # High-level Audit Log
+        from apps.auditing.models import AuditLog
+        from apps.auditing.middleware import get_current_ip
+        AuditLog.objects.create(
+            user=admitted_by,
+            action='ADMIT_STUDENT',
+            model_name='Student',
+            object_id=str(student.id),
+            object_repr=str(student),
+            changes={'idn': idn, 'monthly_commitment': str(monthly_commitment)},
+            ip_address=get_current_ip()
+        )
         
         
         # Send Account Verified Email
@@ -167,10 +179,10 @@ def admit_student_application(student, monthly_commitment, admitted_by):
                 subject="Application Verified - Richwell Colleges",
                 template_name="emails/account_verified.html",
                 context={
-                    'full_name': f"{student.user.first_name} {student.user.last_name}",
+                    'full_name': student.user.get_full_name(),
                     'idn': idn,
                     'password': generated_password,
-                    'login_url': "http://localhost:5173/login"  # TODO: replace with settings.FRONTEND_URL in production
+                    'login_url': f"{settings.FRONTEND_URL}/login"
                 },
                 recipient_list=[student.user.email]
             )
@@ -252,6 +264,15 @@ def manual_add_student_record(data, requested_by):
     if User.objects.filter(Q(username=idn) | Q(email=email)).exists():
         raise DRFValidationError({'detail': 'Student with this IDN or Email already exists.'})
 
+    monthly_commitment = data.get('monthly_commitment')
+    if monthly_commitment is None:
+        raise DRFValidationError({'monthly_commitment': ['Monthly commitment is required for enrollment.']})
+    
+    try:
+        monthly_commitment = float(monthly_commitment)
+    except (TypeError, ValueError):
+        raise DRFValidationError({'monthly_commitment': ['Must be a valid number.']})
+
     from apps.terms.models import Term
     from apps.grades.services.advising_service import AdvisingService
     
@@ -317,12 +338,25 @@ def manual_add_student_record(data, requested_by):
             student=student,
             term=active_term,
             year_level=data.get('year_level', 1),
-            monthly_commitment=data.get('monthly_commitment', 0),
+            monthly_commitment=monthly_commitment,
             is_regular=is_regular,
             regularity_reason=regularity_reason,
             enrolled_by=requested_by
         )
         enrollment.save(audit_user=requested_by)
+
+        # High-level Audit Log
+        from apps.auditing.models import AuditLog
+        from apps.auditing.middleware import get_current_ip
+        AuditLog.objects.create(
+            user=requested_by,
+            action='MANUAL_STUDENT',
+            model_name='Student',
+            object_id=str(student.id),
+            object_repr=str(student),
+            changes={'idn': idn, 'monthly_commitment': str(monthly_commitment)},
+            ip_address=get_current_ip()
+        )
 
     # Send Welcome Email (outside transaction to ensure commit)
     try:
@@ -330,7 +364,7 @@ def manual_add_student_record(data, requested_by):
             subject="Welcome to Richwell Portal - Your Credentials",
             template_name="emails/welcome_legacy_student.html",
             context={
-                "student_name": user.get_full_name(),
+                "full_name": user.get_full_name(),
                 "idn": idn,
                 "password": f"{idn}{dob_suffix}",
                 "login_url": f"{settings.FRONTEND_URL}/login"

@@ -40,7 +40,7 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         """
         Dynamically applies Dean-only permissions for writing and administrative actions.
         """
-        dean_actions = ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish', 'randomize', 'pending_slots', 'section_completion', 'faculty_load_report', 'validate_slot', 'resource_availability']
+        dean_actions = ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish', 'randomize', 'pending_slots', 'section_completion', 'faculty_load_report', 'validate_slot', 'resource_availability', 'available_slots', 'professor_insights', 'room_insights', 'section_insights']
         if self.action in dean_actions:
             from core.permissions import IsDean
             return [IsDean()]
@@ -63,7 +63,8 @@ class ScheduleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['POST'])
     def assign(self, request):
         """
-        Deans use this to manually assign professor, room, and time.
+        Deans use this to manually assign professor, room, and time to a schedule slot.
+        Logs the assignment to the audit trail via the Schedule model's AuditMixin.
         """
         try:
             sch = Schedule.objects.get(id=request.data.get('id'))
@@ -71,8 +72,27 @@ class ScheduleViewSet(viewsets.ModelViewSet):
             room = Room.objects.get(id=request.data.get('room_id')) if request.data.get('room_id') else None
             st = datetime.strptime(request.data.get('start_time'), "%H:%M").time() if request.data.get('start_time') else None
             et = datetime.strptime(request.data.get('end_time'), "%H:%M").time() if request.data.get('end_time') else None
-            
-            updated = self.scheduling_service.create_or_update_schedule(sch.term, sch.section, sch.subject, sch.component_type, professor=prof, room=room, days=request.data.get('days', []), start_time=st, end_time=et, exclude_id=sch.id)
+
+            updated = self.scheduling_service.create_or_update_schedule(
+                sch.term, sch.section, sch.subject, sch.component_type,
+                professor=prof, room=room, days=request.data.get('days', []),
+                start_time=st, end_time=et, exclude_id=sch.id
+            )
+
+            # Audit: log schedule assignment using the model instance's AuditMixin method
+            updated.audit_action(
+                request, 'UPDATE',
+                f'Schedule:{updated.id}',
+                f'Schedule assigned: {updated.subject.code} in {updated.section.name}',
+                metadata={
+                    'professor': str(prof) if prof else None,
+                    'room': str(room) if room else None,
+                    'days': request.data.get('days', []),
+                    'start_time': str(st) if st else None,
+                    'end_time': str(et) if et else None,
+                }
+            )
+
             return Response(self.get_serializer(updated).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -156,3 +176,83 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         st, et = datetime.strptime(d.get('start_time'), "%H:%M").time(), datetime.strptime(d.get('end_time'), "%H:%M").time()
         term = Term.objects.get(id=d.get('term_id'))
         return Response(self.report_service.check_resource_availability(term, d.get('days'), st, et, d.get('exclude_id'), self.scheduling_service))
+
+    @action(detail=False, methods=['GET'], url_path='available-slots')
+    def available_slots(self, request):
+        """
+        Returns unassigned schedule slots in the given term that the requested professor
+        is qualified to teach (based on their assigned ProfessorSubject records).
+
+        Query params:
+            professor_id (int): The ID of the professor.
+            term_id (int): The ID of the academic term.
+
+        Returns:
+            List of Schedule records with no professor assigned, filtered by the
+            professor's subject qualifications for the specified term.
+        """
+        professor_id = request.query_params.get('professor_id')
+        term_id = request.query_params.get('term_id')
+
+        if not professor_id or not term_id:
+            return Response(
+                {'error': 'Both professor_id and term_id are required query parameters.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            professor = Professor.objects.get(id=professor_id)
+        except Professor.DoesNotExist:
+            return Response({'error': 'Professor not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            term = Term.objects.get(id=term_id)
+        except Term.DoesNotExist:
+            return Response({'error': 'Term not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Collect subject IDs the professor is qualified to teach
+        qualified_subject_ids = professor.assigned_subjects.values_list('subject_id', flat=True)
+
+        # Find schedule slots for this term that are unassigned and match the professor's qualifications
+        slots = Schedule.objects.filter(
+            term=term,
+            subject_id__in=qualified_subject_ids,
+            professor__isnull=True
+        ).select_related('term', 'section', 'subject', 'room')
+
+        return Response(self.get_serializer(slots, many=True).data)
+        
+    @action(detail=False, methods=['GET'], url_path=r'insights/professor/(?P<prof_id>\d+)')
+    def professor_insights(self, request, prof_id=None):
+        """
+        Returns a timetable-ready grouped view of a specific professor's teaching load.
+        Usage: GET /api/scheduling/insights/professor/{id}/?term_id={term_id}
+        """
+        term_id = request.query_params.get('term_id')
+        if not term_id:
+            return Response({'error': 'term_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        schedules = Schedule.objects.filter(term_id=term_id, professor_id=prof_id)
+        return Response(self.scheduling_service.get_schedule_insights(schedules))
+
+    @action(detail=False, methods=['GET'], url_path=r'insights/room/(?P<room_id>\d+)')
+    def room_insights(self, request, room_id=None):
+        """
+        Returns a timetable-ready grouped view of a specific room's usage.
+        Usage: GET /api/scheduling/insights/room/{id}/?term_id={term_id}
+        """
+        term_id = request.query_params.get('term_id')
+        if not term_id:
+            return Response({'error': 'term_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        schedules = Schedule.objects.filter(term_id=term_id, room_id=room_id)
+        return Response(self.scheduling_service.get_schedule_insights(schedules))
+
+    @action(detail=False, methods=['GET'], url_path=r'insights/section/(?P<section_id>\d+)')
+    def section_insights(self, request, section_id=None):
+        """
+        Returns a timetable-ready grouped view of a specific section's full schedule.
+        Usage: GET /api/scheduling/insights/section/{id}/
+        """
+        schedules = Schedule.objects.filter(section_id=section_id)
+        return Response(self.scheduling_service.get_schedule_insights(schedules))

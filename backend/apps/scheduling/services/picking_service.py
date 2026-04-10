@@ -65,8 +65,8 @@ class PickingService:
         # 1. Get student's enrollment info
         enrollment = self._ensure_student_can_pick(student, term)
             
-        # Check if already picked for this term
-        if SectionStudent.objects.select_for_update().filter(student=student, section__term=term).exists():
+        # Check if already picked for this term (direct term field — no join needed)
+        if SectionStudent.objects.select_for_update().filter(student=student, term=term).exists():
             raise ConflictError("Your schedule for this term has already been picked and locked.")
 
         if not enrollment.is_regular:
@@ -108,10 +108,10 @@ class PickingService:
             advising_status=Grade.ADVISING_APPROVED
         ).update(section=target_section)
         
-        # 5. Set Home Section assignment
+        # 5. Set Home Section assignment (term field is stored directly for clean isolation)
         existing = SectionStudent.objects.select_for_update().filter(
             student=student,
-            section__term=term
+            term=term
         ).first()
         if existing:
             existing.section = target_section
@@ -120,6 +120,7 @@ class PickingService:
             SectionStudent.objects.create(
                 student=student,
                 section=target_section,
+                term=term,
                 is_home_section=True
             )
 
@@ -143,7 +144,7 @@ class PickingService:
         if enrollment.is_regular:
             raise ValidationError({'detail': 'Student is classified as Regular. Please use the regular schedule picker.'})
 
-        if SectionStudent.objects.select_for_update().filter(student=student, section__term=term).exists():
+        if SectionStudent.objects.select_for_update().filter(student=student, term=term).exists():
             raise ConflictError("Your schedule for this term has already been picked and locked.")
 
         if not selections:
@@ -205,7 +206,7 @@ class PickingService:
             first_section = selected_sections[selections[0]['subject_id']]
             existing = SectionStudent.objects.select_for_update().filter(
                 student=student,
-                section__term=term
+                term=term
             ).first()
             if existing:
                 existing.section = first_section
@@ -214,6 +215,7 @@ class PickingService:
                 SectionStudent.objects.create(
                     student=student,
                     section=first_section,
+                    term=term,
                     is_home_section=True
                 )
 
@@ -228,7 +230,7 @@ class PickingService:
             term=term,
             advising_status='APPROVED'
         ).exclude(
-            student__section_assignments__section__term=term
+            student__section_assignments__term=term
         )
 
         assigned_count = 0

@@ -211,7 +211,7 @@ const AppRoutes = () => {
           </Route>
         </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={['ADMISSION', 'ADMIN']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['ADMISSION', 'ADMIN', 'REGISTRAR', 'HEAD_REGISTRAR']} />}>
           <Route element={<PageWrapper title="Admission Dashboard" />}>
             <Route path="/admission" element={<AdmissionDashboard />} />
             <Route path="/admission/applicants" element={<ApplicantManagement />} />

@@ -1,24 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { X, Clock, Calendar, BookOpen, Users, MapPin } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Clock, Calendar, BookOpen, Users, MapPin, Briefcase, Award } from 'lucide-react';
 import Modal from '../../../../components/ui/Modal';
 import Button from '../../../../components/ui/Button';
 import { schedulingApi } from '../../../../api/scheduling';
 import { termsApi } from '../../../../api/terms';
 import LoadingSpinner from '../../../../components/ui/LoadingSpinner';
-import '../../../dean/scheduling-page/SchedulingPage.module.css';
+import styles from './FacultyLoadModal.module.css';
 
 /**
  * FacultyLoadModal.jsx
  * 
- * A specialized visualization modal that displays a professor's teaching schedule
- * in a comprehensive timetable grid layout. This component fetches current term data
- * and provides a detailed view of class hours, rooms, and assignments.
- * 
- * @module FacultyLoadModal
- * @param {Object} props - Component properties.
- * @param {boolean} props.isOpen - Controls the visibility of the modal.
- * @param {Function} props.onClose - Callback function to trigger when the modal is closed.
- * @param {Object} props.professor - The professor record to visualize the teaching load for.
+ * A premium visualization modal that displays a professor's teaching schedule
+ * in a comprehensive timetable grid layout. Features HSL-based color coding,
+ * analytics badges, and responsive grid calculations.
  */
 
 const FacultyLoadModal = ({ isOpen, onClose, professor }) => {
@@ -37,13 +31,13 @@ const FacultyLoadModal = ({ isOpen, onClose, professor }) => {
   const fetchActiveTermAndLoad = async () => {
     try {
       setLoading(true);
-      // 1. Get active term
+      setLoad(null); 
+      
       const termRes = await termsApi.getTerms({ is_active: true });
       const active = termRes.data.results?.[0] || termRes.data[0];
       setActiveTerm(active);
 
       if (active) {
-        // 2. Get professor load
         const res = await schedulingApi.getProfessorInsights(professor.id, active.id);
         setLoad(res.data);
       }
@@ -54,20 +48,24 @@ const FacultyLoadModal = ({ isOpen, onClose, professor }) => {
     }
   };
 
+  // --- Constants and Helpers ---
   const GRID_DAYS = ['M', 'T', 'W', 'TH', 'F', 'S'];
   const DAY_LABELS = { 'M': 'Mon', 'T': 'Tue', 'W': 'Wed', 'TH': 'Thu', 'F': 'Fri', 'S': 'Sat' };
   const FULL_DAY_MAP = { 'Monday': 'M', 'Tuesday': 'T', 'Wednesday': 'W', 'Thursday': 'TH', 'Friday': 'F', 'Saturday': 'S' };
   
   const START_HOUR = 7;
-  const END_HOUR = 19;
-  const SLOT_HEIGHT = 18;
+  const END_HOUR = 22; // Extended for night classes and bottom padding
+  const SLOT_HEIGHT = 28; // Matches CSS
   const startMinute = START_HOUR * 60;
   
-  const TIME_SLOTS = [];
-  for (let h = START_HOUR; h <= END_HOUR; h++) {
-    TIME_SLOTS.push(`${h.toString().padStart(2, '0')}:00`);
-    if (h < END_HOUR) TIME_SLOTS.push(`${h.toString().padStart(2, '0')}:30`);
-  }
+  const TIME_SLOTS = useMemo(() => {
+    const slots = [];
+    for (let h = START_HOUR; h <= END_HOUR; h++) {
+      slots.push(`${h.toString().padStart(2, '0')}:00`);
+      if (h < END_HOUR) slots.push(`${h.toString().padStart(2, '0')}:30`);
+    }
+    return slots;
+  }, []);
 
   const timeToMinutes = (timeStr) => {
     if (!timeStr) return 0;
@@ -75,26 +73,36 @@ const FacultyLoadModal = ({ isOpen, onClose, professor }) => {
     return h * 60 + m;
   };
 
+  const insights = useMemo(() => {
+    if (!load) return { totalMinutes: 0, subjectCount: 0 };
+    let total = 0;
+    const subjects = new Set();
+    Object.values(load).flat().forEach(item => {
+      const [start, end] = item.time.split(' - ');
+      total += (timeToMinutes(end) - timeToMinutes(start));
+      subjects.add(item.subject.split(' - ')[0]); // Get code
+    });
+    return { 
+      totalHours: (total / 60).toFixed(1),
+      subjectCount: subjects.size 
+    };
+  }, [load]);
+
   const getBlocksForDay = (dayKey) => {
     if (!load) return [];
-    // The load object has full day names as keys (Monday, Tuesday, etc.)
     const fullDayName = Object.keys(FULL_DAY_MAP).find(k => FULL_DAY_MAP[k] === dayKey);
     return load[fullDayName] || [];
   };
 
-  const getRandomColor = (subject) => {
-    const COLORS = [
-      { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af' },
-      { bg: '#f0fdf4', border: '#22c55e', text: '#166534' },
-      { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' },
-      { bg: '#fff7ed', border: '#f97316', text: '#9a3412' },
-      { bg: '#faf5ff', border: '#a855f7', text: '#6b21a8' },
-      { bg: '#f5f3ff', border: '#8b5cf6', text: '#5b21b6' },
-      { bg: '#ecfeff', border: '#06b6d4', text: '#155e75' }
-    ];
+  const getHSLColor = (subject) => {
     let hash = 0;
     for (let i = 0; i < subject.length; i++) hash = subject.charCodeAt(i) + ((hash << 5) - hash);
-    return COLORS[Math.abs(hash) % COLORS.length];
+    const h = Math.abs(hash) % 360;
+    return {
+      bg: `hsla(${h}, 70%, 95%, 1)`,
+      border: `hsla(${h}, 70%, 45%, 1)`,
+      text: `hsla(${h}, 70%, 25%, 1)`
+    };
   };
 
   return (
@@ -104,172 +112,170 @@ const FacultyLoadModal = ({ isOpen, onClose, professor }) => {
       title="Faculty Teaching Load"
       size="lg"
     >
-      <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+      <div className={styles.modalContainer}>
         {professor && (
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  {professor.user.first_name} {professor.user.last_name}
-                </h3>
-                <p className="text-sm text-slate-500">{professor.employee_id} • {professor.department}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium text-slate-600">Current Term</p>
-                <p className="text-sm text-primary font-bold">{activeTerm?.code || 'No Active Term'}</p>
-              </div>
+          <div className={styles.headerCard}>
+            <div className={styles.profName}>
+              {professor.user.first_name} {professor.user.last_name}
+            </div>
+            <div className={styles.profMeta}>
+              <Briefcase size={14} /> {professor.employee_id} • {professor.department}
+            </div>
+            <div className={styles.termBadge}>
+              <p className={styles.termLabel}>Current Term</p>
+              <p className={styles.termValue}>{activeTerm?.code || 'None'}</p>
             </div>
           </div>
         )}
 
-        {loading ? (
-          <div className="flex py-12 items-center justify-center">
-            <LoadingSpinner size="lg" />
+        {!loading && load && (
+          <div className={`${styles.insightsBar} ${styles.animateSlideUp}`}>
+             <div className={styles.insightCard}>
+                <div className={styles.insightIcon} style={{ background: '#eff6ff', color: '#2563eb' }}>
+                  <Award size={20} />
+                </div>
+                <div className={styles.insightInfo}>
+                  <h4>{insights.totalHours} hrs</h4>
+                  <p>Weekly Load</p>
+                </div>
+             </div>
+             <div className={styles.insightCard}>
+                <div className={styles.insightIcon} style={{ background: '#f0fdf4', color: '#16a34a' }}>
+                  <BookOpen size={20} />
+                </div>
+                <div className={styles.insightInfo}>
+                  <h4>{insights.subjectCount}</h4>
+                  <p>Unique Subjects</p>
+                </div>
+             </div>
+             <div className={styles.insightCard}>
+                <div className={styles.insightIcon} style={{ background: '#faf5ff', color: '#9333ea' }}>
+                  <Users size={20} />
+                </div>
+                <div className={styles.insightInfo}>
+                  <h4>{Object.values(load).flat().length}</h4>
+                  <p>Total Classes</p>
+                </div>
+             </div>
           </div>
-        ) : load ? (
-          <div className="space-y-4">
+        )}
 
-            <div className="timetable-grid-wrapper overflow-x-auto shadow-inner rounded-xl border border-slate-200 bg-white">
-              <div className="timetable-grid min-w-[800px]" style={{ gridTemplateColumns: `60px repeat(${GRID_DAYS.length}, 1fr)` }}>
-                  {/* Header row */}
-                  <div className="tt-corner"></div>
+        <div className={styles.timetableWrapper}>
+          {loading ? (
+            <div className="flex py-24 items-center justify-center">
+              <LoadingSpinner size="lg" />
+            </div>
+          ) : load ? (
+            <div className="relative overflow-auto max-h-[600px] border-b border-slate-100">
+              <div className="relative min-w-[700px]">
+                <div className={styles.timetableGrid} style={{ gridTemplateColumns: `60px repeat(${GRID_DAYS.length}, 1fr)` }}>
+                  <div className={styles.ttCorner}></div>
                   {GRID_DAYS.map(d => (
-                      <div key={d} className="tt-day-header">{DAY_LABELS[d]}</div>
+                    <div key={d} className={styles.ttDayHeader}>{DAY_LABELS[d]}</div>
                   ))}
 
-                  {/* Time rows */}
                   {TIME_SLOTS.map((slot, idx) => (
-                      <React.Fragment key={slot}>
-                          <div className={`tt-time-label ${slot.endsWith(':00') ? '' : 'tt-time-half'}`} style={{ height: '18px', fontSize: '9px' }}>
-                              {slot.endsWith(':00') ? slot : ''}
-                          </div>
-                          {GRID_DAYS.map(dayKey => (
-                              <div key={`${dayKey}-${slot}`} className={`tt-cell ${slot.endsWith(':00') ? 'tt-cell-hour' : ''}`} style={{ height: '18px' }}>
-                              </div>
-                          ))}
-                      </React.Fragment>
+                    <React.Fragment key={slot}>
+                      <div className={styles.ttTimeLabel} style={{ height: `${SLOT_HEIGHT}px` }}>
+                        {slot.endsWith(':00') ? slot : ''}
+                      </div>
+                      {GRID_DAYS.map(dayKey => (
+                        <div 
+                          key={`${dayKey}-${slot}`} 
+                          className={`${styles.ttCell} ${slot.endsWith(':00') ? styles.ttCellHour : ''}`} 
+                          style={{ height: `${SLOT_HEIGHT}px` }}
+                        />
+                      ))}
+                    </React.Fragment>
                   ))}
               </div>
 
-              {/* Floating schedule blocks */}
-              <div className="tt-blocks-overlay min-w-[800px]" style={{ gridTemplateColumns: `60px repeat(${GRID_DAYS.length}, 1fr)`, paddingTop: '34px' }}>
-                  <div></div>
-                  {GRID_DAYS.map((dayKey, dayIdx) => {
-                      const blocks = getBlocksForDay(dayKey);
-                      const currentFullDayName = Object.keys(FULL_DAY_MAP).find(k => FULL_DAY_MAP[k] === dayKey);
-                      return (
-                          <div key={dayKey} className="tt-day-column">
-                              {blocks.map((item, idx) => {
-                                  const [startTimeStr, endTimeStr] = item.time.split(' - ');
-                                  const startMin = timeToMinutes(startTimeStr);
-                                  const endMin = timeToMinutes(endTimeStr);
-                                  const top = ((startMin - startMinute) / 30) * SLOT_HEIGHT;
-                                  const duration = endMin - startMin;
-                                  const height = (duration / 30) * SLOT_HEIGHT;
-                                  const color = getRandomColor(item.subject);
+              <div className={styles.ttBlocksOverlay} style={{ gridTemplateColumns: `repeat(${GRID_DAYS.length}, 1fr)` }}>
+                {GRID_DAYS.map((dayKey) => {
+                  const blocks = getBlocksForDay(dayKey);
+                  return (
+                    <div key={dayKey} className={styles.ttDayColumn}>
+                      {blocks.map((item, idx) => {
+                        const [start, end] = item.time.split(' - ');
+                        const startMin = timeToMinutes(start);
+                        const endMin = timeToMinutes(end);
+                        const top = ((startMin - startMinute) / 30) * SLOT_HEIGHT;
+                        const duration = endMin - startMin;
+                        const height = (duration / 30) * SLOT_HEIGHT;
+                        const color = getHSLColor(item.subject);
 
-                                  return (
-                                      <div
-                                          key={idx}
-                                          className={`tt-block cursor-pointer transition-all ${selectedDetail?.time === item.time && selectedDetail?.day === currentFullDayName ? 'ring-2 ring-primary ring-offset-2 scale-[1.02] z-50' : 'hover:scale-[1.02] hover:z-40'}`}
-                                          style={{
-                                              top: `${top}px`,
-                                              height: `${Math.max(height - 2, SLOT_HEIGHT - 2)}px`,
-                                              backgroundColor: color.bg,
-                                              borderLeft: `3px solid ${color.border}`,
-                                              color: color.text,
-                                          }}
-                                          onClick={() => setSelectedDetail({ ...item, day: currentFullDayName })}
-                                          title="Click for details"
-                                      >
-                                          <div className="flex flex-col h-full overflow-hidden p-1 justify-between">
-                                              <div className="font-black truncate leading-tight text-[9px]">
-                                                  {item.subject}
-                                              </div>
-                                              <div className="flex flex-col gap-0.5 mt-auto">
-                                                  {height > 40 && (
-                                                      <div className="flex items-center gap-1 opacity-80 truncate font-black text-[8px]">
-                                                          <Users size={8} strokeWidth={3} className="shrink-0" />
-                                                          {item.section}
-                                                      </div>
-                                                  )}
-                                                  {height > 55 && (
-                                                      <div className="flex items-center gap-1 opacity-80 truncate font-black text-[8px]">
-                                                          <MapPin size={8} strokeWidth={3} className="shrink-0" />
-                                                          {item.room || 'TBA'}
-                                                      </div>
-                                                  )}
-                                              </div>
-                                          </div>
-                                      </div>
-                                  );
-                              })}
+                        return (
+                          <div
+                            key={idx}
+                            className={styles.ttBlock}
+                            style={{
+                              top: `${top}px`,
+                              height: `${height - 2}px`,
+                              backgroundColor: color.bg,
+                              borderLeft: `3px solid ${color.border}`,
+                              color: color.text,
+                            }}
+                            onClick={() => setSelectedDetail({ ...item, day: Object.keys(FULL_DAY_MAP).find(k => FULL_DAY_MAP[k] === dayKey) })}
+                          >
+                            <div className={styles.ttBlockCode}>{item.subject.split(' - ')[0]}</div>
+                            <div className={styles.ttBlockMeta}>
+                               <div className={styles.ttMetaItem}><Users size={10} /> {item.section}</div>
+                               {height > 40 && <div className={styles.ttMetaItem}><MapPin size={10} /> {item.room}</div>}
+                            </div>
                           </div>
-                      );
-                  })}
+                })}
               </div>
             </div>
           </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-slate-500">Select a professor to view load details.</p>
-          </div>
-        )}
-      </div>
-      <div className="mt-8 flex justify-end">
-        <Button variant="neutral" onClick={onClose}>Close</Button>
+          ) : (
+            <div className="py-24 text-center">
+              <p className="text-slate-400 font-bold">No schedule data available for this term.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 pt-4">
+          <Button variant="neutral" onClick={onClose}>Close Portal</Button>
+        </div>
       </div>
 
-      {/* Detail Modal moved here for better stability */}
+      {/* Sub-Modal for Details */}
       {selectedDetail && (
         <Modal
           isOpen={!!selectedDetail}
           onClose={() => setSelectedDetail(null)}
-          title="Class Schedule Details"
+          title="Class Insight"
           size="sm"
         >
           <div className="space-y-6">
-            <div className="flex items-center gap-4 bg-primary/5 p-4 rounded-xl border border-primary/10">
-              <div className="bg-primary text-white p-3 rounded-xl">
-                <BookOpen size={24} />
-              </div>
-              <div className="overflow-hidden">
-                <h4 className="text-lg font-black text-slate-900 leading-tight uppercase italic truncate" title={selectedDetail.subject}>
-                  {selectedDetail.subject}
-                </h4>
-                <p className="text-xs font-bold text-primary flex items-center gap-1 uppercase tracking-widest mt-1">
-                  <Clock size={12} strokeWidth={3} /> {selectedDetail.time}
-                </p>
-              </div>
+            <div className="bg-slate-900 text-white p-6 rounded-2xl relative overflow-hidden">
+               <div className="relative z-10">
+                 <h4 className="text-xl font-black italic uppercase tracking-tighter">{selectedDetail.subject}</h4>
+                 <div className="flex items-center gap-2 mt-2 text-slate-400 font-bold text-sm">
+                   <Clock size={16} /> {selectedDetail.time}
+                 </div>
+               </div>
+               <div className="absolute top-0 right-0 p-8 opacity-10">
+                 <BookOpen size={80} />
+               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Day</p>
-                <div className="flex items-center gap-2 text-slate-700">
-                   <Calendar size={16} className="text-slate-400" />
-                   <span className="font-bold">{selectedDetail.day}</span>
-                </div>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Section</p>
-                <div className="flex items-center gap-2 text-slate-700">
-                   <Users size={16} className="text-slate-400" />
-                   <span className="font-bold">{selectedDetail.section}</span>
-                </div>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 col-span-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Room / Facility</p>
-                <div className="flex items-center gap-2 text-slate-700">
-                   <MapPin size={16} className="text-slate-400" />
-                   <span className="font-black">{selectedDetail.room || 'TBA'}</span>
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <p className="text-[10px] uppercase font-black text-slate-400 mb-1">Day</p>
+                  <p className="font-bold text-slate-700">{selectedDetail.day}</p>
+               </div>
+               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <p className="text-[10px] uppercase font-black text-slate-400 mb-1">Section</p>
+                  <p className="font-bold text-slate-700">{selectedDetail.section}</p>
+               </div>
+               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 col-span-2">
+                  <p className="text-[10px] uppercase font-black text-slate-400 mb-1">Location</p>
+                  <p className="font-black text-primary">{selectedDetail.room || 'TBA'}</p>
+               </div>
             </div>
 
-            <div className="pt-4 flex justify-end">
-              <Button variant="primary" onClick={() => setSelectedDetail(null)}>Understood</Button>
-            </div>
+            <Button variant="primary" block onClick={() => setSelectedDetail(null)}>Dismiss</Button>
           </div>
         </Modal>
       )}

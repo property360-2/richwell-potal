@@ -53,7 +53,7 @@ class Command(BaseCommand):
             idx = 1
             student_counts = {
                 'APPLICANT': 0,
-                'APPROVED': 0,
+                'ADMITTED': 0,
                 'REJECTED': 0,
                 'ENROLLED': 0,
             }
@@ -95,7 +95,7 @@ class Command(BaseCommand):
                 student = generate_student(
                     idx, program, curriculum,
                     student_type='FRESHMAN',
-                    status='APPROVED',
+                    status='ADMITTED',
                     dob=dob,
                     is_active_user=True,
                 )
@@ -114,7 +114,7 @@ class Command(BaseCommand):
                 student.document_checklist = checklist
                 student.save()
 
-                student_counts['APPROVED'] += 1
+                student_counts['ADMITTED'] += 1
                 idx += 1
 
             # ── 3 Rejected ──

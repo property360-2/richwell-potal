@@ -168,9 +168,8 @@ class SectioningService:
             term=term
         ).update(section=target_section)
 
-        # 3. Update SectionStudent record (Home Section)
-        # Find existing assignment for this term
-        existing = SectionStudent.objects.filter(student=student, section__term=term).first()
+        # 3. Update SectionStudent record (Home Section) — query by direct term field
+        existing = SectionStudent.objects.filter(student=student, term=term).first()
         if existing:
             existing.section = target_section
             existing.save()
@@ -178,6 +177,7 @@ class SectioningService:
             SectionStudent.objects.create(
                 student=student,
                 section=target_section,
+                term=term,
                 is_home_section=True
             )
 
