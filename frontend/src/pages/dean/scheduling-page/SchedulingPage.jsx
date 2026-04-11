@@ -20,6 +20,7 @@ import PageHeader from '../../../components/shared/PageHeader';
 import SchedulingReports from './components/SchedulingReports';
 import RandomizeOptionsModal from './components/RandomizeOptionsModal';
 import SlotConfigModal from './components/SlotConfigModal';
+import GenerateMatrixModal from './components/GenerateMatrixModal';
 
 import styles from './SchedulingPage.module.css';
 
@@ -51,6 +52,8 @@ const SchedulingPage = () => {
     const [selectedSchedule, setSelectedSchedule] = useState(null);
     const [isPublishing, setIsPublishing] = useState(false);
     const [isRandomizing, setIsRandomizing] = useState(false);
+    const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+    const [enrollmentStats, setEnrollmentStats] = useState([]);
 
     const { showToast } = useToast();
 
@@ -72,14 +75,16 @@ const SchedulingPage = () => {
             setActiveTerm(term);
 
             if (term) {
-                const [profRes, sectionRes, roomRes] = await Promise.all([
+                const [profRes, sectionRes, roomRes, statsRes] = await Promise.all([
                     facultyApi.getAll(),
                     sectionsApi.getSections({ term_id: term.id }),
-                    facilitiesApi.getRooms()
+                    facilitiesApi.getRooms(),
+                    sectionsApi.getStats(term.id)
                 ]);
                 setProfessors(profRes.data.results || profRes.data);
                 setSections(sectionRes.data.results || sectionRes.data);
                 setRooms(roomRes.data.results || roomRes.data);
+                setEnrollmentStats(statsRes.data.results || statsRes.data || []);
             }
         } catch (err) {
             showToast('error', 'Failed to load initial data');
@@ -335,16 +340,29 @@ const SchedulingPage = () => {
                                         <h3 className="text-2xl font-black text-slate-800 tracking-tight">Active Matrix</h3>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Manage section assignments and professor loading</p>
                                     </div>
-                                    <div className={`${styles.glassPanel} px-6 py-3 rounded-2xl border border-white/50 bg-white/40 flex items-center gap-3`}>
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase leading-none">Total Enrolled</span>
-                                            <span className="text-xl font-black text-primary leading-none">150</span>
+                                    <div className="flex items-center gap-4">
+                                        <div className={`${styles.glassPanel} px-6 py-3 rounded-2xl border border-white/50 bg-white/40 flex items-center gap-3`}>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase leading-none">Total Enrolled</span>
+                                                <span className="text-xl font-black text-primary leading-none">
+                                                    {enrollmentStats.reduce((acc, curr) => acc + curr.count, 0)}
+                                                </span>
+                                            </div>
+                                            <div className="w-px h-8 bg-slate-200/50 mx-2"></div>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase leading-none">Sections</span>
+                                                <span className="text-xl font-black text-slate-800 leading-none">{sections.length}</span>
+                                            </div>
                                         </div>
-                                        <div className="w-px h-8 bg-slate-200/50 mx-2"></div>
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase leading-none">Sections</span>
-                                            <span className="text-xl font-black text-slate-800 leading-none">{sections.length}</span>
-                                        </div>
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            className="rounded-xl border-dashed border-2 hover:border-primary hover:text-primary transition-all font-black text-[10px]"
+                                            icon={<Shuffle size={14}/>}
+                                            onClick={() => setIsGenerateModalOpen(true)}
+                                        >
+                                            GENERATE
+                                        </Button>
                                     </div>
                                 </div>
 
@@ -357,7 +375,15 @@ const SchedulingPage = () => {
                                             <h3 className="text-xl font-black text-slate-800 mb-2">No Sections Generated</h3>
                                             <p className="text-sm font-bold text-slate-400 mb-8 max-w-sm">Start your scheduling process by generating sections from the enrolled student population.</p>
                                             <div className="flex gap-4">
-                                                <Button variant="primary" size="lg" className="rounded-xl px-8 shadow-xl shadow-primary/20" icon={<Shuffle size={18}/>}>Generate Matrix</Button>
+                                                <Button 
+                                                    variant="primary" 
+                                                    size="lg" 
+                                                    className="rounded-xl px-8 shadow-xl shadow-primary/20" 
+                                                    icon={<Shuffle size={18}/>}
+                                                    onClick={() => setIsGenerateModalOpen(true)}
+                                                >
+                                                    Generate Matrix
+                                                </Button>
                                                 <Button variant="outline" size="lg" className="rounded-xl px-8">Refresh Data</Button>
                                             </div>
                                         </div>
@@ -771,6 +797,17 @@ const SchedulingPage = () => {
                 professors={professors}
                 rooms={rooms}
                 onSuccess={onScheduleSuccess}
+            />
+
+            <GenerateMatrixModal 
+                isOpen={isGenerateModalOpen}
+                onClose={() => setIsGenerateModalOpen(false)}
+                activeTerm={activeTerm}
+                enrollmentStats={enrollmentStats}
+                onGenerateSuccess={() => {
+                    fetchData();
+                    setIsGenerateModalOpen(false);
+                }}
             />
 
             <Modal

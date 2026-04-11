@@ -189,16 +189,30 @@ def create_past_term(stdout):
 # ──────────────────────────────────────────────
 
 ROOM_CONFIG = [
+    # Lecture Rooms
     ('Room 101', 'LECTURE', 40),
     ('Room 102', 'LECTURE', 40),
     ('Room 103', 'LECTURE', 40),
     ('Room 104', 'LECTURE', 40),
     ('Room 105', 'LECTURE', 40),
-    ('Lab 201', 'COMPUTER_LAB', 40),
-    ('Lab 202', 'COMPUTER_LAB', 40),
-    ('Lab 203', 'COMPUTER_LAB', 40),
+    ('Room 106', 'LECTURE', 40),
+    ('Room 107', 'LECTURE', 40),
+    ('Room 108', 'LECTURE', 40),
+    ('Room 201', 'LECTURE', 40),
+    ('Room 202', 'LECTURE', 40),
+    ('Room 203', 'LECTURE', 40),
+    ('Room 204', 'LECTURE', 40),
+    # Computer Labs
+    ('Lab 301', 'COMPUTER_LAB', 40),
+    ('Lab 302', 'COMPUTER_LAB', 40),
+    ('Lab 303', 'COMPUTER_LAB', 40),
+    ('Lab 304', 'COMPUTER_LAB', 40),
+    # Science Labs
     ('Sci Lab 1', 'SCIENCE_LAB', 40),
     ('Sci Lab 2', 'SCIENCE_LAB', 40),
+    # Multi-purpose
+    ('MPH A', 'LECTURE', 40),
+    ('MPH B', 'LECTURE', 40),
 ]
 
 
@@ -218,15 +232,28 @@ def create_rooms(stdout):
 # Professor helpers
 # ──────────────────────────────────────────────
 
+# 16 professors — 4 per year level (prof1–4 teach Y1, prof5–8 teach Y2, etc.)
 PROFESSOR_CONFIG = [
-    ('prof1', 'Prof', 'One', date(1985, 1, 1)),
-    ('prof2', 'Prof', 'Two', date(1986, 5, 15)),
-    ('prof3', 'Prof', 'Three', date(1987, 10, 20)),
-    ('prof4', 'Prof', 'Four', date(1988, 2, 10)),
-    ('prof5', 'Prof', 'Five', date(1989, 3, 20)),
-    ('prof6', 'Prof', 'Six', date(1990, 4, 15)),
-    ('prof7', 'Prof', 'Seven', date(1991, 5, 25)),
-    ('prof8', 'Prof', 'Eight', date(1992, 6, 30)),
+    # Year 1 Faculty
+    ('prof1',  'Ana',    'Reyes',     date(1985, 1, 1)),
+    ('prof2',  'Ben',    'Santos',    date(1986, 5, 15)),
+    ('prof3',  'Clara',  'Lim',       date(1987, 10, 20)),
+    ('prof4',  'Dan',    'Cruz',      date(1988, 2, 10)),
+    # Year 2 Faculty
+    ('prof5',  'Elena',  'Flores',    date(1989, 3, 20)),
+    ('prof6',  'Felix',  'Garcia',    date(1990, 4, 15)),
+    ('prof7',  'Grace',  'Torres',    date(1991, 5, 25)),
+    ('prof8',  'Hector', 'Ramos',     date(1992, 6, 30)),
+    # Year 3 Faculty
+    ('prof9',  'Iris',   'Villanueva',date(1983, 7, 10)),
+    ('prof10', 'Joel',   'Mendoza',   date(1984, 8, 22)),
+    ('prof11', 'Karen',  'Castillo',  date(1985, 9, 5)),
+    ('prof12', 'Luis',   'Navarro',   date(1986, 11, 14)),
+    # Year 4 Faculty
+    ('prof13', 'Maria',  'Dela Cruz', date(1980, 3, 18)),
+    ('prof14', 'Nathan', 'Bautista',  date(1981, 6, 30)),
+    ('prof15', 'Olivia', 'Soriano',   date(1982, 12, 1)),
+    ('prof16', 'Pedro',  'Aquino',    date(1983, 4, 7)),
 ]
 
 DAY_SESSION_AVAILABILITY = [
@@ -238,16 +265,39 @@ DAY_SESSION_AVAILABILITY = [
 ]
 
 
-def create_professors(curriculum, stdout, with_availability=False):
+def create_professors(curriculum, stdout, with_availability=False, year_level=None):
     """
-    Create professors, assign Y1S1 subjects (distributed).
-    Returns list of (Professor, [Subject]) tuples.
+    Create professors defined in PROFESSOR_CONFIG and optionally assign them
+    to subjects for a specific year level.
+
+    Args:
+        curriculum:        Active CurriculumVersion.
+        stdout:            Management command stdout.
+        with_availability: If True, set varied day/session availability per professor.
+        year_level:        Restrict subject assignment to this year level only.
+                           If None, assigns professors to Y1S1 subjects (legacy behaviour).
+
+    Returns:
+        List of (Professor, [Subject]) tuples.
     """
-    subjects = get_subjects(curriculum, year_level=1, semester='1')
-    
+    # Determine which year's subjects to assign to professors
+    target_year = year_level if year_level is not None else 1
+    subjects = get_subjects(curriculum, year_level=target_year, semester='1')
+
+    # Professors responsible for each year level (indices 0-3 = Y1, 4-7 = Y2, etc.)
+    YEAR_LEVEL_PROFESSOR_RANGE = {
+        1: (0, 4),
+        2: (4, 8),
+        3: (8, 12),
+        4: (12, 16),
+    }
+    start_idx, end_idx = YEAR_LEVEL_PROFESSOR_RANGE.get(target_year, (0, 4))
+    year_config = PROFESSOR_CONFIG[start_idx:end_idx]
+
     professors = []
-    for idx, (username, first, last, dob) in enumerate(PROFESSOR_CONFIG):
-        emp_id = f'EMP{str(idx + 1).zfill(3)}'
+    for local_idx, (username, first, last, dob) in enumerate(year_config):
+        global_idx = start_idx + local_idx
+        emp_id = f'EMP{str(global_idx + 1).zfill(3)}'
         pw = f'{emp_id}{dob.strftime("%m%d")}'
 
         user, created = User.objects.get_or_create(
@@ -263,8 +313,8 @@ def create_professors(curriculum, stdout, with_availability=False):
             user.set_password(pw)
             user.save()
 
-        # Some are part-time
-        estatus = 'PART_TIME' if idx >= 6 else 'FULL_TIME'
+        # Year 1-2 professors are full-time; Year 3-4 may have part-timers
+        estatus = 'PART_TIME' if global_idx >= 12 else 'FULL_TIME'
 
         prof, _ = Professor.objects.get_or_create(
             user=user,
@@ -276,28 +326,28 @@ def create_professors(curriculum, stdout, with_availability=False):
             },
         )
 
-        # Assign subjects (distribute subjects among professors)
-        # Each professor gets 2 subjects round-robin style
+        # Assign 2 subjects per professor, distributed round-robin
         assigned_subjects = []
         if subjects:
-            s1 = subjects[(idx * 2) % len(subjects)]
-            s2 = subjects[(idx * 2 + 1) % len(subjects)]
+            s1 = subjects[(local_idx * 2) % len(subjects)]
+            s2 = subjects[(local_idx * 2 + 1) % len(subjects)]
             assigned_subjects = [s1, s2]
             for subj in assigned_subjects:
                 ProfessorSubject.objects.get_or_create(professor=prof, subject=subj)
 
-        # Set varied availability
+        # Set varied day/session availability per professor
         if with_availability:
             avail_days = ['M', 'T', 'W', 'TH', 'F']
             sessions = ['AM', 'PM']
-            
-            if username in ['prof3', 'prof4']:
+
+            # Vary availability slightly so scheduling engine has choices to make
+            if username in ['prof3', 'prof4', 'prof11', 'prof12']:
                 avail_days = ['M', 'W', 'F']
-            elif username in ['prof5', 'prof6']:
+            elif username in ['prof7', 'prof8', 'prof15', 'prof16']:
                 avail_days = ['T', 'TH']
-            elif username in ['prof7', 'prof8']:
+            elif username in ['prof5', 'prof6', 'prof13', 'prof14']:
                 sessions = ['AM']
-                
+
             for day in avail_days:
                 for session in sessions:
                     ProfessorAvailability.objects.get_or_create(
@@ -306,7 +356,7 @@ def create_professors(curriculum, stdout, with_availability=False):
 
         professors.append((prof, assigned_subjects))
 
-    stdout.write(f'  Professors: {len(professors)} (varied availability={with_availability})')
+    stdout.write(f'  Professors (Y{target_year}): {len(professors)} created (availability={with_availability})')
     return professors
 
 
@@ -386,7 +436,20 @@ def create_enrollment(student, term, approver, year_level=1, advising_status='AP
 
 def create_grade_records(student, term, subjects, grade_status='ENROLLED',
                          advising_status='APPROVED', section=None):
-    """Create Grade records for a student's subjects."""
+    """
+    Create Grade records for a student's subjects in a given term.
+
+    Args:
+        student:         Student instance.
+        term:            Term instance.
+        subjects:        List of Subject instances.
+        grade_status:    Grade status string (e.g. 'ENROLLED', 'PASSED').
+        advising_status: Advising status string (e.g. 'APPROVED').
+        section:         Optional Section instance.
+
+    Returns:
+        List of created or retrieved Grade instances.
+    """
     grades = []
     for subj in subjects:
         grade, _ = Grade.objects.get_or_create(
@@ -401,6 +464,46 @@ def create_grade_records(student, term, subjects, grade_status='ENROLLED',
         )
         grades.append(grade)
     return grades
+
+
+def create_historical_passed_grades(student, past_term, curriculum, up_to_year_level, stdout=None):
+    """
+    Seed historical PASSED grades for all semesters prior to the student's current year level.
+    This simulates a CURRENT student who has successfully completed prior year levels.
+
+    For each prior (year_level, semester) combination, a separate past term record is reused
+    (past_term is passed in by the caller). Grades are marked is_historical=True and PASSED.
+
+    Args:
+        student:           Student instance.
+        past_term:         A past Term instance to attach the historical grades to.
+        curriculum:        Active CurriculumVersion.
+        up_to_year_level:  The student's current year level (exclusive). E.g. pass 2 → seeds Y1.
+        stdout:            Optional management command stdout for logging.
+
+    Returns:
+        Total count of historical Grade records created.
+    """
+    total = 0
+    for yl in range(1, up_to_year_level):
+        for sem in ['1', '2']:
+            subjects = get_subjects(curriculum, year_level=yl, semester=sem)
+            for subj in subjects:
+                _, created = Grade.objects.get_or_create(
+                    student=student,
+                    subject=subj,
+                    term=past_term,
+                    defaults={
+                        'advising_status': 'APPROVED',
+                        'grade_status': 'PASSED',
+                        'final_grade': Decimal('1.50'),
+                        'midterm_grade': Decimal('1.50'),
+                        'is_historical': True,
+                    },
+                )
+                if created:
+                    total += 1
+    return total
 
 
 def update_system_sequence(year_prefix, last_value):

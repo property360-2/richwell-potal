@@ -37,7 +37,7 @@ If a student is flagged as irregular or is "out-of-sync" (e.g., a transferee who
 2.  **Prerequisite Check**: The system strictly enforces:
     -   **Specific Prereqs**: Must have a `PASSED` grade in the required subject.
     -   **Year Standing**: Must have reached the required Year Level.
-3.  **Offerings Enforcement**: Only subjects with active **Schedules/Sections** in the current term can be selected.
+3.  **Offerings Enforcement**: Only subjects from the **Curriculum** that match the **Active Term Semester** (e.g., 1st Sem subjects in a 1st Sem term) can be selected. *Note: Actual Schedule/Section picking happens in a later phase.*
 4.  **Unit Limits**: Standard cap is **30 units** per term (excluding Summer).
 
 ### C. Transferee Workflow

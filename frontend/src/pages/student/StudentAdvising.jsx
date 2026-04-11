@@ -203,7 +203,7 @@ const StudentAdvising = () => {
         actions={<div className="flex items-center gap-2"><Badge variant={enrollment?.advising_status === 'APPROVED' ? 'success' : 'warning'}>{enrollment?.advising_status}</Badge></div>} />
       <div className="advising-grid grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {enrollment?.student_details?.student_type === 'TRANSFEREE' && !enrollment?.student_details?.is_advising_unlocked && (
+          {!enrollment?.student_details?.is_advising_unlocked && (
             <Card className="border-l-4 border-l-amber-500 bg-amber-50/50">
               <div className="flex gap-4 p-2">
                 <div className="p-3 bg-amber-100 rounded-full h-fit">
@@ -212,8 +212,17 @@ const StudentAdvising = () => {
                 <div>
                   <h3 className="text-lg font-bold text-amber-900">Registrar Approval Required</h3>
                   <p className="text-amber-800 text-sm mt-1 leading-relaxed">
-                    Welcome to Richwell Colleges! As a <strong>Transferee Student</strong>, your previous academic records are currently being evaluated. 
-                    The Registrar must first complete the <strong>Subject Crediting</strong> process before you can proceed with subject advising.
+                    {enrollment?.student_details?.student_type === 'TRANSFEREE' ? (
+                      <>
+                        Welcome to Richwell Colleges! As a <strong>Transferee Student</strong>, your previous academic records are currently being evaluated. 
+                        The Registrar must first complete the <strong>Subject Crediting</strong> process before you can proceed with subject advising.
+                      </>
+                    ) : (
+                      <>
+                        Your subject advising is currently <strong>Locked</strong>. For new students and manual entries, the Registrar must first 
+                        physically verify your documents and requirements before you can proceed with subject selection.
+                      </>
+                    )}
                   </p>
                   <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-amber-700 uppercase tracking-wider">
                     <Info size={14} />
@@ -224,7 +233,7 @@ const StudentAdvising = () => {
             </Card>
           )}
 
-          {!enrollment?.is_regular && enrollment?.regularity_reason && (
+          {enrollment?.student_details?.is_advising_unlocked && !enrollment?.is_regular && enrollment?.regularity_reason && (
             <Card className="border-l-4 border-l-rose-500 bg-rose-50/30">
               <div className="flex gap-4 p-2">
                 <div className="p-3 bg-rose-100 rounded-full h-fit">
@@ -312,40 +321,44 @@ const StudentAdvising = () => {
             </Card>
           )}
 
-          {isRegular ? ( !enrollingGrades.length && (
-            <Card className="text-center py-20">
-              <ClipboardList size={64} className="mx-auto mb-4 opacity-20" />
-              <div className="max-w-md mx-auto">
-                <p className="text-slate-500 mb-8">Click the button below to automatically pick subjects based on your curriculum and prerequisites.</p>
-                <Button
-                  className="w-full sm:w-auto px-10"
-                  loading={loading}
-                  onClick={() => handleAction('auto-advise')}
-                >
-                  Generate Enrollment Slip
-                </Button>
-              </div>
-            </Card>
-          )) : ( enrollment?.advising_status !== 'APPROVED' && (
-            <div>
-              <Card title="Subject Catalog" icon={<Filter size={18} />}>
-                <SearchBar placeholder="Filter catalog..." onSearch={setSearchTerm} />
-                <SubjectSelectionList categorizedSubjects={catSubs} selectedSubjectIds={selectedSubjectIds} toggleSubject={toggleSubject} toggleGroup={toggleGroup} checkPrerequisites={checkPrerequisites} isOfferedThisTerm={isOfferedThisTerm} />
+          {enrollment?.student_details?.is_advising_unlocked && (
+            isRegular ? ( !enrollingGrades.length && (
+              <Card className="text-center py-20">
+                <ClipboardList size={64} className="mx-auto mb-4 opacity-20" />
+                <div className="max-w-md mx-auto">
+                  <p className="text-slate-500 mb-8">Click the button below to automatically pick subjects based on your curriculum and prerequisites.</p>
+                  <Button
+                    className="w-full sm:w-auto px-10"
+                    loading={loading}
+                    onClick={() => handleAction('auto-advise')}
+                  >
+                    Generate Enrollment Slip
+                  </Button>
+                </div>
               </Card>
-            </div>
-          ))}
+            )) : ( enrollment?.advising_status !== 'APPROVED' && (
+              <div>
+                <Card title="Subject Catalog" icon={<Filter size={18} />}>
+                  <SearchBar placeholder="Filter catalog..." onSearch={setSearchTerm} />
+                  <SubjectSelectionList categorizedSubjects={catSubs} selectedSubjectIds={selectedSubjectIds} toggleSubject={toggleSubject} toggleGroup={toggleGroup} checkPrerequisites={checkPrerequisites} isOfferedThisTerm={isOfferedThisTerm} />
+                </Card>
+              </div>
+            ))
+          )}
         </div>
         <div className="space-y-6">
-          <AdvisingSummaryCard 
-             enrollment={enrollment} 
-             isRegular={isRegular} 
-             totalUnits={calculateTotalUnits()} 
-             loading={loading} 
-             enrollmentStatus={enrollment?.advising_status} 
-             selectedSubjectIds={selectedSubjectIds} 
-             onSubmit={() => handleAction('manual-advise', { subject_ids: selectedSubjectIds })} 
-             maxUnits={enrollment?.max_units_override || 30}
-          />
+          {enrollment?.student_details?.is_advising_unlocked && (
+            <AdvisingSummaryCard 
+               enrollment={enrollment} 
+               isRegular={isRegular} 
+               totalUnits={calculateTotalUnits()} 
+               loading={loading} 
+               enrollmentStatus={enrollment?.advising_status} 
+               selectedSubjectIds={selectedSubjectIds} 
+               onSubmit={() => handleAction('manual-advise', { subject_ids: selectedSubjectIds })} 
+               maxUnits={enrollment?.max_units_override || 30}
+            />
+          )}
           <Card style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}><div className="flex gap-3"><Info /><p className="text-xs opacity-90">Verify prerequisites before submission. Regular students get auto-filled subjects.</p></div></Card>
         </div>
       </div>

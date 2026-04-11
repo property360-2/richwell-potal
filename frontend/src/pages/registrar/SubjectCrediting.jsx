@@ -4,6 +4,7 @@ import {
   CheckCircle2, 
   AlertCircle,
   Unlock,
+  Lock,
   Filter,
   GraduationCap,
   Save
@@ -40,6 +41,7 @@ const SubjectCrediting = () => {
 
   const [message, setMessage] = useState(null);
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [isLockModalOpen, setIsLockModalOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const { showToast } = useToast();
   
@@ -188,6 +190,20 @@ const SubjectCrediting = () => {
       showToast('success', 'Advising process unlocked successfully!');
     } catch (err) {
       showToast('error', "Unlock failed: " + (err.response?.data?.error || "Unknown error"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLockAdvising = async () => {
+    try {
+      setLoading(true);
+      await api.post(`students/${student.id}/lock-advising/`);
+      setStudent({ ...student, is_advising_unlocked: false });
+      setIsLockModalOpen(false);
+      showToast('success', 'Advising process locked successfully!');
+    } catch (err) {
+      showToast('error', "Lock failed: " + (err.response?.data?.error || "Unknown error"));
     } finally {
       setLoading(false);
     }
@@ -357,7 +373,17 @@ const SubjectCrediting = () => {
             </div>
             
             <div className="flex items-center gap-4">
-              {!student.is_advising_unlocked && (
+              {student.is_advising_unlocked ? (
+                <Button 
+                  variant="ghost" 
+                  size="md" 
+                  className="gap-2 text-rose-600 hover:bg-rose-50 border-rose-100"
+                  onClick={() => setIsLockModalOpen(true)}
+                  icon={Lock}
+                >
+                  Lock Advising
+                </Button>
+              ) : (
                 <Button 
                   variant="primary" 
                   size="md" 
@@ -499,6 +525,29 @@ const SubjectCrediting = () => {
             This will allow <strong>{student?.user.first_name} {student?.user.last_name}</strong> and their assigned academic advisor to proceed with subject selection and enrollment. 
             <br/><br/>
             Please ensure all transferable subjects have been correctly credited before proceeding.
+          </p>
+        </div>
+      </Modal>
+
+      {/* Confirmation Modal for Lock */}
+      <Modal
+        isOpen={isLockModalOpen}
+        onClose={() => setIsLockModalOpen(false)}
+        title="Confirm Advising Lock"
+        footer={(
+          <div className="flex justify-end gap-3 w-full">
+            <Button variant="ghost" onClick={() => setIsLockModalOpen(false)}>Cancel</Button>
+            <Button variant="danger" onClick={handleLockAdvising} loading={loading}>Lock Advising</Button>
+          </div>
+        )}
+      >
+        <div className="confirmation-content">
+          <div className="confirmation-icon-wrapper bg-rose-100 text-rose-600">
+            <Lock size={32} />
+          </div>
+          <h3 className="text-lg font-bold text-slate-800 mb-2">Lock Enrollment Flow?</h3>
+          <p className="text-slate-600 text-sm">
+            This will **block** <strong>{student?.user.first_name} {student?.user.last_name}</strong> from proceeding with subject selection. Use this if you need to re-verify documents or if a mistake was made during the initial unlock.
           </p>
         </div>
       </Modal>

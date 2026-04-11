@@ -94,7 +94,25 @@ const AddStudentModal = ({
       reset();
       fetchStudents();
     } catch (err) {
-      addToast('error', err.response?.data?.error || 'Failed to add student');
+      // Improve error handling: try to look for specific field errors or generic data error
+      const errorData = err.response?.data;
+      let errorMessage = 'Failed to add student';
+
+      if (errorData) {
+        if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (typeof errorData === 'object') {
+          // If it's a field-level error dictionary (e.g. { "idn": ["..."] })
+          const fields = Object.keys(errorData);
+          if (fields.length > 0) {
+            errorMessage = `${fields[0]}: ${errorData[fields[0]][0]}`;
+          }
+        }
+      }
+      
+      addToast('error', errorMessage);
     }
   };
 
@@ -162,13 +180,24 @@ const AddStudentModal = ({
           <Select label="Program" options={programs} {...register('program', { required: 'Required' })} error={errors.program?.message} />
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <Select 
             label="Curriculum" 
             options={internalCurriculums} 
             {...register('curriculum', { required: 'Required' })} 
             disabled={!selectedProgramId || internalCurriculums.length === 0 || loadingCurriculums} 
             error={errors.curriculum?.message} 
+          />
+          <Input 
+            label="Monthly Commitment" 
+            type="number" 
+            step="0.01"
+            placeholder="e.g. 500.00"
+            {...register('monthly_commitment', { 
+              required: 'Required',
+              min: { value: 0, message: 'Must be at least 0' }
+            })} 
+            error={errors.monthly_commitment?.message} 
           />
         </div>
 

@@ -52,7 +52,7 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['apply', 'check_email', 'check_idn']: return [permissions.AllowAny()]
-        if self.action in ['update', 'partial_update', 'destroy', 'approve', 'unlock_advising', 'toggle_regularity', 'manual_add']:
+        if self.action in ['update', 'partial_update', 'destroy', 'approve', 'unlock_advising', 'lock_advising', 'toggle_regularity', 'manual_add']:
             return [IsAdmissionOrRegistrar()]
         return [permissions.IsAuthenticated()]
 
@@ -117,6 +117,17 @@ class StudentViewSet(viewsets.ModelViewSet):
         student.is_advising_unlocked = True
         student.save(audit_user=request.user)
         return Response({'status': 'Advising process unlocked'})
+
+    @action(detail=True, methods=['post'], url_path='lock-advising')
+    def lock_advising(self, request, pk=None):
+        """
+        Manually prevents a student from proceeding to the advising/subject selection stage.
+        Used to revoke access if accidentally granted or if requirements are missing.
+        """
+        student = self.get_object()
+        student.is_advising_unlocked = False
+        student.save(audit_user=request.user)
+        return Response({'status': 'Advising process locked'})
 
     @action(detail=True, methods=['post'], url_path='toggle-regularity')
     def toggle_regularity(self, request, pk=None):

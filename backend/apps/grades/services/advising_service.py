@@ -195,7 +195,13 @@ class AdvisingService:
                 - reason: 'ALREADY_SUBMITTED' if an advising record already exists for the term.
                 - reason: 'OUT_OF_SYNC_TRANSFEREE' if no pending subjects are found for the calculated year level.
         """
-        reg_data = AdvisingService.check_student_regularity(student, term)
+        # Guard: Check if advising is explicitly unlocked
+        if not student.is_advising_unlocked:
+            raise ValidationError({
+                "detail": "Your advising is currently locked. Please contact the Registrar to verify your documents.",
+                "reason": "ADVISING_LOCKED"
+            })
+
         if not reg_data['is_regular']:
             raise ValidationError({
                 "detail": reg_data['reason'] or "Student is irregular and requires manual advising.",
@@ -307,6 +313,13 @@ class AdvisingService:
                 - reason: 'ALREADY_SUBMITTED' if already pending/approved.
                 - reason: 'PREREQUISITE_FAILED' or string-message for unit/offering violations.
         """
+        # Guard: Check if advising is explicitly unlocked
+        if not student.is_advising_unlocked:
+            raise ValidationError({
+                "detail": "Your advising is currently locked. Please contact the Registrar to verify your documents.",
+                "reason": "ADVISING_LOCKED"
+            })
+
         # Guard: Check if already pending or approved
         current_enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
         if not current_enrollment:
@@ -323,13 +336,8 @@ class AdvisingService:
 
         subjects = Subject.objects.filter(id__in=subject_ids)
         
-        # 1. Offering check and Semester check
-        from apps.scheduling.models import Schedule
+        # 1. Semester check (only enforce that subject belongs to the current semester type)
         for subject in subjects:
-            # Check if subject is offered this term (has a schedule)
-            if not Schedule.objects.filter(term=term, subject=subject).exists():
-                raise ValidationError(f"Subject {subject.code} is not offered this term.")
-
             if subject.semester != term.semester_type:
                 raise ValidationError(f"Subject {subject.code} is a {subject.get_semester_display()} subject, but the active term is {term.get_semester_type_display()}.")
 
@@ -441,9 +449,9 @@ class AdvisingService:
             link_url="/student/advising" # Link to advising page to retry
         )
 
-    @staticmethod
+    @classmethod
     @transaction.atomic
-    def credit_subject(student, subject, term, credited_by, final_grade=None):
+    def credit_subject(cls, student, subject, term, credited_by, final_grade=None):
         """
         Credits a subject for a transferee.
         """
@@ -459,19 +467,14 @@ class AdvisingService:
             }
         )
         
-        # Re-check regularity and Year Level
-        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        if enrollment:
-            reg_data = AdvisingService.check_student_regularity(student, term)
-            enrollment.is_regular = reg_data['is_regular']
-            enrollment.year_level = AdvisingService.get_year_level(student)
-            enrollment.save()
+        # Re-check and update student standing (Year, Regularity, Reason)
+        cls.recalculate_student_standing(student, term)
             
         return grade
 
-    @staticmethod
+    @classmethod
     @transaction.atomic
-    def uncredit_subject(student, subject, term):
+    def uncredit_subject(cls, student, subject, term):
         """
         Removes credit (deletes Grade record) for a subject.
         Only allows deleting if it was a credited record.
@@ -483,13 +486,8 @@ class AdvisingService:
             is_credited=True
         ).delete()
 
-        # Re-check regularity and Year Level
-        enrollment = StudentEnrollment.objects.filter(student=student, term=term).first()
-        if enrollment:
-            reg_data = AdvisingService.check_student_regularity(student, term)
-            enrollment.is_regular = reg_data['is_regular']
-            enrollment.year_level = AdvisingService.get_year_level(student)
-            enrollment.save()
+        # Re-check and update student standing (Year, Regularity, Reason)
+        cls.recalculate_student_standing(student, term)
 
     @classmethod
     @transaction.atomic

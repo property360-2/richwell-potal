@@ -7,6 +7,7 @@ and manual student record creation.
 """
 
 import datetime
+import logging
 from django.db import transaction
 from django.db.models import Q
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -19,6 +20,7 @@ from core.models import SystemSequence
 from apps.notifications.services.email_service import EmailService
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 def apply_student(data):
     """
@@ -193,8 +195,7 @@ def admit_student_application(student, monthly_commitment, admitted_by):
 
         return {
             'idn': idn,
-            'password': generated_password,
-            'message': "Generated password is the IDN + birthdate (MMDD format)"
+            'password': generated_password
         }
 
 def enroll_student_for_term(student, monthly_commitment=None, enrolled_by=None):
@@ -262,6 +263,7 @@ def manual_add_student_record(data, requested_by):
         raise DRFValidationError({'detail': 'IDN and Email are required.'})
     
     if User.objects.filter(Q(username=idn) | Q(email=email)).exists():
+        logger.warning(f"Manual Add Failed: User with IDN {idn} or email {email} already exists.")
         raise DRFValidationError({'detail': 'Student with this IDN or Email already exists.'})
 
     monthly_commitment = data.get('monthly_commitment')
@@ -334,16 +336,22 @@ def manual_add_student_record(data, requested_by):
         reg_data = AdvisingService.check_student_regularity(student, active_term)
         is_regular = reg_data['is_regular']
         regularity_reason = reg_data['reason']
+        
+        # Calculate year level automatically based on completed/credited units
+        year_level = AdvisingService.get_year_level(student)
+        
         enrollment = StudentEnrollment.objects.create(
             student=student,
             term=active_term,
-            year_level=data.get('year_level', 1),
+            year_level=year_level,
             monthly_commitment=monthly_commitment,
             is_regular=is_regular,
             regularity_reason=regularity_reason,
             enrolled_by=requested_by
         )
         enrollment.save(audit_user=requested_by)
+        
+        logger.info(f"Student {idn} manually added and enrolled in {active_term.code} (Year {year_level}).")
 
         # High-level Audit Log
         from apps.auditing.models import AuditLog
@@ -372,8 +380,6 @@ def manual_add_student_record(data, requested_by):
             recipient_list=[email]
         )
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Failed to send welcome email to {email}: {str(e)}")
         
     return student, is_regular
