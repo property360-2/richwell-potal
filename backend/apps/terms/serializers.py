@@ -19,6 +19,10 @@ class TermSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
     def get_picking_deadline(self, obj):
+        # Prefer the explicit picking window end date if set
+        if obj.schedule_picking_end:
+            return obj.schedule_picking_end
+        # Fallback to legacy 3-day logic
         if obj.picking_published_at:
             from datetime import timedelta
             return obj.picking_published_at + timedelta(days=3)

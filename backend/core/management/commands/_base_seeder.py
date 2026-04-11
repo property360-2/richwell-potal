@@ -315,7 +315,7 @@ def create_professors(curriculum, stdout, with_availability=False):
 # ──────────────────────────────────────────────
 
 def generate_student(idx, program, curriculum, student_type='FRESHMAN',
-                     status='APPROVED', dob=date(2005, 1, 1), is_active_user=True):
+                     status='ADMITTED', dob=date(2005, 1, 1), is_active_user=True):
     """
     Create a User + Student pair.
     Password: {idn}{MMDD} for approved students, 'password123' for applicants.

@@ -1,13 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from apps.grades.views import (
-    AdvisingViewSet, 
-    AdvisingApprovalViewSet, 
-    SubjectCreditingViewSet,
-    CreditingRequestViewSet,
-    GradeSubmissionViewSet,
-    ResolutionViewSet
-)
+from apps.grades.views.advising import AdvisingViewSet, AdvisingApprovalViewSet
+from apps.grades.views.crediting import SubjectCreditingViewSet, CreditingRequestViewSet
+from apps.grades.views.grading import GradeSubmissionViewSet
+from apps.grades.views.resolution import ResolutionViewSet
 
 router = DefaultRouter()
 router.register('advising', AdvisingViewSet, basename='advising')

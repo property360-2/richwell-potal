@@ -74,11 +74,17 @@ class Subject(AuditMixin, models.Model):
     Represents a specific subject/course within a curriculum version.
     Tracks units, hours, and whether it's a major/practicum.
     """
+    SEMESTER_CHOICES = [
+        ('1', 'First Semester'),
+        ('2', 'Second Semester'),
+        ('S', 'Summer'),
+    ]
+
     curriculum = models.ForeignKey(CurriculumVersion, on_delete=models.CASCADE, related_name='subjects')
     code = models.CharField(max_length=30)
     description = models.CharField(max_length=300)
     year_level = models.PositiveIntegerField()
-    semester = models.CharField(max_length=2)  # '1', '2', 'S'
+    semester = models.CharField(max_length=2, choices=SEMESTER_CHOICES)  # '1', '2', 'S'
     lec_units = models.PositiveIntegerField(default=0)
     lab_units = models.PositiveIntegerField(default=0)
     total_units = models.PositiveIntegerField()

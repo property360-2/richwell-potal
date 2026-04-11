@@ -1,9 +1,20 @@
+"""
+Richwell Portal — Scheduling Service
+
+This service handles the core logic for academic scheduling, including 
+publishing schedules, creating/updating manual assignments, and 
+the automatic randomization engine for section schedules.
+
+It implements complex conflict detection for Professors, Rooms, and Sections.
+"""
+
 from django.db import transaction, models
 from django.conf import settings
 from apps.scheduling.models import Schedule
 from apps.facilities.models import Room
 from apps.faculty.models import Professor
 from apps.sections.models import Section
+
 
 class SchedulingService:
     @staticmethod
@@ -178,42 +189,116 @@ class SchedulingService:
     def randomize_section_schedule(term, section, respect_professor=False, respect_room=False):
         """
         Auto-generates day/time assignments for all schedule slots of a section.
-        Each subject (with all its components like LEC+LAB) gets ONE continuous block on ONE day.
-        Respects section session (AM → 7:00-13:00, PM → 13:00-19:00).
-        Optionally respects existing professor availability grids and other room/professor schedules.
+        
+        This is the main orchestration method for the automatic scheduling engine.
+        It groups subject components (LEC+LAB) into continuous blocks to ensure 
+        students don't have fragmented schedules. It respects section sessions 
+        (AM/PM) and optionally checks for professor and room availability.
+        
+        Args:
+            term (Term): The academic term for which to generate the schedule.
+            section (Section): The student section to schedule.
+            respect_professor (bool): If True, checks professor availability and conflicts.
+            respect_room (bool): If True, checks for room capacity and scheduling conflicts.
+            
+        Returns:
+            QuerySet: The updated Schedule records for the section.
         """
         import random
-        from datetime import time as dt_time
+        from collections import defaultdict
+        
+        DAYS = ['M', 'T', 'W', 'TH', 'F', 'S']
+        service = SchedulingService()
+
+        # 1. Initialize and clean existing assignments
+        slots = Schedule.objects.filter(term=term, section=section).select_related('subject').order_by('id')
+        if not slots.exists(): raise ValueError("No schedule slots found for this section.")
+        slots.update(days=[], start_time=None, end_time=None)
+
+        # 2. Get Constraints and Configuration
+        grid_start, grid_end = service._get_grid_bounds(section)
+        constraints = service._prepare_constraints(term, section, respect_professor, respect_room)
+        qualified_profs = service._get_qualified_profs(slots) if respect_professor else {}
+        available_rooms = service._get_available_rooms(section) if respect_room else []
+        
+        # Track occupied intervals per day for the current section
+        section_occupied = {d: [] for d in DAYS}
+
+        # 3. Group and Sort Subject Blocks
+        # Group LEC and LAB components of the same subject to keep them together in the schedule
+        subject_groups = defaultdict(list)
+        for slot in slots: subject_groups[slot.subject_id].append(slot)
+
+        subject_durations = service._calculate_subject_durations(subject_groups, grid_start, grid_end)
+        subject_durations.sort(key=lambda x: x['total_minutes'], reverse=True) # Longest first for better packing
+
+        # 4. Placement Loop
+        day_index = 0
+        for item in subject_durations:
+            placed = False
+            for attempt in range(len(DAYS)):
+                day = DAYS[(day_index + attempt) % len(DAYS)]
+                
+                gap_start, assigned_prof_id, assigned_room_id = service._find_gap_for_subject_group(
+                    day=day,
+                    total_duration=item['total_minutes'],
+                    slots_in_group=item['slots'],
+                    section=section,
+                    grid_start=grid_start,
+                    grid_end=grid_end,
+                    constraints=constraints,
+                    section_occupied=section_occupied[day],
+                    qualified_profs=qualified_profs.get(item['subject_id'], []),
+                    available_rooms=available_rooms,
+                    respect_professor=respect_professor,
+                    respect_room=respect_room
+                )
+
+                if gap_start is not None:
+                    service._assign_slots_to_gap(
+                        day=day,
+                        gap_start=gap_start,
+                        total_duration=item['total_minutes'],
+                        slots=item['slots'],
+                        assigned_prof_id=assigned_prof_id,
+                        assigned_room_id=assigned_room_id,
+                        respect_professor=respect_professor,
+                        respect_room=respect_room
+                    )
+                    
+                    section_occupied[day].append((gap_start, gap_start + item['total_minutes']))
+                    day_index = (day_index + attempt + 1) % len(DAYS)
+                    placed = True
+                    break
+
+            if not placed:
+                raise ValueError(
+                    f"Could not place {item['slots'][0].subject.code} — "
+                    f"No valid slots found on any day for {section.session} session."
+                )
+
+        return Schedule.objects.filter(term=term, section=section).select_related(
+            'subject', 'professor__user', 'room', 'section', 'term'
+        )
+
+    def _get_grid_bounds(self, section):
+        """Returns the (START, END) minutes for the section's session (AM/PM)."""
+        if section.session == 'AM':
+            return 7 * 60, 13 * 60 # 7:00 AM - 1:00 PM
+        return 13 * 60, 19 * 60     # 1:00 PM - 7:00 PM
+
+    def _prepare_constraints(self, term, section, respect_prof, respect_room):
+        """Fetches existing schedules and availability grids to act as constraints."""
         from collections import defaultdict
         from apps.faculty.models import ProfessorAvailability
 
-        DAYS = ['M', 'T', 'W', 'TH', 'F', 'S']
+        constraints = {
+            'prof_schedules': defaultdict(list),
+            'room_schedules': defaultdict(list),
+            'prof_availabilities': defaultdict(list)
+        }
 
-        slots = Schedule.objects.filter(
-            term=term, section=section
-        ).select_related('subject').order_by('id')
-
-        if not slots.exists():
-            raise ValueError("No schedule slots found for this section.")
-
-        # Reset existing time assignments
-        slots.update(days=[], start_time=None, end_time=None)
-
-        # Determine time window based on section session
-        if section.session == 'AM':
-            GRID_START = 7 * 60    # 7:00 AM
-            GRID_END = 13 * 60     # 1:00 PM (6 hours)
-        else:
-            GRID_START = 13 * 60   # 1:00 PM
-            GRID_END = 19 * 60     # 7:00 PM (6 hours)
-
-        # Pre-fetch existing global constraints if respecting limits
-        global_prof_schedules = defaultdict(list)
-        global_room_schedules = defaultdict(list)
-        prof_availabilities = defaultdict(list)
-
-        if respect_professor or respect_room:
-            # Get all other schedules in the term that are assigned a time
+        if respect_prof or respect_room:
             other_schedules = Schedule.objects.filter(
                 term=term, start_time__isnull=False, end_time__isnull=False
             ).exclude(section=section)
@@ -222,194 +307,123 @@ class SchedulingService:
                 duration_mins = (s.end_time.hour * 60 + s.end_time.minute) - (s.start_time.hour * 60 + s.start_time.minute)
                 sc_start = s.start_time.hour * 60 + s.start_time.minute
                 sc_end = sc_start + duration_mins
-                
                 for d in s.days:
-                    if respect_professor and s.professor_id:
-                        global_prof_schedules[s.professor_id].append((d, sc_start, sc_end))
+                    if respect_prof and s.professor_id:
+                        constraints['prof_schedules'][s.professor_id].append((d, sc_start, sc_end))
                     if respect_room and s.room_id:
-                        global_room_schedules[s.room_id].append((d, sc_start, sc_end))
+                        constraints['room_schedules'][s.room_id].append((d, sc_start, sc_end))
 
-        if respect_professor:
-            prof_ids = [s.professor_id for s in slots if s.professor_id]
-            avails = ProfessorAvailability.objects.filter(professor_id__in=prof_ids)
+        if respect_prof:
+            avails = ProfessorAvailability.objects.all() # Optimization: Could filter by profs in section
             for av in avails:
-                prof_availabilities[av.professor_id].append((av.day, av.session))
+                constraints['prof_availabilities'][av.professor_id].append((av.day, av.session))
+        
+        return constraints
 
-        all_available_rooms = []
-        if respect_room:
-            capacity_needed = section.students.count() if hasattr(section, 'students') else 40
-            all_available_rooms = list(Room.objects.filter(is_active=True, capacity__gte=capacity_needed).values_list('id', 'room_type'))
-            random.shuffle(all_available_rooms)
+    def _get_qualified_profs(self, slots):
+        """Returns a mapping of subject IDs to professor IDs qualified to teach them."""
+        from collections import defaultdict
+        from apps.faculty.models import ProfessorSubject
+        qualified = defaultdict(list)
+        p_subs = ProfessorSubject.objects.filter(subject_id__in=[s.subject_id for s in slots])
+        for ps in p_subs: qualified[ps.subject_id].append(ps.professor_id)
+        return qualified
 
-        qualified_profs = defaultdict(list)
-        if respect_professor:
-            from apps.faculty.models import ProfessorSubject
-            p_subs = ProfessorSubject.objects.filter(subject_id__in=[s.subject_id for s in slots])
-            for ps in p_subs:
-                qualified_profs[ps.subject_id].append(ps.professor_id)
+    def _get_available_rooms(self, section):
+        """Returns a list of rooms with sufficient capacity for the section."""
+        import random
+        capacity = section.students.count() if hasattr(section, 'students') else 40
+        rooms = list(Room.objects.filter(is_active=True, capacity__gte=capacity).values_list('id', 'room_type'))
+        random.shuffle(rooms)
+        return rooms
 
-        # Track occupied intervals per day (Section constraints)
-        occupied = {d: [] for d in DAYS}
-
-        def find_gap_for_group(day, total_duration, subject_id, slots_in_group, rejection_reasons=None):
-            """Find available gap for a subject (all components together)."""
-            
-            # For simplicity, we assume if one component has a prof/room assigned, 
-            # we respect those. If multiple have different ones (unusual), we'd need more logic.
-            # Here we just take the first assigned prof/room if any.
-            prof_id = next((s.professor_id for s in slots_in_group if s.professor_id), None)
-            room_id = next((s.room_id for s in slots_in_group if s.room_id), None)
-            
-            # Determine candidate professors
-            candidate_profs = [prof_id] if prof_id else []
-            if respect_professor and not prof_id:
-                candidate_profs = list(qualified_profs.get(subject_id, []))
-                random.shuffle(candidate_profs)
-                if not candidate_profs: candidate_profs = [None]
-            elif not respect_professor and not prof_id:
-                candidate_profs = [None]
-
-            # Determine candidate rooms (matching first component's type usually)
-            candidate_rooms = [room_id] if room_id else []
-            if respect_room and not room_id:
-                # We'll just look for a LECTURE room by default for the block
-                candidate_rooms = [r_id for r_id, r_type in all_available_rooms if r_type == 'LECTURE']
-                if not candidate_rooms: candidate_rooms = [None]
-            elif not respect_room and not room_id:
-                candidate_rooms = [None]
-
-            for p_id in candidate_profs:
-                # Check professor availability grid if p_id exists
-                if respect_professor and p_id and p_id in prof_availabilities:
-                    has_avail = False
-                    for av_day, av_session in prof_availabilities[p_id]:
-                        if av_day == day and av_session == section.session:
-                            has_avail = True
-                            break
-                    if not has_avail: continue
-                
-                for r_id in candidate_rooms:
-                    blocking_intervals = []
-                    
-                    # 1. Section Conflicts
-                    for st, en in occupied[day]:
-                        blocking_intervals.append((st, en))
-                        
-                    # 2. Prof Conflicts
-                    if respect_professor and p_id:
-                        for d, st, en in global_prof_schedules.get(p_id, []):
-                            if d == day: blocking_intervals.append((st, en))
-                                
-                    # 3. Room Conflicts
-                    if respect_room and r_id:
-                        for d, st, en in global_room_schedules.get(r_id, []):
-                            if d == day: blocking_intervals.append((st, en))
-                                
-                    blocking_intervals = sorted(blocking_intervals, key=lambda x: x[0])
-                    candidate = GRID_START
-                    valid_time = False
-
-                    # Packing logic
-                    for occ_start, occ_end in blocking_intervals:
-                        if candidate + total_duration <= occ_start:
-                            valid_time = True
-                            break
-                        candidate = max(candidate, occ_end)
-
-                    if not valid_time and candidate + total_duration <= GRID_END:
-                        valid_time = True
-
-                    if valid_time:
-                        return candidate, p_id, r_id
-
-            if rejection_reasons is not None:
-                rejection_reasons.append(f"No valid combination on {day}.")
-            return None, None, None
-
-        # Group slots by subject
-        subject_groups = defaultdict(list)
-        for slot in slots:
-            subject_groups[slot.subject_id].append(slot)
-
-        # Calculate duration for each group (Total weekly hours for the subject)
-        subject_durations = []
+    def _calculate_subject_durations(self, subject_groups, grid_start, grid_end):
+        """Calculates total weekly minutes for each subject group."""
+        durations = []
+        max_duration = grid_end - grid_start
         for subject_id, group in subject_groups.items():
             subject = group[0].subject
             total_hrs = float(subject.hrs_per_week or subject.total_units or 3)
-            duration_minutes = int(total_hrs * 60)
+            duration_minutes = min(int(total_hrs * 60), max_duration)
+            durations.append({'subject_id': subject_id, 'slots': group, 'total_minutes': duration_minutes})
+        return durations
+
+    def _find_gap_for_subject_group(self, **kwargs):
+        """
+        Internal logic to find a valid time gap on a specific day for a subject block.
+        Considers section, professor, and room constraints.
+        """
+        import random
+        # Extract params from kwargs for cleaner signature in long list
+        day = kwargs['day']
+        total_duration = kwargs['total_duration']
+        slots_in_group = kwargs['slots_in_group']
+        section = kwargs['section']
+        grid_start, grid_end = kwargs['grid_start'], kwargs['grid_end']
+        constraints = kwargs['constraints']
+        section_occupied = kwargs['section_occupied']
+        qualified_profs = kwargs['qualified_profs']
+        available_rooms = kwargs['available_rooms']
+        respect_prof = kwargs['respect_professor']
+        respect_room = kwargs['respect_room']
+
+        # Determine fixed/candidate professor
+        fixed_prof_id = next((s.professor_id for s in slots_in_group if s.professor_id), None)
+        candidate_profs = [fixed_prof_id] if fixed_prof_id else (list(qualified_profs) if respect_prof else [None])
+        random.shuffle(candidate_profs)
+        if not candidate_profs: candidate_profs = [None]
+
+        # Determine fixed/candidate room (usually LEC by default for the block)
+        fixed_room_id = next((s.room_id for s in slots_in_group if s.room_id), None)
+        candidate_rooms = [fixed_room_id] if fixed_room_id else ([r_id for r_id, r_type in available_rooms if r_type == 'LECTURE'] if respect_room else [None])
+        if not candidate_rooms: candidate_rooms = [None]
+
+        for p_id in candidate_profs:
+            if respect_prof and p_id:
+                has_avail = any(av_day == day and av_session == section.session for av_day, av_session in constraints['prof_availabilities'].get(p_id, []))
+                if not has_avail: continue
             
-            # Cap at grid window
-            duration_minutes = min(duration_minutes, (GRID_END - GRID_START))
-            subject_durations.append({
-                'subject_id': subject_id,
-                'slots': group,
-                'total_minutes': duration_minutes
-            })
-
-        # Sort by longest duration first for better packing
-        subject_durations.sort(key=lambda x: x['total_minutes'], reverse=True)
-
-        day_index = 0
-        for item in subject_durations:
-            placed = False
-            rejection_reasons = []
-
-            for attempt in range(len(DAYS)):
-                day = DAYS[(day_index + attempt) % len(DAYS)]
-                gap_start, assigned_prof_id, assigned_room_id = find_gap_for_group(
-                    day, item['total_minutes'], item['subject_id'], item['slots'], rejection_reasons
+            for r_id in candidate_rooms:
+                blocking = sorted(
+                    section_occupied + 
+                    ([(st, en) for d, st, en in constraints['prof_schedules'].get(p_id, []) if d == day] if respect_prof and p_id else []) +
+                    ([(st, en) for d, st, en in constraints['room_schedules'].get(r_id, []) if d == day] if respect_room and r_id else []),
+                    key=lambda x: x[0]
                 )
+                
+                candidate = grid_start
+                for occ_start, occ_end in blocking:
+                    if candidate + total_duration <= occ_start: return candidate, p_id, r_id
+                    candidate = max(candidate, occ_end)
+                
+                if candidate + total_duration <= grid_end: return candidate, p_id, r_id
+                
+        return None, None, None
 
-                if gap_start is not None:
-                    # Place all components sequentially in this gap
-                    current_start = gap_start
-                    
-                    # Split the total duration among components based on unit ratio IF multiple slots
-                    # (Similar to old logic but strictly sequential now)
-                    subject = item['slots'][0].subject
-                    total_units = (subject.lec_units or 0) + (subject.lab_units or 0)
-                    
-                    for slot in item['slots']:
-                        # Calculate slot specific duration within the block
-                        if len(item['slots']) == 1:
-                            slot_duration = item['total_minutes']
-                        elif total_units > 0:
-                            units = subject.lab_units if slot.component_type == 'LAB' else subject.lec_units
-                            slot_duration = int(item['total_minutes'] * (units / total_units))
-                        else:
-                            slot_duration = item['total_minutes'] // len(item['slots'])
-                        
-                        slot_end = current_start + slot_duration
-                        
-                        start_h, start_m = divmod(current_start, 60)
-                        end_h, end_m = divmod(slot_end, 60)
-
-                        slot.days = [day]
-                        slot.start_time = dt_time(start_h, start_m)
-                        slot.end_time = dt_time(end_h, end_m)
-                        
-                        if respect_professor and not slot.professor_id and assigned_prof_id:
-                            slot.professor_id = assigned_prof_id
-                        if respect_room and not slot.room_id and assigned_room_id:
-                            slot.room_id = assigned_room_id
-                            
-                        slot.save(update_fields=['days', 'start_time', 'end_time', 'professor', 'room'])
-                        current_start = slot_end
-
-                    occupied[day].append((gap_start, gap_start + item['total_minutes']))
-                    day_index = (day_index + attempt + 1) % len(DAYS)
-                    placed = True
-                    break
-
-            if not placed:
-                raise ValueError(
-                    f"Could not place {item['slots'][0].subject.code} — "
-                    f"tried all days for {section.session} session."
-                )
-
-        return Schedule.objects.filter(
-            term=term, section=section
-        ).select_related('subject', 'professor__user', 'room', 'section', 'term')
+    def _assign_slots_to_gap(self, **kwargs):
+        """Saves final assignments to the database for all slots in a subject block."""
+        from datetime import time as dt_time
+        day, current_start, total_duration = kwargs['day'], kwargs['gap_start'], kwargs['total_duration']
+        slots, prof_id, room_id = kwargs['slots'], kwargs['assigned_prof_id'], kwargs['assigned_room_id']
+        
+        subject = slots[0].subject
+        total_units = (subject.lec_units or 0) + (subject.lab_units or 0)
+        
+        for slot in slots:
+            if len(slots) == 1: slot_duration = total_duration
+            elif total_units > 0:
+                units = subject.lab_units if slot.component_type == 'LAB' else subject.lec_units
+                slot_duration = int(total_duration * (units / total_units))
+            else: slot_duration = total_duration // len(slots)
+            
+            slot_end = current_start + slot_duration
+            slot.days, slot.start_time, slot.end_time = [day], dt_time(*(divmod(current_start, 60))), dt_time(*(divmod(slot_end, 60)))
+            
+            if kwargs['respect_professor'] and not slot.professor_id and prof_id: slot.professor_id = prof_id
+            if kwargs['respect_room'] and not slot.room_id and room_id: slot.room_id = room_id
+                
+            slot.save(update_fields=['days', 'start_time', 'end_time', 'professor', 'room'])
+            current_start = slot_end
     @staticmethod
     def get_schedule_insights(queryset):
         """

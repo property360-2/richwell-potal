@@ -108,9 +108,18 @@ class AdvisingService:
             if tracked_units >= (0.75 * cum_sum_prev_years):
                 current_year = y + 1
             else:
-                current_year = y
+                # Still check if we stay at the current year level calculated so far (or y if y was reached)
                 break
                 
+        # NEW: Ensure year level is at least the highest year level of any PASSED subject
+        from django.db.models import Max
+        highest_passed_year = Grade.objects.filter(
+            student=student, 
+            grade_status=Grade.STATUS_PASSED
+        ).aggregate(max_year=Max('subject__year_level'))['max_year'] or 1
+        
+        current_year = max(current_year, highest_passed_year)
+
         # Cap current_year to max year level in curriculum
         max_year = max([yu['year_level'] for yu in year_units] or [1])
         if current_year > max_year:
@@ -238,9 +247,10 @@ class AdvisingService:
                     continue
 
         if not subjects_to_enroll:
+            reason = "OUT_OF_SYNC_TRANSFEREE" if student.student_type == 'TRANSFEREE' else "PREREQUISITE_FAILED"
             raise ValidationError({
                 "detail": "No valid subject blocks found. You may have missing prerequisites for your current year level. Please contact your Program Head for manual advising.",
-                "reason": "PREREQUISITE_FAILED"
+                "reason": reason
             })
 
 
@@ -313,8 +323,13 @@ class AdvisingService:
 
         subjects = Subject.objects.filter(id__in=subject_ids)
         
-        # 1. Offering check: Ensure subjects match the active semester
+        # 1. Offering check and Semester check
+        from apps.scheduling.models import Schedule
         for subject in subjects:
+            # Check if subject is offered this term (has a schedule)
+            if not Schedule.objects.filter(term=term, subject=subject).exists():
+                raise ValidationError(f"Subject {subject.code} is not offered this term.")
+
             if subject.semester != term.semester_type:
                 raise ValidationError(f"Subject {subject.code} is a {subject.get_semester_display()} subject, but the active term is {term.get_semester_type_display()}.")
 
@@ -583,7 +598,7 @@ class AdvisingService:
         Raises:
             ValidationError: If the request is not in PENDING status.
         """
-        from apps.grades.models import CreditingRequest, Grade
+        from apps.grades.models import CreditingRequest
         from apps.notifications.services.notification_service import NotificationService
         from apps.notifications.models import Notification
 

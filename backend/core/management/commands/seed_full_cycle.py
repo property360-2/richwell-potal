@@ -131,7 +131,7 @@ class Command(BaseCommand):
                 dob = date(2005, (idx % 12) + 1, (idx % 28) + 1)
                 student = generate_student(
                     idx, program, curriculum,
-                    status='APPROVED', dob=dob, is_active_user=True,
+                    status='ADMITTED', dob=dob, is_active_user=True,
                 )
                 create_enrollment(
                     student, active_term, approver,
@@ -145,7 +145,7 @@ class Command(BaseCommand):
                 dob = date(2005, (idx % 12) + 1, (idx % 28) + 1)
                 student = generate_student(
                     idx, program, curriculum,
-                    status='APPROVED', dob=dob, is_active_user=True,
+                    status='ADMITTED', dob=dob, is_active_user=True,
                 )
                 create_enrollment(
                     student, active_term, approver,
@@ -165,7 +165,7 @@ class Command(BaseCommand):
                 dob = date(2004, (idx % 12) + 1, (idx % 28) + 1)
                 student = generate_student(
                     idx, program, curriculum,
-                    status='APPROVED', dob=dob, is_active_user=True,
+                    status='ADMITTED', dob=dob, is_active_user=True,
                 )
                 create_enrollment(
                     student, past_term, approver,
@@ -192,7 +192,7 @@ class Command(BaseCommand):
                 dob = date(2004, (idx % 12) + 1, (idx % 28) + 1)
                 student = generate_student(
                     idx, program, curriculum,
-                    status='APPROVED', dob=dob, is_active_user=True,
+                    status='ADMITTED', dob=dob, is_active_user=True,
                 )
                 create_enrollment(
                     student, past_term, approver,
@@ -211,7 +211,7 @@ class Command(BaseCommand):
                 dob = date(2005, (idx % 12) + 1, (idx % 28) + 1)
                 student = generate_student(
                     idx, program, curriculum,
-                    status='APPROVED', dob=dob, is_active_user=True,
+                    status='ADMITTED', dob=dob, is_active_user=True,
                 )
                 create_enrollment(
                     student, active_term, approver,

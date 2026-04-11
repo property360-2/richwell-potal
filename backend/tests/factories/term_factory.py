@@ -20,7 +20,5 @@ class TermFactory(factory.django.DjangoModelFactory):
     midterm_grade_end = factory.LazyFunction(lambda: date.today() + timedelta(days=60))
     final_grade_start = factory.LazyFunction(lambda: date.today() + timedelta(days=61))
     final_grade_end = factory.LazyFunction(lambda: date.today() + timedelta(days=90))
-    schedule_picking_start = None
-    schedule_picking_end = None
     schedule_published = False
     is_active = True

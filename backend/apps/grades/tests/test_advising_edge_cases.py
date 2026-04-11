@@ -110,7 +110,7 @@ class TestAdvisingEdgeCases:
         section = setup_base_data["section"]
         
         subj_pre = self.create_subject(curriculum, "PRE", year_level=1, semester="1")
-        subj_main = self.create_subject(curriculum, "MAIN", year_level=1, semester="2")
+        subj_main = self.create_subject(curriculum, "MAIN", year_level=1, semester="1")
         SubjectPrerequisite.objects.create(subject=subj_main, prerequisite_subject=subj_pre, prerequisite_type='SPECIFIC')
         
         # Ensure it is offered

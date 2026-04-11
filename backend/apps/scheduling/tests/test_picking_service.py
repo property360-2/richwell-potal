@@ -1,4 +1,6 @@
 import pytest
+from datetime import timedelta
+from django.utils import timezone
 from unittest.mock import patch
 from apps.scheduling.services.picking_service import PickingService
 from apps.sections.models import Section, SectionStudent
@@ -28,8 +30,7 @@ class TestPickingService:
             enrollment_start=today - timedelta(days=30), enrollment_end=today + timedelta(days=30),
             advising_start=today - timedelta(days=30), advising_end=today + timedelta(days=30),
             schedule_published=True,
-            schedule_picking_start=today - timedelta(days=1),
-            schedule_picking_end=today + timedelta(days=10)
+            picking_published_at=timezone.now() - timedelta(hours=1)
         )
         
         # Create Student

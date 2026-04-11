@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Info } from 'lucide-react';
 import api from '../../api/axios';
 import { schedulingApi } from '../../api/scheduling';
+import useCountdown from '../../hooks/useCountdown';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useToast } from '../../components/ui/Toast';
 import PageHeader from '../../components/shared/PageHeader';
@@ -34,49 +35,13 @@ const SchedulePicking = () => {
   const [selectedSession, setSelectedSession] = useState('AM');
   const [subjectSections, setSubjectSections] = useState({});
   const [selectedSections, setSelectedSections] = useState({});
-  const [timeLeft, setTimeLeft] = useState(null);
+  const { timeLeft, formattedTime } = useCountdown(activeTerm?.picking_deadline);
 
   useEffect(() => { 
     fetchData(); 
   }, []);
 
-  // Timer Effect
-  useEffect(() => {
-    if (!activeTerm?.picking_deadline) return;
 
-    const timer = setInterval(() => {
-      const deadline = new Date(activeTerm.picking_deadline).getTime();
-      const now = new Date().getTime();
-      const diff = deadline - now;
-
-      if (diff <= 0) {
-        setTimeLeft(0);
-        clearInterval(timer);
-      } else {
-        setTimeLeft(diff);
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [activeTerm]);
-
-  const formatCountdown = (ms) => {
-    if (ms === null) return null;
-    if (ms <= 0) return "Picking Period Expired";
-    
-    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    const secs = Math.floor((ms % (1000 * 60)) / 1000);
-
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0 || days > 0) parts.push(`${hours}h`);
-    parts.push(`${mins}m`);
-    parts.push(`${secs}s`);
-    
-    return parts.join(' ');
-  };
 
   const fetchData = async () => {
     try {
@@ -170,7 +135,7 @@ const SchedulePicking = () => {
                 </div>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className={`text-4xl font-black italic tracking-tighter uppercase ${timeLeft <= 0 ? 'text-slate-400' : 'text-slate-900'}`}>
-                    {formatCountdown(timeLeft)}
+                    {timeLeft <= 0 ? "Picking Period Expired" : formattedTime}
                   </span>
                   {timeLeft > 0 && (
                     <span className="text-xs font-bold text-slate-400 mb-1">REMAINING</span>

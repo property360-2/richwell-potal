@@ -32,7 +32,9 @@ def setup_data(db):
         idn='260014',
         date_of_birth='2005-01-01',
         program=program,
-        curriculum=curriculum
+        curriculum=curriculum,
+        gender='MALE',
+        student_type='FRESHMAN'
     )
     
     # Create some subjects for Year 1 and Year 2
