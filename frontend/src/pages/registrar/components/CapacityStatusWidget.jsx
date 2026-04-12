@@ -27,6 +27,7 @@ const CapacityStatusWidget = ({ termId, onResolveNeeded }) => {
     const [error, setError] = useState(null);
 
     const fetchBottlenecks = useCallback(async () => {
+        if (!termId || termId === 'undefined') return;
         try {
             setLoading(true);
             setError(null);
@@ -96,10 +97,14 @@ const CapacityStatusWidget = ({ termId, onResolveNeeded }) => {
                                 </div>
                             </div>
                             <div className="bg-white p-3 rounded-2xl border border-amber-100 shadow-sm">
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Est. Blocks Needed</div>
-                                <div className="text-2xl font-black text-slate-700 flex items-center gap-2">
-                                    <RefreshCw size={20} />
-                                    {totalNewBlocksNeeded}
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status / Action</div>
+                                <div className="text-xl font-black text-slate-700 flex items-center gap-2">
+                                    <RefreshCw size={20} className={totalNewBlocksNeeded > 0 ? 'text-amber-500' : 'text-emerald-500'} />
+                                    {totalNewBlocksNeeded > 0 ? (
+                                        <span className="text-amber-600">{totalNewBlocksNeeded} Blocks Needed</span>
+                                    ) : (
+                                        <span className="text-emerald-600 text-sm">Assignment Ready</span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -119,14 +124,9 @@ const CapacityStatusWidget = ({ termId, onResolveNeeded }) => {
                         </div>
 
                         <div className="pt-2 flex gap-2">
-                            <Button 
-                                variant="primary" 
-                                className="w-full shadow-lg shadow-amber-200"
-                                icon={<RefreshCw size={16} />}
-                                onClick={() => onResolveNeeded(bottlenecks)}
-                            >
-                                Trigger Re-Sync
-                            </Button>
+                            <p className="text-[10px] text-slate-500 font-medium italic">
+                                Use the 'Distribute Unassigned' button in the dashboard header to assign waiting students to available sections.
+                            </p>
                         </div>
                     </div>
                 ) : (

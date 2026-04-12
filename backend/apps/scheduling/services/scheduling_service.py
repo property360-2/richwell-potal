@@ -22,13 +22,10 @@ class SchedulingService:
     def publish_schedule(term):
         """
         Marks the schedule as published, opening student picking.
-        Sets the 3-day countdown trigger.
         Notifies all students with approved advising for this term.
         """
-        from django.utils import timezone
         term.schedule_published = True
-        term.picking_published_at = timezone.now()
-        term.save(update_fields=['schedule_published', 'picking_published_at'])
+        term.save(update_fields=['schedule_published'])
 
         # Notify students with approved advising
         from apps.students.models import StudentEnrollment
@@ -47,7 +44,7 @@ class SchedulingService:
                 Notification.objects.create(
                     recipient=enrollment.student.user,
                     title="Schedule Published",
-                    message=f"Class schedules for {term.code} are now available. You may pick your section/schedule.",
+                    message=f"Class schedules for {term.code} are now available. You may now view your assigned schedule or pick your preferred section (if applicable).",
                     type=Notification.NotificationType.SCHEDULE,
                     link_url=link_url
                 )
@@ -272,9 +269,38 @@ class SchedulingService:
                     break
 
             if not placed:
+                # Diagnostics to explain WHY it failed
+                subject_code = item['slots'][0].subject.code
+                total_mins = item['total_minutes']
+                
+                # Check if it would fit WITHOUT prof/room constraints
+                can_fit_anywhere = False
+                for d in DAYS:
+                    gap, _, _ = service._find_gap_for_subject_group(
+                        day=d, total_duration=total_mins, slots_in_group=item['slots'],
+                        section=section, grid_start=grid_start, grid_end=grid_end,
+                        constraints=constraints, section_occupied=section_occupied[d],
+                        qualified_profs={}, available_rooms=[],
+                        respect_professor=False, respect_room=False
+                    )
+                    if gap is not None:
+                        can_fit_anywhere = True
+                        break
+                
+                if not can_fit_anywhere:
+                    reason = f"the {section.session} session grid is physically full or contains too many gaps."
+                elif respect_professor and respect_room:
+                    reason = "professor or room availability constraints are too restrictive."
+                elif respect_professor:
+                    reason = "professor availability or existing schedule conflicts."
+                elif respect_room:
+                    reason = "no available rooms with sufficient capacity in this time slot."
+                else:
+                    reason = f"conflict with {total_mins // 60}h {total_mins % 60}m subject block."
+
                 raise ValueError(
-                    f"Could not place {item['slots'][0].subject.code} — "
-                    f"No valid slots found on any day for {section.session} session."
+                    f"Could not place {subject_code} — {reason} "
+                    f"Try disabling 'Respect Professor/Room' or manually adjusting the grid."
                 )
 
         return Schedule.objects.filter(term=term, section=section).select_related(

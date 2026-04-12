@@ -40,7 +40,7 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         """
         Dynamically applies Dean-only permissions for writing and administrative actions.
         """
-        dean_actions = ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish', 'randomize', 'pending_slots', 'section_completion', 'faculty_load_report', 'capacity_bottlenecks', 'validate_slot', 'resource_availability', 'available_slots', 'professor_insights', 'room_insights', 'section_insights']
+        dean_actions = ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish', 'randomize', 'pending_slots', 'section_completion', 'faculty_load_report', 'capacity_bottlenecks', 'sectioning_report', 'distribute_students', 'validate_slot', 'resource_availability', 'available_slots', 'professor_insights', 'room_insights', 'section_insights']
         if self.action in dean_actions:
             from core.permissions import IsDean
             return [IsDean()]
@@ -102,29 +102,58 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         """
         Automatically randomizes Day/Time assignments for a whole section.
         """
-        term, section = Term.objects.get(id=request.data.get('term_id')), Section.objects.get(id=request.data.get('section_id'))
-        updated = SchedulingService.randomize_section_schedule(term, section, respect_professor=request.data.get('respect_professor', False), respect_room=request.data.get('respect_room', False))
-        return Response(self.get_serializer(updated, many=True).data)
+        try:
+            term = self._get_term(request.data.get('term_id'))
+            section = Section.objects.get(id=request.data.get('section_id'))
+            updated = SchedulingService.randomize_section_schedule(
+                term, section, 
+                respect_professor=request.data.get('respect_professor', False), 
+                respect_room=request.data.get('respect_room', False)
+            )
+            return Response(self.get_serializer(updated, many=True).data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['POST'])
+    def transfer(self, request):
+        """Transfers schedules from one section to another."""
+        try:
+            term = self._get_term(request.data.get('term_id'))
+            from_section_id = request.data.get('from_section_id')
+            to_section_id = request.data.get('to_section_id')
+            
+            transferred = SchedulingService.transfer_schedules(
+                term, from_section_id, to_section_id
+            )
+            return Response({'count': len(transferred)})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['POST'], url_path='pick-regular')
     def pick_regular(self, request):
         """
         Regular students pick their session preference (AM/PM).
         """
-        if request.user.role != 'STUDENT': raise PermissionDenied("Unauthorized")
-        term, student = Term.objects.get(id=request.data.get('term_id')), request.user.student_profile
-        section, redirected = self.picking_service.pick_schedule_regular(student, term, request.data.get('session'))
-        return Response({"message": f"Successfully assigned to {section.name}.", "redirected": redirected, "section_id": section.id, "schedules": self.get_serializer(Schedule.objects.filter(section=section), many=True).data})
+        try:
+            if request.user.role != 'STUDENT': raise PermissionDenied("Unauthorized")
+            term, student = Term.objects.get(id=request.data.get('term_id')), request.user.student_profile
+            section, redirected = self.picking_service.pick_schedule_regular(student, term, request.data.get('session'))
+            return Response({"message": f"Successfully assigned to {section.name}.", "redirected": redirected, "section_id": section.id, "schedules": self.get_serializer(Schedule.objects.filter(section=section), many=True).data})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['POST'], url_path='pick-irregular')
     def pick_irregular(self, request):
         """
         Irregular students pick per-subject schedule slots.
         """
-        if request.user.role != 'STUDENT': raise PermissionDenied("Unauthorized")
-        term, student = Term.objects.get(id=request.data.get('term_id')), request.user.student_profile
-        self.picking_service.pick_schedule_irregular(student, term, request.data.get('selections', []))
-        return Response({"message": "Schedule picked successfully."})
+        try:
+            if request.user.role != 'STUDENT': raise PermissionDenied("Unauthorized")
+            term, student = Term.objects.get(id=request.data.get('term_id')), request.user.student_profile
+            self.picking_service.pick_schedule_irregular(student, term, request.data.get('selections', []))
+            return Response({"message": "Schedule picked successfully."})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['GET'], url_path='status-matrix')
     def status_matrix(self, request):
@@ -140,21 +169,100 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         """
         Dean publishes the entire term schedule.
         """
-        term = Term.objects.get(id=request.data.get('term_id'))
-        SchedulingService.publish_schedule(term)
-        return Response({"message": f"Schedule Published for {term.code}"})
+        try:
+            term = self._get_term(request.data.get('term_id'))
+            SchedulingService.publish_schedule(term)
+            return Response({"message": f"Schedule Published for {term.code}"})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['GET'], url_path='pending-slots')
+    def pending_slots(self, request):
+        """
+        Returns schedule slots that are missing Professor, Room, or Time/Days.
+        """
+        term = self._get_term(request.query_params.get('term_id'))
+        slots = Schedule.objects.filter(
+            models.Q(professor__isnull=True) | 
+            models.Q(room__isnull=True) | 
+            models.Q(start_time__isnull=True) | 
+            models.Q(days=[]),
+            term=term
+        ).select_related('term', 'section', 'subject', 'professor', 'room')
+        
+        # Flatten for the report component
+        data = []
+        for s in slots:
+            data.append({
+                "id": s.id,
+                "subject_code": s.subject.code,
+                "subject_description": s.subject.description,
+                "section_id": s.section.id,
+                "section_name": s.section.name,
+                "component_type": s.component_type,
+                "professor": str(s.professor) if s.professor else None,
+                "room": str(s.room) if s.room else None,
+                "days": s.days,
+                "start_time": s.start_time.strftime("%H:%M") if s.start_time else None
+            })
+        return Response(data)
+
+    @action(detail=False, methods=['GET'], url_path='section-completion')
+    def section_completion(self, request):
+        """
+        Tracks completion percentage per section for the Reports Hub.
+        """
+        term = self._get_term(request.query_params.get('term_id'))
+        return Response(self.report_service.get_section_completion_report(term))
+
+    @action(detail=False, methods=['GET'], url_path='faculty-load-report')
+    def faculty_load_report(self, request):
+        """
+        Retrieves current teaching hours vs target for faculty.
+        """
+        term = self._get_term(request.query_params.get('term_id'))
+        return Response(self.report_service.get_faculty_load_report(term))
+
+    def _get_term(self, term_id):
+        """Helper to get Term or raise 400/404 explicitly."""
+        if not term_id or term_id == 'undefined':
+            raise ValidationError({'error': 'term_id is required and must be a number.'})
+        try:
+            return Term.objects.get(id=term_id)
+        except (Term.DoesNotExist, ValueError):
+            raise ValidationError({'error': f'Term with id {term_id} not found.'})
 
     @action(detail=False, methods=['GET'], url_path='capacity-bottlenecks')
     def capacity_bottlenecks(self, request):
         """
         Reporting: Capacity bottlenecks (students without slots).
         """
-        term_id = request.query_params.get('term_id')
-        if not term_id:
-            return Response({"error": "term_id required"}, status=400)
-        
-        term = Term.objects.get(id=term_id)
+        term = self._get_term(request.query_params.get('term_id'))
         return Response(self.report_service.get_capacity_bottlenecks(term))
+
+    @action(detail=False, methods=['GET'], url_path='sectioning-report')
+    def sectioning_report(self, request):
+        """
+        High-level report for the Dean to monitor sectioning progress.
+        """
+        term = self._get_term(request.query_params.get('term_id'))
+        return Response(self.report_service.get_sectioning_dashboard_report(term))
+
+    @action(detail=False, methods=['POST'], url_path='distribute-students')
+    def distribute_students(self, request):
+        """
+        Dean triggers absolute auto-assignment for all approved but unassigned students.
+        """
+        try:
+            term = self._get_term(request.data.get('term_id'))
+            assigned_count = self.picking_service.auto_assign_remaining(term)
+            
+            return Response({
+                "message": f"Successfully distributed {assigned_count} students to sections.",
+                "count": assigned_count
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['POST'], url_path='validate-slot')
     def validate_slot(self, request):
@@ -162,8 +270,10 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         Validates a hypothetical slot configuration for conflicts.
         """
         d = request.data
+        term = self._get_term(d.get('term_id'))
+        
         st, et = datetime.strptime(d.get('start_time'), "%H:%M").time(), datetime.strptime(d.get('end_time'), "%H:%M").time()
-        term, professor, room, section = Term.objects.get(id=d.get('term_id')), Professor.objects.get(id=d.get('professor_id')) if d.get('professor_id') else None, Room.objects.get(id=d.get('room_id')) if d.get('room_id') else None, Section.objects.get(id=d.get('section_id')) if d.get('section_id') else None
+        professor, room, section = Professor.objects.get(id=d.get('professor_id')) if d.get('professor_id') else None, Room.objects.get(id=d.get('room_id')) if d.get('room_id') else None, Section.objects.get(id=d.get('section_id')) if d.get('section_id') else None
         
         for entity, method in [(professor, 'check_professor_conflict'), (room, 'check_room_conflict'), (section, 'check_section_conflict')]:
             if entity:
@@ -177,8 +287,9 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         Batch check for resource availability at a given time.
         """
         d = request.data
+        term = self._get_term(d.get('term_id'))
+        
         st, et = datetime.strptime(d.get('start_time'), "%H:%M").time(), datetime.strptime(d.get('end_time'), "%H:%M").time()
-        term = Term.objects.get(id=d.get('term_id'))
         return Response(self.report_service.check_resource_availability(term, d.get('days'), st, et, d.get('exclude_id'), self.scheduling_service))
 
     @action(detail=False, methods=['GET'], url_path='available-slots')

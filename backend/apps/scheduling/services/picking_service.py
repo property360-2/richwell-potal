@@ -13,23 +13,13 @@ class PickingService:
     def validate_picking_period(term):
         """
         Validates that schedule picking is allowed for this term.
-        Checks that sections are generated, published, and inside the dynamic 3-day picking window.
+        Checks that sections are generated and published.
         """
         if not Section.objects.filter(term=term).exists():
             raise ValidationError({'detail': 'Sections have not been generated yet for this term.'})
         
         if not term.schedule_published:
             raise PermissionDenied("Schedule picking is not yet open for this term.")
-
-        if not term.picking_published_at:
-             raise ValidationError({'detail': 'Schedule publication timestamp is missing. Please contact the Dean.'})
-
-        # 3-day countdown (72 hours)
-        now = timezone.now()
-        deadline = term.picking_published_at + timezone.timedelta(days=3)
-
-        if now > deadline:
-            raise PermissionDenied("The manual schedule picking window has closed. You will be automatically assigned to available sections.")
 
     @staticmethod
     def _ensure_student_can_pick(student, term):
@@ -59,13 +49,14 @@ class PickingService:
 
 
     @transaction.atomic
-    def pick_schedule_regular(self, student, term, preferred_session):
+    def pick_schedule_regular(self, student, term, preferred_session, bypass_period_validation=False):
         """
         Assigns a regular student to a section matching their preferred session (AM/PM).
         If preferred session is full, assigns to an alternative session and notifies the student.
         """
         # 0. Validate picking period
-        self.validate_picking_period(term)
+        if not bypass_period_validation:
+            self.validate_picking_period(term)
 
         # 1. Get student's enrollment info
         enrollment = self._ensure_student_can_pick(student, term)
@@ -242,7 +233,8 @@ class PickingService:
         for enrollment in unassigned_enrollments:
             try:
                 # Default to AM, the service will fallback to PM if full
-                self.pick_schedule_regular(enrollment.student, term, 'AM')
+                # Admin bypass: Allow assignment even before the picking period is officially 'open'
+                self.pick_schedule_regular(enrollment.student, term, 'AM', bypass_period_validation=True)
                 assigned_count += 1
             except Exception:
                 # Log or handle full capacity at program/year level

@@ -18,6 +18,8 @@ export const schedulingApi = {
     getSectionCompletion: (termId) => axios.get(`scheduling/section-completion/?term_id=${termId}`),
     getFacultyLoadReport: (termId) => axios.get(`scheduling/faculty-load-report/?term_id=${termId}`),
     getCapacityBottlenecks: (termId) => axios.get(`scheduling/capacity-bottlenecks/?term_id=${termId}`),
+    getSectioningReport: (termId) => axios.get(`scheduling/sectioning-report/?term_id=${termId}`),
+    distributeStudents: (data) => axios.post(`scheduling/distribute-students/`, data),
     validateSlot: (data) => axios.post(`scheduling/validate-slot/`, data),
     getResourceAvailability: (data) => axios.post(`scheduling/resource-availability/`, data),
 };

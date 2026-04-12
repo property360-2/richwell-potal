@@ -7,4 +7,5 @@ export const sectionsApi = {
     getSectionRoster: (id) => axios.get(`sections/${id}/roster/`),
     transferStudent: (id, data) => axios.post(`sections/${id}/transfer/`, data),
     previewGeneration: (data) => axios.post(`sections/preview-generation/`, data),
+    updateSection: (id, data) => axios.patch(`sections/${id}/`, data),
 };

@@ -23,6 +23,15 @@ Default Password
     - 1 Past Term  (2025-2, reference for historical grades)
     - Standard Staff Users (admin, registrar, cashier, dean, programhead)
   All students have is_advising_unlocked=True — ready for sectioning.
+
+## python manage.py seed_bottlenecks       # Capacity & Scheduling testing
+  Generates students with approved advising but NO section assignments:
+    - 1st Year: 15 students
+    - 2nd Year: 20 students
+    - 3rd Year: 30 students
+    - 4th Year: 25 students
+  Total: 90 students (IDN 271001 - 271090)
+  Use this to test the "Capacity Status" widget and re-sync functionality.
   See: docs/manual-sectioning-testing.md for full credential list.
 
     Students (IDN format: 27XXXX):

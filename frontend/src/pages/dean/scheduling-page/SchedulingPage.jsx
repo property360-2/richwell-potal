@@ -95,7 +95,26 @@ const SchedulingPage = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+
+        // Asynchronous Background Refresh: Trigger on window focus
+        const handleFocus = () => {
+            fetchData();
+        };
+        window.addEventListener('focus', handleFocus);
+
+        // Periodic Background Sync (every 2 minutes)
+        const refreshInterval = setInterval(() => {
+            // Only auto-refresh if we are on the LIST view to avoid interrupting MANAGE view edits
+            if (view === 'LIST') {
+                fetchData();
+            }
+        }, 120000);
+
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            clearInterval(refreshInterval);
+        };
+    }, [view]); // Added view dependency to ensure interval logic is correct
 
     const fetchProfDetails = async (profId) => {
         if (!activeTerm) return;
@@ -204,19 +223,19 @@ const SchedulingPage = () => {
         setIsModalOpen(true);
     };
 
-    const onScheduleSuccess = () => {
-        if (selectedProf) fetchProfDetails(selectedProf.id);
-        else if (selectedSection) fetchSectionDetails(selectedSection.id);
+    const onScheduleSuccess = async () => {
+        if (selectedProf) await fetchProfDetails(selectedProf.id);
+        else if (selectedSection) await fetchSectionDetails(selectedSection.id);
     };
 
     const handlePublishSchedule = async () => {
         if (!activeTerm) return;
-        if (!window.confirm('Finalize and notify students? Students will receive a notification that the full timetable (Rooms/Professors) is now ready.')) return;
+        if (!window.confirm('Finalize and notify students? This will make the timetable available for students to view or pick their sections.')) return;
         try {
             setIsPublishing(true);
             await schedulingApi.publish({ term_id: activeTerm.id });
             showToast('success', 'Schedule published successfully.');
-            fetchData();
+            await fetchData();
         } catch (err) {
             showToast('error', err.response?.data?.error || 'Failed to publish');
         } finally {
@@ -257,16 +276,25 @@ const SchedulingPage = () => {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-64"
                             />
-                            <Button 
-                                variant={activeTerm?.schedule_published ? "outline" : "primary"} 
-                                icon={<CheckCircle2 size={16} />} 
-                                loading={isPublishing}
-                                onClick={handlePublishSchedule}
-                                disabled={activeTerm?.schedule_published}
-                            >
-                                {activeTerm?.schedule_published ? 'Finalized' : 'Finalize & Notify'}
-                            </Button>
-                            <Button variant="ghost" icon={<RefreshCw size={16} />} onClick={fetchData}>Sync</Button>
+                            {!activeTerm?.schedule_published ? (
+                                <Button 
+                                    className={styles.finalizeBtn}
+                                    icon={<CheckCircle2 size={18} />} 
+                                    loading={isPublishing}
+                                    onClick={handlePublishSchedule}
+                                >
+                                    Finalize & Notify
+                                </Button>
+                            ) : (
+                                <div className={styles.finalizedBadge}>
+                                    <CheckCircle2 size={18} />
+                                    Finalized
+                                </div>
+                            )}
+                            <div className={styles.syncStatus}>
+                                <div className={styles.syncingPulse}></div>
+                                <span>Background Sync Active</span>
+                            </div>
                         </div>
                     }
                 />
@@ -384,7 +412,7 @@ const SchedulingPage = () => {
                                                 >
                                                     Generate Matrix
                                                 </Button>
-                                                <Button variant="outline" size="lg" className="rounded-xl px-8">Refresh Data</Button>
+                                                <Button variant="outline" size="lg" className="rounded-xl px-8" onClick={fetchData}>Refresh Data</Button>
                                             </div>
                                         </div>
                                     ) : (
@@ -804,8 +832,8 @@ const SchedulingPage = () => {
                 onClose={() => setIsGenerateModalOpen(false)}
                 activeTerm={activeTerm}
                 enrollmentStats={enrollmentStats}
-                onGenerateSuccess={() => {
-                    fetchData();
+                onGenerateSuccess={async () => {
+                    await fetchData();
                     setIsGenerateModalOpen(false);
                 }}
             />

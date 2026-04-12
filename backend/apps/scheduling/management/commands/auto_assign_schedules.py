@@ -19,27 +19,23 @@ class Command(BaseCommand):
     help = 'Automatically assigns students to sections for terms where the picking window has closed.'
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.NOTICE("Checking for terms with expired picking windows..."))
+        self.stdout.write(self.style.NOTICE("Checking for terms requiring manual student assignment..."))
         
-        # Deadlines are 3 days after picking_published_at
-        deadline_cutoff = timezone.now() - timezone.timedelta(days=3)
-        
-        # We only care about active terms where picking was published but the deadline has passed
-        # and where picking is still considered "active" (meaning auto-assignment hasn't fully completed or we want to catch laggards)
-        expired_terms = Term.objects.filter(
+        # We process active terms where the schedule has been published.
+        # This replaces the old 3-day countdown logic with a manual distribution trigger.
+        active_published_terms = Term.objects.filter(
             is_active=True,
-            schedule_published=True,
-            picking_published_at__lte=deadline_cutoff
+            schedule_published=True
         )
 
-        if not expired_terms.exists():
-            self.stdout.write(self.style.SUCCESS("No terms found with expired picking windows."))
+        if not active_published_terms.exists():
+            self.stdout.write(self.style.SUCCESS("No active published terms found requiring assignment."))
             return
 
         picking_service = PickingService()
         
-        for term in expired_terms:
-            self.stdout.write(self.style.WARNING(f"Processing auto-assignment for Term: {term.code}"))
+        for term in active_published_terms:
+            self.stdout.write(self.style.WARNING(f"Processing manual-triggered assignment for Term: {term.code}"))
             try:
                 assigned_count = picking_service.auto_assign_remaining(term)
                 self.stdout.write(self.style.SUCCESS(f"Successfully assigned {assigned_count} students for {term.code}."))

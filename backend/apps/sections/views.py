@@ -10,6 +10,7 @@ import math
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from apps.sections.models import Section, SectionStudent
 from apps.sections.serializers import SectionSerializer, SectionStudentSerializer
 from apps.sections.services.sectioning_service import SectioningService
@@ -64,8 +65,8 @@ class SectionViewSet(viewsets.ModelViewSet):
         """
         Retrieves real-time enrollment statistics for a specific academic term.
         """
-        if not (tid := request.query_params.get('term_id')): return Response({"error": "term_id required"}, 400)
-        return Response(self.service.get_enrollment_stats(Term.objects.get(id=tid)))
+        term = self._get_term(request.query_params.get('term_id'))
+        return Response(self.service.get_enrollment_stats(term))
 
     @action(detail=False, methods=['POST'])
     def generate(self, request):
@@ -73,8 +74,18 @@ class SectionViewSet(viewsets.ModelViewSet):
         Automates the creation of sections for a program and year level based on student counts.
         """
         d = request.data
-        term, prog = Term.objects.get(id=d.get('term_id')), Program.objects.get(id=d.get('program_id'))
-        sections = self.service.generate_sections(term, prog, int(d.get('year_level')), num_sections=int(d.get('num_sections')) if d.get('num_sections') else None, auto_schedule=d.get('auto_schedule', False))
+        term = self._get_term(d.get('term_id'))
+        
+        try:
+            prog = Program.objects.get(id=d.get('program_id'))
+        except (Program.DoesNotExist, ValueError):
+            return Response({"error": "Invalid program_id"}, status=400)
+
+        sections = self.service.generate_sections(
+            term, prog, int(d.get('year_level')), 
+            num_sections=int(d.get('num_sections')) if d.get('num_sections') else None, 
+            auto_schedule=d.get('auto_schedule', False)
+        )
         return Response(self.get_serializer(sections, many=True).data, status=201)
 
     @action(detail=False, methods=['POST'], url_path='preview-generation')
@@ -83,19 +94,47 @@ class SectionViewSet(viewsets.ModelViewSet):
         Provides a preview of how many sections will be generated based on currently approved students.
         """
         d = request.data
-        count = StudentEnrollment.objects.filter(term_id=d.get('term_id'), student__program_id=d.get('program_id'), year_level=d.get('year_level'), advising_status='APPROVED').count()
+        term = self._get_term(d.get('term_id'))
+        
+        count = StudentEnrollment.objects.filter(
+            term=term, 
+            student__program_id=d.get('program_id'), 
+            year_level=d.get('year_level'), 
+            advising_status='APPROVED'
+        ).count()
+        
         num_sections = int(d['desired_sections']) if d.get('desired_sections') else math.ceil(count / 40.0)
-        return Response({"total_students": count, "num_sections": num_sections, "students_per_section": math.ceil(count / num_sections) if num_sections > 0 else 0})
+        return Response({
+            "total_students": count, 
+            "num_sections": num_sections, 
+            "students_per_section": math.ceil(count / num_sections) if num_sections > 0 else 0
+        })
 
     @action(detail=True, methods=['POST'], url_path='transfer')
     def transfer(self, request, pk=None):
         """
         Manually transfers a student from one section to another, with optional capacity overrides.
         """
-        section, sid, tid = self.get_object(), request.data.get('student_id'), request.data.get('term_id')
+        section = self.get_object()
+        term = self._get_term(request.data.get('term_id'))
+        sid = request.data.get('student_id')
+        
         override = request.data.get('override', False) or self.request.user.role == 'PROGRAM_HEAD'
-        count = self.service.manual_transfer_student(Student.objects.get(id=sid), section, Term.objects.get(id=tid), override_capacity=override)
-        return Response({"message": f"Transferred to {section.name}.", "updated": count})
+        try:
+            student = Student.objects.get(id=sid)
+            count = self.service.manual_transfer_student(student, section, term, override_capacity=override)
+            return Response({"message": f"Transferred to {section.name}.", "updated": count})
+        except (Student.DoesNotExist, ValueError):
+            return Response({"error": "Student not found"}, status=404)
+
+    def _get_term(self, term_id):
+        """Helper to get Term or raise 400/404 explicitly."""
+        if not term_id or term_id == 'undefined':
+            raise ValidationError({'error': 'term_id is required and must be a number.'})
+        try:
+            return Term.objects.get(id=term_id)
+        except (Term.DoesNotExist, ValueError):
+            raise ValidationError({'error': f'Term with id {term_id} not found.'})
 
     @action(detail=True, methods=['GET'])
     def roster(self, request, pk=None):

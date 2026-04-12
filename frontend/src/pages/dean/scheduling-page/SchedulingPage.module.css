@@ -798,3 +798,79 @@
 .shake {
     animation-name: shake;
 }
+/* Finalize Action Button - Simplified & Fixed */
+.finalizeBtn {
+    background-color: var(--color-primary);
+    color: white;
+    font-weight: 600;
+    padding: 0 1.25rem;
+    height: 38px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: none;
+    white-space: nowrap;
+    flex-shrink: 0;
+    width: auto;
+    min-width: fit-content;
+}
+
+.finalizeBtn:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.finalizeBtn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.finalizeBtnDisabled {
+    background-color: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.finalizedBadge {
+    background-color: #f0fdf4;
+    color: #15803d;
+    padding: 0 1.25rem;
+    height: 38px;
+    border-radius: 8px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid #dcfce7;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.syncStatus {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: #f8fafc;
+    border-radius: 6px;
+    border: 1px solid #f1f5f9;
+}
+
+.syncingPulse {
+    width: 6px;
+    height: 6px;
+    background: #10b981;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.5; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.5; }
+}

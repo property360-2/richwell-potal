@@ -1,10 +1,11 @@
 import math
 from datetime import time
 from django.db import transaction, models
-from apps.sections.models import Section
+from apps.sections.models import Section, SectionStudent
 from apps.scheduling.models import Schedule
 from apps.students.models import StudentEnrollment
 from apps.academics.models import Subject
+from apps.grades.models import Grade
 
 # AM: 7am to 12pm. PM: 1pm to 6pm
 AM_HOURS = list(range(7, 12))  # [7, 8, 9, 10, 11] -> 7am to 12pm
@@ -131,6 +132,7 @@ class SectioningService:
             allocation_tasks.sort(key=lambda x: x[2], reverse=True)
 
             used_slots = set()
+            # 7. Create/Update Schedule slots
             for subject, component_type, hours in allocation_tasks:
                 allocation = _allocate_slots(used_slots, session, hours) if auto_schedule else None
                 defaults = {'days': [], 'start_time': None, 'end_time': None}
@@ -146,7 +148,69 @@ class SectioningService:
                     defaults=defaults
                 )
         
+        # 8. (DEPRECATED) Automatic assignment has been removed in favor of 
+        # the manual "Distribute Students" trigger in the Dean's dashboard.
+        
         return created_sections
+
+    def _assign_students_to_sections(self, term, program, year_level):
+        """
+        Internal helper to distribute unsectioned students among available slots.
+        """
+        # 1. Get all unsectioned approved students
+        unsectioned_enrollments = StudentEnrollment.objects.filter(
+            term=term,
+            student__program=program,
+            year_level=year_level,
+            advising_status='APPROVED'
+        ).exclude(
+            student__id__in=SectionStudent.objects.filter(term=term).values('student_id')
+        ).select_related('student')
+
+        if not unsectioned_enrollments.exists():
+            return
+
+        # 2. Get all active sections for this cluster
+        sections = Section.objects.filter(
+            term=term,
+            program=program,
+            year_level=year_level,
+            is_active=True
+        ).annotate(
+            current_students=models.Count('student_assignments')
+        ).order_by('section_number')
+
+        # 3. Distribute students
+        sections_list = list(sections)
+        if not sections_list:
+            return
+
+        section_idx = 0
+        for enrollment in unsectioned_enrollments:
+            # Find a section with space
+            attempts = 0
+            while attempts < len(sections_list):
+                target = sections_list[section_idx]
+                if target.current_students < target.max_students:
+                    # Assign!
+                    SectionStudent.objects.get_or_create(
+                        student=enrollment.student,
+                        section=target,
+                        term=term,
+                        defaults={'is_home_section': True}
+                    )
+                    
+                    # Update Grade records
+                    Grade.objects.filter(
+                        student=enrollment.student,
+                        term=term
+                    ).update(section=target)
+                    
+                    target.current_students += 1
+                    break
+                
+                section_idx = (section_idx + 1) % len(sections_list)
+                attempts += 1
 
     @transaction.atomic
     def manual_transfer_student(self, student, target_section, term, override_capacity=False):

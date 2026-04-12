@@ -98,6 +98,9 @@ if config('USE_SQLITE', default=False, cast=bool):
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {
+                'timeout': 20,
+            }
         }
     }
 else:

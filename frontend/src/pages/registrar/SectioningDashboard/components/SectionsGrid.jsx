@@ -1,12 +1,5 @@
-/**
- * SectionsGrid.jsx
- * 
- * Displays a searchable, paginated list of active sections.
- * Each section is represented by a card showing enrollment fulfillment and metadata.
- */
-
-import React from 'react';
-import { LayoutGrid, Users, ChevronRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { LayoutGrid, Users, ChevronRight, Pencil, Check, X } from 'lucide-react';
 import Badge from '../../../../components/ui/Badge';
 import LoadingSpinner from '../../../../components/ui/LoadingSpinner';
 import SearchBar from '../../../../components/shared/SearchBar';
@@ -25,6 +18,7 @@ import styles from '../SectioningDashboard.module.css';
  * @param {Function} props.setSearchTerm - Callback to update search filter
  * @param {Function} props.setPage - Callback to change page
  * @param {Function} props.onOpenRoster - Callback to view section details
+ * @param {Function} props.onUpdateCapacity - Callback to update section capacity
  */
 const SectionsGrid = ({ 
   sections, 
@@ -34,8 +28,41 @@ const SectionsGrid = ({
   totalPages, 
   setSearchTerm, 
   setPage, 
-  onOpenRoster 
+  onOpenRoster,
+  onUpdateCapacity
 }) => {
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [updatingId, setUpdatingId] = useState(null);
+
+  const handleStartEdit = (e, section) => {
+    e.stopPropagation();
+    setEditingId(section.id);
+    setEditValue(section.target_students.toString());
+  };
+
+  const handleCancelEdit = (e) => {
+    e.stopPropagation();
+    setEditingId(null);
+    setEditValue('');
+  };
+
+  const handleSaveEdit = async (e, sectionId) => {
+    e.stopPropagation();
+    const newValue = parseInt(editValue);
+    if (isNaN(newValue) || newValue < 1) return;
+    
+    try {
+      setUpdatingId(sectionId);
+      await onUpdateCapacity(sectionId, newValue);
+      setEditingId(null);
+    } catch (err) {
+      // Error handled by hook/toast
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   return (
     <div className={`${styles.sectionsView} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
       <div className={styles.sectionsHeader}>
@@ -62,17 +89,20 @@ const SectionsGrid = ({
         <>
           <div className={styles.sectionsGrid}>
             {sections.map(section => {
-              const fulfillment = (section.student_count / section.max_students) * 100;
+              const fulfillment = (section.student_count / section.target_students) * 100;
               const barColorClass = 
-                section.student_count >= section.max_students ? styles.progressBarFillLevelDanger :
-                section.student_count > section.target_students ? styles.progressBarFillLevelWarning :
+                section.student_count >= section.target_students ? styles.progressBarFillLevelDanger :
+                section.student_count > (section.target_students * 0.8) ? styles.progressBarFillLevelWarning :
                 styles.progressBarFillLevelNormal;
+
+              const isEditing = editingId === section.id;
+              const isUpdating = updatingId === section.id;
 
               return (
                 <div 
                   key={section.id} 
-                  className={styles.sectionCard}
-                  onClick={() => onOpenRoster(section)}
+                  className={`${styles.sectionCard} ${isEditing ? styles.editingCard : ''}`}
+                  onClick={() => !isEditing && onOpenRoster(section)}
                 >
                   <div className={styles.sectionCardHeader}>
                     <div className={styles.sectionNameBox}>
@@ -89,9 +119,54 @@ const SectionsGrid = ({
                         </span>
                       </div>
                     </div>
-                    <div className={styles.capacityInfo}>
+
+                    <div 
+                      className={`${styles.capacityInfo} ${isEditing ? styles.editingCapacity : ''}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className={styles.currentCount}>{section.student_count}</div>
-                      <div className={styles.maxLabel}>/ {section.target_students}</div>
+                      
+                      {isEditing ? (
+                        <div className={styles.capacityEditForm}>
+                          <span className={styles.maxLabel}>/</span>
+                          <input 
+                            type="number" 
+                            className={styles.capacityInput}
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveEdit(e, section.id);
+                              if (e.key === 'Escape') handleCancelEdit(e);
+                            }}
+                          />
+                          <div className={styles.editActions}>
+                            <button 
+                              className={styles.saveBtn} 
+                              onClick={(e) => handleSaveEdit(e, section.id)}
+                              disabled={isUpdating}
+                            >
+                              {isUpdating ? <LoadingSpinner size="xs" /> : <Check size={12} />}
+                            </button>
+                            <button 
+                              className={styles.cancelBtn} 
+                              onClick={handleCancelEdit}
+                              disabled={isUpdating}
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div 
+                          className={styles.capacityDisplay} 
+                          onClick={(e) => handleStartEdit(e, section)}
+                          title="Click to edit capacity"
+                        >
+                          <div className={styles.maxLabel}>/ {section.target_students}</div>
+                          <Pencil size={12} className={styles.editIcon} />
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -103,7 +178,7 @@ const SectionsGrid = ({
                     <div className={styles.progressBarBg}>
                       <div 
                         className={`${styles.progressBarFill} ${barColorClass}`}
-                        style={{ width: `${fulfillment}%` }}
+                        style={{ width: `${Math.min(fulfillment, 100)}%` }}
                       ></div>
                     </div>
                   </div>

@@ -6,21 +6,25 @@
  */
 
 import React from 'react';
-import { FilePlus } from 'lucide-react';
+import { FilePlus, LayoutGrid } from 'lucide-react';
 import Badge from '../../../../components/ui/Badge';
 import Button from '../../../../components/ui/Button';
 import styles from '../SectioningDashboard.module.css';
 
-/**
- * EnrollmentMatrix Component
- * 
- * @param {Object} props
- * @param {Array} props.programs - List of academic programs
- * @param {Object} props.matrix - Map of counts [programId][yearLevel]
- * @param {Array} props.sections - List of currently generated sections
- * @param {Function} props.onGenerate - Callback to trigger section generation preview
- */
-const EnrollmentMatrix = ({ programs, matrix, sections, onGenerate }) => {
+const EnrollmentMatrix = ({ programMetrics, onGenerate }) => {
+  if (!programMetrics || programMetrics.length === 0) {
+    return (
+      <div className={styles.matrixCard}>
+        <div className={styles.matrixCardHeader}>
+          <h3>Approved Students Matrix</h3>
+        </div>
+        <div className="p-12 text-center text-gray-400">
+          No program data available for this term.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.matrixCard}>
       <div className={styles.matrixCardHeader}>
@@ -38,56 +42,66 @@ const EnrollmentMatrix = ({ programs, matrix, sections, onGenerate }) => {
             </tr>
           </thead>
           <tbody>
-            {programs.map(program => (
-              <tr key={program.id}>
+            {programMetrics.map((prog, pIdx) => (
+              <tr key={prog.program_id}>
                 <td>
                   <div className={styles.programInfo}>
-                    <span className={styles.programCode}>{program.code}</span>
-                    <span className={styles.programName} title={program.name}>{program.name}</span>
+                    <span className={styles.programCode}>{prog.program_code}</span>
+                    <span className={styles.programName} title={prog.program_name}>{prog.program_name}</span>
                   </div>
                 </td>
-                {[1, 2, 3, 4].map(year => {
-                  const count = matrix[program.id]?.[year] || 0;
-                  const existingSections = sections.filter(
-                    s => s.program === program.id && s.year_level === year
-                  );
-                  const isFull = existingSections.some(s => s.student_count >= s.max_students);
-                  
-                  // Calculate required sections based on 40 cap
-                  const requiredSections = Math.ceil(count / 40.0);
-                  const needsMore = count > 0 && existingSections.length < requiredSections;
+                {prog.year_levels.map((yl, yIdx) => {
+                  const shortage = Math.max(0, yl.total_students - yl.total_target);
+                  const enrollmentProgress = yl.total_target > 0 
+                    ? (yl.total_students / yl.total_target) * 100 
+                    : 0;
                   
                   return (
-                    <td key={year}>
-                      <div className={styles.studentCountCell}>
-                        <span className={`${styles.countNumber} ${count === 0 ? styles.zero : ''}`}>
-                          {count}
-                        </span>
+                    <td key={yIdx}>
+                      <div className={styles.matrixCellDetailed}>
+                        <div className={styles.matrixMainCount}>
+                          <span className={`${styles.countNumber} ${yl.total_students === 0 ? styles.zero : ''}`}>
+                            {yl.total_students}
+                          </span>
+                        </div>
                         
-                        {count > 0 && (
-                          <div className="flex flex-col gap-2 items-center">
-                            {existingSections.length > 0 && (
-                              <Badge 
-                                variant={isFull ? "error" : "success"} 
-                                style={{ borderRadius: '20px', fontWeight: 'bold' }}
-                              >
-                                {existingSections.length} {existingSections.length === requiredSections ? (existingSections.length === 1 ? 'BLOCK' : 'BLOCKS') : `/ ${requiredSections} BLOCKS`}
-                              </Badge>
+                        {yl.total_students > 0 && (
+                          <div className={styles.matrixSubInfo}>
+                            {yl.section_count > 0 && (
+                              <div className={`${styles.blockBadge} ${shortage > 0 ? styles.incomplete : ''}`}>
+                                {yl.section_count} {yl.section_count === 1 ? 'BLOCK' : 'BLOCKS'}
+                              </div>
                             )}
                             
-                            {(existingSections.length === 0 || needsMore) && (
-                              <Button 
-                                variant={existingSections.length === 0 ? "primary" : "secondary"}
-                                size="xs" 
-                                style={{ borderRadius: '12px', padding: '2px 8px', fontSize: '9px', fontWeight: 'black' }}
-                                icon={<FilePlus size={10} />}
-                                onClick={() => onGenerate(program.id, year)}
-                              >
-                                {existingSections.length === 0 ? 'GENERATE' : 'RE-GENERATE'}
-                              </Button>
+                            {shortage > 0 && (
+                              <div className={styles.unassignedWarning}>
+                                {shortage} SHORTAGE
+                              </div>
                             )}
+
+                            <div className={styles.generateBtnCompact}>
+                              <Button 
+                                variant={yl.section_count === 0 ? "primary" : "secondary"}
+                                size="xs" 
+                                style={{ borderRadius: '12px', padding: '1px 8px', fontSize: '8px', fontWeight: '900' }}
+                                icon={<FilePlus size={10} />}
+                                onClick={() => onGenerate(prog.program_id, yl.year_level)}
+                              >
+                                {yl.section_count === 0 ? 'GEN' : 'RE-GEN'}
+                              </Button>
+                            </div>
                           </div>
                         )}
+
+                        <div className={styles.matrixCellProgress}>
+                          <div 
+                            className={styles.matrixCellProgressFill}
+                            style={{ 
+                              width: `${Math.min(100, enrollmentProgress)}%`,
+                              backgroundColor: shortage > 0 ? '#ef4444' : '#3b82f6'
+                            }}
+                          />
+                        </div>
                       </div>
                     </td>
                   );

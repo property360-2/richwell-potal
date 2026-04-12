@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { LayoutGrid, Users, RefreshCw } from 'lucide-react';
+import { LayoutGrid, Users, Layers, AlertTriangle, TrendingUp, CheckCircle, Send } from 'lucide-react';
 import PageHeader from '../../../components/shared/PageHeader';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
@@ -21,6 +21,7 @@ import EnrollmentMatrix from './components/EnrollmentMatrix';
 import SectionsGrid from './components/SectionsGrid';
 import RosterModal from './components/RosterModal';
 import TransferModal from './components/TransferModal';
+import MetricCard from './components/MetricCard';
 import SectionPreviewModal from '../components/SectionPreviewModal';
 import CapacityStatusWidget from '../components/CapacityStatusWidget';
 import { useSectioningData } from './hooks/useSectioningData';
@@ -34,10 +35,12 @@ const SectioningDashboard = () => {
   const {
     activeTerm,
     stats,
+    sectioningReport,
     programs,
     sections,
     loading,
     sectionsLoading,
+    actionLoading,
     searchTerm,
     setSearchTerm,
     page,
@@ -45,7 +48,9 @@ const SectioningDashboard = () => {
     totalPages,
     totalCount,
     fetchData,
-    fetchSections
+    fetchSections,
+    distributeStudents,
+    updateSectionCapacity
   } = useSectioningData();
 
   const [mainTab, setMainTab] = useState('matrix');
@@ -80,8 +85,7 @@ const SectioningDashboard = () => {
         num_sections: numSections
       });
       showToast('success', 'Sections generated successfully');
-      fetchData();
-      fetchSections();
+      await Promise.all([fetchData(), fetchSections()]);
     } catch (err) {
       showToast('error', err.response?.data?.error || 'Failed to generate sections');
       throw err;
@@ -98,20 +102,17 @@ const SectioningDashboard = () => {
       );
       if (!confirm) return;
 
-      const results = [];
+      // Process items sequentially for SQLite stability
       for (const item of bottleneckData) {
-        results.push(sectionsApi.generate({
+        await sectionsApi.generate({
           program_id: item.program_id,
           year_level: item.year_level,
           term_id: activeTerm.id,
           auto_schedule: true
-        }));
+        });
       }
-      
-      await Promise.all(results);
       showToast('success', 'Capacity re-sync completed successfully');
-      fetchData();
-      fetchSections();
+      await Promise.all([fetchData(), fetchSections()]);
     } catch (err) {
       showToast('error', 'Failed during bulk re-sync');
     }
@@ -186,14 +187,69 @@ const SectioningDashboard = () => {
     <div className={styles.container}>
       <PageHeader 
         title="Sectioning Dashboard"
-        description="Enrollment Matrix & Automated Section Generation"
+        description="High-level enrollment metrics and automated student distribution."
         badge={<Badge variant="primary" className="ml-2">{activeTerm?.code}</Badge>}
         actions={
-          <Button variant="ghost" className="bg-white border border-slate-200" icon={<RefreshCw size={18} />} onClick={fetchData}>
-            Sync Matrix
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="primary" 
+              icon={Send}
+              loading={actionLoading}
+              disabled={!sectioningReport?.backlog_count}
+              className={sectioningReport?.backlog_count > 0 ? styles.pulseButton : ''}
+              title={
+                !sectioningReport?.backlog_count 
+                  ? "All students are already assigned to sections." 
+                  : actionLoading 
+                    ? "Assignment process is currently running..." 
+                    : "Automatically distribute unassigned students."
+              }
+              onClick={() => {
+                const count = sectioningReport?.backlog_count || 0;
+                if (window.confirm(`System will auto-assign ${count} unassigned students to available sections based on their preferred sessions. Proceed?`)) {
+                  distributeStudents();
+                }
+              }}
+            >
+              Auto-Assign Students
+            </Button>
+          </div>
         }
       />
+
+      {sectioningReport && (
+        <div className={styles.metricGrid}>
+          <MetricCard 
+            title="Total Approved"
+            value={sectioningReport.total_approved}
+            icon={Users}
+            subtitle="Registered for Term"
+            theme="blue"
+          />
+          <MetricCard 
+            title="Total Capacity"
+            value={sectioningReport.total_target_capacity}
+            icon={Layers}
+            subtitle={`${sectioningReport.total_sections} Generated Sections`}
+            theme="teal"
+          />
+          <MetricCard 
+            title="Unassigned Backlog"
+            value={sectioningReport.backlog_count}
+            icon={AlertTriangle}
+            subtitle="Needs Section Assignment"
+            theme="amber"
+            alert={sectioningReport.backlog_count > 0}
+          />
+          <MetricCard 
+            title="Capacity Gap"
+            value={sectioningReport.excess_students}
+            icon={TrendingUp}
+            subtitle={sectioningReport.excess_students > 0 ? "Shortage Detected" : "Sufficient Seats"}
+            theme={sectioningReport.excess_students > 0 ? "purple" : "blue"}
+          />
+        </div>
+      )}
 
       <Tabs 
         activeTab={mainTab}
@@ -215,9 +271,7 @@ const SectioningDashboard = () => {
 
         {mainTab === 'matrix' ? (
           <EnrollmentMatrix 
-            programs={programs}
-            matrix={matrix}
-            sections={sections}
+            programMetrics={sectioningReport?.program_metrics || []}
             onGenerate={handleGenerate}
           />
         ) : (
@@ -230,6 +284,7 @@ const SectioningDashboard = () => {
             setSearchTerm={setSearchTerm}
             setPage={setPage}
             onOpenRoster={handleOpenRoster}
+            onUpdateCapacity={updateSectionCapacity}
           />
         )}
       </div>
