@@ -71,6 +71,76 @@ class ReportService:
         return report
 
     @staticmethod
+    def get_capacity_bottlenecks(term):
+        """
+        Identifies students who are 'APPROVED' for advising but have no section assignment,
+        and compares this demand against available section capacity.
+        
+        @param {Term} term - The academic term to analyze.
+        @returns {list} List of bottleneck objects per program/year.
+        """
+        from apps.students.models import StudentEnrollment
+        from apps.sections.models import Section, SectionStudent
+        from django.db.models import Count, Sum, F
+
+        # 1. Get all students APPROVED for this term
+        approved_enrollments = StudentEnrollment.objects.filter(
+            term=term, 
+            advising_status='APPROVED'
+        ).select_related('student', 'student__program')
+
+        # 2. Find those without a SectionStudent record for this term
+        # We check the existence of SectionStudent for this student AND term
+        waiting_students = []
+        for enrollment in approved_enrollments:
+            has_section = SectionStudent.objects.filter(
+                student=enrollment.student,
+                term=term
+            ).exists()
+            
+            if not has_section:
+                waiting_students.append(enrollment)
+
+        # 3. Group waiting students by Program and Year Level
+        stats = {}
+        for enrollment in waiting_students:
+            key = (enrollment.student.program_id, enrollment.year_level)
+            if key not in stats:
+                stats[key] = {
+                    "program_id": enrollment.student.program_id,
+                    "program_name": enrollment.student.program.name,
+                    "year_level": enrollment.year_level,
+                    "waiting_count": 0,
+                    "available_slots": 0,
+                    "existing_sections_count": 0
+                }
+            stats[key]["waiting_count"] += 1
+
+        # 4. Calculate available slots from existing sections
+        sections = Section.objects.filter(term=term, is_active=True).annotate(
+            current_count=Count('student_assignments')
+        )
+
+        for section in sections:
+            key = (section.program_id, section.year_level)
+            if key in stats:
+                remaining = max(0, section.max_students - section.current_count)
+                stats[key]["available_slots"] += remaining
+                stats[key]["existing_sections_count"] += 1
+
+        # 5. Format the report
+        report = []
+        for key, data in stats.items():
+            deficit = max(0, data["waiting_count"] - data["available_slots"])
+            # Suggest 1 section per 40 students deficit
+            import math
+            data["suggested_new_sections"] = math.ceil(deficit / 40.0) if deficit > 0 else 0
+            data["deficit"] = deficit
+            report.append(data)
+
+        return report
+
+    @staticmethod
     def check_resource_availability(term, days, start_time, end_time, exclude_id, scheduling_service):
         """
         Batch checks availability for all active professors and rooms for a specific time slot.

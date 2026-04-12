@@ -17,6 +17,7 @@ export const schedulingApi = {
     getPendingSlots: (termId) => axios.get(`scheduling/pending-slots/?term_id=${termId}`),
     getSectionCompletion: (termId) => axios.get(`scheduling/section-completion/?term_id=${termId}`),
     getFacultyLoadReport: (termId) => axios.get(`scheduling/faculty-load-report/?term_id=${termId}`),
+    getCapacityBottlenecks: (termId) => axios.get(`scheduling/capacity-bottlenecks/?term_id=${termId}`),
     validateSlot: (data) => axios.post(`scheduling/validate-slot/`, data),
     getResourceAvailability: (data) => axios.post(`scheduling/resource-availability/`, data),
 };

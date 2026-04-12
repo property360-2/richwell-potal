@@ -25,6 +25,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import SectionPreviewModal from './components/SectionPreviewModal';
 import SearchBar from '../../components/shared/SearchBar';
 import Pagination from '../../components/ui/Pagination';
+import CapacityStatusWidget from './components/CapacityStatusWidget';
 
 import './SectioningDashboard.css';
 
@@ -141,9 +142,43 @@ const SectioningDashboard = () => {
       });
       showToast('success', 'Sections generated successfully');
       fetchData();
+      fetchSections(); // Refresh sections list too
     } catch (err) {
       showToast('error', err.response?.data?.error || 'Failed to generate sections');
       throw err;
+    }
+  };
+
+  /**
+   * Automatically resolves all bottlenecks by triggering incremental generation.
+   */
+  const handleResolveBottlenecks = async (bottleneckData) => {
+    try {
+      const confirm = window.confirm(
+        `This will trigger incremental re-sync for ${bottleneckData.length} programs. \n\nContinue?`
+      );
+      if (!confirm) return;
+
+      setLoading(true);
+      for (const item of bottleneckData) {
+        // We trigger generation. Since num_sections is null, 
+        // the backend service will automatically calculate 
+        // the total number of sections needed to cover the count.
+        await sectionsApi.generate({
+          program_id: item.program_id,
+          year_level: item.year_level,
+          term_id: activeTerm.id,
+          auto_schedule: true // Try to auto-schedule empty slots
+        });
+      }
+      
+      showToast('success', 'Capacity re-sync completed successfully');
+      fetchData();
+      fetchSections();
+    } catch (err) {
+      showToast('error', 'Failed during bulk re-sync');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -273,6 +308,13 @@ const SectioningDashboard = () => {
       />
 
       <div className="tab-content animate-in fade-in duration-300">
+        <div className="mb-8 max-w-2xl">
+          <CapacityStatusWidget 
+            termId={activeTerm?.id} 
+            onResolveNeeded={handleResolveBottlenecks}
+          />
+        </div>
+
         {mainTab === 'matrix' ? (
           /* Enrollment Matrix Card */
           <div className="matrix-card">

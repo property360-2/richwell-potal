@@ -22,6 +22,7 @@ import SectionsGrid from './components/SectionsGrid';
 import RosterModal from './components/RosterModal';
 import TransferModal from './components/TransferModal';
 import SectionPreviewModal from '../components/SectionPreviewModal';
+import CapacityStatusWidget from '../components/CapacityStatusWidget';
 import { useSectioningData } from './hooks/useSectioningData';
 
 import styles from './SectioningDashboard.module.css';
@@ -80,9 +81,39 @@ const SectioningDashboard = () => {
       });
       showToast('success', 'Sections generated successfully');
       fetchData();
+      fetchSections();
     } catch (err) {
       showToast('error', err.response?.data?.error || 'Failed to generate sections');
       throw err;
+    }
+  };
+
+  /**
+   * Automatically resolves all bottlenecks by triggering incremental generation.
+   */
+  const handleResolveBottlenecks = async (bottleneckData) => {
+    try {
+      const confirm = window.confirm(
+        `This will trigger incremental re-sync for ${bottleneckData.length} programs. \n\nContinue?`
+      );
+      if (!confirm) return;
+
+      const results = [];
+      for (const item of bottleneckData) {
+        results.push(sectionsApi.generate({
+          program_id: item.program_id,
+          year_level: item.year_level,
+          term_id: activeTerm.id,
+          auto_schedule: true
+        }));
+      }
+      
+      await Promise.all(results);
+      showToast('success', 'Capacity re-sync completed successfully');
+      fetchData();
+      fetchSections();
+    } catch (err) {
+      showToast('error', 'Failed during bulk re-sync');
     }
   };
 
@@ -175,6 +206,13 @@ const SectioningDashboard = () => {
       />
 
       <div className="tab-content animate-in fade-in duration-300">
+        <div className="mb-8 max-w-2xl">
+          <CapacityStatusWidget 
+            termId={activeTerm?.id} 
+            onResolveNeeded={handleResolveBottlenecks}
+          />
+        </div>
+
         {mainTab === 'matrix' ? (
           <EnrollmentMatrix 
             programs={programs}

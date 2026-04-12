@@ -40,7 +40,7 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         """
         Dynamically applies Dean-only permissions for writing and administrative actions.
         """
-        dean_actions = ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish', 'randomize', 'pending_slots', 'section_completion', 'faculty_load_report', 'validate_slot', 'resource_availability', 'available_slots', 'professor_insights', 'room_insights', 'section_insights']
+        dean_actions = ['create', 'update', 'partial_update', 'destroy', 'assign', 'publish', 'randomize', 'pending_slots', 'section_completion', 'faculty_load_report', 'capacity_bottlenecks', 'validate_slot', 'resource_availability', 'available_slots', 'professor_insights', 'room_insights', 'section_insights']
         if self.action in dean_actions:
             from core.permissions import IsDean
             return [IsDean()]
@@ -144,13 +144,17 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         SchedulingService.publish_schedule(term)
         return Response({"message": f"Schedule Published for {term.code}"})
 
-    @action(detail=False, methods=['GET'], url_path='faculty-load-report')
-    def faculty_load_report(self, request):
+    @action(detail=False, methods=['GET'], url_path='capacity-bottlenecks')
+    def capacity_bottlenecks(self, request):
         """
-        Reporting: Faculty loading analytics.
+        Reporting: Capacity bottlenecks (students without slots).
         """
-        term = Term.objects.get(id=request.query_params.get('term_id'))
-        return Response(self.report_service.get_faculty_load_report(term))
+        term_id = request.query_params.get('term_id')
+        if not term_id:
+            return Response({"error": "term_id required"}, status=400)
+        
+        term = Term.objects.get(id=term_id)
+        return Response(self.report_service.get_capacity_bottlenecks(term))
 
     @action(detail=False, methods=['POST'], url_path='validate-slot')
     def validate_slot(self, request):

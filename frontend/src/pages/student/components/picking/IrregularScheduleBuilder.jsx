@@ -1,28 +1,22 @@
 import React from 'react';
 import { 
   BookOpen, 
-  Users, 
   CheckCircle2, 
   AlertTriangle, 
   ChevronRight, 
   Clock,
-  Layers
+  Zap,
+  Info
 } from 'lucide-react';
 import Badge from '../../../../components/ui/Badge';
 import Button from '../../../../components/ui/Button';
+import { getScheduleConflict } from '../../../../utils/conflictDetector';
 
 /**
- * IrregularScheduleBuilder — Native CSS Glassmorphic Builder
+ * IrregularScheduleBuilder
  * 
- * Provides irregular students with a visual catalog of approved subjects 
- * and available sections using a robust native CSS layout.
- * 
- * @param {Array} approvedGrades - List of subjects approved for enrollment
- * @param {Object} subjectSections - Mapping of subject IDs to available sections
- * @param {Object} selectedSections - Currently selected sections
- * @param {Boolean} isProcessing - Loading state for confirmation
- * @param {Function} onSelectSection - Callback when a section is picked
- * @param {Function} onConfirm - Callback to finalize the schedule
+ * A compact, information-dense tabular interface for irregular student schedule selection.
+ * Uses inline "Schedule Pills" for ultra-fast, 1-click selection.
  */
 const IrregularScheduleBuilder = ({ 
   approvedGrades, 
@@ -32,6 +26,7 @@ const IrregularScheduleBuilder = ({
   onSelectSection, 
   onConfirm 
 }) => {
+  // Derived stats
   const selectionCount = Object.keys(selectedSections).length;
   const isComplete = selectionCount === approvedGrades.length;
   
@@ -44,173 +39,220 @@ const IrregularScheduleBuilder = ({
       acc + (curr.subject_details?.total_units || 0) : acc;
   }, 0);
 
+  /**
+   * Helper to get schedules of all CURRENTLY selected sections
+   * Used for conflict checking against a candidate section.
+   */
+  const getSelectedSchedulesMap = () => {
+    const map = {};
+    Object.entries(selectedSections).forEach(([subjectId, sectionId]) => {
+      const section = (subjectSections[subjectId] || []).find(s => s.id === sectionId);
+      if (section && section.subject_schedules) {
+        map[subjectId] = section.subject_schedules;
+      }
+    });
+    return map;
+  };
+
+  const selectedSchedulesMap = getSelectedSchedulesMap();
+
   return (
-    <div className="animate-slide-up relative">
-      {/* Floating Progress Tracker */}
-      <div className="floating-tracker glass-card sp-card-content animate-fade-in">
-          <div className="flex items-center justify-between mb-4">
-             <div className="flex items-center gap-3">
-                <div className="sp-icon-box mb-0 active" style={{ width: 44, height: 44 }}>
-                   <Layers size={20} className="text-white" />
-                </div>
-                <div>
-                   <h5 className="text-2xs font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Building</h5>
-                   <p className="text-xs font-black text-slate-900 uppercase">Registration</p>
-                </div>
+    <div className="animate-slide-up pb-32">
+      {/* Header Info */}
+      <div className="sp-section-header flex justify-between items-end mb-8">
+        <div>
+           <div className="flex items-center gap-2 mb-2">
+             <div className="p-1 px-3 bg-indigo-500 rounded-full">
+                <span className="text-3xs font-black text-white uppercase tracking-widest">Irregular Mode</span>
              </div>
-             <div className="text-right">
-                <div className="text-xl font-black text-indigo-600 leading-none">
-                 {Math.round((selectionCount / approvedGrades.length) * 100) || 0}%
-                </div>
-                <div className="text-3xs font-black text-slate-400 uppercase tracking-widest mt-1">Complete</div>
-             </div>
-          </div>
-
-          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-6">
-             <div 
-               className="h-full bg-indigo-500 transition-all duration-700 ease-out" 
-               style={{ width: `${(selectionCount / approvedGrades.length) * 100}%` }}
-             ></div>
-          </div>
-
-          <div className="space-y-3 mb-8">
-             <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500 font-bold uppercase tracking-widest">Subjects Picked</span>
-                <span className="text-slate-900 font-black">{selectionCount} / {approvedGrades.length}</span>
-             </div>
-             <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500 font-bold uppercase tracking-widest">Selected Units</span>
-                <span className="text-slate-900 font-black">{selectedUnits} / {totalUnits}</span>
-             </div>
-          </div>
-
-          <Button 
-             className="sp-btn-premium w-full"
-             loading={isProcessing}
-             disabled={!isComplete}
-             onClick={onConfirm}
-           >
-             Finalize Timetable
-             <ChevronRight size={14} className="ml-2" />
-          </Button>
-      </div>
-
-      {/* Subject Catalog List */}
-      <div className="sp-section-header">
-        <h3 className="text-slate-800">Section Configuration</h3>
-        <p className="text-slate-500">Select one section for each of your approved subjects below.</p>
-      </div>
-
-      <div className="sp-subject-list">
-        {approvedGrades.map((grade, idx) => {
-          const sections = subjectSections[grade.subject] || [];
-          const selectedSectionId = selectedSections[grade.subject];
-          const isSelected = selectedSectionId !== undefined;
-
-          return (
-            <div 
-              key={grade.id} 
-              className={`subject-card glass-card mb-6 animate-slide-up ${isSelected ? 'active' : ''}`}
-              style={{ 
-                animationDelay: `${idx * 0.05}s`,
-                borderLeft: isSelected ? '4px solid var(--picking-accent)' : '4px solid #e2e8f0'
-              }}
-            >
-              <div className="sp-card-content">
-                <div className="flex flex-col md:flex-row gap-8">
-                   {/* Left: Subject Info */}
-                   <div className="md:w-1/3">
-                      <div className="flex items-center gap-3 mb-4">
-                         <div className={`sp-icon-box mb-0 ${isSelected ? 'active' : ''}`} style={{ width: 48, height: 48 }}>
-                            <BookOpen size={24} />
-                         </div>
-                         <div>
-                            <span className="text-2xs font-black text-indigo-500 uppercase tracking-widest leading-none mb-1 block">
-                              {grade.subject_details?.code}
-                            </span>
-                            <h4 className="text-lg font-black text-slate-900 italic tracking-tighter leading-tight">
-                              {grade.subject_details?.description}
-                            </h4>
-                         </div>
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-2">
-                         <Badge variant="secondary">
-                            {grade.subject_details?.total_units} Units
-                         </Badge>
-                         {isSelected && (
-                           <Badge variant="default">
-                             <CheckCircle2 size={10} className="mr-1" /> VALIDATED
-                           </Badge>
-                         )}
-                      </div>
-                   </div>
-
-                   {/* Right: Section Grid */}
-                   <div className="flex-1">
-                      <div className="flex items-center justify-between mb-4">
-                         <span className="text-2xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                           <Users size={12} className="text-indigo-400" /> Slot Availability
-                         </span>
-                         {isSelected && (
-                           <span className="text-2xs font-black text-indigo-500 uppercase tracking-widest">
-                             Selected: {sections.find(s => s.id === selectedSectionId)?.name}
-                           </span>
-                         )}
-                      </div>
-
-                      {sections.length > 0 ? (
-                        <div className="sp-selection-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
-                          {sections.map((section) => {
-                            const isSectionSelected = selectedSectionId === section.id;
-                            const isFull = section.student_count >= section.max_students;
-
-                            return (
-                              <button
-                                key={section.id}
-                                disabled={isFull}
-                                onClick={() => onSelectSection(grade.subject, section.id)}
-                                className={`section-capsule glass-card p-4 text-left transition-all relative
-                                  ${isSectionSelected ? 'active' : isFull ? 'disabled' : ''}`}
-                                style={{ border: isSectionSelected ? '2px solid var(--picking-accent)' : '1px solid #e2e8f0' }}
-                              >
-                                {isSectionSelected && (
-                                  <div className="absolute top-3 right-3 text-indigo-500">
-                                    <CheckCircle2 size={14} />
-                                  </div>
-                                )}
-                                <div className="flex justify-between items-center mb-2">
-                                   <span className={`text-xs font-black uppercase tracking-widest ${isSectionSelected ? 'text-indigo-600' : 'text-slate-900'}`}>
-                                     {section.name}
-                                   </span>
-                                   <Badge variant={section.session === 'AM' ? 'secondary' : 'default'} style={{ fontSize: '8px', padding: '2px 6px' }}>
-                                     {section.session}
-                                   </Badge>
-                                </div>
-                                <div className="space-y-1">
-                                   <div className="flex items-center gap-1.5 text-2xs text-slate-400 font-bold whitespace-nowrap overflow-hidden text-ellipsis">
-                                      <Clock size={10} /> {section.time_display || 'Sched TBA'}
-                                   </div>
-                                   <div className={`text-3xs font-black uppercase ${isFull ? 'text-red-500' : 'text-slate-500'}`}>
-                                      {section.student_count} / {section.max_students} Slots
-                                   </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                           <AlertTriangle size={24} className="text-amber-400 mb-2 opacity-50" />
-                           <p className="text-2xs font-black text-slate-400 uppercase tracking-widest">No matching sections available</p>
-                        </div>
-                      )}
-                   </div>
-                </div>
+             <span className="text-2xs font-black text-slate-400 uppercase tracking-widest">Section Selection</span>
+           </div>
+           <h3 className="text-slate-800 italic tracking-tighter">Academic Palette</h3>
+           <p className="text-slate-500 text-sm">Select a schedule pill for each subject. Conflicting times are automatically disabled.</p>
+        </div>
+        
+        <div className="hidden lg:flex gap-4">
+           <div className="flex flex-col items-end">
+              <span className="text-3xs font-black text-slate-400 uppercase tracking-widest">Enrollment Progress</span>
+              <div className="flex items-center gap-2">
+                 <div className="text-lg font-black text-slate-900">{selectionCount}<span className="text-slate-300 mx-1">/</span>{approvedGrades.length}</div>
+                 <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-indigo-500" 
+                      style={{ width: `${(selectionCount / approvedGrades.length) * 100}%` }}
+                    />
+                 </div>
               </div>
-            </div>
-          );
-        })}
+           </div>
+        </div>
+      </div>
+
+      <div className="ir-container">
+        <table className="ir-table">
+          <thead>
+            <tr>
+              <th style={{ width: '35%' }}>Subject & Description</th>
+              <th style={{ width: '10%' }}>Units</th>
+              <th style={{ width: '45%' }}>Available Schedules</th>
+              <th style={{ width: '10%' }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {approvedGrades.map((grade, idx) => {
+              const sections = subjectSections[grade.subject] || [];
+              const selectedSectionId = selectedSections[grade.subject];
+              const isSelected = selectedSectionId !== undefined;
+
+              return (
+                <tr 
+                  key={grade.id} 
+                  className={`ir-subject-row ${isSelected ? 'selected' : ''}`}
+                  style={{ animationDelay: `${idx * 0.05}s` }}
+                >
+                  {/* Subject Column */}
+                  <td>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${isSelected ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 rotate-6' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
+                        {isSelected ? <CheckCircle2 size={24} /> : <BookOpen size={22} />}
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md">
+                            {grade.subject_details?.code}
+                          </span>
+                        </div>
+                        <div className="text-base font-extrabold text-slate-800 leading-tight tracking-tight">
+                          {grade.subject_details?.description}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Units Column */}
+                  <td>
+                    <Badge variant="secondary" className="px-3 font-black bg-slate-100 text-slate-600">
+                      {grade.subject_details?.total_units} U
+                    </Badge>
+                  </td>
+
+                  {/* Schedule Pills Column */}
+                  <td className="py-2">
+                    {sections.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {sections.map(section => {
+                          const isSectionSelected = selectedSectionId === section.id;
+                          const isFull = section.student_count >= section.max_students;
+                          
+                          // Conflict detection
+                          const conflict = getScheduleConflict(
+                            section.subject_schedules, 
+                            selectedSchedulesMap, 
+                            grade.subject
+                          );
+
+                          // Determine Pill Styling
+                          let pillClasses = "px-3 py-2 border rounded-xl text-xs transition-all duration-200 text-left flex flex-col gap-1 ";
+                          
+                          if (isSectionSelected) {
+                            pillClasses += "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200 scale-[1.02] active";
+                          } else if (isFull) {
+                            pillClasses += "bg-rose-50 border-rose-200 text-slate-400 opacity-60 cursor-not-allowed grayscale";
+                          } else if (conflict) {
+                            pillClasses += "bg-slate-50 border-dashed border-red-300 text-slate-400 opacity-60 cursor-not-allowed";
+                          } else {
+                            pillClasses += "bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:shadow-sm cursor-pointer hover:-translate-y-0.5";
+                          }
+
+                          return (
+                            <button 
+                              key={section.id}
+                              className={pillClasses}
+                              disabled={isFull || conflict}
+                              onClick={() => onSelectSection(grade.subject, section.id)}
+                            >
+                              <div className="flex items-center gap-1.5 font-black uppercase tracking-tight">
+                                {isSectionSelected ? <CheckCircle2 size={12} className="text-white"/> : <Clock size={12} className={conflict ? 'text-red-400' : 'text-slate-400'}/>}
+                                <span>{section.time_display || 'TBA'}</span>
+                              </div>
+                              <div className="flex justify-between items-center w-full gap-3 mt-0.5">
+                                 <span className={`text-[10px] font-bold ${isSectionSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                   SEC {section.name}
+                                 </span>
+                                 <span className={`text-[9px] font-black uppercase ${isSectionSelected ? 'text-white' : isFull ? 'text-rose-500' : conflict ? 'text-red-500' : 'text-indigo-400'}`}>
+                                   {isFull ? 'FULL' : conflict ? 'CONFLICT' : `${section.max_students - section.student_count} Slots`}
+                                 </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-amber-500 text-xs font-bold bg-amber-50 px-3 py-2 border border-amber-100 rounded-lg inline-flex">
+                        <AlertTriangle size={14} /> No Schedules Available
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Status Column */}
+                  <td>
+                    {isSelected ? (
+                      <Badge variant="default" className="bg-indigo-100 text-indigo-700 font-black border-0">
+                        ADDED
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-400 font-bold border-0">
+                        WAITING
+                      </Badge>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Sticky Footer Tracker */}
+      <div className="ir-sticky-footer">
+        <div className="flex items-center gap-8">
+           <div className="footer-stat">
+              <span className="footer-stat-label">Subjects</span>
+              <span className="footer-stat-value">{selectionCount} / {approvedGrades.length}</span>
+           </div>
+           
+           <div className="footer-divider" />
+           
+           <div className="footer-stat">
+              <span className="footer-stat-label">Units</span>
+              <span className="footer-stat-value">{selectedUnits} / {totalUnits}</span>
+           </div>
+
+           <div className="footer-divider" />
+
+           <div className="hidden md:flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${isComplete ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                 {isComplete ? <CheckCircle2 size={20} /> : <Zap size={20} />}
+              </div>
+              <div>
+                 <div className="text-xs font-black text-white uppercase tracking-widest leading-none mb-1">
+                    {isComplete ? 'Verified' : 'In Progress'}
+                 </div>
+                 <div className="text-2xs text-slate-400 font-bold uppercase tracking-widest">
+                    {isComplete ? 'Ready to Finalize' : `Finish ${approvedGrades.length - selectionCount} more`}
+                 </div>
+              </div>
+           </div>
+        </div>
+
+        <Button 
+          className="sp-btn-premium h-14 px-10"
+          loading={isProcessing}
+          disabled={!isComplete}
+          onClick={onConfirm}
+        >
+          Finalize Timetable
+          <ChevronRight size={16} className="ml-2" />
+        </Button>
       </div>
     </div>
   );

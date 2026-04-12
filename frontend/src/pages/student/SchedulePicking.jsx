@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Info } from 'lucide-react';
+import { ShieldCheck, Info, Clock } from 'lucide-react';
 import api from '../../api/axios';
 import { schedulingApi } from '../../api/scheduling';
 import useCountdown from '../../hooks/useCountdown';
@@ -53,17 +53,25 @@ const SchedulePicking = () => {
 
       const { data: enrollData } = await api.get(`students/enrollments/me/?term=${term.id}`);
       setEnrollment(enrollData);
-      const { data: gradesRes } = await api.get(`grades/advising/?term=${term.id}&advising_status=APPROVED`);
-      setApprovedGrades(gradesRes.results || []);
+      
+      // Fetch: only approved, non-credited subjects for this term. 
+      // page_size=100 ensures we don't miss subjects due to pagination.
+      const { data: gradesRes } = await api.get(`grades/advising/?term=${term.id}&advising_status=APPROVED&is_credited=false&page_size=100`);
+      const filteredApproved = gradesRes.results || gradesRes; // Handle paginated or non-paginated response
+      
+      setApprovedGrades(filteredApproved);
 
       if (enrollData) {
         if (enrollData.is_regular) {
           const { data: matrix } = await schedulingApi.getStatusMatrix({ term_id: term.id, program_id: enrollData.student_details?.program, year_level: enrollData.year_level });
           setSectionsMatrix(matrix || []);
         } else {
-          const sectionRes = await Promise.all(gradesRes.results.map(g => api.get(`sections/?term_id=${term.id}&subject_id=${g.subject}`)));
+          // Fetch sections only for the filtered list of subjects
+          const sectionRes = await Promise.all(filteredApproved.map(g => api.get(`sections/?term_id=${term.id}&subject_id=${g.subject}`)));
           const sectionsMap = {};
-          gradesRes.results.forEach((g, i) => sectionsMap[g.subject] = sectionRes[i].data.results || sectionRes[i].data);
+          filteredApproved.forEach((g, i) => {
+            sectionsMap[g.subject] = sectionRes[i].data.results || sectionRes[i].data;
+          });
           setSubjectSections(sectionsMap);
         }
       }

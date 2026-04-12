@@ -591,7 +591,7 @@
 .subject-card {
     border-radius: 2rem;
 }
-/* Countdown Banner Styling — Dynamic Glassmorphism */
+/* Countdown Banner Styling  Dynamic Glassmorphism */
 .countdown-banner {
     background: white;
     border: 1px solid #e2e8f0;
@@ -632,5 +632,215 @@
     .countdown-banner {
         padding: 1.5rem;
         border-radius: 2rem;
+    }
+}
+
+/* Irregular Student Tabular Layout */
+.ir-container {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(20px);
+    border-radius: 2.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    padding: 2.5rem;
+    box-shadow: var(--shadow-2xl);
+    overflow: hidden;
+}
+
+.ir-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 1.25rem;
+}
+
+.ir-table th {
+    text-align: left;
+    padding: 1.5rem 2.5rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-slate-400);
+}
+
+.ir-subject-row {
+    background: white;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.ir-subject-row td {
+    padding: 2.5rem 2.5rem;
+    vertical-align: middle;
+    border-top: 1px solid #f8fafc;
+    border-bottom: 1px solid #f8fafc;
+}
+
+.ir-subject-row td:first-child {
+    border-left: 1px solid #f8fafc;
+    border-radius: 2.25rem 0 0 2.25rem;
+}
+
+.ir-subject-row td:last-child {
+    border-right: 1px solid #f8fafc;
+    border-radius: 0 2.25rem 2.25rem 2.25rem;
+}
+
+.ir-subject-row:hover {
+    transform: translateY(-4px) scale(1.002);
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+}
+
+.ir-subject-row.selected {
+    background: #fcfdff;
+    border: 2px solid var(--picking-accent);
+}
+
+/* Selection Popover */
+.section-select-trigger {
+    width: 100%;
+    min-width: 200px;
+    padding: 0.75rem 1.25rem;
+    background: #f1f5f9;
+    border: 2px solid transparent;
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    color: var(--color-slate-700);
+    transition: all 0.2s ease;
+}
+
+.section-select-trigger:hover:not(.disabled) {
+    background: white;
+    border-color: var(--picking-accent);
+    box-shadow: var(--shadow-sm);
+}
+
+.section-select-trigger.active {
+    background: white;
+    border-color: var(--picking-accent);
+    color: var(--picking-accent);
+}
+
+.section-popover {
+    position: absolute;
+    width: 320px;
+    background: white;
+    border-radius: 1.5rem;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15);
+    border: 1px solid #e2e8f0;
+    z-index: 100;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.section-option {
+    padding: 1rem;
+    border-radius: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 0.25rem;
+}
+
+.section-option:hover:not(.disabled) {
+    background: #f1f5f9;
+}
+
+.section-option.conflict {
+    opacity: 0.5;
+    filter: grayscale(1);
+    cursor: not-allowed;
+}
+
+.section-option.selected {
+    background: var(--picking-accent);
+    color: white !important;
+}
+
+.section-option.selected .option-slots {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Slot Badges */
+.slot-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.slot-badge.full {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+.slot-badge.available {
+    background: #dcfce7;
+    color: #22c55e;
+}
+
+/* Sticky Footer Summary */
+.ir-sticky-footer {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 4rem);
+    max-width: 1200px;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 2rem;
+    padding: 1.5rem 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 99;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    animation: slideUpFooter 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.footer-stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.footer-stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-slate-400);
+    font-weight: 800;
+}
+
+.footer-stat-value {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: white;
+}
+
+.footer-divider {
+    width: 1px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slideUpFooter {
+    from { transform: translate(-50%, 100px); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+    .ir-sticky-footer {
+        flex-direction: column;
+        gap: 1.5rem;
+        padding: 2rem;
+        bottom: 1rem;
+        width: calc(100% - 2rem);
+    }
+    
+    .footer-divider {
+        display: none;
     }
 }
